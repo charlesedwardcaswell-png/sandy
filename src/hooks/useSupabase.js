@@ -89,12 +89,13 @@ export function useCharacters() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createCharacter = async (charData) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('characters')
       .insert({ ...charData, game_id: GAME_ID })
       .select()
       .single();
-    setCharacters(prev => [...prev, data]);
+    if (error) { console.error('createCharacter error:', error); return null; }
+    if (data) setCharacters(prev => [...prev, data]);
     return data;
   };
 
@@ -154,12 +155,13 @@ export function useNPCs() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createNPC = async (npcData) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('npcs')
       .insert({ ...npcData, game_id: GAME_ID })
       .select()
       .single();
-    setNpcs(prev => [...prev, data]);
+    if (error) { console.error('createNPC error:', error); return null; }
+    if (data) setNpcs(prev => [...prev, data]);
     return data;
   };
 
@@ -403,4 +405,55 @@ export function useGroupInventory() {
   };
 
   return { inventory, loading, updateInventory };
+}
+
+// ── Session Log ───────────────────────────────────────────────────────────────
+export function useSessionLog() {
+  const [sessionLog, setSessionLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('game_id', GAME_ID)
+      .eq('is_active', false)
+      .order('session_number', { ascending: false });
+    setSessionLog(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { sessionLog, loading, refetch: fetch };
+}
+
+// ── Game passwords ─────────────────────────────────────────────────────────────
+export function useGamePasswords() {
+  const [playerPassword, setPlayerPassword] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('games')
+      .select('player_password')
+      .eq('id', GAME_ID)
+      .single();
+    setPlayerPassword(data?.player_password || '');
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  const savePlayerPassword = async (pw) => {
+    await supabase
+      .from('games')
+      .update({ player_password: pw })
+      .eq('id', GAME_ID);
+    setPlayerPassword(pw);
+  };
+
+  return { playerPassword, loading, savePlayerPassword };
 }

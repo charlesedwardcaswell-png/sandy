@@ -1,56 +1,111 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import { AuthScreen } from './components/AuthScreen';
 import { Loading } from './components/UI';
 import CharacterTab from './components/CharacterTab';
 import EncounterTab from './components/EncounterTab';
 import MapTab from './components/MapTab';
-import { useCharacters, useActiveSession, useNPCs, useQuests, useMapPins, useFactionReputation, useEncounterLog, useGroupInventory } from './hooks/useSupabase';
-import { GAME_ID, FACTIONS_DATA } from './data/constants';
+import NPCTab from './components/NPCTab';
+import QuestTab from './components/QuestTab';
+import PartyTab from './components/PartyTab';
+import LogTab from './components/LogTab';
+import SessionEndModal from './components/SessionEndModal';
+import {
+  useCharacters, useActiveSession, useNPCs, useQuests,
+  useMapPins, useFactionReputation, useEncounterLog,
+  useGroupInventory, useSessionLog,
+} from './hooks/useSupabase';
 
 export default function App() {
-  const [authMode, setAuthMode] = useState(null);
+  const [authMode, setAuthMode] = useState(null); // null | 'gm' | 'player' | 'observer'
   const isGM = authMode === 'gm';
   const isObserver = authMode === 'observer';
-  const myCharId = authMode && authMode !== 'gm' && authMode !== 'observer' ? authMode : null;
+  const isPlayer = authMode === 'player';
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter } = useCharacters();
   const { session, loading: sessLoading, startSession, endSession } = useActiveSession();
-  const { npcs } = useNPCs();
-  const { quests } = useQuests(session?.id);
-  const { pins, loading: pinsLoading, createPin, updatePin, deletePin } = useMapPins();
+  const { npcs, createNPC, updateNPC } = useNPCs();
+  const { quests, createQuest, updateQuest } = useQuests(session?.id);
+  const { pins, createPin, updatePin, deletePin } = useMapPins();
   const { reps, updateRep } = useFactionReputation();
   const { log: encounterLog, addEntry: addEncounterEntry } = useEncounterLog();
   const { inventory, updateInventory } = useGroupInventory();
+  const { sessionLog, refetch: refetchSessionLog } = useSessionLog();
 
   const [encounter, setEncounter] = useState({
     state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] },
     combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1,
   });
 
+  const [skillLog, setSkillLog] = useState({});
+  const logSkillUse = (skillName) => {
+    setSkillLog(prev => ({
+      ...prev,
+      [skillName]: { session: (prev[skillName]?.session || 0) + 1, total: (prev[skillName]?.total || 0) + 1 },
+    }));
+  };
+
   const [tab, setTab] = useState('character');
   const [isPCView, setIsPCView] = useState(false);
-  const [pcPasswords, setPcPasswords] = useState({});
+  const [showSessionEnd, setShowSessionEnd] = useState(false);
+
+  const safeChars = characters.filter(Boolean);
 
   if (!authMode) {
-    return <AuthScreen characters={characters} onGMLogin={() => setAuthMode('gm')} onPCLogin={id => setAuthMode(id)} onObserver={() => setAuthMode('observer')} />;
+    return (
+      <AuthScreen
+        onGMLogin={() => setAuthMode('gm')}
+        onPlayerLogin={() => setAuthMode('player')}
+        onObserver={() => setAuthMode('observer')}
+      />
+    );
   }
 
   if (charsLoading || sessLoading) return <Loading message="Loading game data..." />;
 
   const encActive = encounter.state === 'active';
-  const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
-  const sessionNum = session?.session_number || 1;
+  const sessionNum = session?.session_number || (sessionLog.length > 0 ? Math.max(...sessionLog.map(s => s.session_number || 0)) + 1 : 1);
+  const gmView = isGM && !isPCView;
 
   const handleUpdateChar = async (id, updates) => { await updateCharacter(id, updates); };
   const handleCreateChar = async (charData) => { await createCharacter(charData); };
   const handleDeleteChar = async (id) => { await deleteCharacter(id); };
-  const handleSessionEnd = async () => { if (session) await endSession(session.id); };
+
+  const handleSessionEnd = async ({ xpAmount, xpReason, selectedCharIds, recap }) => {
+    if (xpAmount > 0) {
+      for (const charId of selectedCharIds) {
+        const c = characters.find(x => x.id === charId);
+        if (!c) continue;
+        const newLog = [...(c.xp_log || []), { amount: xpAmount, reason: xpReason, session: sessionNum }];
+        await updateCharacter(charId, { xp_total: (c.xp_total || 0) + xpAmount, xp_log: newLog });
+      }
+    }
+    if (session) await endSession(session.id, JSON.stringify(recap));
+    setSkillLog({});
+    setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0 }));
+    setShowSessionEnd(false);
+    refetchSessionLog();
+  };
+
+  const parsedSessionLog = sessionLog.map(s => {
+    let recap = {};
+    try { recap = JSON.parse(s.recap || '{}'); } catch { recap = {}; }
+    return { ...s, recap };
+  });
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log'];
 
   return (
     <div className="app">
+      {showSessionEnd && (
+        <SessionEndModal
+          session={session}
+          characters={safeChars}
+          onConfirm={handleSessionEnd}
+          onClose={() => setShowSessionEnd(false)}
+        />
+      )}
+
       <div className="hdr">
         <span className="hdr-title">LBS</span>
         <span style={{ color: 'var(--border)' }}>·</span>
@@ -62,8 +117,8 @@ export default function App() {
             <input type="checkbox" checked={isPCView} onChange={e => setIsPCView(e.target.checked)} /> PC View
           </label>
         )}
-        <span className={`role-badge ${isGM && !isPCView ? 'role-gm' : 'role-pl'}`}>
-          {isGM && !isPCView ? 'GM' : isObserver ? 'Observer' : myChar?.name || 'Player'}
+        <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
+          {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
         <button className="btn btn-sm" onClick={() => setAuthMode(null)}>
           <i className="ti ti-logout" style={{ fontSize: 10 }} /> Logout
@@ -80,7 +135,7 @@ export default function App() {
             ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession(sessionNum)}>
                 <i className="ti ti-player-play" style={{ fontSize: 10 }} /> Start Session {sessionNum}
               </button>
-            : <button className="btn btn-sm btn-d" onClick={handleSessionEnd}>
+            : <button className="btn btn-sm btn-d" onClick={() => setShowSessionEnd(true)}>
                 <i className="ti ti-player-stop" style={{ fontSize: 10 }} /> End Session → Archive
               </button>
           }
@@ -100,26 +155,25 @@ export default function App() {
         {tab === 'character' && (
           <CharacterTab
             isGM={isGM} isPCView={isPCView}
-            characters={characters}
+            isPlayer={isPlayer}
+            characters={safeChars}
             onUpdateCharacter={handleUpdateChar}
             onCreateCharacter={handleCreateChar}
             onDeleteCharacter={handleDeleteChar}
-            myCharId={myCharId}
-            pcPasswords={pcPasswords}
-            setPcPasswords={setPcPasswords}
+            onCreateNPC={createNPC}
           />
         )}
         {tab === 'encounter' && (
           <EncounterTab
             isGM={isGM} isPCView={isPCView}
-            characters={characters}
-            myCharId={myCharId}
+            characters={safeChars}
             session={session}
             encounter={encounter}
             setEncounter={setEncounter}
             npcsFromLog={npcs.filter(n => n.is_visible_to_players || isGM)}
             onUpdateCharacter={handleUpdateChar}
             onAddEncounterEntry={addEncounterEntry}
+            onLogSkill={logSkillUse}
           />
         )}
         {tab === 'map' && (
@@ -131,11 +185,43 @@ export default function App() {
             onDeletePin={deletePin}
           />
         )}
-        {!['character','encounter','map'].includes(tab) && (
-          <div className="card">
-            <div className="card-title">{tab.charAt(0).toUpperCase() + tab.slice(1)} Tab</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Being built — coming soon</div>
-          </div>
+        {tab === 'npc' && (
+          <NPCTab
+            isGM={isGM} isPCView={isPCView}
+            npcs={npcs}
+            reps={reps}
+            onUpdateNPC={updateNPC}
+            onUpdateRep={updateRep}
+            encounter={encounter}
+            setEncounter={setEncounter}
+          />
+        )}
+        {tab === 'quest' && (
+          <QuestTab
+            isGM={isGM} isPCView={isPCView}
+            session={session}
+            quests={quests}
+            onCreateQuest={createQuest}
+            onUpdateQuest={updateQuest}
+            inventory={inventory}
+            onUpdateInventory={updateInventory}
+          />
+        )}
+        {tab === 'party' && (
+          <PartyTab
+            isGM={isGM} isPCView={isPCView}
+            characters={safeChars}
+            reps={reps}
+            inventory={inventory}
+            encounterLog={encounterLog}
+          />
+        )}
+        {tab === 'log' && (
+          <LogTab
+            encounterLog={encounterLog}
+            sessionLog={parsedSessionLog}
+            skillLog={skillLog}
+          />
         )}
       </div>
     </div>

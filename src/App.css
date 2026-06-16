@@ -143,7 +143,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 .opt-btn.sel { border-color: var(--gold); color: var(--gold); background: rgba(200,150,42,.1); }
 
 /* ── Map ── */
-.map-con { position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; height: 600px; background: #1a1008; }
+.map-con { position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: 100%; background: #1a1008; }
 .layer-tog { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .layer-btn { padding: 4px 12px; font-size: 11px; cursor: pointer; background: transparent; color: var(--text-muted); border: none; font-family: inherit; transition: all .15s; }
 .layer-btn.active { background: var(--gold); color: #1a1208; font-weight: 600; }
@@ -231,6 +231,9 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 /* ── Player slots ── */
 .player-slot { border: 1px solid var(--border); border-radius: 5px; padding: .55rem .75rem; margin-bottom: .4rem; background: var(--bg-panel); display: flex; align-items: center; gap: .75rem; }
 .player-slot.empty { border-style: dashed; opacity: .6; }
+
+/* ── Quest status — carried over ── */
+.q-carried { background: rgba(100,80,160,.2); color: #a090e0; border: 1px solid rgba(100,80,160,.4); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; }

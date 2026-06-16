@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Loading, Empty } from './UI';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, myCharId, pcPasswords, setPcPasswords }) {
-  const [view, setView] = useState('sheet'); // 'sheet' | 'create' | 'players'
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, playerPassword, onSavePlayerPassword }) {
+  const [view, setView] = useState('sheet'); // 'sheet' | 'create' | 'npc' | 'players'
   const [selId, setSelId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [showDel, setShowDel] = useState(0);
@@ -15,24 +15,37 @@ export default function CharacterTab({ isGM, isPCView, characters, onUpdateChara
   // Set initial selection
   useEffect(() => {
     if (characters.length > 0 && !selId) {
-      setSelId(myCharId || characters[0].id);
+      setSelId(characters[0].id);
     }
-  }, [characters, myCharId, selId]);
+  }, [characters, selId]);
 
-  // Player sees their own character or creation
-  if (!isGM) {
-    const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
-    if (!myChar) {
-      return (
-        <div>
-          <div style={{ marginBottom: '1rem', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Create Your Character</div>
-          <CharacterCreation onComplete={async (charData) => {
-            await onCreateCharacter({ ...charData, pc_password: '' });
-          }} />
-        </div>
-      );
-    }
-    return <CharacterSheet char={myChar} isGM={false} canEdit={false} onUpdate={onUpdateCharacter} />;
+  // Player view — see all characters, edit any (honour system)
+  if (!isGM && !isPCView) {
+    return (
+      <div>
+        {characters.length === 0 ? (
+          <div>
+            <div style={{ marginBottom: '1rem', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>No characters yet.</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>The GM will create characters, or ask your GM to give you access.</div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)}>
+                {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              </select>
+            </div>
+            {selId && characters.find(c => c.id === selId) && (
+              <CharacterSheet
+                char={characters.find(c => c.id === selId)}
+                isGM={false} canEdit={true}
+                onUpdate={onUpdateCharacter}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // GM view
@@ -49,6 +62,11 @@ export default function CharacterTab({ isGM, isPCView, characters, onUpdateChara
           <button className={`btn btn-sm ${view === 'create' ? 'btn-p' : ''}`} onClick={() => setView('create')}>
             <i className="ti ti-plus" style={{ fontSize: 10 }} /> New PC
           </button>
+          {onCreateNPC && (
+            <button className={`btn btn-sm ${view === 'npc' ? 'btn-p' : ''}`} onClick={() => setView('npc')}>
+              <i className="ti ti-user-bolt" style={{ fontSize: 10 }} /> New NPC
+            </button>
+          )}
           <button className={`btn btn-sm ${view === 'players' ? 'btn-p' : ''}`} onClick={() => setView('players')}>
             <i className="ti ti-users" style={{ fontSize: 10 }} /> Players
           </button>
@@ -88,8 +106,15 @@ export default function CharacterTab({ isGM, isPCView, characters, onUpdateChara
         }} onCancel={() => setView('sheet')} />
       )}
 
+      {view === 'npc' && onCreateNPC && (
+        <NPCQuickCreate onComplete={async (npcData) => {
+          await onCreateNPC(npcData);
+          setView('sheet');
+        }} onCancel={() => setView('sheet')} />
+      )}
+
       {view === 'players' && (
-        <PlayerManagement characters={characters} pcPasswords={pcPasswords} setPcPasswords={setPcPasswords} />
+        <PlayerManagement playerPassword={playerPassword} onSavePlayerPassword={onSavePlayerPassword} />
       )}
     </div>
   );
@@ -683,45 +708,206 @@ function CharacterCreation({ onComplete, onCancel }) {
 }
 
 // ── Player Management ─────────────────────────────────────────────────────────
-function PlayerManagement({ characters, pcPasswords, setPcPasswords }) {
-  const [newLabel, setNewLabel] = useState('');
-  const [newPw, setNewPw] = useState('');
+function PlayerManagement({ playerPassword, onSavePlayerPassword }) {
+  const [pw, setPw] = useState(playerPassword || '');
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    await onSavePlayerPassword(pw);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>Player Access</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Create a slot and share the password with your player. They enter it at the login screen.
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.5rem' }}>Player Access</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+        Set a single password for all players. Share it with your group. Anyone who enters it logs in as a Player and can see all characters and edit any of them — trust your players to only touch their own.
       </div>
 
-      {characters.map(c => (
-        <div key={c.id} className="player-slot">
-          <div style={{ width: 34, height: 34, borderRadius: 4, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-            <CharacterSilhouette school={c.school} size={24} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{c.name}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.school} · {c.faction}</div>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>pw: <span style={{ fontFamily: 'monospace' }}>{c.pc_password || '—'}</span></div>
-          <span style={{ fontSize: 9, color: 'var(--green)' }}>● active</span>
+      <div className="card">
+        <div className="card-title">Player Password</div>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={pw}
+            onChange={e => { setPw(e.target.value); setSaved(false); }}
+            placeholder="Set player password..."
+            style={{ flex: 1 }}
+            onKeyDown={e => e.key === 'Enter' && save()}
+          />
+          <button className="btn btn-p" onClick={save}>
+            {saved ? '✓ Saved' : 'Save'}
+          </button>
         </div>
-      ))}
-
-      <div className="card" style={{ marginTop: '1rem' }}>
-        <div className="card-title">Create Player Slot</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-          <input placeholder="Slot label (e.g. Player 2 — Warrior)" value={newLabel} onChange={e => setNewLabel(e.target.value)} style={{ width: '100%' }} />
-          <input type="text" placeholder="Set character password" value={newPw} onChange={e => setNewPw(e.target.value)} style={{ width: '100%' }} />
-          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Note: Character passwords are set during character creation. Use this for pre-assigning login access before a player builds their character.</div>
-        </div>
+        {playerPassword && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.5rem' }}>
+            Current password: <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{playerPassword}</span>
+          </div>
+        )}
       </div>
 
       <div className="card">
         <div className="card-title">GM Password</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Current: <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>gm1234</span></div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.25rem' }}>Change in <code>src/data/constants.js</code> → GM_PASSWORD</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          Current: <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>gm1234</span>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.25rem' }}>
+          Change in <code>src/data/constants.js</code> → GM_PASSWORD
+        </div>
       </div>
     </div>
   );
 }
+
+// ── NPC Quick Create ──────────────────────────────────────────────────────────
+// GM-only. Pick faction → school → rank → name → save to NPC log.
+function NPCQuickCreate({ onComplete, onCancel }) {
+  const [faction, setFaction] = useState('');
+  const [school, setSchool] = useState('');
+  const [rank, setRank] = useState(1);
+  const [name, setName] = useState('');
+  const [gmNotes, setGmNotes] = useState('');
+  const [visible, setVisible] = useState(false);
+
+  const schools = faction ? (FACTION_SCHOOLS[faction] || []) : [];
+  const sd = SCHOOL_DATA[school] || null;
+  const maxRank = school ? (SAHIR_SCHOOLS_LIST.includes(school) ? 8 : 5) : 5;
+
+  // Derive default name from school + rank
+  const defaultName = school ? `${school} — Rank ${rank}` : '';
+
+  const submit = async () => {
+    const npcName = name.trim() || defaultName;
+    if (!faction || !school || !npcName) return;
+    await onComplete({
+      game_id: GAME_ID,
+      faction,
+      name: npcName,
+      school,
+      rank,
+      is_visible_to_players: visible,
+      gm_notes: gmNotes,
+      player_notes: '',
+    });
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+        Quick Add NPC to Log
+      </div>
+
+      {/* Faction */}
+      <div style={{ marginBottom: '.75rem' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>Faction</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+          {Object.keys(FACTION_SCHOOLS).map(f => (
+            <button
+              key={f}
+              className={`btn btn-sm ${faction === f ? 'btn-p' : ''}`}
+              onClick={() => { setFaction(f); setSchool(''); setRank(1); setName(''); }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* School */}
+      {faction && (
+        <div style={{ marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>School</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+            {schools.map(s => (
+              <button
+                key={s}
+                className={`btn btn-sm ${school === s ? 'btn-p' : ''}`}
+                onClick={() => { setSchool(s); setRank(1); setName(''); }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rank + stat preview */}
+      {school && (
+        <>
+          <div style={{ marginBottom: '.75rem' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>Rank</div>
+            <div style={{ display: 'flex', gap: '.3rem' }}>
+              {Array.from({ length: maxRank }, (_, i) => i + 1).map(r => (
+                <button key={r} className={`btn btn-sm ${rank === r ? 'btn-p' : ''}`} onClick={() => setRank(r)}>
+                  R{r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stat preview */}
+          {sd && (
+            <div style={{ background: 'var(--bg-dark)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 5, padding: '.6rem .75rem', marginBottom: '.75rem', fontSize: 11 }}>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '.3rem' }}>
+                <span><span style={{ color: 'var(--text-muted)' }}>Type:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.type}</span></span>
+                <span><span style={{ color: 'var(--text-muted)' }}>Integrity:</span> <span style={{ color: 'var(--gold)' }}>{sd.integrity}</span></span>
+                <span><span style={{ color: 'var(--text-muted)' }}>+1 Trait:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.bonus_trait}</span></span>
+              </div>
+              <div style={{ marginBottom: '.3rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Rank {rank} Technique: </span>
+                <span style={{ color: 'var(--gold-dim)' }}>{sd.techniques?.[rank] || '—'}</span>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Skills: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{sd.skills?.join(', ')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Name */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>Name (leave blank for generic)</div>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={defaultName}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* GM Notes */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.08em' }}>GM Notes (private)</div>
+            <textarea
+              rows={2}
+              value={gmNotes}
+              onChange={e => setGmNotes(e.target.value)}
+              placeholder="Motivations, secrets, plot hooks..."
+              style={{ width: '100%', resize: 'vertical' }}
+            />
+          </div>
+
+          <label className="chk-row" style={{ marginBottom: '1rem' }}>
+            <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} />
+            Reveal to players immediately
+          </label>
+
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button className="btn btn-p" onClick={submit}>Add to NPC Log</button>
+            <button className="btn" onClick={onCancel}>Cancel</button>
+          </div>
+        </>
+      )}
+
+      {!faction && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '1rem' }}>
+          Select a faction to begin.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Need GAME_ID for NPCQuickCreate (already imported above)
+const SAHIR_SCHOOLS_LIST = SAHIR_SCHOOLS;
