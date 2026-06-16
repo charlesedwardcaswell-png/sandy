@@ -1,0 +1,3 @@
+git add .
+git commit -m "v8 - NPC tab, Quest tab, Party tab, Log tab, map pins, auth"
+git push
