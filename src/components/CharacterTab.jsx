@@ -5,12 +5,21 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } fro
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword }) {
-  const [view, setView] = useState('sheet'); // 'sheet' | 'create' | 'npc' | 'players'
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump }) {
+  const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [showDel, setShowDel] = useState(0);
   const [addEq, setAddEq] = useState('');
+
+  // Jump to a specific character (e.g. from NPC tab)
+  useEffect(() => {
+    if (jumpToCharId && characters.find(c => c.id === jumpToCharId)) {
+      setSelId(jumpToCharId);
+      setView('sheet');
+      if (onClearJump) onClearJump();
+    }
+  }, [jumpToCharId, characters, onClearJump]);
 
   // Set initial selection
   useEffect(() => {

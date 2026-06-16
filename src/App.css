@@ -167,8 +167,8 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 .rep-btn { width: 18px; height: 18px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; font-family: inherit; line-height: 1; }
 
 /* ── Quests ── */
-.qitem { border: 1px solid var(--border); border-radius: 5px; margin-bottom: .4rem; overflow: hidden; }
-.qhdr { display: flex; align-items: center; gap: .6rem; padding: .55rem .75rem; background: var(--bg-panel); }
+.qitem { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 5px; margin-bottom: .4rem; overflow: hidden; }
+.qhdr { display: flex; align-items: center; gap: .4rem; padding: .45rem .75rem; background: var(--bg-panel); flex-wrap: wrap; }
 .qstat { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: .06em; }
 .q-active { background: rgba(74,138,64,.2); color: #6aba60; border: 1px solid var(--green-dim); }
 .q-complete { background: rgba(107,78,40,.3); color: var(--text-muted); border: 1px solid var(--border); }

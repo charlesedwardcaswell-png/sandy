@@ -282,7 +282,7 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpdateRep, encounter, setEncounter }) {
+export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpdateRep, encounter, setEncounter, onViewCharacter }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const encActive = encounter?.state === 'active';
@@ -386,6 +386,13 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                       <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</span>
                       {n.player_notes && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}
                       {gmView && <span style={{ fontSize: 9, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}
+                      {n.character_id && onViewCharacter && (
+                        <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 5px' }}
+                          onClick={e => { e.stopPropagation(); onViewCharacter(n.character_id); }}
+                          title="View full character sheet">
+                          <i className="ti ti-user" style={{ fontSize: 9 }} />
+                        </button>
+                      )}
                       {encActive && (
                         <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); handleAddToEncounter(n); }}>+Enc</button>

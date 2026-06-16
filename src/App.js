@@ -74,6 +74,7 @@ export default function App() {
   const [tab, setTab] = useState('character');
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
+  const [viewCharId, setViewCharId] = useState(null); // char to highlight when navigating from NPC tab
 
   // My character — stored in localStorage, player picks once
   const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
@@ -163,7 +164,7 @@ export default function App() {
     return result;
   };
 
-  const handleSessionEnd = async ({ xpAmount, xpReason, selectedCharIds, recap }) => {
+  const handleSessionEnd = async ({ xpAmount, xpReason, selectedCharIds, copperAward, recap }) => {
     if (xpAmount > 0) {
       for (const charId of selectedCharIds) {
         const c = characters.find(x => x.id === charId);
@@ -173,6 +174,10 @@ export default function App() {
       }
       const names = selectedCharIds.map(id => characters.find(c => c.id === id)?.name).filter(Boolean).join(', ');
       push('ti-star', `${xpAmount} XP granted to ${names || 'selected characters'} — ${xpReason}`);
+    }
+    if (copperAward > 0) {
+      await updateInventory({ copper: (inventory.copper || 0) + copperAward });
+      push('ti-coin', `${copperAward} copper added to party treasury`);
     }
     if (session) await endSession(session.id, JSON.stringify(recap));
     push('ti-books', `Session ${sessionNum} archived`);
@@ -197,6 +202,7 @@ export default function App() {
         <SessionEndModal
           session={session}
           characters={safeChars}
+          encounterLog={encounterLog}
           onConfirm={handleSessionEnd}
           onClose={() => setShowSessionEnd(false)}
         />
@@ -259,6 +265,8 @@ export default function App() {
             onCreateNPC={handleCreateNPC}
             myCharId={myCharId}
             onClaimCharacter={claimCharacter}
+            jumpToCharId={viewCharId}
+            onClearJump={() => setViewCharId(null)}
           />
         )}
         {tab === 'encounter' && (
@@ -293,6 +301,7 @@ export default function App() {
             onUpdateRep={handleUpdateRep}
             encounter={encounter}
             setEncounter={handleSetEncounter}
+            onViewCharacter={(charId) => { setViewCharId(charId); setTab('character'); }}
           />
         )}
         {tab === 'quest' && (
