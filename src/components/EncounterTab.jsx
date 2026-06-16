@@ -60,24 +60,35 @@ function generateGroup(setting, difficulty) {
 // ── Combatant Card ────────────────────────────────────────────────────────────
 function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceChange, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget }) {
   const isNPC = c.type === 'npc';
-  const isMyTurn = isActive && c.id === myCharId;
+  const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
 
+  const cardClass = [
+    'combat-card',
+    isNPC ? 'npc-card' : 'pc-card',
+    isMyChar ? 'my-char' : '',
+    isActive ? 'active-turn' : '',
+    targeting === c.id ? 'targeted' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`combat-card ${isActive ? 'active-turn' : ''} ${targeting === c.id ? 'targeted' : ''}`}>
+    <div className={cardClass}>
       {/* Top row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', background: isActive ? 'rgba(200,150,42,.1)' : 'var(--bg-mid)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderBottom: '1px solid var(--border)', background: isActive ? 'rgba(200,150,42,.08)' : 'transparent' }}>
+        <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : isNPC ? '#8a3030' : '#4a8a40'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
           <Silhouette type={getArchetype(c.school) || (isNPC ? 'warrior' : 'warrior')} size={isActive ? 28 : 22} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {c.name}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.name}
+            </div>
+            {isMyChar && !isActive && <span style={{ fontSize: 8, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 3, padding: '0 3px' }}>YOU</span>}
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isNPC ? `${c.faction || ''} · ${c.physical || ''}` : c.school}
+            {isNPC ? (c.sub || c.school || '') : c.school}
           </div>
           <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: 9, padding: '1px 5px', border: `1px solid ${wColor}55`, borderRadius: 3, color: wColor, background: wColor + '20', fontWeight: 600 }}>{wLabel}</span>
@@ -518,8 +529,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
           {/* Enemies */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '1px solid var(--border)', marginBottom: '.4rem' }}>
-              Enemies ({enemies.length})
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-skull" style={{ fontSize: 11 }} /> Enemies ({enemies.length})
             </div>
             {enemies.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.5rem' }}>No enemies</div>}
             {enemies.map(c => (
@@ -563,8 +574,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
           {/* Party */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '1px solid var(--border)', marginBottom: '.4rem' }}>
-              Party ({party.length})
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-shield" style={{ fontSize: 11 }} /> Party ({party.length})
             </div>
             {party.map(c => (
               <CombatantCard key={c.id} c={c}

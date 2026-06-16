@@ -91,9 +91,9 @@ export default function PCTurnPanel({ combatant, character, enemies, onRoll, onS
       position: 'sticky', bottom: 0, zIndex: 20,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold)' }}>
-          <i className="ti ti-bolt" style={{ marginRight: 4 }} />Your Turn
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>
+          <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character.name} — Your Turn
         </div>
         {woundRank >= 3 && (
           <div style={{ fontSize: 10, padding: '2px 7px', border: '1px solid var(--red-dim)', borderRadius: 3, color: 'var(--red)', background: 'rgba(200,64,48,.1)' }}>
@@ -101,38 +101,47 @@ export default function PCTurnPanel({ combatant, character, enemies, onRoll, onS
           </div>
         )}
         {/* Stance selector */}
-        <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
           {STANCES.map(s => (
             <button key={s}
               className={`opt-btn ${combatant.stance === s ? 'sel' : ''}`}
-              style={{ fontSize: 10, padding: '2px 7px' }}
+              style={{ fontSize: 11, padding: '4px 10px' }}
               onClick={() => onStanceChange(s)}
             >
-              {s === 'Full Attack' ? 'F.Atk' : s === 'Full Defense' ? 'F.Def' : s}
+              {s === 'Full Attack' ? 'F.Attack' : s === 'Full Defense' ? 'F.Defense' : s}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
-        <button className={`btn btn-sm ${selectedAction === 'attack' ? 'btn-p' : ''}`}
-          onClick={() => { setSelectedAction('attack'); setSelectedSkill(null); }}>
-          ⚔ Attack
-        </button>
-        <button className={`btn btn-sm ${selectedAction === 'skill' ? 'btn-p' : ''}`}
-          onClick={() => { setSelectedAction('skill'); setSelectedSkill(null); }}>
-          <i className="ti ti-list" style={{ fontSize: 10 }} /> Use Skill
-        </button>
-        <button className="btn btn-sm" onClick={() => { setSelectedAction('draw'); }}>
-          Draw Weapon
-        </button>
-        <button className="btn btn-sm" onClick={() => { setSelectedAction('defend'); onStanceChange('Full Defense'); }}>
-          Full Defense
-        </button>
-        <button className="btn btn-sm" onClick={() => { setSelectedAction(null); onPass(); }}>
-          Pass
-        </button>
+      {/* Primary action buttons — large and clear */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+        {[
+          { id: 'attack',  icon: 'ti-sword',        label: 'Attack',       color: '#c84030' },
+          { id: 'skill',   icon: 'ti-list-check',   label: 'Use Skill',    color: 'var(--gold)' },
+          { id: 'draw',    icon: 'ti-hand-stop',    label: 'Draw Weapon',  color: 'var(--text-secondary)' },
+          { id: 'defend',  icon: 'ti-shield',       label: 'Full Defense', color: '#4a8a40' },
+          { id: 'pass',    icon: 'ti-player-skip-forward', label: 'Pass Turn', color: 'var(--text-muted)' },
+        ].map(action => (
+          <button key={action.id}
+            onClick={() => {
+              if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
+              else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
+              else { setSelectedAction(action.id); setSelectedSkill(null); }
+            }}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: '.3rem', padding: '.6rem .25rem',
+              background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
+              border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
+              borderRadius: 6, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
+              color: selectedAction === action.id ? action.color : 'var(--text-secondary)',
+            }}
+          >
+            <i className={`ti ${action.icon}`} style={{ fontSize: 18, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+            <span style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Attack action - target + weapon skill */}

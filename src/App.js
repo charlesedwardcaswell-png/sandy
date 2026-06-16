@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import { AuthScreen } from './components/AuthScreen';
 import { Loading } from './components/UI';
@@ -24,7 +24,7 @@ export default function App() {
   const isPlayer = authMode === 'player';
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter } = useCharacters();
-  const { session, loading: sessLoading, startSession, endSession } = useActiveSession();
+  const { session, loading: sessLoading, startSession, endSession, saveEncounter } = useActiveSession();
   const { npcs, createNPC, updateNPC } = useNPCs();
   const { quests, createQuest, updateQuest } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
@@ -37,6 +37,25 @@ export default function App() {
     state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] },
     combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1,
   });
+
+  // Load encounter state from session when session loads or changes
+  useEffect(() => {
+    if (session?.encounter_data) {
+      setEncounter(session.encounter_data);
+    } else if (session && !session.encounter_data) {
+      setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1 });
+    }
+  }, [session?.id, session?.encounter_data]);
+
+  // Debounced save — write to Supabase 800ms after last change
+  const saveTimer = useRef(null);
+  const saveEncounterDebounced = useCallback((state) => {
+    if (!session?.id) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveEncounter(session.id, state);
+    }, 800);
+  }, [session?.id, saveEncounter]);
 
   const [skillLog, setSkillLog] = useState({});
   const logSkillUse = (skillName) => {
@@ -130,34 +149,43 @@ export default function App() {
     }
     if (session) await endSession(session.id, JSON.stringify(recap));
     push('ti-books', `Session ${sessionNum} archived`);
+    clearTimeout(saveTimer.current);
     setSkillLog({});
     setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0 }));
     setShowSessionEnd(false);
     refetchSessionLog();
   };
 
-  // Wrapped setEncounter that fires ticker on key transitions
-  const handleSetEncounter = (updater) => {
+  // My character — stored in localStorage, player picks once
+  const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
+  const claimCharacter = (id) => {
+    localStorage.setItem('sandy_my_char_id', id);
+    setMyCharId(id);
+    const char = characters.find(c => c.id === id);
+    if (char) push('ti-user-check', `Playing as ${char.name}`);
+  };
+
+  // Wrapped setEncounter — fires ticker; only GM saves to Supabase
+  const handleSetEncounter = useCallback((updater) => {
     setEncounter(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      // Encounter started
       if (prev.state !== 'active' && next.state === 'active') {
         setTimeout(() => push('ti-swords', `Encounter started: ${next.setup?.name || next.setup?.type || 'Combat'}`), 0);
       }
-      // Encounter ended
       if (prev.state === 'active' && next.state === 'idle') {
         setTimeout(() => push('ti-flag', 'Encounter ended'), 0);
       }
-      // Turn advanced — fire for PC turns
       if (next.state === 'active' && next.activeTurn !== prev.activeTurn) {
         const active = next.combatants[next.activeTurn % Math.max(1, next.combatants.length)];
         if (active?.type === 'pc') {
           setTimeout(() => push('ti-bolt', `${active.name}'s turn`), 0);
         }
       }
+      // Only GM writes to Supabase — prevents feedback loops
+      if (isGM) saveEncounterDebounced(next);
       return next;
     });
-  };
+  }, [saveEncounterDebounced, isGM]);
 
   const parsedSessionLog = sessionLog.map(s => {
     let recap = {};
@@ -233,12 +261,15 @@ export default function App() {
             onCreateCharacter={handleCreateChar}
             onDeleteCharacter={handleDeleteChar}
             onCreateNPC={handleCreateNPC}
+            myCharId={myCharId}
+            onClaimCharacter={claimCharacter}
           />
         )}
         {tab === 'encounter' && (
           <EncounterTab
             isGM={isGM} isPCView={isPCView}
             characters={safeChars}
+            myCharId={myCharId}
             session={session}
             encounter={encounter}
             setEncounter={handleSetEncounter}

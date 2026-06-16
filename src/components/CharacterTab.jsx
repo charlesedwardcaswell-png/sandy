@@ -5,7 +5,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } fro
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, playerPassword, onSavePlayerPassword }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword }) {
   const [view, setView] = useState('sheet'); // 'sheet' | 'create' | 'npc' | 'players'
   const [selId, setSelId] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -35,15 +35,28 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
 
     return (
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
+        <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
           {characters.length > 0 && (
-            <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)}>
+            <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)} style={{ flex: 1 }}>
               {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
             </select>
           )}
           <button className="btn btn-sm btn-p" onClick={() => setView('create')}>
             <i className="ti ti-plus" style={{ fontSize: 10 }} /> New Character
           </button>
+          {selId && onClaimCharacter && (
+            <button
+              className={`btn btn-sm ${myCharId === selId ? 'btn-p' : ''}`}
+              onClick={() => onClaimCharacter(selId)}
+              title="Mark this as your character — your card will be highlighted in encounters"
+              style={myCharId === selId ? {} : { borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
+            >
+              {myCharId === selId
+                ? <><i className="ti ti-user-check" style={{ fontSize: 10 }} /> My Character</>
+                : <><i className="ti ti-user-question" style={{ fontSize: 10 }} /> Claim as Mine</>
+              }
+            </button>
+          )}
         </div>
         {characters.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>

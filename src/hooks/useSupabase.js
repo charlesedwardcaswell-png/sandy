@@ -49,6 +49,22 @@ export function useActiveSession() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  // Real-time subscription — keeps all clients in sync when encounter_data changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('session_sync')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `game_id=eq.${GAME_ID}`,
+      }, payload => {
+        if (payload.new?.is_active) setSession(payload.new);
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
   const startSession = async (sessionNumber) => {
     const { data } = await supabase
       .from('sessions')
@@ -62,12 +78,20 @@ export function useActiveSession() {
   const endSession = async (sessionId, recap = '') => {
     await supabase
       .from('sessions')
-      .update({ is_active: false, closed_at: new Date().toISOString(), recap })
+      .update({ is_active: false, closed_at: new Date().toISOString(), recap, encounter_data: null })
       .eq('id', sessionId);
     setSession(null);
   };
 
-  return { session, loading, startSession, endSession, refetch: fetch };
+  const saveEncounter = async (sessionId, encounterState) => {
+    if (!sessionId) return;
+    await supabase
+      .from('sessions')
+      .update({ encounter_data: encounterState })
+      .eq('id', sessionId);
+  };
+
+  return { session, loading, startSession, endSession, saveEncounter, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
