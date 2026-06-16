@@ -65,7 +65,7 @@ export default function App() {
     }));
   };
 
-  const [ticker, setTicker] = useState([]); // [{id, icon, text, ts}]
+  const [ticker, setTicker] = useState([]);
   const push = (icon, text) => {
     const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date() };
     setTicker(prev => [entry, ...prev].slice(0, 20));
@@ -74,6 +74,30 @@ export default function App() {
   const [tab, setTab] = useState('character');
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
+
+  // My character — stored in localStorage, player picks once
+  const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
+
+  // Wrapped setEncounter — fires ticker; only GM saves to Supabase
+  const handleSetEncounter = useCallback((updater) => {
+    setEncounter(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (prev.state !== 'active' && next.state === 'active') {
+        setTimeout(() => push('ti-swords', `Encounter started: ${next.setup?.name || next.setup?.type || 'Combat'}`), 0);
+      }
+      if (prev.state === 'active' && next.state === 'idle') {
+        setTimeout(() => push('ti-flag', 'Encounter ended'), 0);
+      }
+      if (next.state === 'active' && next.activeTurn !== prev.activeTurn) {
+        const active = next.combatants[next.activeTurn % Math.max(1, next.combatants.length)];
+        if (active?.type === 'pc') {
+          setTimeout(() => push('ti-bolt', `${active.name}'s turn`), 0);
+        }
+      }
+      if (isGM) saveEncounterDebounced(next);
+      return next;
+    });
+  }, [saveEncounterDebounced, isGM]);
 
   const safeChars = characters.filter(Boolean);
 
@@ -93,6 +117,13 @@ export default function App() {
   const sessionNum = session?.session_number || (sessionLog.length > 0 ? Math.max(...sessionLog.map(s => s.session_number || 0)) + 1 : 1);
   const gmView = isGM && !isPCView;
 
+  const claimCharacter = (id) => {
+    localStorage.setItem('sandy_my_char_id', id);
+    setMyCharId(id);
+    const char = characters.find(c => c.id === id);
+    if (char) push('ti-user-check', `Playing as ${char.name}`);
+  };
+
   const handleUpdateChar = async (id, updates) => { await updateCharacter(id, updates); };
   const handleCreateChar = async (charData) => {
     const result = await createCharacter(charData);
@@ -101,14 +132,12 @@ export default function App() {
   };
   const handleDeleteChar = async (id) => { await deleteCharacter(id); };
 
-  // Wrapped NPC create with ticker
   const handleCreateNPC = async (npcData) => {
     const result = await createNPC(npcData);
     if (result) push('ti-user-bolt', `NPC added: ${result.name}`);
     return result;
   };
 
-  // Wrapped quest handlers with ticker
   const handleCreateQuest = async (questData) => {
     const result = await createQuest(questData);
     if (result) push('ti-target', `New objective: ${result.title}`);
@@ -123,13 +152,11 @@ export default function App() {
     return result;
   };
 
-  // Wrapped rep update with ticker
   const handleUpdateRep = async (faction, delta) => {
     await updateRep(faction, delta);
     push('ti-shield-half', `${faction} reputation ${delta > 0 ? '+1' : '−1'}`);
   };
 
-  // Wrapped NPC update — fire ticker when revealed
   const handleUpdateNPC = async (id, updates) => {
     const result = await updateNPC(id, updates);
     if (result && updates.is_visible_to_players === true) push('ti-user', `NPC revealed: ${result.name}`);
@@ -155,37 +182,6 @@ export default function App() {
     setShowSessionEnd(false);
     refetchSessionLog();
   };
-
-  // My character — stored in localStorage, player picks once
-  const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
-  const claimCharacter = (id) => {
-    localStorage.setItem('sandy_my_char_id', id);
-    setMyCharId(id);
-    const char = characters.find(c => c.id === id);
-    if (char) push('ti-user-check', `Playing as ${char.name}`);
-  };
-
-  // Wrapped setEncounter — fires ticker; only GM saves to Supabase
-  const handleSetEncounter = useCallback((updater) => {
-    setEncounter(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (prev.state !== 'active' && next.state === 'active') {
-        setTimeout(() => push('ti-swords', `Encounter started: ${next.setup?.name || next.setup?.type || 'Combat'}`), 0);
-      }
-      if (prev.state === 'active' && next.state === 'idle') {
-        setTimeout(() => push('ti-flag', 'Encounter ended'), 0);
-      }
-      if (next.state === 'active' && next.activeTurn !== prev.activeTurn) {
-        const active = next.combatants[next.activeTurn % Math.max(1, next.combatants.length)];
-        if (active?.type === 'pc') {
-          setTimeout(() => push('ti-bolt', `${active.name}'s turn`), 0);
-        }
-      }
-      // Only GM writes to Supabase — prevents feedback loops
-      if (isGM) saveEncounterDebounced(next);
-      return next;
-    });
-  }, [saveEncounterDebounced, isGM]);
 
   const parsedSessionLog = sessionLog.map(s => {
     let recap = {};
