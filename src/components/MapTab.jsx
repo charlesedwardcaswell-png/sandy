@@ -377,12 +377,12 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           />
         )}
 
-        {/* Underground placeholder */}
+        {/* Underground — darkened version of same map */}
         {layer === 'underground' && (
-          <div style={{ position: 'absolute', inset: 0, background: '#0e0c08', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '.75rem' }}>
-            <i className="ti ti-map" style={{ fontSize: 36, color: 'var(--text-muted)', opacity: .3 }} />
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Underground map — art pending</div>
-          </div>
+          <img src={MAP_IMAGE} alt="Underground"
+            onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'fill', filter: 'brightness(0.25) saturate(0.4)' }}
+          />
         )}
 
         {/* Ring overlays */}

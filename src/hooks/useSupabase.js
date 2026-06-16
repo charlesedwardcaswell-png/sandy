@@ -259,28 +259,31 @@ export function useMapPins() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createPin = async (pinData) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('map_pins')
       .insert({ ...pinData, game_id: GAME_ID })
       .select()
       .single();
-    setPins(prev => [...prev, data]);
+    if (error) { console.error('createPin failed:', error.message, error.details); return null; }
+    if (data) setPins(prev => [...prev, data]);
     return data;
   };
 
   const updatePin = async (id, updates) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('map_pins')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
-    setPins(prev => prev.map(p => p.id === id ? data : p));
+    if (error) { console.error('updatePin failed:', error.message); return null; }
+    if (data) setPins(prev => prev.map(p => p.id === id ? data : p));
     return data;
   };
 
   const deletePin = async (id) => {
-    await supabase.from('map_pins').delete().eq('id', id);
+    const { error } = await supabase.from('map_pins').delete().eq('id', id);
+    if (error) { console.error('deletePin failed:', error.message); return; }
     setPins(prev => prev.filter(p => p.id !== id));
   };
 

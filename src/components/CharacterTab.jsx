@@ -19,30 +19,43 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
     }
   }, [characters, selId]);
 
-  // Player view — see all characters, edit any (honour system)
+  // Player view — see all characters, create own, edit any (honour system)
   if (!isGM && !isPCView) {
+    if (view === 'create') {
+      return (
+        <div>
+          <button className="btn btn-sm" style={{ marginBottom: '1rem' }} onClick={() => setView('sheet')}>← Back</button>
+          <CharacterCreation
+            onComplete={async (charData) => { await onCreateCharacter(charData); setView('sheet'); }}
+            onCancel={() => setView('sheet')}
+          />
+        </div>
+      );
+    }
+
     return (
       <div>
-        {characters.length === 0 ? (
-          <div>
-            <div style={{ marginBottom: '1rem', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>No characters yet.</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>The GM will create characters, or ask your GM to give you access.</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
+          {characters.length > 0 && (
+            <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)}>
+              {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+            </select>
+          )}
+          <button className="btn btn-sm btn-p" onClick={() => setView('create')}>
+            <i className="ti ti-plus" style={{ fontSize: 10 }} /> New Character
+          </button>
+        </div>
+        {characters.length === 0 && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
+            No characters yet — create yours above.
           </div>
-        ) : (
-          <div>
-            <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-              <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)}>
-                {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
-              </select>
-            </div>
-            {selId && characters.find(c => c.id === selId) && (
-              <CharacterSheet
-                char={characters.find(c => c.id === selId)}
-                isGM={false} canEdit={true}
-                onUpdate={onUpdateCharacter}
-              />
-            )}
-          </div>
+        )}
+        {selId && characters.find(c => c.id === selId) && (
+          <CharacterSheet
+            char={characters.find(c => c.id === selId)}
+            isGM={false} canEdit={true}
+            onUpdate={onUpdateCharacter}
+          />
         )}
       </div>
     );

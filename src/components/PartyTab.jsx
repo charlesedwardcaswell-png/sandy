@@ -1,12 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Silhouette, WoundBadge } from './UI';
 import { FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
 import { WOUND_COLORS, WOUND_RANKS } from '../data/constants';
 
 // ── PartyTab ──────────────────────────────────────────────────────────────────
-export default function PartyTab({ isGM, isPCView, characters, reps, inventory, encounterLog }) {
+export default function PartyTab({ isGM, isPCView, characters, reps, inventory, onUpdateInventory, encounterLog }) {
   const gmView = isGM && !isPCView;
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemQty, setNewItemQty] = useState(1);
+  const [newItemCat, setNewItemCat] = useState('Gear');
+  const [copperDelta, setCopperDelta] = useState('');
+
+  const applyCopper = () => {
+    const delta = parseInt(copperDelta) || 0;
+    if (delta === 0) return;
+    onUpdateInventory({ copper: Math.max(0, (inventory.copper || 0) + delta) });
+    setCopperDelta('');
+  };
+
+  const addItem = () => {
+    if (!newItemName.trim()) return;
+    const items = [...(inventory.items || []), { name: newItemName.trim(), qty: newItemQty, category: newItemCat }];
+    onUpdateInventory({ items });
+    setNewItemName(''); setNewItemQty(1); setNewItemCat('Gear');
+  };
+
+  const removeItem = idx => {
+    onUpdateInventory({ items: (inventory.items || []).filter((_, i) => i !== idx) });
+  };
 
   return (
     <div>
@@ -75,26 +97,52 @@ export default function PartyTab({ isGM, isPCView, characters, reps, inventory, 
         </div>
       </div>
 
-      {/* Group inventory summary */}
+      {/* Group inventory — full editable */}
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
         <i className="ti ti-backpack" style={{ marginRight: 6 }} />Group Inventory
       </div>
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: (inventory.items || []).length > 0 ? '.5rem' : 0 }}>
-          <i className="ti ti-coin" style={{ color: 'var(--gold)' }} />
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>copper in party treasury</span>
-        </div>
-        {(inventory.items || []).map((item, i) => (
-          <div key={i} className="inv-row">
-            <span className="inv-cat">{item.category}</span>
-            <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>×{item.qty}</span>
+      <div style={{ maxWidth: 480 }}>
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          {/* Copper row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', padding: '.5rem', background: 'var(--bg-panel)', borderRadius: 4 }}>
+            <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 16 }} />
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>copper</span>
+            {gmView && (
+              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
+                <input type="number" placeholder="±" value={copperDelta} onChange={e => setCopperDelta(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && applyCopper()} style={{ width: 60, fontSize: 10, padding: '2px 4px' }} />
+                <button className="btn btn-sm" onClick={applyCopper}>Apply</button>
+              </div>
+            )}
           </div>
-        ))}
-        {(inventory.items || []).length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>No items.</div>
-        )}
+
+          {/* Items */}
+          {(inventory.items || []).map((item, i) => (
+            <div key={i} className="inv-row">
+              <span className="inv-cat">{item.category}</span>
+              <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>×{item.qty}</span>
+              {gmView && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => removeItem(i)}>×</button>}
+            </div>
+          ))}
+          {(inventory.items || []).length === 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items.</div>
+          )}
+
+          {/* Add item — GM only */}
+          {gmView && (
+            <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input placeholder="Item name" value={newItemName} onChange={e => setNewItemName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addItem()} style={{ flex: 1, minWidth: 100 }} />
+              <select value={newItemCat} onChange={e => setNewItemCat(e.target.value)}>
+                {['Quest Item','Weapon','Armor','Gear','Loot','Consumable'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="number" min={1} value={newItemQty} onChange={e => setNewItemQty(+e.target.value)} style={{ width: 50 }} />
+              <button className="btn btn-sm btn-p" disabled={!newItemName.trim()} onClick={addItem}>Add</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Recent encounters */}

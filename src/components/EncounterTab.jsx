@@ -610,8 +610,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         </div>
       )}
 
-      {/* PC Turn Panel — shown at bottom only for the active PC */}
-      {active && active.type === 'pc' && (isMyTurn || (isGM && isPCView)) && (
+      {/* PC Turn Panel — shown whenever it's a PC's turn */}
+      {active && active.type === 'pc' && (
         <PCTurnPanel
           combatant={active}
           character={pcsMap[active.id]}
