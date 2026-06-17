@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST } from '../data/constants';
+import React, { useState, useCallback, useEffect } from 'react';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID } from '../data/constants';
+import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
 import DiceModal from './DiceModal';
@@ -25,11 +26,13 @@ const NPC_BY_FACTION = {
 };
 
 const SETTING_FACTIONS = {
-  Streets: { primary:['City Guard','Dahab','Jackals'], secondary:['Qabal',"Ra'Shari",'Assassins'] },
-  Sewers:  { primary:['Jackals','Monsters'], secondary:['Assassins'] },
-  Desert:  { primary:["Ra'Shari",'Monsters'], secondary:['Yodotai','Senpet'] },
-  Palace:  { primary:['City Guard','Senpet','Dahab'], secondary:['Ashalan','Qabal'] },
-  Indoors: { primary:['Dahab','Monsters'], secondary:['City Guard','Jackals'] },
+  Streets:           { primary:['City Guard','Dahab','Jackals'],    secondary:['Qabal',"Ra'Shari",'Assassins'] },
+  Sewers:            { primary:['Jackals','Monsters'],              secondary:['Assassins'] },
+  Desert:            { primary:["Ra'Shari",'Monsters'],             secondary:['Yodotai','Senpet'] },
+  Palace:            { primary:['City Guard','Senpet','Dahab'],     secondary:['Ashalan','Qabal'] },
+  Indoors:           { primary:['Dahab','Monsters'],                secondary:['City Guard','Jackals'] },
+  "Khan's Warcamp":  { primary:['Yodotai','Senpet'],               secondary:['Monsters','City Guard'] },
+  "Barracks Lounge": { primary:['City Guard','Yodotai','Senpet'],  secondary:['Merchants','Rogues / Foreigners'] },
 };
 
 function generateGroup(setting, difficulty) {
@@ -58,12 +61,13 @@ function generateGroup(setting, difficulty) {
 }
 
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceChange, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact }) {
   const isNPC = c.type === 'npc';
   const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
+  const armorTN = 5 + (c.reflexes || 2) * 5 + (c.stance === 'Full Defense' ? 10 : 0);
 
   const cardClass = [
     'combat-card',
@@ -72,6 +76,22 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceCha
     isActive ? 'active-turn' : '',
     targeting === c.id ? 'targeted' : '',
   ].filter(Boolean).join(' ');
+
+  // ── Compact view ──────────────────────────────────────────────────────────
+  if (compact) {
+    return (
+      <div className={cardClass} style={{ padding: '.3rem .5rem', display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.25rem' }}>
+        <Silhouette type={getArchetype(c.school) || (isNPC ? 'warrior' : 'warrior')} size={isActive ? 20 : 16}
+          color={!isNPC && pc?.avatar_color ? pc.avatar_color : undefined} />
+        <span style={{ fontSize: isActive ? 12 : 11, fontWeight: isActive ? 600 : 400, color: isActive ? 'var(--gold)' : 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {c.name}{isMyChar && !isActive ? ' ★' : ''}
+        </span>
+        <span style={{ fontSize: 9, color: wColor, fontWeight: 600 }}>{wLabel}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', minWidth: 28, textAlign: 'right' }}>TN{armorTN}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', minWidth: 20, textAlign: 'right' }}>{c.init}</span>
+      </div>
+    );
+  }
 
   return (
     <div className={cardClass}>
@@ -108,14 +128,18 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceCha
         </div>
       </div>
 
-      {/* Bottom row - weapon + void */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .6rem', fontSize: 10, color: 'var(--text-muted)' }}>
+      {/* Bottom row - weapon + armor TN + void */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 10, color: 'var(--text-muted)' }}>
         <i className="ti ti-sword" style={{ fontSize: 11 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.drawnWeapon || 'Unarmed'}</span>
+        {/* Armor TN — prominent */}
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}>
+          TN <span style={{ color: c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)' }}>{armorTN}</span>
+        </span>
         {!isNPC && pc && (
-          <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginLeft: 4 }}>
             {Array.from({ length: pc.void || 2 }, (_, i) => (
-              <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', border: `1px solid ${i < (pc.current_void || 0) ? 'var(--gold)' : 'var(--border)'}`, background: i < (pc.current_void || 0) ? 'var(--gold)' : 'transparent' }} />
+              <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', border: `1px solid ${i < (pc.current_void || 0) ? 'var(--gold)' : 'var(--border)'}`, background: i < (pc.current_void || 0) ? 'var(--gold)' : 'transparent' }} />
             ))}
           </div>
         )}
@@ -145,6 +169,47 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceCha
               </button>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Void Button ───────────────────────────────────────────────────────────────
+function VoidButton() {
+  const [open, setOpen] = useState(false);
+  const VOID_USES = [
+    { icon: 'ti-dice', label: '+1k1 to any roll', desc: 'Spend before rolling. Adds one die rolled and one die kept to any roll.' },
+    { icon: 'ti-shield', label: '+10 Armor TN', desc: 'Spend as a Free Action to add +10 to your Armor TN until your next turn.' },
+    { icon: 'ti-heart', label: 'Reduce damage', desc: 'When taking wounds, spend to reduce damage received by your Void Ring.' },
+    { icon: 'ti-bolt', label: '+10 Initiative', desc: 'Spend at the start of a round before rolling Initiative to add +10 to your Initiative roll.' },
+    { icon: 'ti-star', label: '+2k1 (some techniques)', desc: 'Certain school techniques upgrade Void spend to +2k1 instead of +1k1.' },
+    { icon: 'ti-eye', label: 'Negate one attack (Defense R5)', desc: 'Defense Rank 5 Mastery: spend Void as a Free Action to negate one attack per round.' },
+    { icon: 'ti-compass', label: 'Center Stance first action', desc: 'In Center Stance, spending Void on your first action gives School Rank bonus instead of +1k1.' },
+  ];
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn btn-sm"
+        style={{ borderColor: 'rgba(200,150,42,.5)', color: 'var(--gold)', fontSize: 10 }}
+        onClick={() => setOpen(!open)}>
+        <i className="ti ti-circle-dot" style={{ marginRight: 4 }} />Void
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '.6rem', width: 260, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
+            Void Point Uses
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
+          </div>
+          {VOID_USES.map((u, i) => (
+            <div key={i} style={{ display: 'flex', gap: '.5rem', padding: '.3rem 0', borderBottom: i < VOID_USES.length - 1 ? '1px solid rgba(107,78,40,.2)' : 'none' }}>
+              <i className={`ti ${u.icon}`} style={{ fontSize: 12, color: 'var(--gold-dim)', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)' }}>{u.label}</div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.4 }}>{u.desc}</div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -220,11 +285,169 @@ function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
   );
 }
 
+// ── Battle Grid ───────────────────────────────────────────────────────────────
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShift, settingBg }) {
+  const [selected, setSelected] = useState(null);
+  const CELL = 36;
+  const W = gridSize * CELL;
+
+  const handleCellClick = (x, y) => {
+    if (!selected) return;
+    const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
+    if (occupied) return;
+    onMove(selected, x, y);
+    setSelected(null);
+  };
+
+  const handleTokenClick = (e, id) => {
+    e.stopPropagation();
+    if (!isGM && active?.id !== id) return;
+    setSelected(selected === id ? null : id);
+  };
+
+  const getTokenColor = (c) => {
+    const pc = pcsMap[c.id];
+    if (pc?.avatar_color) return pc.avatar_color;
+    return c.type === 'npc' ? '#c84030' : '#4a8a40';
+  };
+
+  const ShiftBtn = ({ dx, dy, icon, style }) => (
+    isGM ? (
+      <button onClick={() => onShift(dx, dy)}
+        style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 4, cursor: 'pointer', padding: '3px 6px', fontSize: 12, lineHeight: 1, ...style }}
+        title={`Shift all tokens ${icon === '↑' ? 'up' : icon === '↓' ? 'down' : icon === '←' ? 'left' : 'right'}`}>
+        {icon}
+      </button>
+    ) : null
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2 }}>
+        Battle Grid {gridSize}×{gridSize}
+        {selected && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
+      </div>
+
+      {/* Top shift button */}
+      <ShiftBtn dx={0} dy={-1} icon="↑" />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {/* Left shift button */}
+        <ShiftBtn dx={-1} dy={0} icon="←" />
+
+        {/* Grid */}
+        <svg width={W} height={W}
+          style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: selected ? 'crosshair' : 'default', display: 'block' }}
+          onClick={e => {
+            if (!selected) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / CELL);
+            const y = Math.floor((e.clientY - rect.top) / CELL);
+            handleCellClick(x, y);
+          }}>
+
+          {/* Setting background image at 25% opacity */}
+          {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
+
+          {/* Grid lines */}
+          {Array.from({ length: gridSize + 1 }, (_, i) => (
+            <g key={i}>
+              <line x1={i * CELL} y1={0} x2={i * CELL} y2={W} stroke="rgba(107,78,40,.25)" strokeWidth="0.5" />
+              <line x1={0} y1={i * CELL} x2={W} y2={i * CELL} stroke="rgba(107,78,40,.25)" strokeWidth="0.5" />
+            </g>
+          ))}
+
+          {/* Valid cell highlights when moving */}
+          {selected && Array.from({ length: gridSize }, (_, y) =>
+            Array.from({ length: gridSize }, (_, x) => {
+              const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
+              if (occupied) return null;
+              return <rect key={`${x}-${y}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2} fill="rgba(200,150,42,.08)" rx="2" />;
+            })
+          )}
+
+          {/* Tokens */}
+          {combatants.map(c => {
+            if (c.gridX === undefined || c.gridY === undefined) return null;
+            const isActive = c.id === active?.id;
+            const isSelected = c.id === selected;
+            const color = getTokenColor(c);
+            const cx = c.gridX * CELL + CELL / 2;
+            const cy = c.gridY * CELL + CELL / 2;
+            const r = 13;
+            return (
+              <g key={c.id} style={{ cursor: 'pointer' }} onClick={e => handleTokenClick(e, c.id)}>
+                {isActive && <circle cx={cx} cy={cy} r={r + 4} fill={color} opacity="0.2" />}
+                {isSelected && <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="3,2" />}
+                <circle cx={cx} cy={cy} r={r} fill={color} stroke={isActive ? '#fff' : color + '88'} strokeWidth={isActive ? 1.5 : 1} />
+                {c.type === 'npc' && <circle cx={cx} cy={cy} r={r - 4} fill="none" stroke="rgba(0,0,0,.3)" strokeWidth="1" />}
+                <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize="9" fontWeight="bold" fill="#fff" fontFamily="sans-serif">
+                  {c.name.slice(0, 2).toUpperCase()}
+                </text>
+                {c.wound > 0 && (
+                  <circle cx={cx + r - 3} cy={cy - r + 3} r="4"
+                    fill={['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818'][c.wound - 1] || '#c84030'}
+                    stroke="rgba(0,0,0,.5)" strokeWidth="0.5" />
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Right shift button */}
+        <ShiftBtn dx={1} dy={0} icon="→" />
+      </div>
+
+      {/* Bottom shift button */}
+      <ShiftBtn dx={0} dy={1} icon="↓" />
+
+      {/* Unplaced token tray */}
+      {(() => {
+        const unplaced = combatants.filter(c => c.gridX === undefined || c.gridY === undefined);
+        if (!unplaced.length) return null;
+        return (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', padding: '4px', background: 'rgba(10,8,4,.6)', borderRadius: 4, border: '1px solid rgba(107,78,40,.3)', maxWidth: W, marginTop: 4 }}>
+            <div style={{ width: '100%', fontSize: 8, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 2 }}>Click to select, then click grid to place</div>
+            {unplaced.map(c => {
+              const color = getTokenColor(c);
+              const isSelected = c.id === selected;
+              return (
+                <div key={c.id} onClick={e => handleTokenClick(e, c.id)}
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: `2px solid ${isSelected ? '#fff' : color + '88'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 9, fontWeight: 700, color: '#fff', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }}>
+                  {c.name.slice(0, 2).toUpperCase()}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Clear all — GM only */}
+      {isGM && combatants.some(c => c.gridX !== undefined) && (
+        <button className="btn btn-sm" style={{ fontSize: 9, marginTop: 4 }}
+          onClick={() => combatants.forEach(c => onMove(c.id, undefined, undefined))}>
+          Clear Grid
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main Encounter Tab ────────────────────────────────────────────────────────
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
   const [modal, setModal] = useState(null);
-  const [view, setView] = useState('columns'); // columns | initiative
+  const [view, setView] = useState('columns');
+  const [compact, setCompact] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
+  const [settingUrls, setSettingUrls] = useState({});
+  const GRID_SIZE = 12;
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.setting_urls) setSettingUrls(data.settings.setting_urls);
+    });
+  }, []); // 12×12 cells
   const [npcTargets, setNpcTargets] = useState({}); // npcId -> action
   const [targeting, setTargeting] = useState(null);
   const [popup, setPopup] = useState(null);
@@ -354,22 +577,120 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     setTargeting(null);
   };
 
-  // ── Idle state ───────────────────────────────────────────────────────────
+  // ── Idle state — show party cards, GM can grant actions ──────────────────
   if (state === 'idle') {
+    const grantedActions = encounter.grantedActions || {};
+
     return (
-      <div className="enc-idle">
-        <div>
-          <i className="ti ti-swords" style={{ fontSize: 44, opacity: .2, display: 'block', marginBottom: '.5rem' }} />
-          <div style={{ fontSize: 16, color: 'var(--text-muted)' }}>No active encounter</div>
-          {!session && isGM && !isPCView && (
-            <div style={{ fontSize: 12, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
+      <div>
+        {/* GM action modal */}
+        {modal && (
+          <DiceModal context={modal} onClose={() => setModal(null)} onResult={() => setModal(null)} onLogEvent={onLogEvent} />
+        )}
+
+        {/* Party cards — centred */}
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
+            {session ? 'No encounter active — downtime / between scenes' : 'No session active'}
+          </div>
+
+          {characters.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '2rem' }}>No characters created yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
+              {characters.map(c => {
+                const wR = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
+                const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
+                const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
+                const pc = pcsMap[c.id];
+                const avatarColor = c.avatar_color || '#c8962a';
+                const avatarType = c.avatar_type || 'warrior';
+                const granted = grantedActions[c.id] || 0;
+                const isMyChar = c.id === myCharId;
+
+                return (
+                  <div key={c.id} style={{
+                    background: 'var(--bg-panel)', border: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
+                    borderLeft: `3px solid ${isMyChar ? avatarColor : '#4a8a40'}`,
+                    borderRadius: 6, padding: '.75rem', width: 160, position: 'relative',
+                    boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
+                  }}>
+                    {/* Avatar */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '.5rem' }}>
+                      <div style={{ width: 48, height: 62, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <Silhouette type={avatarType} size={40} color={avatarColor} />
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{c.school}</div>
+                    </div>
+                    {/* Status */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: '.4rem' }}>
+                      <span style={{ color: wColor, fontWeight: 600 }}>{wLabel}</span>
+                      <span style={{ color: 'var(--gold-dim)' }}>Void {c.current_void || 0}/{c.void || 2}</span>
+                    </div>
+                    {/* Armor TN */}
+                    <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+                      Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 13 }}>{5 + (c.reflexes || 2) * 5}</span>
+                    </div>
+
+                    {/* Granted actions — visible to player */}
+                    {granted > 0 && (
+                      <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
+                        <div style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 600 }}>
+                          <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} Action{granted > 1 ? 's' : ''} granted
+                        </div>
+                      </div>
+                    )}
+
+                    {/* GM: grant actions */}
+                    {isGM && !isPCView && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: '.4rem' }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', flex: 1 }}>Grant:</span>
+                        <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: Math.max(0, granted - 1) } })}>−</button>
+                        <span style={{ fontSize: 11, color: granted > 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 14, textAlign: 'center' }}>{granted}</span>
+                        <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: granted + 1 } })}>+</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
+
+        {/* GM start encounter button */}
         {isGM && !isPCView && session && (
-          <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] } })}>
-            <i className="ti ti-swords" style={{ marginRight: 6 }} /> Start Encounter
-          </button>
+          <div style={{ textAlign: 'center' }}>
+            <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] } })}>
+              <i className="ti ti-swords" style={{ marginRight: 6 }} /> Start Encounter
+            </button>
+          </div>
         )}
+        {!session && isGM && !isPCView && (
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
+        )}
+
+        {/* Granted action roll panel — show for player if they have granted actions */}
+        {(() => {
+          const myGranted = grantedActions[myCharId] || 0;
+          const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
+          if (!myGranted || !myChar) return null;
+          // Fake combatant for PCTurnPanel
+          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: 'Attack', drawnWeapon: null, dr: '3k2', current_void: myChar.current_void };
+          return (
+            <PCTurnPanel
+              combatant={fakeCombatant}
+              character={myChar}
+              enemies={[]}
+              onRoll={ctx => setModal({ ...ctx, character: myChar })}
+              onStanceChange={() => {}}
+              onDrawWeapon={() => {}}
+              onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
+            />
+          );
+        })()}
       </div>
     );
   }
@@ -405,7 +726,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           {/* Setting */}
           <div style={{ marginBottom: '1rem' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Setting</span>
-            <div>{['Streets','Sewers','Desert','Palace','Indoors'].map(t => (
+            <div>{['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"].map(t => (
               <button key={t} className={`opt-btn ${s.setting === t ? 'sel' : ''}`} onClick={() => upS({ setting: t, name: '' })}>{t}</button>
             ))}</div>
           </div>
@@ -467,6 +788,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           context={modal}
           onClose={() => setModal(null)}
           onResult={handleRollResult}
+          onLogEvent={onLogEvent}
         />
       )}
 
@@ -478,10 +800,16 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{setup.name}</div>
+        {/* Void button */}
+        <VoidButton />
         {/* View toggle */}
         <div className="layer-tog">
           <button className={`layer-btn ${view === 'columns' ? 'active' : ''}`} onClick={() => setView('columns')}>Columns</button>
           <button className={`layer-btn ${view === 'initiative' ? 'active' : ''}`} onClick={() => setView('initiative')}>Initiative</button>
+          <button className={`layer-btn ${compact ? 'active' : ''}`} onClick={() => setCompact(c => !c)}>Compact</button>
+          {(isGM && !isPCView) && (
+            <button className={`layer-btn ${showGrid ? 'active' : ''}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
+          )}
         </div>
         {isGM && !isPCView && (
           <>
@@ -530,7 +858,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
       {/* Two column view */}
       {view === 'columns' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '1fr auto 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
           {/* Enemies */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -546,6 +874,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 onApplyStatus={applyStatus}
                 onRemoveStatus={removeStatus}
                 targeting={targeting}
+                compact={compact}
                 onSetTarget={(npcId, action) => {
                   handleSetNPCAction(npcId, action);
                   if (action === 'Attack') setTargeting(npcId);
@@ -576,6 +905,35 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             )}
           </div>
 
+          {/* Battle Grid — centre column, GM toggle only */}
+          {showGrid && (
+            <BattleGrid
+              combatants={combatants}
+              active={active}
+              pcsMap={pcsMap}
+              gridSize={GRID_SIZE}
+              isGM={isGM && !isPCView}
+              settingBg={settingUrls[setup.setting] || null}
+              onMove={(id, x, y) => {
+                upEnc({ combatants: combatants.map(c => c.id === id ? { ...c, gridX: x, gridY: y } : c) });
+              }}
+              onShift={(dx, dy) => {
+                upEnc({
+                  combatants: combatants.map(c => {
+                    if (c.gridX === undefined || c.gridY === undefined) return c;
+                    const nx = c.gridX + dx;
+                    const ny = c.gridY + dy;
+                    // tokens shifted off the edge are removed from grid
+                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
+                      return { ...c, gridX: undefined, gridY: undefined };
+                    }
+                    return { ...c, gridX: nx, gridY: ny };
+                  })
+                });
+              }}
+            />
+          )}
+
           {/* Party */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -591,6 +949,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 onRemoveStatus={removeStatus}
                 targeting={null}
                 onSetTarget={null}
+                compact={compact}
               />
             ))}
           </div>
