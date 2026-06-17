@@ -145,12 +145,13 @@ function AddNPCModal({ onAdd, onClose }) {
 
 // ── NPC Detail Modal ──────────────────────────────────────────────────────────
 function NPCDetailModal({ npc, isGM, onSave, onClose }) {
+  const [name, setName] = useState(npc.name || '');
   const [gmNotes, setGmNotes] = useState(npc.gm_notes || '');
   const [playerNotes, setPlayerNotes] = useState(npc.player_notes || '');
   const sd = SCHOOL_DATA[npc.school] || null;
 
   const save = () => {
-    onSave({ gm_notes: gmNotes, player_notes: playerNotes });
+    onSave({ name: name.trim() || npc.name, gm_notes: gmNotes, player_notes: playerNotes });
     onClose();
   };
 
@@ -159,8 +160,17 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
       <div className="modal" style={{ maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem' }}>
           <Silhouette type={getArchetype(npc.school)} size={24} />
-          <div>
-            <div className="modal-title" style={{ marginBottom: 0 }}>{npc.name}</div>
+          <div style={{ flex: 1 }}>
+            {isGM ? (
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                style={{ fontSize: 14, fontWeight: 600, width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', padding: '2px 0' }}
+                placeholder="NPC name"
+              />
+            ) : (
+              <div className="modal-title" style={{ marginBottom: 0 }}>{npc.name}</div>
+            )}
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{npc.school}{npc.rank ? ` — Rank ${npc.rank}` : ''}</div>
           </div>
         </div>
@@ -285,6 +295,8 @@ function LorePanel() {
 export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpdateRep, encounter, setEncounter, onViewCharacter }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
+  const [editingNPCId, setEditingNPCId] = useState(null);
+  const [editingNPCName, setEditingNPCName] = useState('');
   const encActive = encounter?.state === 'active';
   const gmView = isGM && !isPCView;
   const safeNPCs = (npcs || []).filter(Boolean);
@@ -339,7 +351,9 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
             {/* Header — clean, matches prototype */}
             <div className="fac-hdr" onClick={() => toggleFaction(fDef.name)}>
               <span className={`fac-chev ${isOpen ? 'open' : ''}`}>▶</span>
-              <FacIcon name={fDef.name} />
+              <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.12)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FacIcon name={fDef.name} size={13} />
+              </div>
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', minWidth: 80 }}>{fDef.name}</span>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fDef.tagline}</span>
               {visibleNPCs.length > 0 && (
@@ -382,7 +396,23 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                         />
                       )}
                       <Silhouette type={getArchetype(n.school)} size={16} />
-                      <span style={{ flex: 1, color: 'var(--text-primary)' }}>{n.name}</span>
+                      {gmView && editingNPCId === n.id ? (
+                        <input
+                          autoFocus
+                          value={editingNPCName}
+                          onChange={e => setEditingNPCName(e.target.value)}
+                          onBlur={() => { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter') { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); } if (e.key === 'Escape') setEditingNPCId(null); }}
+                          onClick={e => e.stopPropagation()}
+                          style={{ flex: 1, fontSize: 11, background: 'transparent', border: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
+                        />
+                      ) : (
+                        <span
+                          style={{ flex: 1, color: 'var(--text-primary)' }}
+                          onDoubleClick={e => { if (gmView) { e.stopPropagation(); setEditingNPCId(n.id); setEditingNPCName(n.name); } }}
+                          title={gmView ? 'Double-click to rename' : ''}
+                        >{n.name}</span>
+                      )}
                       <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</span>
                       {n.player_notes && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}
                       {gmView && <span style={{ fontSize: 9, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}

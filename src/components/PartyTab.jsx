@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { Silhouette, WoundBadge } from './UI';
-import { FacIcon } from './UI';
+import { Silhouette, WoundBadge, FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
-import { WOUND_COLORS, WOUND_RANKS } from '../data/constants';
+import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA } from '../data/constants';
 
-// ── PartyTab ──────────────────────────────────────────────────────────────────
-export default function PartyTab({ isGM, isPCView, characters, reps, inventory, onUpdateInventory, encounterLog }) {
+const CATEGORY_ICONS = {
+  'Quest Item': 'ti-map-search',
+  'Weapon':     'ti-sword',
+  'Armor':      'ti-shield',
+  'Gear':       'ti-backpack',
+  'Loot':       'ti-coin',
+  'Consumable': 'ti-flask',
+};
+
+function ItemIcon({ category }) {
+  const icon = CATEGORY_ICONS[category] || 'ti-package';
+  return <i className={`ti ${icon}`} style={{ fontSize: 12, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
+}
+export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -77,24 +88,21 @@ export default function PartyTab({ isGM, isPCView, characters, reps, inventory, 
         <i className="ti ti-shield-half" style={{ marginRight: 6 }} />Faction Standing
       </div>
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-          {Object.entries(reps).map(([faction, repRow]) => {
-            const rep = repRow?.reputation ?? 0;
-            return (
-              <div key={faction} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .25rem', borderBottom: '1px solid rgba(107,78,40,.15)', fontSize: 11 }}>
-                <FacIcon name={faction} size={13} />
-                <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 10 }}>{faction}</span>
-                <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 11 }}>{rep > 0 ? '+' : ''}{rep}</span>
-                <span style={{ fontSize: 9, color: repColor(rep), minWidth: 34 }}>{repLabel(rep)}</span>
+        {FACTIONS_DATA.map(fDef => {
+          const rep = reps[fDef.name]?.reputation ?? 0;
+          return (
+            <div key={fDef.name} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem', borderBottom: '1px solid rgba(107,78,40,.12)' }}>
+              <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FacIcon name={fDef.name} size={12} />
               </div>
-            );
-          })}
-          {Object.keys(reps).length === 0 && (
-            <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.5rem 0' }}>
-              No faction reputation data yet.
+              <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 11 }}>{fDef.name}</span>
+              {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
+              <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 12, minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
+              {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>}
+              <span style={{ fontSize: 10, color: repColor(rep), minWidth: 42 }}>{repLabel(rep)}</span>
             </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
       {/* Group inventory — full editable */}
@@ -120,6 +128,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, inventory, 
           {/* Items */}
           {(inventory.items || []).map((item, i) => (
             <div key={i} className="inv-row">
+              <ItemIcon category={item.category} />
               <span className="inv-cat">{item.category}</span>
               <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
               <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>×{item.qty}</span>

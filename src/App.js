@@ -11,6 +11,8 @@ import PartyTab from './components/PartyTab';
 import LogTab from './components/LogTab';
 import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
+import PCTurnPanel from './components/PCTurnPanel';
+import DiceModal from './components/DiceModal';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
@@ -18,13 +20,13 @@ import {
 } from './hooks/useSupabase';
 
 export default function App() {
-  const [authMode, setAuthMode] = useState(null); // null | 'gm' | 'player' | 'observer'
+  const [authMode, setAuthMode] = useState(() => localStorage.getItem('sandy_auth_mode') || null);
   const isGM = authMode === 'gm';
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter } = useCharacters();
-  const { session, loading: sessLoading, startSession, endSession, saveEncounter } = useActiveSession();
+  const { session, loading: sessLoading, startSession, endSession, saveEncounter, saveEventLog } = useActiveSession();
   const { npcs, createNPC, updateNPC } = useNPCs();
   const { quests, createQuest, updateQuest } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
@@ -38,14 +40,16 @@ export default function App() {
     combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1,
   });
 
-  // Load encounter state from session when session loads or changes
+  // Load encounter state from session — only for non-GM clients
+  // GM owns the encounter state and writes it; players read it
   useEffect(() => {
+    if (isGM) return; // GM drives the state, don't overwrite from DB
     if (session?.encounter_data) {
       setEncounter(session.encounter_data);
     } else if (session && !session.encounter_data) {
       setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1 });
     }
-  }, [session?.id, session?.encounter_data]);
+  }, [session?.id, session?.encounter_data, isGM]);
 
   // Debounced save — write to Supabase 800ms after last change
   const saveTimer = useRef(null);
@@ -74,7 +78,8 @@ export default function App() {
   const [tab, setTab] = useState('character');
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
-  const [viewCharId, setViewCharId] = useState(null); // char to highlight when navigating from NPC tab
+  const [viewCharId, setViewCharId] = useState(null);
+  const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
 
   // My character — stored in localStorage, player picks once
   const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
@@ -105,9 +110,9 @@ export default function App() {
   if (!authMode) {
     return (
       <AuthScreen
-        onGMLogin={() => setAuthMode('gm')}
-        onPlayerLogin={() => setAuthMode('player')}
-        onObserver={() => setAuthMode('observer')}
+        onGMLogin={() => { localStorage.setItem('sandy_auth_mode', 'gm'); setAuthMode('gm'); }}
+        onPlayerLogin={() => { localStorage.setItem('sandy_auth_mode', 'player'); setAuthMode('player'); }}
+        onObserver={() => { localStorage.setItem('sandy_auth_mode', 'observer'); setAuthMode('observer'); }}
       />
     );
   }
@@ -179,7 +184,13 @@ export default function App() {
       await updateInventory({ copper: (inventory.copper || 0) + copperAward });
       push('ti-coin', `${copperAward} copper added to party treasury`);
     }
-    if (session) await endSession(session.id, JSON.stringify(recap));
+    if (session) {
+      // Save event log before closing session
+      if (ticker.length > 0) {
+        await saveEventLog(session.id, ticker.map(e => ({ icon: e.icon, text: e.text, ts: e.ts.toISOString() })));
+      }
+      await endSession(session.id, JSON.stringify(recap));
+    }
     push('ti-books', `Session ${sessionNum} archived`);
     clearTimeout(saveTimer.current);
     setSkillLog({});
@@ -191,7 +202,7 @@ export default function App() {
   const parsedSessionLog = sessionLog.map(s => {
     let recap = {};
     try { recap = JSON.parse(s.recap || '{}'); } catch { recap = {}; }
-    return { ...s, recap };
+    return { ...s, recap, events: s.event_log || [] };
   });
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...(gmView ? ['settings'] : [])];
@@ -222,7 +233,7 @@ export default function App() {
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
-        <button className="btn btn-sm" onClick={() => setAuthMode(null)}>
+        <button className="btn btn-sm" onClick={() => { localStorage.removeItem('sandy_auth_mode'); setAuthMode(null); }}>
           <i className="ti ti-logout" style={{ fontSize: 10 }} /> Logout
         </button>
       </div>
@@ -318,6 +329,7 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             characters={safeChars}
             reps={reps}
+            onUpdateRep={handleUpdateRep}
             inventory={inventory}
             onUpdateInventory={updateInventory}
             encounterLog={encounterLog}
@@ -332,6 +344,45 @@ export default function App() {
         )}
         {tab === 'settings' && gmView && <SettingsTab />}
       </div>
+
+      {/* Global Dice Modal — accessible from any tab */}
+      {globalModal && (
+        <DiceModal
+          context={globalModal}
+          onClose={() => setGlobalModal(null)}
+          onResult={(result, damage) => {
+            // Apply damage to target if attack
+            if (damage !== null && damage !== undefined && globalModal?.targetId) {
+              handleSetEncounter(e => ({
+                ...e,
+                combatants: e.combatants.map(c => c.id === globalModal.targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(damage / 5)) } : c),
+                dmgBanner: { attackerName: encounter.combatants.find(c => c.id === myCharId)?.name || 'Party', targetId: globalModal.targetId, damage, result },
+              }));
+            }
+            setGlobalModal(null);
+          }}
+        />
+      )}
+
+      {/* Global Sticky Turn Panel — shows on any tab when it's myCharId's turn */}
+      {encounter.state === 'active' && (() => {
+        const activeCombatant = encounter.combatants[encounter.activeTurn % Math.max(1, encounter.combatants.length)];
+        const isMyTurnGlobal = activeCombatant?.id === myCharId;
+        const myChar = isMyTurnGlobal ? safeChars.find(c => c.id === myCharId) : null;
+        if (!isMyTurnGlobal || !myChar || tab === 'encounter') return null; // don't double-render on encounter tab
+        const enemies = encounter.combatants.filter(c => c.type === 'npc');
+        return (
+          <PCTurnPanel
+            combatant={activeCombatant}
+            character={myChar}
+            enemies={enemies}
+            onRoll={(ctx) => setGlobalModal({ ...ctx, character: myChar })}
+            onStanceChange={(stance) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, stance } : c) }))}
+            onDrawWeapon={(weapon) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, drawnWeapon: weapon } : c) }))}
+            onPass={() => handleSetEncounter(e => ({ ...e, activeTurn: e.activeTurn + 1 }))}
+          />
+        );
+      })()}
 
       {/* Event Ticker */}
       {ticker.length > 0 && (

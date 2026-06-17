@@ -91,7 +91,15 @@ export function useActiveSession() {
       .eq('id', sessionId);
   };
 
-  return { session, loading, startSession, endSession, saveEncounter, refetch: fetch };
+  const saveEventLog = async (sessionId, events) => {
+    if (!sessionId) return;
+    await supabase
+      .from('sessions')
+      .update({ event_log: events })
+      .eq('id', sessionId);
+  };
+
+  return { session, loading, startSession, endSession, saveEncounter, saveEventLog, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────

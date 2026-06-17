@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS } from '../data/constants';
-import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Loading, Empty } from './UI';
+import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS } from './UI';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
@@ -183,6 +183,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
     setAddEq && setAddEq('');
   };
 
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const avatarType = char.avatar_type || 'warrior';
+  const avatarColor = char.avatar_color || '#c8962a';
+
   return (
     <div className="g2">
       {/* Left column */}
@@ -190,8 +194,13 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
         {/* Identity */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
-            <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-panel)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-              <CharacterSilhouette school={char.school} size={36} />
+            <div
+              style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-panel)', border: `2px solid ${avatarColor}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: canEdit ? 'pointer' : 'default', position: 'relative' }}
+              onClick={() => canEdit && setShowAvatarPicker(p => !p)}
+              title={canEdit ? 'Click to change avatar' : ''}
+            >
+              <Silhouette type={avatarType} size={36} color={avatarColor} />
+              {canEdit && <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 8, color: avatarColor, opacity: .7 }}>✏</div>}
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{char.name}</div>
@@ -199,6 +208,33 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
               <div style={{ fontSize: 10, color: 'var(--gold-dim)' }}>{char.school} · Rank {char.school_rank}</div>
             </div>
           </div>
+
+          {/* Avatar picker */}
+          {showAvatarPicker && canEdit && (
+            <div style={{ marginBottom: '.75rem', padding: '.75rem', background: 'var(--bg-dark)', borderRadius: 5, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.5rem', fontWeight: 600 }}>Choose Avatar</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: '.75rem' }}>
+                {AVATAR_TYPES.map(at => (
+                  <div key={at.id}
+                    onClick={() => update('avatar_type', at.id)}
+                    title={at.label}
+                    style={{ width: 32, height: 42, borderRadius: 4, background: avatarType === at.id ? avatarColor + '22' : 'var(--bg-panel)', border: `1px solid ${avatarType === at.id ? avatarColor : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>
+                    <Silhouette type={at.id} size={24} color={avatarColor} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem', fontWeight: 600 }}>Choose Color</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {AVATAR_COLORS.map(ac => (
+                  <div key={ac.id}
+                    onClick={() => update('avatar_color', ac.id)}
+                    title={ac.label}
+                    style={{ width: 22, height: 22, borderRadius: '50%', background: ac.id, border: `2px solid ${avatarColor === ac.id ? '#fff' : 'transparent'}`, cursor: 'pointer', boxShadow: avatarColor === ac.id ? `0 0 6px ${ac.id}` : 'none' }} />
+                ))}
+              </div>
+              <button className="btn btn-sm" style={{ marginTop: '.5rem', fontSize: 9 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
             {[['Insight Rank', char.insight_rank], ['Integrity', char.integrity], ['Reputation', char.reputation], ['Status', char.status]].map(([l, v]) => (
               <div key={l} className="srow"><span className="sl">{l}</span><span className="sv">{v}</span></div>
@@ -775,20 +811,8 @@ function PlayerManagement({ playerPassword, onSavePlayerPassword }) {
             {saved ? '✓ Saved' : 'Save'}
           </button>
         </div>
-        {playerPassword && (
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.5rem' }}>
-            Current password: <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{playerPassword}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">GM Password</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Current: <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>gm1234</span>
-        </div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.25rem' }}>
-          Change in <code>src/data/constants.js</code> → GM_PASSWORD
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.5rem' }}>
+          Share this with your players. Change it in <code>src/components/AuthScreen.jsx</code> → PLAYER_PASSWORD
         </div>
       </div>
     </div>

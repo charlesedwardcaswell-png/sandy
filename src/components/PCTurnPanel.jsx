@@ -5,13 +5,78 @@ import { getWoundRank } from '../lib/utils';
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, onRoll, onStanceChange, onDrawWeapon, onPass }) {
-  const [selectedAction, setSelectedAction] = useState(null); // null | 'attack' | 'skill' | 'draw' | 'pass' | 'defend'
+export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, onRoll, onStanceChange, onDrawWeapon, onPass }) {
+  const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
-  const [skillCategory, setSkillCategory] = useState('combat'); // combat | social | other
+  const [selectedWeapon, setSelectedWeapon] = useState(null);
+  const [skillCategory, setSkillCategory] = useState('combat');
 
-  if (!character) return null;
+  if (!isNPCTurn && !character) return null;
+
+  // NPC turn — simplified panel for GM
+  if (isNPCTurn) {
+    return (
+      <div style={{ background: 'var(--bg-dark)', borderTop: '2px solid var(--red)', padding: '1rem', position: 'sticky', bottom: 0, zIndex: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--red)' }}>
+            <i className="ti ti-skull" style={{ marginRight: 5 }} />{combatant.name} — NPC Turn
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+            {STANCES.map(s => (
+              <button key={s} className={`opt-btn ${combatant.stance === s ? 'sel' : ''}`}
+                style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => onStanceChange(s)}>
+                {s === 'Full Attack' ? 'F.Attack' : s === 'Full Defense' ? 'F.Defense' : s}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+          {[
+            { id: 'attack', icon: 'ti-sword', label: 'Attack', color: '#c84030' },
+            { id: 'defend', icon: 'ti-shield', label: 'Full Defense', color: '#4a8a40' },
+            { id: 'move',   icon: 'ti-run', label: 'Move', color: 'var(--text-secondary)' },
+            { id: 'pass',   icon: 'ti-player-skip-forward', label: 'Pass', color: 'var(--text-muted)' },
+          ].map(action => (
+            <button key={action.id}
+              onClick={() => {
+                if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
+                else if (action.id === 'pass') { onPass(); }
+                else setSelectedAction(action.id);
+              }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem', background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)', border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
+              <i className={`ti ${action.icon}`} style={{ fontSize: 18, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+              <span style={{ fontSize: 10, fontWeight: 500 }}>{action.label}</span>
+            </button>
+          ))}
+        </div>
+        {selectedAction === 'attack' && (
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Select target:</div>
+            <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+              {enemies.filter(e => e.wound < 7).map(e => (
+                <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 10 }} onClick={() => setSelectedTarget(e.id)}>
+                  {e.name}
+                </button>
+              ))}
+            </div>
+            {selectedTarget && (
+              <button className="btn btn-p" onClick={() => onRoll({
+                skill: 'Attack', isAttack: true, tn: 15,
+                baseRoll: (combatant.reflexes || 2) + 1,
+                baseKeep: combatant.air || 2,
+                dr: combatant.dr || '3k2',
+                targetName: enemies.find(e => e.id === selectedTarget)?.name,
+                targetId: selectedTarget,
+              })}>
+                Roll Attack — {(combatant.reflexes || 2) + 1}k{combatant.air || 2} vs TN 15
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const woundRank = getWoundRank(character.current_wounds, character.max_wounds);
   const woundPenalty = woundRank >= 3 ? -(woundRank - 2) : 0; // Hurt=-1k0, Injured=-2k0, Crippled=-3k0
@@ -127,7 +192,17 @@ export default function PCTurnPanel({ combatant, character, enemies, onRoll, onS
             onClick={() => {
               if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
               else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
-              else { setSelectedAction(action.id); setSelectedSkill(null); }
+              else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
+              else {
+                setSelectedAction(action.id);
+                setSelectedSkill(null);
+                // Pre-select drawn weapon when attacking
+                if (action.id === 'attack' && combatant.drawnWeapon) {
+                  const drawnName = combatant.drawnWeapon.split(' (')[0];
+                  const eq = (character?.equipment || []).find(e => e.name === drawnName);
+                  if (eq) setSelectedWeapon({ name: eq.name, dr: eq.dr, skill: eq.skill || 'Swordsmanship' });
+                }
+              }
             }}
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -144,18 +219,16 @@ export default function PCTurnPanel({ combatant, character, enemies, onRoll, onS
         ))}
       </div>
 
-      {/* Attack action - target + weapon skill */}
+      {/* Attack action - target + weapon selection */}
       {selectedAction === 'attack' && (
         <div>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
+            {/* Target */}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.06em' }}>Select Target</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.06em' }}>Target</div>
               <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
                 {enemies.filter(e => e.wound < 7).map(e => (
-                  <button key={e.id}
-                    className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`}
-                    onClick={() => setSelectedTarget(e.id)}
-                  >
+                  <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} onClick={() => setSelectedTarget(e.id)}>
                     {e.name.split(' —')[0]}
                     <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>TN {getTargetTN(e.id)}</span>
                   </button>
@@ -163,39 +236,67 @@ export default function PCTurnPanel({ combatant, character, enemies, onRoll, onS
                 {enemies.filter(e => e.wound < 7).length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No valid targets</span>}
               </div>
             </div>
-            <div>
+
+            {/* Weapon selection */}
+            <div style={{ minWidth: 160 }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.06em' }}>Weapon</div>
-              <div style={{ fontSize: 11, color: 'var(--gold)' }}>{combatant.drawnWeapon || 'Unarmed (1k1)'}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{combatant.dr || '1k1'} damage</div>
+              <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                {/* Equipped weapons from character sheet */}
+                {(character.equipment || []).filter(e => e.dr).map(e => (
+                  <button key={e.name}
+                    className={`btn btn-sm ${selectedWeapon?.name === e.name ? 'btn-p' : ''}`}
+                    onClick={() => setSelectedWeapon({ name: e.name, dr: e.dr, skill: e.skill || 'Swordsmanship' })}>
+                    {e.name}
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 3 }}>{e.dr}</span>
+                  </button>
+                ))}
+                {/* Unarmed always available */}
+                <button
+                  className={`btn btn-sm ${selectedWeapon?.name === 'Unarmed' ? 'btn-p' : ''}`}
+                  onClick={() => setSelectedWeapon({ name: 'Unarmed', dr: '1k1', skill: 'Brawling' })}>
+                  Unarmed <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>1k1</span>
+                </button>
+              </div>
+              {selectedWeapon && (
+                <div style={{ fontSize: 9, color: 'var(--gold-dim)', marginTop: 3 }}>
+                  {selectedWeapon.skill} · {selectedWeapon.dr} dmg
+                </div>
+              )}
             </div>
           </div>
-          {selectedTarget && (
-            <div style={{ marginTop: '.75rem' }}>
+
+          {selectedTarget && selectedWeapon && (
+            <div>
               {(() => {
-                const wSkill = (character.skills || []).find(s => ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves'].includes(s.name));
-                const pool = wSkill ? getPool(wSkill) : { roll: character.agility + 1, keep: character.fire || 2, ringKey: 'fire', ringVal: character.fire || 2 };
+                const wSkill = (character.skills || []).find(s => s.name === selectedWeapon.skill)
+                  || (character.skills || []).find(s => ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves'].includes(s.name));
+                const pool = wSkill ? getPool(wSkill) : { roll: (character.agility || 2) + 1, keep: character.fire || 2, ringKey: 'fire', ringVal: character.fire || 2 };
                 return (
                   <button className="btn btn-p" onClick={() => {
                     onRoll({
-                      skill: wSkill?.name || 'Attack',
+                      skill: wSkill?.name || selectedWeapon.skill,
                       ring: pool.ringKey,
                       ringVal: pool.ringVal,
                       baseRoll: pool.roll,
                       baseKeep: pool.keep,
                       tn: getTargetTN(selectedTarget),
                       isAttack: true,
-                      dr: combatant.dr || '3k2',
+                      dr: selectedWeapon.dr,
                       targetName: enemies.find(e => e.id === selectedTarget)?.name,
                       targetId: selectedTarget,
                       currentVoid: character.current_void,
                       woundPenalty,
+                      character,
                     });
                   }}>
-                    Roll Attack — {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
+                    Roll {selectedWeapon.name} — {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
                   </button>
                 );
               })()}
             </div>
+          )}
+          {selectedTarget && !selectedWeapon && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select a weapon above</div>
           )}
         </div>
       )}

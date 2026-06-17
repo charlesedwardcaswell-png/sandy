@@ -78,7 +78,11 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onStanceCha
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderBottom: '1px solid var(--border)', background: isActive ? 'rgba(200,150,42,.08)' : 'transparent' }}>
         <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : isNPC ? '#8a3030' : '#4a8a40'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
-          <Silhouette type={getArchetype(c.school) || (isNPC ? 'warrior' : 'warrior')} size={isActive ? 28 : 22} />
+          <Silhouette
+            type={(!isNPC && pc?.avatar_type) ? pc.avatar_type : (getArchetype(c.school) || (isNPC ? 'warrior' : 'warrior'))}
+            size={isActive ? 28 : 22}
+            color={(!isNPC && pc?.avatar_color) ? pc.avatar_color : undefined}
+          />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -621,12 +625,24 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         </div>
       )}
 
-      {/* PC Turn Panel — shown whenever it's a PC's turn */}
+      {/* PC Turn Panel — shown for the active PC's turn, or for GM on NPC turns */}
       {active && active.type === 'pc' && (
         <PCTurnPanel
           combatant={active}
           character={pcsMap[active.id]}
           enemies={enemies}
+          onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id] })}
+          onStanceChange={(stance) => handleStanceChange(active.id, stance)}
+          onDrawWeapon={(weapon) => handleDrawWeapon(active.id, weapon)}
+          onPass={advanceTurn}
+        />
+      )}
+      {active && active.type === 'npc' && isGM && !isPCView && (
+        <PCTurnPanel
+          combatant={active}
+          character={null}
+          enemies={party}
+          isNPCTurn
           onRoll={(ctx) => setModal(ctx)}
           onStanceChange={(stance) => handleStanceChange(active.id, stance)}
           onDrawWeapon={(weapon) => handleDrawWeapon(active.id, weapon)}
