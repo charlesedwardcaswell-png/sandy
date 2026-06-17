@@ -346,7 +346,145 @@ export function CharacterSilhouette({ school, size = 32, color }) {
   return <Silhouette type={getArchetype(school)} size={size} color={color} />;
 }
 
-// ── Loading spinner ───────────────────────────────────────────────────────────
+// ── SilhouetteToken — pure SVG <g> for embedding inside SVG grids ─────────────
+// cx, cy = center of token circle, r = radius
+export function SilhouetteToken({ type = 'warrior', cx, cy, r, color = '#c8962a' }) {
+  const c = color;
+  const dim = color + '99';
+  // Scale from 32×44 viewBox to fit inside circle of radius r
+  // Use r*1.4 as height, r as half-width, offset to center
+  const scale = (r * 1.6) / 44;
+  const tx = cx - 16 * scale;
+  const ty = cy - 22 * scale;
+  const t = `translate(${tx},${ty}) scale(${scale})`;
+  const p = { fill: c, stroke: dim, strokeWidth: 0.5 / scale };
+  const dp = { fill: dim, stroke: color + '66', strokeWidth: 0.5 / scale };
+
+  const inner = (() => {
+    if (type === 'sahir') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 12 Q16 10 24 12 L26 38 Q16 40 6 38 Z" {...p} />
+      <line x1="26" y1="14" x2="26" y2="42" stroke={c} strokeWidth={2 / scale} />
+      <circle cx="26" cy="12" r="3" fill={dim} stroke={c} strokeWidth={1 / scale} />
+    </>;
+    if (type === 'assassin') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M9 12 Q16 10 23 12 L21 42 Q16 44 11 42 Z" {...p} />
+      <path d="M16 12 L14 24 L18 24 Z" fill={dim} />
+      <line x1="26" y1="10" x2="30" y2="22" stroke={c} strokeWidth={2 / scale} />
+    </>;
+    if (type === 'guard') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <rect x="9" y="12" width="14" height="16" rx="1" {...p} />
+      <rect x="3" y="12" width="5" height="10" rx="2" {...p} />
+      <rect x="24" y="12" width="5" height="10" rx="2" {...p} />
+      <rect x="9" y="28" width="6" height="12" rx="1" {...p} />
+      <rect x="17" y="28" width="6" height="12" rx="1" {...p} />
+      <path d="M9 12 L23 12 L23 20 L16 24 L9 20 Z" {...dp} />
+    </>;
+    if (type === 'courtier') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 13 Q16 11 24 13 L22 26 Q16 28 10 26 Z" {...p} />
+      <path d="M10 26 L6 42 L14 38 L16 42 L18 38 L26 42 L22 26 Z" {...p} />
+    </>;
+    if (type === 'merchant') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 13 Q16 11 24 13 L22 28 Q16 30 10 28 Z" {...p} />
+      <path d="M10 28 L8 42 L24 42 L22 28 Z" {...p} />
+      <circle cx="16" cy="36" r="4" {...dp} />
+    </>;
+    if (type === 'monster') return <>
+      <ellipse cx="16" cy="7" rx="7" ry="6" {...p} />
+      <path d="M6 13 Q16 10 26 13 L28 38 Q16 44 4 38 Z" {...p} />
+      <path d="M6 13 L4 8 M26 13 L28 8" stroke={c} strokeWidth={2 / scale} fill="none" />
+    </>;
+    if (type === 'jinn') return <>
+      <ellipse cx="16" cy="7" rx="6" ry="6" {...p} />
+      <path d="M8 14 Q16 10 24 14 Q28 26 24 38 Q16 44 8 38 Q4 26 8 14 Z" {...p} />
+      <path d="M10 6 L8 2 M22 6 L24 2" stroke={dim} strokeWidth={1.5 / scale} fill="none" />
+    </>;
+    if (type === 'yodotai') return <>
+      <ellipse cx="16" cy="5" rx="5" ry="4" {...p} />
+      <path d="M11 8 Q16 6 21 8 L23 14 L16 12 L9 14 Z" {...p} />
+      <rect x="8" y="14" width="16" height="16" rx="1" {...p} />
+      <rect x="3" y="14" width="5" height="12" rx="2" {...p} />
+      <rect x="24" y="14" width="5" height="12" rx="2" {...p} />
+      <rect x="8" y="30" width="7" height="12" rx="1" {...p} />
+      <rect x="17" y="30" width="7" height="12" rx="1" {...p} />
+    </>;
+    if (type === 'senpet') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M9 12 Q16 9 23 12 L25 30 Q16 34 7 30 Z" {...p} />
+      <path d="M7 30 L5 42 L27 42 L25 30 Z" {...p} />
+      <path d="M13 4 L16 0 L19 4" fill={dim} stroke={c} strokeWidth={1 / scale} />
+    </>;
+    if (type === 'ashalan') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 12 Q16 10 24 12 L22 38 Q16 42 10 38 Z" {...p} />
+      <path d="M14 2 L16 -2 L18 2 L22 0 L20 4 L24 6 L20 6 L18 10 L16 6 L14 10 L12 6 L8 6 L12 4 Z" fill={dim} stroke={c} strokeWidth={0.5 / scale} />
+    </>;
+    if (type === 'ebonite') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <rect x="9" y="12" width="14" height="16" rx="1" {...p} />
+      <rect x="3" y="12" width="5" height="12" rx="2" {...p} />
+      <rect x="24" y="12" width="5" height="12" rx="2" {...p} />
+      <rect x="9" y="28" width="6" height="14" rx="1" {...p} />
+      <rect x="17" y="28" width="6" height="14" rx="1" {...p} />
+      <path d="M11 20 L16 14 L21 20 L16 26 Z" {...dp} />
+    </>;
+    if (type === 'jackal') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 13 Q16 10 24 13 L22 38 Q16 42 10 38 Z" {...p} />
+      <path d="M11 6 L8 2 M21 6 L24 2" stroke={c} strokeWidth={1.5 / scale} fill="none" />
+    </>;
+    if (type === 'rashari') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M8 12 Q16 10 24 12 L22 30 Q16 34 10 30 Z" {...p} />
+      <path d="M4 12 Q8 16 10 22 M28 12 Q24 16 22 22" stroke={dim} strokeWidth={1.5 / scale} fill="none" />
+      <path d="M10 30 L8 42 L24 42 L22 30 Z" {...p} />
+    </>;
+    if (type === 'nomad') return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <path d="M6 13 Q16 10 26 13 L24 38 Q16 42 8 38 Z" {...p} />
+      <path d="M6 13 Q4 10 6 8 Q10 6 12 10" fill={dim} stroke={c} strokeWidth={1 / scale} />
+    </>;
+    // warrior default
+    return <>
+      <ellipse cx="16" cy="6" rx="5" ry="5" {...p} />
+      <rect x="10" y="12" width="12" height="14" rx="2" {...p} />
+      <rect x="4" y="12" width="5" height="10" rx="2" {...p} />
+      <rect x="23" y="12" width="5" height="10" rx="2" {...p} />
+      <rect x="10" y="26" width="5" height="12" rx="1" {...p} />
+      <rect x="17" y="26" width="5" height="12" rx="1" {...p} />
+      <rect x="2" y="10" width="3" height="18" rx="1" fill={dim} stroke={c} strokeWidth={1 / scale} />
+    </>;
+  })();
+
+  return <g transform={t}>{inner}</g>;
+}
+
+// ── Scroll Lore — click the scroll icon for full description ─────────────────
+export function ScrollLore({ title, text, color = 'var(--gold-dim)', size = 11 }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <i className="ti ti-scroll"
+        onClick={e => { e.stopPropagation(); setOpen(true); }}
+        style={{ fontSize: size, color, cursor: 'pointer', flexShrink: 0, opacity: .7 }}
+        title={`Lore: ${title}`}
+      />
+      {open && (
+        <div className="modal-overlay" onClick={() => setOpen(false)} style={{ zIndex: 200 }}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-title"><i className="ti ti-scroll" style={{ marginRight: 8 }} />{title}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{text}</div>
+            <button className="btn btn-sm" style={{ marginTop: '1rem' }} onClick={() => setOpen(false)}>Close</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 export function Loading({ message = 'Loading...' }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', flexDirection: 'column', gap: '1rem' }}>

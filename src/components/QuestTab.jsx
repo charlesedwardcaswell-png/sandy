@@ -22,7 +22,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
   const [playerQ, setPlayerQ] = useState({ title: '', description: '' });
   const gmView = isGM && !isPCView;
 
-  const visibleQuests = gmView ? quests : quests.filter(q => q.is_visible);
+  const visibleQuests = (gmView ? quests : quests.filter(q => q.is_visible)).filter(Boolean);
   const sorted = [...visibleQuests].sort((a, b) => {
     // Sort by type first (main, side, player), then by status
     const typeOrder = { main: 0, side: 1, player: 2 };
@@ -121,7 +121,12 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
               <span className={`qstat ${STATUS_STYLE[q.status] || 'q-active'}`}>
                 {q.status === 'carried_over' ? 'carried' : q.status}
               </span>
-              <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{q.title}</span>
+              <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: q.status === 'complete' ? 'line-through' : 'none' }}>{q.title}</span>
+              {/* Complete button — GM always, players for their own quests */}
+              {q.status === 'active' && (gmView || q.quest_type === 'player') && (
+                <button className="btn btn-sm" style={{ fontSize: 9, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
+                  onClick={() => onUpdateQuest(q.id, { status: 'complete' })}>✓ Complete</button>
+              )}
               {gmView && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   {/* Promote player quests */}

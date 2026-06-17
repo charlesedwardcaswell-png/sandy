@@ -66,8 +66,8 @@ export default function LogTab({ encounterLog, sessionLog, skillLog }) {
                 <span style={{ fontSize: 10, padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)' }}>{e.encounter_type}</span>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>{e.rounds} rounds</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Party: {e.party}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>vs: {e.enemies}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Party: {Array.isArray(e.party) ? e.party.map(p => p.name || p).join(', ') : (e.party || '—')}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>vs: {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
             </div>
           ))}
         </div>
@@ -135,7 +135,7 @@ export default function LogTab({ encounterLog, sessionLog, skillLog }) {
                               <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{e.rounds} rounds</span>
                               {e.difficulty && <span style={{ fontSize: 9, padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--gold-dim)' }}>{e.difficulty}</span>}
                             </div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>vs {e.enemies || '—'}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
                           </div>
                         </div>
                       ))}

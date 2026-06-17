@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID } from '../data/constants';
 import { supabase } from '../lib/supabase';
-import { Silhouette, FacIcon, WoundBadge } from './UI';
+import { Silhouette, FacIcon, WoundBadge, SilhouetteToken } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
 import DiceModal from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
@@ -189,10 +189,9 @@ function VoidButton() {
   ];
   return (
     <div style={{ position: 'relative' }}>
-      <button className="btn btn-sm"
-        style={{ borderColor: 'rgba(200,150,42,.5)', color: 'var(--gold)', fontSize: 10 }}
-        onClick={() => setOpen(!open)}>
-        <i className="ti ti-circle-dot" style={{ marginRight: 4 }} />Void
+      <button onClick={() => setOpen(!open)}
+        style={{ width: 42, height: 42, borderRadius: '50%', background: '#000', border: '2px solid rgba(200,150,42,.5)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 9, fontWeight: 700, letterSpacing: '.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: open ? '0 0 12px rgba(200,150,42,.4)' : 'none' }}>
+        VOID
       </button>
       {open && (
         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '.6rem', width: 260, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
@@ -286,7 +285,7 @@ function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
 }
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShift, settingBg }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShift, onClearGrid, settingBg }) {
   const [selected, setSelected] = useState(null);
   const CELL = 36;
   const W = gridSize * CELL;
@@ -311,15 +310,9 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
     return c.type === 'npc' ? '#c84030' : '#4a8a40';
   };
 
-  const ShiftBtn = ({ dx, dy, icon, style }) => (
-    isGM ? (
-      <button onClick={() => onShift(dx, dy)}
-        style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 4, cursor: 'pointer', padding: '3px 6px', fontSize: 12, lineHeight: 1, ...style }}
-        title={`Shift all tokens ${icon === '↑' ? 'up' : icon === '↓' ? 'down' : icon === '←' ? 'left' : 'right'}`}>
-        {icon}
-      </button>
-    ) : null
-  );
+  const ShiftBtn = ({ dx, dy, icon }) => isGM ? (
+    <button onClick={() => onShift(dx, dy)} style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 4, cursor: 'pointer', padding: '3px 6px', fontSize: 12, lineHeight: 1 }}>{icon}</button>
+  ) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -328,16 +321,13 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
         {selected && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
       </div>
 
-      {/* Top shift button */}
       <ShiftBtn dx={0} dy={-1} icon="↑" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {/* Left shift button */}
         <ShiftBtn dx={-1} dy={0} icon="←" />
 
-        {/* Grid */}
         <svg width={W} height={W}
-          style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: selected ? 'crosshair' : 'default', display: 'block' }}
+          style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: selected ? 'crosshair' : 'default', display: 'block', overflow: 'visible' }}
           onClick={e => {
             if (!selected) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -346,10 +336,8 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
             handleCellClick(x, y);
           }}>
 
-          {/* Setting background image at 25% opacity */}
           {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
 
-          {/* Grid lines */}
           {Array.from({ length: gridSize + 1 }, (_, i) => (
             <g key={i}>
               <line x1={i * CELL} y1={0} x2={i * CELL} y2={W} stroke="rgba(107,78,40,.25)" strokeWidth="0.5" />
@@ -357,7 +345,6 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
             </g>
           ))}
 
-          {/* Valid cell highlights when moving */}
           {selected && Array.from({ length: gridSize }, (_, y) =>
             Array.from({ length: gridSize }, (_, x) => {
               const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
@@ -366,7 +353,6 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
             })
           )}
 
-          {/* Tokens */}
           {combatants.map(c => {
             if (c.gridX === undefined || c.gridY === undefined) return null;
             const isActive = c.id === active?.id;
@@ -375,33 +361,39 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
             const cx = c.gridX * CELL + CELL / 2;
             const cy = c.gridY * CELL + CELL / 2;
             const r = 13;
+            const pc = pcsMap[c.id];
+            const avatarType = pc?.avatar_type || 'warrior';
+            const ringColor = c.type === 'npc' ? '#c84030' : '#4a8a40';
+            const isDead = c.wound >= 6;
+            const statusLabel = c.wound >= 7 ? 'DEAD' : c.wound >= 6 ? 'DOWN' : null;
+            const shortName = c.name.length > 7 ? c.name.slice(0, 6) + '…' : c.name;
             return (
               <g key={c.id} style={{ cursor: 'pointer' }} onClick={e => handleTokenClick(e, c.id)}>
-                {isActive && <circle cx={cx} cy={cy} r={r + 4} fill={color} opacity="0.2" />}
-                {isSelected && <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="3,2" />}
-                <circle cx={cx} cy={cy} r={r} fill={color} stroke={isActive ? '#fff' : color + '88'} strokeWidth={isActive ? 1.5 : 1} />
-                {c.type === 'npc' && <circle cx={cx} cy={cy} r={r - 4} fill="none" stroke="rgba(0,0,0,.3)" strokeWidth="1" />}
-                <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize="9" fontWeight="bold" fill="#fff" fontFamily="sans-serif">
-                  {c.name.slice(0, 2).toUpperCase()}
-                </text>
-                {c.wound > 0 && (
+                {isActive && <circle cx={cx} cy={cy} r={r + 6} fill={color} opacity="0.2" />}
+                {isActive && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke={color} strokeWidth="1.5" opacity="0.6" />}
+                {isSelected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="3,2" />}
+                <circle cx={cx} cy={cy} r={r + 1} fill={ringColor + '33'} stroke={isDead ? '#600010' : ringColor} strokeWidth="1.5" opacity={isDead ? 0.5 : 1} />
+                <circle cx={cx} cy={cy} r={r} fill={isDead ? '#1a0808' : '#1a1208'} />
+                <SilhouetteToken type={avatarType} cx={cx} cy={cy} r={r} color={isDead ? '#600010' : color} />
+                {c.wound > 0 && !isDead && (
                   <circle cx={cx + r - 3} cy={cy - r + 3} r="4"
-                    fill={['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818'][c.wound - 1] || '#c84030'}
+                    fill={['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828'][c.wound - 1] || '#c84030'}
                     stroke="rgba(0,0,0,.5)" strokeWidth="0.5" />
+                )}
+                <text x={cx} y={cy + r + 9} textAnchor="middle" fontSize="7" fill={isDead ? '#600010' : '#888'} fontFamily="sans-serif">{shortName}</text>
+                {statusLabel && (
+                  <text x={cx} y={cy - r - 3} textAnchor="middle" fontSize="7" fontWeight="bold" fill={c.wound >= 7 ? '#c00010' : '#c84030'} fontFamily="sans-serif">{statusLabel}</text>
                 )}
               </g>
             );
           })}
         </svg>
 
-        {/* Right shift button */}
         <ShiftBtn dx={1} dy={0} icon="→" />
       </div>
 
-      {/* Bottom shift button */}
       <ShiftBtn dx={0} dy={1} icon="↓" />
 
-      {/* Unplaced token tray */}
       {(() => {
         const unplaced = combatants.filter(c => c.gridX === undefined || c.gridY === undefined);
         if (!unplaced.length) return null;
@@ -413,8 +405,8 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
               const isSelected = c.id === selected;
               return (
                 <div key={c.id} onClick={e => handleTokenClick(e, c.id)}
-                  style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: `2px solid ${isSelected ? '#fff' : color + '88'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 9, fontWeight: 700, color: '#fff', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }}>
-                  {c.name.slice(0, 2).toUpperCase()}
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: `2px solid ${isSelected ? '#fff' : color + '88'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 7, fontWeight: 700, color: '#fff', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }}>
+                  {c.name.slice(0, 3).toUpperCase()}
                 </div>
               );
             })}
@@ -422,12 +414,59 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
         );
       })()}
 
-      {/* Clear all — GM only */}
       {isGM && combatants.some(c => c.gridX !== undefined) && (
-        <button className="btn btn-sm" style={{ fontSize: 9, marginTop: 4 }}
-          onClick={() => combatants.forEach(c => onMove(c.id, undefined, undefined))}>
-          Clear Grid
-        </button>
+        <button className="btn btn-sm" style={{ fontSize: 9, marginTop: 4 }} onClick={onClearGrid}>Clear Grid</button>
+      )}
+    </div>
+  );
+}
+
+
+// ── Complication Button ───────────────────────────────────────────────────────
+function ComplicationButton({ envQuirk, onSet }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+
+  const COMPLICATIONS = [
+    'Reinforcements arrive — roll 1d6 for count',
+    'Fire breaks out — spreads 1 zone per round',
+    'Civilians caught in crossfire',
+    'Structure becomes unstable — collapses in 3 rounds',
+    'A Jinn is drawn to the violence',
+    'City Guard arrives — whose side are they on?',
+    'Sandstorm reduces visibility',
+    'Someone important flees',
+    'Hidden trap triggers',
+    'An ally turns',
+  ];
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn btn-sm"
+        style={{ borderColor: envQuirk ? 'var(--red)' : 'rgba(200,150,42,.4)', color: envQuirk ? 'var(--red)' : 'var(--gold-dim)', fontSize: 10 }}
+        onClick={() => { setOpen(o => !o); setText(envQuirk || ''); }}>
+        <i className="ti ti-alert-triangle" style={{ fontSize: 10, marginRight: 3 }} />
+        {envQuirk ? 'Edit Complication' : 'Complication'}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--red)', borderRadius: 6, padding: '.75rem', width: 280, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
+            Mid-Encounter Complication
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+          </div>
+          <input value={text} onChange={e => setText(e.target.value)} placeholder="Describe the complication..." style={{ width: '100%', marginBottom: '.5rem', fontSize: 11 }} onKeyDown={e => e.key === 'Enter' && (onSet(text), setOpen(false))} autoFocus />
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Quick options:</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: '.5rem', maxHeight: 160, overflowY: 'auto' }}>
+            {COMPLICATIONS.map(c => (
+              <button key={c} onClick={() => { setText(c); }} style={{ fontSize: 9, textAlign: 'left', background: text === c ? 'rgba(200,64,48,.15)' : 'var(--bg-panel)', border: `1px solid ${text === c ? 'var(--red)' : 'var(--border)'}`, color: 'var(--text-secondary)', borderRadius: 3, padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit' }}>{c}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-p btn-sm" style={{ flex: 1, borderColor: 'var(--red)', background: 'rgba(200,64,48,.2)', color: 'var(--red)' }} onClick={() => { onSet(text); setOpen(false); }}>Set Complication</button>
+            {envQuirk && <button className="btn btn-sm" onClick={() => { onSet(''); setOpen(false); }}>Clear</button>}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -441,11 +480,13 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const [compact, setCompact] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [settingUrls, setSettingUrls] = useState({});
+  const [customRoundLimits, setCustomRoundLimits] = useState({});
   const GRID_SIZE = 12;
 
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.setting_urls) setSettingUrls(data.settings.setting_urls);
+      if (data?.settings?.round_limits) setCustomRoundLimits(data.settings.round_limits);
     });
   }, []); // 12×12 cells
   const [npcTargets, setNpcTargets] = useState({}); // npcId -> action
@@ -721,7 +762,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             <div>{['Action','Intrigue','Travel','Downtime'].map(t => (
               <button key={t} className={`opt-btn ${s.type === t ? 'sel' : ''}`} onClick={() => upS({ type: t, name: '' })}>{t}</button>
             ))}</div>
-            {s.type && ROUND_LIMITS[s.type] && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.3rem' }}>{ROUND_LIMITS[s.type]} round limit</div>}
+            {s.type && (() => {
+              const custom = customRoundLimits[s.type];
+              const limit = (custom !== undefined && custom !== '') ? (+custom || null) : ROUND_LIMITS[s.type];
+              return limit ? <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.3rem' }}>{limit} round limit</div> : null;
+            })()}
           </div>
           {/* Setting */}
           <div style={{ marginBottom: '1rem' }}>
@@ -779,7 +824,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   }
 
   // ── Active state ─────────────────────────────────────────────────────────
-  const roundLimit = ROUND_LIMITS[setup.type];
+  const roundLimit = (() => {
+    const custom = customRoundLimits[setup.type];
+    if (custom !== undefined && custom !== '') return +custom || null;
+    return ROUND_LIMITS[setup.type];
+  })();
 
   return (
     <div style={{ paddingBottom: isMyTurn ? 260 : 0 }}>
@@ -811,8 +860,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             <button className={`layer-btn ${showGrid ? 'active' : ''}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
           )}
         </div>
-        {isGM && !isPCView && (
+        {(isGM && !isPCView) && (
           <>
+            <ComplicationButton envQuirk={envQuirk} onSet={(text) => { upEnc({ envQuirk: text || null }); if (text) onLogEvent && onLogEvent('ti-alert-triangle', `Complication: ${text}`); }} />
             <button className="btn btn-p btn-sm" onClick={advanceTurn}>End Turn →</button>
             <button className="btn btn-sm btn-d" onClick={endEncounter}>End Encounter</button>
           </>
@@ -915,7 +965,19 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               isGM={isGM && !isPCView}
               settingBg={settingUrls[setup.setting] || null}
               onMove={(id, x, y) => {
-                upEnc({ combatants: combatants.map(c => c.id === id ? { ...c, gridX: x, gridY: y } : c) });
+                upEnc({ combatants: combatants.map(c => {
+                  if (c.id !== id) return c;
+                  // Save starting position on first placement
+                  const isFirstPlace = c.gridX === undefined;
+                  return { ...c, gridX: x, gridY: y, ...(isFirstPlace ? { startX: x, startY: y } : {}) };
+                })});
+              }}
+              onClearGrid={() => {
+                upEnc({ combatants: combatants.map(c => ({
+                  ...c,
+                  gridX: c.startX !== undefined ? c.startX : undefined,
+                  gridY: c.startY !== undefined ? c.startY : undefined,
+                }))});
               }}
               onShift={(dx, dy) => {
                 upEnc({
@@ -923,7 +985,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                     if (c.gridX === undefined || c.gridY === undefined) return c;
                     const nx = c.gridX + dx;
                     const ny = c.gridY + dy;
-                    // tokens shifted off the edge are removed from grid
                     if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
                       return { ...c, gridX: undefined, gridY: undefined };
                     }

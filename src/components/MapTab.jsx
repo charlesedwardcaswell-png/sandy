@@ -1,6 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { GAME_ID } from '../data/constants';
 
-const MAP_IMAGE = 'https://i.imgur.com/6fuMHqq.jpeg';
+const DEFAULT_MAP = 'https://i.imgur.com/6fuMHqq.jpeg';
 
 // ── Pin types — icon-based ────────────────────────────────────────────────────
 const PIN_TYPES = [
@@ -176,7 +178,7 @@ function PinEditor({ pin, onSave, onClose }) {
 }
 
 // ── Pin popup (click on placed pin) ──────────────────────────────────────────
-function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose }) {
+function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose, onMove }) {
   const pt = getPinType(pin.pin_type);
   const [notes, setNotes] = useState(pin.player_notes || '');
   const [notesChanged, setNotesChanged] = useState(false);
@@ -237,6 +239,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose 
       {gmView && (
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
           <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => onEdit(pin)}>Edit</button>
+          <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => { onMove(pin.id); onClose(); }}>Move</button>
           <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => onUpdatePin(pin.id, { is_visible_to_players: !pin.is_visible_to_players })}>
             {pin.is_visible_to_players ? 'Hide' : 'Reveal'}
           </button>
@@ -250,31 +253,48 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose 
 // ── Main Map Tab ──────────────────────────────────────────────────────────────
 export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin, onDeletePin }) {
   const [layer, setLayer] = useState('surface');
-  const [filter, setFilter] = useState(null);
   const [selected, setSelected] = useState(null);
   const [placing, setPlacing] = useState(false);
+  const [moving, setMoving] = useState(null);
+  const movingRef = useRef(null);
+  const setMovingWithRef = (id) => { setMoving(id); movingRef.current = id; };
   const [newPinPos, setNewPinPos] = useState(null);
   const [editingPin, setEditingPin] = useState(null);
   const [imgAspect, setImgAspect] = useState(null);
+  const [mapImage, setMapImage] = useState(DEFAULT_MAP);
   const mapRef = useRef(null);
   const gmView = isGM && !isPCView;
+
+  // Load custom map URL from games settings
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.map_url) setMapImage(data.settings.map_url);
+    });
+  }, []);
 
   const safePins = (pins || []).filter(Boolean);
   const visiblePins = safePins.filter(p => {
     if (p.map_layer !== layer) return false;
     if (!gmView && !p.is_visible_to_players) return false;
-    if (filter && p.pin_type !== filter) return false;
     return true;
   });
 
   const handleMapClick = useCallback((e) => {
-    if (!placing || !gmView) return;
     const rect = mapRef.current.getBoundingClientRect();
     const x = +((e.clientX - rect.left) / rect.width * 100).toFixed(2);
     const y = +((e.clientY - rect.top) / rect.height * 100).toFixed(2);
-    setNewPinPos({ x, y });
-    setSelected(null);
-  }, [placing, gmView]);
+
+    if (movingRef.current && gmView) {
+      onUpdatePin(movingRef.current, { x_position: x, y_position: y });
+      setMovingWithRef(null);
+      return;
+    }
+
+    if (placing && gmView) {
+      setNewPinPos({ x, y });
+      setSelected(null);
+    }
+  }, [placing, gmView, onUpdatePin]);
 
   const handlePinClick = (e, pinId) => {
     e.stopPropagation();
@@ -335,26 +355,12 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           <i className="ti ti-map-pin" style={{ marginRight: 4 }} />Click anywhere on the map to place a pin
         </div>
       )}
-
-      {/* Filter row */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '.5rem', alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Filter:</span>
-        <span className={`tag ${!filter ? 'on' : ''}`} onClick={() => setFilter(null)} style={!filter ? { borderColor: 'var(--gold)', color: 'var(--gold)' } : {}}>All</span>
-        {PIN_TYPES.map(pt => (
-          <span key={pt.id}
-            onClick={() => setFilter(filter === pt.id ? null : pt.id)}
-            title={pt.label}
-            style={{
-              width: 22, height: 22, borderRadius: '50%', background: pt.color,
-              border: `2px solid ${filter === pt.id ? '#fff' : 'transparent'}`,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', opacity: filter && filter !== pt.id ? .4 : 1,
-            }}
-          >
-            <i className={`ti ${pt.icon}`} style={{ fontSize: 11, color: '#fff' }} />
-          </span>
-        ))}
-      </div>
+      {moving && (
+        <div style={{ padding: '.35rem .75rem', background: 'rgba(74,138,200,.1)', border: '1px solid #4a8ac8', borderRadius: 4, marginBottom: '.5rem', fontSize: 11, color: '#80b8e8', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <i className="ti ti-arrows-move" style={{ marginRight: 4 }} />Click new location to move pin
+          <button className="btn btn-sm" style={{ fontSize: 9, marginLeft: 'auto' }} onClick={() => setMovingWithRef(null)}>Cancel</button>
+        </div>
+      )}
 
       {/* Map container */}
       <div
@@ -362,7 +368,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         ref={mapRef}
         onClick={handleMapClick}
         style={{
-          cursor: placing && !newPinPos ? 'crosshair' : 'default',
+          cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : 'default',
           height: 'auto',
           aspectRatio: imgAspect ? `${imgAspect}` : '4/3',
           maxHeight: '70vh',
@@ -370,7 +376,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
       >
         {/* Image */}
         {layer === 'surface' && (
-          <img src={MAP_IMAGE} alt="Medinaat al-Salaam"
+          <img src={mapImage} alt="Medinaat al-Salaam"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
             onError={e => { e.target.style.display = 'none'; }}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'fill' }}
@@ -379,7 +385,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
 
         {/* Underground — darkened version of same map */}
         {layer === 'underground' && (
-          <img src={MAP_IMAGE} alt="Underground"
+          <img src={mapImage} alt="Underground"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'fill', filter: 'brightness(0.25) saturate(0.4)' }}
           />
@@ -432,6 +438,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
                   onDelete={handleDelete}
                   onUpdatePin={onUpdatePin}
                   onClose={() => setSelected(null)}
+                  onMove={(id) => { setMovingWithRef(id); setSelected(null); }}
                 />
               )}
             </div>

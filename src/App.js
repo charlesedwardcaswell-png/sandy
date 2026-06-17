@@ -41,15 +41,17 @@ export default function App() {
   });
 
   // Load encounter state from session — only for non-GM clients
-  // GM owns the encounter state and writes it; players read it
+  // Use JSON stringify as dependency to detect actual content changes
+  const encounterDataJson = session?.encounter_data ? JSON.stringify(session.encounter_data) : null;
   useEffect(() => {
-    if (isGM) return; // GM drives the state, don't overwrite from DB
+    if (isGM) return;
     if (session?.encounter_data) {
       setEncounter(session.encounter_data);
     } else if (session && !session.encounter_data) {
       setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1 });
     }
-  }, [session?.id, session?.encounter_data, isGM]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, encounterDataJson, isGM]);
 
   // Debounced save — write to Supabase 800ms after last change
   const saveTimer = useRef(null);
@@ -106,6 +108,18 @@ export default function App() {
   }, [saveEncounterDebounced, isGM]);
 
   const safeChars = characters.filter(Boolean);
+
+  const TIMES = ['Dawn','Morning','Midday','Afternoon','Dusk','Evening','Night'];
+  const TIME_ICONS = { Dawn: '🌅', Morning: '☀️', Midday: '☀️', Afternoon: '🌤️', Dusk: '🌇', Evening: '🌆', Night: '🌙' };
+  const [timeOfDay, setTimeOfDay] = useState('Morning');
+  const [campaignDay, setCampaignDay] = useState(1);
+  const [campaignWeek, setCampaignWeek] = useState(1);
+
+  useEffect(() => {
+    if (encounter?.timeOfDay) setTimeOfDay(encounter.timeOfDay);
+    if (encounter?.campaignDay) setCampaignDay(encounter.campaignDay);
+    if (encounter?.campaignWeek) setCampaignWeek(encounter.campaignWeek);
+  }, [encounter?.timeOfDay, encounter?.campaignDay, encounter?.campaignWeek]);
 
   if (!authMode) {
     return (
@@ -205,6 +219,20 @@ export default function App() {
     return { ...s, recap, events: s.event_log || [] };
   });
 
+  const handleSetTime = (t) => {
+    setTimeOfDay(t);
+    handleSetEncounter(e => ({ ...e, timeOfDay: t, campaignDay }));
+  };
+  const handleSetDay = (d) => {
+    let day = d;
+    let week = campaignWeek;
+    if (d > 7) { day = 1; week = campaignWeek + 1; setCampaignWeek(week); }
+    else if (d < 1 && campaignWeek > 1) { day = 7; week = campaignWeek - 1; setCampaignWeek(week); }
+    else if (d < 1) { day = 1; } // week 1, can't go back further
+    setCampaignDay(day);
+    handleSetEncounter(e => ({ ...e, timeOfDay, campaignDay: day, campaignWeek: week }));
+  };
+
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...(gmView ? ['settings'] : [])];
 
   return (
@@ -225,6 +253,14 @@ export default function App() {
         <span className="hdr-game">The Heart of the Jewel</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 10 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
+        {/* Time of day — centred in header */}
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
+          <div style={{ lineHeight: 1.2, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Wk {campaignWeek} · Day {campaignDay}</div>
+          </div>
+        </div>
         {isGM && (
           <label className={`pc-toggle ${isPCView ? 'on' : ''}`} style={{ cursor: 'pointer' }}>
             <input type="checkbox" checked={isPCView} onChange={e => setIsPCView(e.target.checked)} /> PC View
@@ -243,6 +279,19 @@ export default function App() {
           <i className={`ti ${session ? 'ti-circle-filled' : 'ti-circle'}`} style={{ fontSize: 10, color: session ? 'var(--green)' : 'var(--text-muted)' }} />
           <span>Session {sessionNum}</span>
           <span className={session ? 'sess-active' : ''}>{session ? 'Active' : 'Not started'}</span>
+          {/* GM time controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+            <select value={timeOfDay} onChange={e => handleSetTime(e.target.value)}
+              style={{ fontSize: 10, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
+              {TIMES.map(t => <option key={t} value={t}>{TIME_ICONS[t]} {t}</option>)}
+            </select>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Wk</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 14, textAlign: 'center' }}>{campaignWeek}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Day</span>
+            <button className="rep-btn" onClick={() => handleSetDay(Math.max(1, campaignDay - 1))}>−</button>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
+            <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
+          </div>
           <div style={{ flex: 1 }} />
           {!session
             ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession(sessionNum)}>
@@ -292,6 +341,7 @@ export default function App() {
             onUpdateCharacter={handleUpdateChar}
             onAddEncounterEntry={addEncounterEntry}
             onLogSkill={logSkillUse}
+            onLogEvent={push}
           />
         )}
         {tab === 'map' && (
@@ -350,6 +400,7 @@ export default function App() {
         <DiceModal
           context={globalModal}
           onClose={() => setGlobalModal(null)}
+          onLogEvent={push}
           onResult={(result, damage) => {
             // Apply damage to target if attack
             if (damage !== null && damage !== undefined && globalModal?.targetId) {

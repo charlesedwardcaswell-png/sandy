@@ -22,24 +22,25 @@ function getRelevantTechniques(character, skillName) {
 }
 
 // ── Dice Modal ────────────────────────────────────────────────────────────────
-export default function DiceModal({ context, onClose, onResult }) {
+export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const [phase, setPhase] = useState('setup');
   const [raises, setRaises] = useState([]);
   const [useVoid, setUseVoid] = useState(false);
-  const [flatMod, setFlatMod] = useState(0);
-  const [extraRoll, setExtraRoll] = useState(0);  // extra dice to roll
-  const [extraKeep, setExtraKeep] = useState(0);  // extra dice to keep
+  const [flatMod, setFlatMod] = useState(context?.suggestedFlatMod || 0);
+  const [extraRoll, setExtraRoll] = useState(0);
+  const [extraKeep, setExtraKeep] = useState(0);
   const [dice, setDice] = useState([]);
   const [kept, setKept] = useState(new Set());
   const [rollResult, setRollResult] = useState(null);
   const [dmgDice, setDmgDice] = useState([]);
   const [dmgKept, setDmgKept] = useState(new Set());
-  const [modApplied, setModApplied] = useState(null); // tracks auto-applied technique mod
+  const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
 
   const voidBonus = useVoid ? 1 : 0;
   const rollCount = (context?.baseRoll || 2) + voidBonus + extraRoll;
   const keepCount = Math.min((context?.baseKeep || 2) + voidBonus + extraKeep, rollCount);
-  const tn = (context?.tn || 15) + raises.length * 5;
+  const freeRaiseReduction = (context?.freeRaises || 0) * 5;
+  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raises.length * 5);
   const isAttack = context?.isAttack || false;
   const dmgDR = context?.dr || '3k2';
   const [dmgRoll, dmgKeep] = dmgDR.match(/\d+/g)?.map(Number) || [3, 2];
@@ -70,6 +71,15 @@ export default function DiceModal({ context, onClose, onResult }) {
     const success = total >= tn;
     const result = { total, success, margin: total - tn, tn, raises, flatMod };
     setRollResult(result);
+    // Log to ticker
+    if (onLogEvent) {
+      const skillName = context?.skill || 'Roll';
+      const icon = success ? 'ti-check' : 'ti-x';
+      const txt = success
+        ? `${skillName} — ${total} vs TN ${tn} ✓ (${total >= tn ? '+' : ''}${total - tn})`
+        : `${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
+      onLogEvent(icon, txt);
+    }
     if (success && isAttack) {
       setDmgDice(rollN(dmgRoll));
       setDmgKept(new Set());
@@ -89,6 +99,9 @@ export default function DiceModal({ context, onClose, onResult }) {
 
   const confirmDamage = () => {
     const dmg = [...dmgKept].reduce((s, i) => s + dmgDice[i], 0);
+    if (onLogEvent) {
+      onLogEvent('ti-sword', `${context?.skill || 'Attack'} → ${dmg} wounds to ${context?.targetName || 'target'}`);
+    }
     onResult && onResult(rollResult, dmg);
     setPhase('done');
   };
@@ -102,8 +115,38 @@ export default function DiceModal({ context, onClose, onResult }) {
           {context?.targetName && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>→ {context.targetName}</span>}
         </div>
 
+        {/* Dice source — show where the numbers come from */}
+        {context?.skill && (context?.ringVal || context?.baseRoll) && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '.3rem .5rem', background: 'rgba(107,78,40,.15)', borderRadius: 4, marginBottom: '.5rem', fontSize: 10, flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Pool:</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{context.baseRoll}k{context.baseKeep}</span>
+            <span style={{ color: 'var(--border)' }}>·</span>
+            {context.traitKey && <span style={{ color: 'var(--text-muted)' }}>{context.traitKey} ({context.traitVal}) + skill rank → <span style={{ color: 'var(--text-primary)' }}>{context.baseRoll} rolled</span></span>}
+            {context.ringKey && <span style={{ color: 'var(--text-muted)' }}>{context.ringKey} ring ({context.ringVal}) → <span style={{ color: 'var(--text-primary)' }}>{context.baseKeep} kept</span></span>}
+          </div>
+        )}
+
         {phase === 'setup' && (<>
-          {/* TN */}
+          {/* Bonus notes from stance/mastery/emphasis */}
+          {(context?.bonusNotes?.length > 0 || context?.freeRaises > 0) && (
+            <div className="modal-section">
+              <span className="modal-label">Active Bonuses</span>
+              <div style={{ background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>
+                {(context.bonusNotes || []).map((note, i) => (
+                  <div key={i} style={{ fontSize: 10, color: 'var(--gold-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <i className="ti ti-star" style={{ fontSize: 9 }} />{note}
+                  </div>
+                ))}
+                {context.freeRaises > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--gold)', marginTop: 2 }}>
+                    <i className="ti ti-arrow-up" style={{ fontSize: 9, marginRight: 4 }} />{context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} already applied (TN effectively {(context?.tn || 15) - context.freeRaises * 5})
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TN (adjusted for free raises) */}
           <div className="modal-section">
             <span className="modal-label">Target Number</span>
             <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--gold)' }}>{tn}</div>
@@ -228,12 +271,19 @@ export default function DiceModal({ context, onClose, onResult }) {
             <div style={{ marginTop: '.75rem', fontSize: 11, color: 'var(--text-muted)' }}>
               {(() => {
                 const runningTotal = [...kept].reduce((s, i) => s + dice[i], 0) + flatMod;
+                const wouldSucceed = runningTotal >= tn;
                 return (<>
-                  Total: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{runningTotal}</span>
-                  {flatMod !== 0 && <span style={{ color: 'var(--gold-dim)', fontSize: 10 }}> (includes {flatMod >= 0 ? '+' : ''}{flatMod} modifier)</span>}
-                  {kept.size === keepCount && (
-                    <span style={{ marginLeft: 8, color: runningTotal >= tn ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                      {runningTotal >= tn ? `✓ Success (+${runningTotal - tn})` : `✗ Fail (${runningTotal - tn})`}
+                  Total: <span style={{ color: kept.size > 0 ? (wouldSucceed ? 'var(--green)' : 'var(--red)') : 'var(--text-primary)', fontWeight: 600 }}>{runningTotal}</span>
+                  <span style={{ marginLeft: 4, color: 'var(--text-muted)' }}>vs TN {tn}</span>
+                  {flatMod !== 0 && <span style={{ color: 'var(--gold-dim)', fontSize: 10 }}> (incl. {flatMod >= 0 ? '+' : ''}{flatMod})</span>}
+                  {kept.size > 0 && (
+                    <span style={{ marginLeft: 8, color: wouldSucceed ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                      {wouldSucceed ? `✓ +${runningTotal - tn}` : `✗ ${runningTotal - tn}`}
+                    </span>
+                  )}
+                  {kept.size < keepCount && kept.size > 0 && (
+                    <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      ({keepCount - kept.size} more to keep)
                     </span>
                   )}
                 </>);
@@ -241,8 +291,8 @@ export default function DiceModal({ context, onClose, onResult }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '.5rem' }}>
-            <button className="btn btn-p" disabled={kept.size !== keepCount} onClick={confirmRoll}>
-              Confirm {kept.size}/{keepCount}
+            <button className="btn btn-p" disabled={kept.size === 0} onClick={confirmRoll}>
+              Confirm {kept.size}/{keepCount} {kept.size < keepCount ? `(keeping fewer — may fail)` : ''}
             </button>
             <button className="btn btn-sm" onClick={() => { setDice(rollN(rollCount)); setKept(new Set()); }}>
               <i className="ti ti-refresh" /> Reroll
@@ -275,9 +325,30 @@ export default function DiceModal({ context, onClose, onResult }) {
           </button>
         </>)}
 
-        {phase === 'done' && (
+        {phase === 'done' && rollResult && (
+          <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+            <div style={{
+              fontSize: 48, fontWeight: 900, letterSpacing: '.05em',
+              color: rollResult.success ? 'var(--green)' : 'var(--red)',
+              textShadow: `0 0 30px ${rollResult.success ? '#4a8a40' : '#c84030'}`,
+              marginBottom: '.5rem', lineHeight: 1,
+            }}>
+              {rollResult.success ? 'SUCCESS' : 'FAILURE'}
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: '.25rem' }}>
+              {rollResult.total} vs TN {rollResult.tn}
+              <span style={{ color: rollResult.success ? 'var(--green)' : 'var(--red)', marginLeft: 8, fontWeight: 600 }}>
+                {rollResult.success ? `+${rollResult.margin}` : rollResult.margin}
+              </span>
+            </div>
+            {raises.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: '.75rem' }}>Raises: {raises.join(', ')}</div>
+            )}
+            <button className="btn btn-p" style={{ marginTop: '.5rem' }} onClick={onClose}>Close</button>
+          </div>
+        )}
+        {phase === 'done' && !rollResult && (
           <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem' }}>Roll complete.</div>
             <button className="btn btn-p" onClick={onClose}>Close</button>
           </div>
         )}

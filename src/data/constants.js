@@ -13,19 +13,20 @@ export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3, Downtime: 2 
 export const TRAITS = ['Reflexes','Awareness','Stamina','Willpower','Agility','Intelligence','Strength','Perception'];
 
 export const FACTION_ICONS = {
-  'City Guard': 'ti-shield',
-  'Dahab': 'ti-coin',
-  'Qabal': 'ti-wand',
-  'Assassins': 'ti-eye-off',
-  'Ashalan': 'ti-moon-stars',
-  "Ra'Shari": 'ti-compass',
-  'Senpet': 'ti-sun',
-  'Yodotai': 'ti-sword',
-  'Ebonites': 'ti-diamond',
-  'Jackals': 'ti-skull',
-  'Merchants': 'ti-building-store',
-  'Rogues / Foreigners': 'ti-masks',
-  'Monsters': 'ti-ghost',
+  'City Guard':          'ti-shield-filled',
+  'Dahab':               'ti-coin',
+  'Qabal':               'ti-wand',
+  'Assassins':           'ti-knife',
+  'Ashalan':             'ti-moon-stars',
+  "Ra'Shari":            'ti-crystal-ball',
+  'Senpet':              'ti-sun-filled',
+  'Yodotai':             'ti-helmet',
+  'Ebonites':            'ti-diamond-filled',
+  'Jackals':             'ti-skull',
+  'Merchants':           'ti-building-store',
+  'Rogues / Foreigners': 'ti-eye-off',
+  'Monsters':            'ti-ghost-2',
+  'Independent':         'ti-user',
 };
 
 export const PIN_TYPES = [
@@ -42,20 +43,26 @@ export const PIN_TYPES = [
 ];
 
 export const FACTIONS_LIST = [
-  'City Guard','Dahab','Qabal','Assassins','Ashalan',"Ra'Shari",'Senpet','Yodotai','Ebonites','Jackals'
+  'City Guard','Dahab','Qabal','Assassins','Ashalan',"Ra'Shari",'Senpet','Yodotai','Ebonites','Jackals','Merchants','Rogues / Foreigners','Independent'
 ];
 
+const PATHS = ['Alley Thug','Scholar','Street Rat'];
+const CITY_GUARD_SCHOOL = ['Soldier of the City Guard'];
+
 export const FACTION_SCHOOLS = {
-  'City Guard':  ['Soldier of the City Guard'],
-  'Dahab':       ['Dahabi Enforcer','Dahabi Bargainer','Dahabi Merchant'],
-  'Qabal':       ['Qabal Agent','Qabal Summoner'],
-  'Assassins':   ['Assassin Slayer','Assassin Keeper'],
-  'Ashalan':     ['Blood-Sworn','Children of Midnight','Heart-Seekers'],
-  "Ra'Shari":    ["Ra'Shari Knife-Fighter","Ra'Shari Trader","Ra'Shari Diviner"],
-  'Senpet':      ['Senpet Legionnaire','Senpet Charioteer','Senpet Sahir'],
-  'Yodotai':     ['Yodotai Legionnaire','Yodotai Mercenary'],
-  'Ebonites':    ['Ebonite Templar'],
-  'Jackals':     ['Jani','Necromancer','Kabir'],
+  'City Guard':          ['Soldier of the City Guard', ...PATHS],
+  'Dahab':               ['Dahabi Enforcer','Dahabi Bargainer','Dahabi Merchant', ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Qabal':               ['Qabal Agent','Qabal Summoner', ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Assassins':           ['Assassin Slayer','Assassin Keeper', ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Ashalan':             ['Blood-Sworn','Children of Midnight','Heart-Seekers', ...PATHS],
+  "Ra'Shari":            ["Ra'Shari Knife-Fighter","Ra'Shari Trader","Ra'Shari Diviner", ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Senpet':              ['Senpet Legionnaire','Senpet Charioteer','Senpet Sahir', ...PATHS],
+  'Yodotai':             ['Yodotai Legionnaire','Yodotai Mercenary', ...PATHS],
+  'Ebonites':            ['Ebonite Templar', ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Jackals':             ['Jani','Necromancer','Kabir', ...PATHS],
+  'Merchants':           ['Dahabi Merchant',"Ra'Shari Trader", ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Rogues / Foreigners': ['Assassin Slayer', ...CITY_GUARD_SCHOOL, ...PATHS],
+  'Independent':         ['Free Sahir', ...PATHS],
 };
 
 export const SUBFACTION_BONUSES = {
@@ -69,6 +76,9 @@ export const SUBFACTION_BONUSES = {
   'Yodotai':     { 'Yodotai':'Strength' },
   'Ebonites':    { 'Order of the Ebon Hand':'Any' },
   'Jackals':     { 'Jackals':'Agility' },
+  'Merchants':   { 'Independent Merchant':'Awareness' },
+  'Rogues / Foreigners': { 'Rogue':'Agility', 'Foreigner':'Any' },
+  'Independent': { 'Free Agent':'Willpower' },
 };
 
 export const SAHIR_SCHOOLS = ['Dahabi Bargainer','Qabal Summoner','Children of Midnight',"Ra'Shari Diviner",'Senpet Sahir','Necromancer','Heartless Khadi'];
@@ -97,6 +107,10 @@ export const SCHOOL_DATA = {
   'Jani': { faction:'Jackals', type:'Warrior', integrity:1.5, bonus_trait:'Agility', skills:['Athletics','Brawling','Knives','Acting','Lore: Jackal','Assassin Ranged Weapons','Lore: Underworld'], techniques:{1:'Quicker Than the Eye',2:'Sewer Speed',3:"Jackal's Bite",4:'Ghost of the Sewers',5:"Soul Slayer's Gift"}, equipment:['Knife','Light Armor','Street Clothes'], starting_copper:1 },
   'Necromancer': { faction:'Jackals', type:'Sahir', integrity:0.5, bonus_trait:'Intelligence', skills:['Lore: Anatomy','Knives','Lore: Jackal','Lore: Undead','Medicine','Craft: Poison','Staves'], techniques:{1:'Initiate of Undeath'}, equipment:['Knife','Staff','Robe','Sandals'], starting_copper:2 },
   'Kabir': { faction:'Jackals', type:'Diplomat', integrity:2.5, bonus_trait:'Awareness', skills:['Courtier','Sincerity','Knives','Medicine','Craft: Poison','Sleight of Hand','Lore: Underworld'], techniques:{1:'Rotting the Foundation',2:'Poison Smile',3:'The Long Corruption',4:'Master Poisoner',5:'Kingdom Ender'}, equipment:['Knife','Apothecary Kit','Clothes','Shoes'], starting_copper:2 },
+  'Free Sahir': { faction:'Independent', type:'Sahir', integrity:4.5, bonus_trait:'Willpower', skills:['Etiquette','Spellcraft','Lore: Theology','Lore: History','Lore: Burning Sands','Athletics','Stealth'], techniques:{1:'Self-Taught Sorcerer'}, equipment:['Staff','Knife','Clothes','Cloak','Traveling Pack'], starting_copper:5 },
+  'Alley Thug': { faction:'Independent', type:'Path', integrity:2.5, bonus_trait:'Strength', skills:['Brawling','Intimidation','Knives','Stealth','Lore: Underworld','Athletics','Sincerity'], techniques:{1:'Predator of the Alleys'}, equipment:['Knife','Street Clothes'], starting_copper:2 },
+  'Scholar': { faction:'Independent', type:'Path', integrity:3.5, bonus_trait:'Intelligence', skills:['Calligraphy','Etiquette','Storytelling','Lore: History','Lore: Theology','Lore: Law','Lore: Burning Sands'], techniques:{1:'A Man of Knowledge'}, equipment:['Writing Kit','Book','Traveling Clothes'], starting_copper:5 },
+  'Street Rat': { faction:'Independent', type:'Path', integrity:2.0, bonus_trait:'Agility', skills:['Athletics','Stealth','Sleight of Hand','Lore: Underworld','Brawling','Knives','Sincerity'], techniques:{1:'Master of the Streets'}, equipment:['Knife','Street Clothes'], starting_copper:1 },
 };
 
 export const WEAPONS_LIST = [
@@ -206,3 +220,170 @@ export const FACTIONS_DATA = [
   { name:'Rogues / Foreigners', tagline:'Criminals, wanderers, visitors from distant lands.',  rep:0 },
   { name:'Monsters',          tagline:'Creatures of the desert, sewers, and darker places.',   rep:0 },
 ];
+
+// ── Sahir Spell Data ──────────────────────────────────────────────────────────
+export const SAHIR_DISCIPLINES = [
+  {
+    id: 'summoning', name: 'Summoning', element: 'Air', color: '#a0c0e0',
+    types: [
+      { id: 'jinn', name: 'Jinn Spells', spells: [
+        { level: 1, name: 'Jinn Summoning 1', tn: 10, desc: 'Cast on Hakhim\'s Seal before summoning a Jinn. Gain bonus unkept dice equal to Insight Rank to Commerce/Awareness rolls to bargain with the Jinn.' },
+        { level: 2, name: 'Jinn Summoning 2', tn: 15, desc: 'No longer need Servant of Smokeless Fire advantage (refund 4 XP). Time to summon a Jinn is halved.' },
+        { level: 3, name: 'Jinn Summoning 3', tn: 20, desc: 'Sever a Jinn\'s anchor to this world, banishing it instantly. Jinn rolls Void vs TN equal to Spellcasting Roll to avoid banishment.' },
+      ]},
+      { id: 'primal', name: 'Primal Elements', spells: [
+        { level: 1, name: 'Primal Elements 1', tn: 10, desc: 'Named element moves at your command (water flows uphill, windstorm stops, fire crawls across stone). Matter equal to own weight. If used to heave stones, resolve as Athletics/Agility vs Armor TN.' },
+        { level: 2, name: 'Primal Elements 2', tn: 15, desc: 'Summon one of the four elements to yourself, or destroy some in vicinity. Matter no greater than a fist in size.' },
+        { level: 3, name: 'Primal Elements 3', tn: 20, desc: 'Render self or touched target immune to one element for one hour: Air (no need to breathe), Earth (pass through solid barriers), Fire (immune to burning), Water (breathe underwater).' },
+      ]},
+      { id: 'implements', name: 'Implements', spells: [
+        { level: 1, name: 'Implement Summoning 1', tn: 10, desc: 'Temporarily bend and warp objects as desired while maintaining concentration. Shape change cannot break the object. Duration: concentration, then one hour.' },
+        { level: 2, name: 'Implement Summoning 2', tn: 15, desc: 'Call objects to you or send them elsewhere. Must have intimate knowledge of the object or destination. Counts as disarm maneuver if used on held weapon.' },
+        { level: 3, name: 'Implement Summoning 3', tn: 20, desc: 'Move any perceived object with will alone, using Air instead of Strength or Agility. May affect living creatures. Requires full concentration.' },
+      ]},
+    ]
+  },
+  {
+    id: 'celestials', name: 'Celestials', element: 'Void', color: '#c0a0e0',
+    types: [
+      { id: 'farsight', name: 'Farsight', spells: [
+        { level: 1, name: 'Farsight 1', tn: 10, desc: 'Telescopic vision. +3k0 to total of any sight-based Perception Rolls. Duration: one hour.' },
+        { level: 2, name: 'Farsight 2', tn: 15, desc: 'With a placid pool or mirror, remotely view a familiar location. Sight only unless 2 Raises spent to also transmit sounds. Duration: concentration.' },
+        { level: 3, name: 'Farsight 3', tn: 20, desc: 'If suspecting magical observation, cast this to end the other sahir\'s observation. Observer rendered temporarily blind for one minute and suffers Wounds equal to your Void Ring.' },
+      ]},
+      { id: 'astrology', name: 'Astrology', spells: [
+        { level: 1, name: 'Astrology 1', tn: 10, desc: 'Requires 10 minutes, must be cast at night. Gives an oblique clue about what the next 24 hours holds for an individual. Additional clue per 2 Raises.' },
+        { level: 2, name: 'Astrology 2', tn: 15, desc: 'Refinement of Astrology 1. May now ask after places or organizations as well as individuals. Additional information per Raise.' },
+        { level: 3, name: 'Astrology 3', tn: 20, desc: 'Cast at dusk: you are no longer a valid target for Mastery Level 1 spells for one night (obscures your fate from diviners). Additional targets per Raise.' },
+      ]},
+      { id: 'obscurement', name: 'Obscurement', spells: [
+        { level: 1, name: 'Obscurement 1', tn: 10, desc: 'Shroud yourself or an object from magical detection. Scrying and divination effects targeting you must overcome your Void Ring in unkept dice.' },
+        { level: 2, name: 'Obscurement 2', tn: 15, desc: 'Extend the obscurement to a small area or group. Diviners attempting to scry within the area suffer penalties equal to your Void Ring.' },
+        { level: 3, name: 'Obscurement 3', tn: 20, desc: 'Create a zone of magical silence. No spells may be cast within without a Contested Spellcraft roll against your casting total.' },
+      ]},
+    ]
+  },
+  {
+    id: 'blackmagic', name: 'Black Magic', element: 'Earth', color: '#80c090',
+    types: [
+      { id: 'ghul', name: 'Ghul Creation', spells: [
+        { level: 1, name: 'Ghul Creation 1', tn: 10, desc: 'Take hold of a ghul\'s mind with a barked order. Duration: one hour. Two sahir controlling the same ghul make a Contested Willpower Roll.' },
+        { level: 2, name: 'Ghul Creation 2', tn: 15, desc: 'Create a ghul using a 3-hour ritual and a knife to excise the corpse\'s heart. If using Ghul Creation 1 on your own ghul, duration is 1 day.' },
+        { level: 3, name: 'Ghul Creation 3', tn: 20, desc: 'Destroy ghuls with little effort. Contested Roll: your Earth/Sahir Rank vs Ghul\'s Insight Rank/Earth. Ghul Lords and intelligent ghul possess Insight Ranks.' },
+      ]},
+      { id: 'lifemagic', name: 'Life Magic', spells: [
+        { level: 1, name: 'Life Magic 1', tn: 10, desc: 'Heal Xk1 Wounds (X = Earth Ring) on self or touched target. Raises: +0k1 per Raise.' },
+        { level: 2, name: 'Life Magic 2', tn: 15, desc: 'Cures any mundane illness. With 2 Raises, cures magically-inflicted mundane illness. One disease at a time.' },
+        { level: 3, name: 'Life Magic 3', tn: 20, desc: 'If cast before either preceding Life spell (within 3 rounds), heals a number of persons equal to twice Insight Rank within arm\'s reach (max 5\'). Maximum 5 targets.' },
+      ]},
+      { id: 'deathmagic', name: 'Death Magic', spells: [
+        { level: 1, name: 'Death Magic 1', tn: 10, desc: 'Inflicts Wounds (XkX, X = Sahir Class Rank) on a target within 20\'. Range: 20\'.' },
+        { level: 2, name: 'Death Magic 2', tn: 15, desc: 'Inflict a wasting curse on a target. Each day they fail to resist, they lose Stamina. Duration: one hour, or until dispelled.' },
+        { level: 3, name: 'Death Magic 3', tn: 20, desc: 'Channel the power of death itself. Devastating attack that ignores armor and inflicts maximum damage on a critical success.' },
+      ]},
+    ]
+  },
+  {
+    id: 'control', name: 'Control', element: 'Water', color: '#60b0d0',
+    types: [
+      { id: 'influence', name: 'Influence', spells: [
+        { level: 1, name: 'Influence 1', tn: 10, desc: 'Subtly push a target\'s emotions in a desired direction. Target is unaware of the manipulation unless they succeed a Contested Willpower roll.' },
+        { level: 2, name: 'Influence 2', tn: 15, desc: 'Plant a specific suggestion in the target\'s mind. They believe the thought is their own. Must be phrased as a simple imperative.' },
+        { level: 3, name: 'Influence 3', tn: 20, desc: 'Dominate a target\'s will entirely for a short duration. They obey direct commands, though will not harm themselves or loved ones.' },
+      ]},
+      { id: 'illusion', name: 'Illusion', spells: [
+        { level: 1, name: 'Illusion 1', tn: 10, desc: 'Create a minor illusion affecting one sense. Observers may attempt Perception roll vs your casting total to see through it.' },
+        { level: 2, name: 'Illusion 2', tn: 15, desc: 'Create a full multi-sense illusion up to the size of a person. Requires concentration to maintain complex motion.' },
+        { level: 3, name: 'Illusion 3', tn: 20, desc: 'Create a perfect illusion of any scene or person you have witnessed. Persists without concentration for up to one hour.' },
+      ]},
+      { id: 'transformation', name: 'Transformation', spells: [
+        { level: 1, name: 'Transformation 1', tn: 10, desc: 'Alter the superficial appearance of an object or willing target. Cannot change size or fundamental nature.' },
+        { level: 2, name: 'Transformation 2', tn: 15, desc: 'Transform a target into a different form of similar size. Target retains their mind and skills but gains physical traits of the new form.' },
+        { level: 3, name: 'Transformation 3', tn: 20, desc: 'Transform a target into any form you choose, regardless of size. The transformation is permanent until dispelled.' },
+      ]},
+    ]
+  },
+  {
+    id: 'blessings', name: 'Blessings & Curses', element: 'Fire', color: '#e09050',
+    types: [
+      { id: 'blessingtype', name: 'Blessings', spells: [
+        { level: 1, name: 'Blessing 1', tn: 10, desc: 'Grant a target a +1k0 bonus to a specific Skill for one hour. Cannot stack with other Blessings.' },
+        { level: 2, name: 'Blessing 2', tn: 15, desc: 'Grant a target a +1k1 bonus to a specific Skill for one hour. May affect a group of up to your Fire Ring in targets.' },
+        { level: 3, name: 'Blessing 3', tn: 20, desc: 'Grant a target a Free Raise on all rolls of a specific Skill for one hour. The blessing is potent enough to affect Void-related rolls.' },
+      ]},
+      { id: 'cursetype', name: 'Curses', spells: [
+        { level: 1, name: 'Curse Magic 1', tn: 10, desc: 'Select a single Skill and task. Target suffers -2k0 to rolls of that Skill toward that task for one hour. A specific task may only receive one Curse, but a Skill can receive any number.' },
+        { level: 2, name: 'Curse Magic 2', tn: 15, desc: 'As Curse 1 but penalty is -2k1. Duration: one hour. Raises extend duration by one hour each.' },
+        { level: 3, name: 'Curse Magic 3', tn: 20, desc: 'As Curse 2 (-2k1), but may be cast as a Simple Action. The curse is more difficult to detect and remove.' },
+      ]},
+      { id: 'warding', name: 'Wards', spells: [
+        { level: 1, name: 'Ward 1', tn: 10, desc: 'Inscribe a ward on an object or threshold. The ward triggers when a specific condition is met, alerting you and causing minor harm (1k1 wounds) to the transgressor.' },
+        { level: 2, name: 'Ward 2', tn: 15, desc: 'Inscribe a powerful ward. Triggers deal significant harm (3k2 wounds) and may immobilize the transgressor for one round.' },
+        { level: 3, name: 'Ward 3', tn: 20, desc: 'Inscribe an unbreakable ward. Triggers deal severe harm and eject the transgressor from the warded area. The ward persists until physically destroyed.' },
+      ]},
+    ]
+  },
+];
+
+// ── Cokaloi Spell Data (Ra'Shari Diviner only) ────────────────────────────────
+export const COKALOI_CATEGORIES = [
+  {
+    id: 'dawn', name: 'Dawn', element: 'Fire', color: '#e8c050',
+    desc: 'Fate and skill manipulation — blessings and curses. May be learned in any order.',
+    spells: [
+      { level: 1, name: 'The First Blessing', tn: 10, desc: 'Target may reroll any 1 die on a roll of the designated Skill. Duration: one day or night.' },
+      { level: 1, name: 'The First Curse', tn: 10, desc: 'Target must reroll the highest die on a roll of the designated Skill. Duration: one day or night.' },
+      { level: 2, name: 'The Second Blessing', tn: 15, desc: 'Target may reroll up to 2 dice on a roll of the designated Skill. Duration: one day or night.' },
+      { level: 2, name: 'The Second Curse', tn: 15, desc: 'Target must reroll up to 2 dice on a roll of the designated Skill. Duration: one day or night.' },
+      { level: 3, name: 'The Third Blessing', tn: 20, desc: 'Target may reroll up to 3 dice. Duration: one day or night.' },
+      { level: 3, name: 'The Third Curse', tn: 20, desc: 'Target must reroll up to 3 dice. Duration: one day or night.' },
+      { level: 4, name: 'The Fourth Blessing', tn: 25, desc: 'As Third Blessing, but target may also change one die to an unexploded 10.' },
+      { level: 4, name: 'The Fourth Curse', tn: 25, desc: 'As Third Curse, but target must also change one die to a 1.' },
+      { level: 5, name: 'The Fifth Blessing', tn: 30, desc: 'As Third Blessing, but target may change two dice to unexploded 10s.' },
+      { level: 5, name: 'The Fifth Curse', tn: 30, desc: 'As Third Curse, but target must change two dice to 1s.' },
+    ]
+  },
+  {
+    id: 'dusk', name: 'Dusk', element: 'Air', color: '#9090d0',
+    desc: 'Social manipulation and illusion. May only be cast upon beings with whom you can make vocal or eye contact.',
+    spells: [
+      { level: 1, name: 'I am not Him', tn: 10, desc: 'Target cannot suffer penalties to Acting skill rolls for 1 hour, OR gains +5 to Acting rolls for 5 minutes.' },
+      { level: 1, name: 'A Good Friend', tn: 10, desc: 'Bypasses normal suspicion. Target becomes open to the possibility you are a fundamentally good person. Duration: 5 minutes.' },
+      { level: 1, name: 'Propriety', tn: 10, desc: 'Make an Awareness roll to alter a being\'s attitude toward you in a positive direction. +2 targets per Raise. Duration: 5 minutes.' },
+      { level: 2, name: 'Business as Usual', tn: 15, desc: 'Functions as Propriety but affects everyone within 25\' radius, with four Free Raises. Duration: 5 minutes.' },
+      { level: 2, name: 'I am not Here', tn: 15, desc: 'Increases TN of all Skill Rolls to spot you by twice the number of people within 25\'. Duration: 5 minutes.' },
+      { level: 2, name: 'Instant Expert', tn: 15, desc: 'Appear to be an expert on any topic. Bonus equal to twice Insight Rank to Social Skill Rolls involving your expertise. Duration: 5 minutes.' },
+      { level: 3, name: 'Above Reproach', tn: 20, desc: 'Area becomes above reproach; not searched when things go missing. Concentration required. Up to 100 persons in one encampment or large building.' },
+      { level: 3, name: 'Hiding from the Sun', tn: 20, desc: 'Once out of direct sunlight, effectively disappear. Investigation Rolls to find you suffer +40 TN Penalty. Duration: concentration.' },
+      { level: 3, name: 'A Potential Ally', tn: 20, desc: 'Appear extremely trustworthy. People who collect Allies seek you out. Allies obtained this way cost 1 XP less. Duration: 5 minutes.' },
+      { level: 4, name: 'I am Someone Else', tn: 25, desc: 'Appear as an entirely different humanoid person. Illusion adjusts as you move but does not hold to tactile inspection. Covers voice. Duration: one hour.' },
+      { level: 4, name: 'This is Reasonable', tn: 25, desc: 'May say anything — listeners find it reasonable and correct. Cannot convince anyone into obvious danger. Duration: 5 minutes.' },
+      { level: 5, name: 'For All of Us', tn: 30, desc: 'Become any lower-level Dusk Cokalos with Area of Effect changed to up to 100 willing targets.' },
+      { level: 5, name: 'Your Heart is in my Hands', tn: 30, desc: 'Fill target with any emotion they have experienced before. Target suffers effects of a single Advantage or Disadvantage applicable to the emotion. Duration: one hour.' },
+    ]
+  },
+  {
+    id: 'night', name: 'Night', element: 'Water', color: '#50b090',
+    desc: 'Healing and animal communion. May only target one person at a time.',
+    spells: [
+      { level: 1, name: 'The First Purity', tn: 10, desc: 'Any nonmagical disease or poison in 50 lbs of food or 10 gallons of water is negated. Duration: permanent.' },
+      { level: 1, name: 'The First Wholeness', tn: 10, desc: 'Complements Medicine Skill healing. If Medicine roll succeeds, gain +1k1 bonus to wounds healed. Range: touch.' },
+      { level: 2, name: 'The Second Purity', tn: 15, desc: 'When using Medicine to treat poison or disease, receive 4 Free Raises for identifying it. Range: touch.' },
+      { level: 2, name: 'Tame Beast', tn: 15, desc: 'Any animal targeted is considered tame for Animal Handling skill. Duration: permanent. Range: touch.' },
+      { level: 3, name: 'Command Beast', tn: 20, desc: 'Brief control of an animal\'s mind. Minds merge momentarily. Duration: one minute per Willpower Rank. Range: 25\'.' },
+      { level: 3, name: 'The Third Purity', tn: 20, desc: 'Literally extract a poison or disease from the body, healing effect completely. Range: touch.' },
+      { level: 3, name: 'The Third Wholeness', tn: 20, desc: 'After treating with Medicine, target\'s natural Wound recovery is doubled for three days. Full rest doubles it again.' },
+      { level: 4, name: 'The Fourth Purity', tn: 25, desc: 'Retrieve foul substances purified as a fine powder. Can be reapplied. Range: touch. Duration: permanent.' },
+      { level: 4, name: 'The Fourth Wholeness', tn: 25, desc: 'If more than one successful Medicine attempt in a day, may heal the same number of wounds on each subsequent attempt as the first.' },
+      { level: 5, name: 'The Fifth Purity', tn: 30, desc: 'Use any lesser Purity Cokalos on two targets simultaneously. Range: touch.' },
+      { level: 5, name: 'Of One Body', tn: 30, desc: 'Transform, joining form with a touched beast. Retain all Skills and Cokaloi; gain all special abilities of the beast; use highest Traits of both. Duration: one hour.' },
+    ]
+  },
+];
+
+export const IS_SAHIR_SCHOOL = (school) => [
+  'Qabal Summoner', 'Dahabi Bargainer', 'Children of Midnight',
+  'Senpet Sahir', 'Necromancer', 'Heartless Khadi', 'Free Sahir'
+].includes(school);
+
+export const IS_COKALOI_SCHOOL = (school) => school === "Ra'Shari Diviner";

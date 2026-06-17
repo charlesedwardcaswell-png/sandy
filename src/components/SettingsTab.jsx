@@ -87,6 +87,7 @@ export default function SettingsTab() {
   const SETTINGS = ['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"];
   const [mapUrl, setMapUrl] = useState('https://i.imgur.com/6fuMHqq.jpeg');
   const [settingUrls, setSettingUrls] = useState({});
+  const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2' });
   const [imagesSaved, setImagesSaved] = useState(false);
 
   React.useEffect(() => {
@@ -94,13 +95,14 @@ export default function SettingsTab() {
       if (data?.settings) {
         if (data.settings.map_url) setMapUrl(data.settings.map_url);
         if (data.settings.setting_urls) setSettingUrls(data.settings.setting_urls);
+        if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2', ...data.settings.round_limits });
       }
     });
   }, []);
 
   const saveImageSettings = async () => {
     const { error } = await supabase.from('games')
-      .update({ settings: { map_url: mapUrl, setting_urls: settingUrls } })
+      .update({ settings: { map_url: mapUrl, setting_urls: settingUrls, round_limits: roundLimits } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
   };
@@ -199,8 +201,19 @@ export default function SettingsTab() {
           </div>
         ))}
 
+        {/* Round limits */}
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Round Limits per Encounter Type <span style={{ fontWeight: 400 }}>(blank = unlimited)</span></div>
+        {['Action','Intrigue','Travel','Downtime'].map(t => (
+          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem' }}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', minWidth: 80 }}>{t}</span>
+            <input type="number" min={1} max={99} value={roundLimits[t] || ''} onChange={e => setRoundLimits(r => ({ ...r, [t]: e.target.value }))}
+              placeholder="unlimited" style={{ width: 80, fontSize: 10 }} />
+            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>rounds</span>
+          </div>
+        ))}
+
         <button className="btn btn-p btn-sm" style={{ marginTop: '.75rem' }} onClick={saveImageSettings}>
-          {imagesSaved ? '✓ Saved' : 'Save Image Settings'}
+          {imagesSaved ? '✓ Saved' : 'Save Settings'}
         </button>
       </div>
 

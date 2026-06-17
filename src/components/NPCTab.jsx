@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FacIcon, Silhouette, Empty } from './UI';
+import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
 import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS } from '../data/constants';
 import { repColor, repLabel, getArchetype, getSchoolMaxRank } from '../lib/utils';
 
@@ -356,6 +356,11 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
               </div>
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', minWidth: 80 }}>{fDef.name}</span>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fDef.tagline}</span>
+              {FACTION_LORE[fDef.name] && (
+                <span onClick={e => e.stopPropagation()}>
+                  <ScrollLore title={fDef.name} text={FACTION_LORE[fDef.name]} />
+                </span>
+              )}
               {visibleNPCs.length > 0 && (
                 <span style={{ fontSize: 9, background: 'rgba(200,150,42,.15)', color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
                   {visibleNPCs.length}

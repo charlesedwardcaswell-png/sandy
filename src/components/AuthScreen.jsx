@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
-import { GM_PASSWORD } from '../data/constants';
-
-const PLAYER_PASSWORD = 'test';
+import React, { useState, useEffect } from 'react';
+import { GM_PASSWORD, GAME_ID } from '../data/constants';
+import { supabase } from '../lib/supabase';
 
 export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
   const [selected, setSelected] = useState(null);
   const [pw, setPw] = useState('');
+  const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [playerAccounts, setPlayerAccounts] = useState([]);
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.player_accounts) setPlayerAccounts(data.settings.player_accounts);
+    });
+  }, []);
 
   const tryLogin = () => {
     setError('');
@@ -14,45 +21,56 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
       if (pw === GM_PASSWORD) { onGMLogin(); return; }
       setError('Incorrect GM password.');
     } else if (selected === 'player') {
-      if (pw === PLAYER_PASSWORD) { onPlayerLogin(); return; }
-      setError('Incorrect player password.');
+      // Try named accounts first
+      if (playerAccounts.length > 0) {
+        const match = playerAccounts.find(a => a.username.toLowerCase() === username.toLowerCase() && a.password === pw);
+        if (match) { onPlayerLogin(match.username); return; }
+        // Fallback: if no username, try password-only match against any account
+        if (!username && playerAccounts.some(a => a.password === pw)) { onPlayerLogin('Player'); return; }
+        setError('Incorrect username or password.');
+      } else {
+        // Fallback to old single password
+        if (pw === 'test') { onPlayerLogin('Player'); return; }
+        setError('Incorrect player password.');
+      }
     }
   };
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-deep)' }}>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '2rem', width: 360, maxWidth: '95vw' }}>
-
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.08em', textTransform: 'uppercase' }}>LBS</div>
           <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: '.25rem' }}>The Heart of the Jewel</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Select your role to enter</div>
         </div>
 
-        {/* GM slot */}
-        <Slot id="gm" selected={selected} onSelect={id => { setSelected(id); setPw(''); setError(''); }}
+        <Slot id="gm" selected={selected} onSelect={id => { setSelected(id); setPw(''); setUsername(''); setError(''); }}
           icon={<i className="ti ti-crown" style={{ fontSize: 18, color: 'var(--gold)' }} />}
           label="Game Master" sub="Full control" color="var(--gold)" />
 
-        {/* Player slot */}
-        <Slot id="player" selected={selected} onSelect={id => { setSelected(id); setPw(''); setError(''); }}
+        <Slot id="player" selected={selected} onSelect={id => { setSelected(id); setPw(''); setUsername(''); setError(''); }}
           icon={<i className="ti ti-users" style={{ fontSize: 18, color: '#80a8e8' }} />}
-          label="Player" sub="See all characters, edit your own" color="#80a8e8" />
+          label="Player" sub="See all characters, play your character" color="#80a8e8" />
 
-        {/* Password entry */}
         {selected && (
           <div style={{ marginTop: '.75rem', padding: '.75rem', background: 'var(--bg-panel)', borderRadius: 5, border: '1px solid var(--border)' }}>
+            {selected === 'player' && playerAccounts.length > 0 && (
+              <div style={{ marginBottom: '.4rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Username:</div>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && tryLogin()}
+                  placeholder="Your name..." style={{ width: '100%', marginBottom: '.4rem' }} autoFocus />
+              </div>
+            )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-              {selected === 'gm' ? 'GM Password:' : 'Player Password:'}
+              {selected === 'gm' ? 'GM Password:' : 'Password:'}
             </div>
             <div style={{ display: 'flex', gap: '.4rem' }}>
-              <input
-                type="password" value={pw}
-                onChange={e => setPw(e.target.value)}
+              <input type="password" value={pw} onChange={e => setPw(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && tryLogin()}
-                placeholder="Enter password..."
-                style={{ flex: 1 }} autoFocus
-              />
+                placeholder="Enter password..." style={{ flex: 1 }}
+                autoFocus={selected === 'gm' || playerAccounts.length === 0} />
               <button className="btn btn-p" onClick={tryLogin}>Enter</button>
             </div>
             {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.3rem' }}>{error}</div>}

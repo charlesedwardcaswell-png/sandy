@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS } from '../data/constants';
-import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS } from './UI';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL } from '../data/constants';
+import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
+import SpellConstellation from './SpellConstellation';
+import { supabase } from '../lib/supabase';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
@@ -107,11 +109,22 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
           </button>
         </div>
 
-        {view === 'sheet' && characters.length > 0 && (
+      {view === 'sheet' && characters.length > 0 && (
           <>
-            <select className="pc-sel" value={selId || ''} onChange={e => { setSelId(e.target.value); setShowDel(0); }}>
-              {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
-            </select>
+            {/* PC selector */}
+            {characters.filter(c => !c.is_npc).length > 0 && (
+              <select className="pc-sel" value={!characters.find(c => c.id === selId)?.is_npc ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setShowDel(0); }}>
+                <option value="" disabled>Player Characters</option>
+                {characters.filter(c => !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              </select>
+            )}
+            {/* NPC selector */}
+            {characters.filter(c => c.is_npc).length > 0 && (
+              <select className="pc-sel" value={characters.find(c => c.id === selId)?.is_npc ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setShowDel(0); }} style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
+                <option value="" disabled>Full NPCs</option>
+                {characters.filter(c => c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              </select>
+            )}
             <button className={`btn btn-sm ${editMode ? 'btn-p' : ''}`} onClick={() => setEditMode(!editMode)}>
               <i className={`ti ${editMode ? 'ti-lock' : 'ti-edit'}`} style={{ fontSize: 10 }} /> {editMode ? 'Lock' : 'Edit'}
             </button>
@@ -136,7 +149,8 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
 
       {view === 'create' && (
         <CharacterCreation onComplete={async (charData) => {
-          await onCreateCharacter(charData);
+          const newChar = await onCreateCharacter(charData);
+          if (newChar?.id) setSelId(newChar.id);
           setView('sheet');
         }} onCancel={() => setView('sheet')} />
       )}
@@ -149,7 +163,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
       )}
 
       {view === 'players' && (
-        <PlayerManagement playerPassword={playerPassword} onSavePlayerPassword={onSavePlayerPassword} />
+        <PlayerManagement />
       )}
     </div>
   );
@@ -187,99 +201,166 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
   const avatarType = char.avatar_type || 'warrior';
   const avatarColor = char.avatar_color || '#c8962a';
 
+  const RING_COLORS = { Air: '#a0c0e0', Earth: '#80c090', Fire: '#e09050', Water: '#60b0d0', Void: '#c0a0e0' };
+  const woundLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
+  const woundColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
+
+  const SKILL_MASTERIES = {
+    Swordsmanship: { 3: 'Simple Action with chosen weapon type', 5: '+1k0 to all attack rolls with swords', 7: 'Ignore reduction on called shot (3 raises)' },
+    Brawling:      { 3: 'Grapple checks are Simple Actions', 5: '+1k0 damage in grapple', 7: 'Free raise on all grapple rolls' },
+    Knives:        { 3: 'Throw knives up to 30\' without penalty', 5: 'Extra Attack costs 3 raises instead of 5', 7: '+1k1 damage with knives' },
+    Athletics:     { 3: 'Move full distance as a Free Action', 5: '+1k0 to all Athletics rolls', 7: 'Ignore difficult terrain' },
+    Stealth:       { 3: 'Move full speed while stealthed', 5: '+1k0 to all Stealth rolls', 7: 'Hide in plain sight once per scene' },
+    Defense:       { 3: '+1k0 Armor TN in Full Defense', 5: 'Negate one attack/round as Free Action (spend Void)', 7: '+5 Armor TN at all times' },
+    Spellcraft:    { 3: 'Free raise on one spell type of choice', 5: 'Reduce TN of spells by 2', 7: 'Cast one spell/session without Hakhim\'s Seal' },
+    Investigation: { 3: 'Free raise when searching for hidden objects', 5: '+1k0 to all Investigation rolls', 7: 'Cannot be surprised' },
+    Medicine:      { 3: 'Treat two patients per day', 5: '+1k0 to all Medicine rolls', 7: 'Patients heal double wounds from rest' },
+    Hunting:       { 3: 'Free raise when tracking', 5: '+1k0 in natural environments', 7: 'Find food/water for a group of 10 anywhere' },
+    Divination:    { 3: 'Free raise on Divination rolls', 5: '+1k0 to Divination; may use Awareness', 7: 'Once/session: ask GM one yes/no about immediate future' },
+    Tahaddi:       { 3: 'Ready two tahaddi knives as a Free Action', 5: '+1k0 to Assessment rolls in Tahaddi duels', 7: 'Spend Void to add +1k1 damage in Tahaddi' },
+  };
+
   return (
-    <div className="g2">
-      {/* Left column */}
-      <div>
-        {/* Identity */}
-        <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
-            <div
-              style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-panel)', border: `2px solid ${avatarColor}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: canEdit ? 'pointer' : 'default', position: 'relative' }}
-              onClick={() => canEdit && setShowAvatarPicker(p => !p)}
-              title={canEdit ? 'Click to change avatar' : ''}
-            >
-              <Silhouette type={avatarType} size={36} color={avatarColor} />
-              {canEdit && <div style={{ position: 'absolute', bottom: 2, right: 2, fontSize: 8, color: avatarColor, opacity: .7 }}>✏</div>}
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{char.name}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{char.faction} · {char.family}</div>
-              <div style={{ fontSize: 10, color: 'var(--gold-dim)' }}>{char.school} · Rank {char.school_rank}</div>
-            </div>
-          </div>
+    <div>
+      {/* ── Top card: Name/Avatar + Rings + Wounds ── */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
 
-          {/* Avatar picker */}
-          {showAvatarPicker && canEdit && (
-            <div style={{ marginBottom: '.75rem', padding: '.75rem', background: 'var(--bg-dark)', borderRadius: 5, border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.5rem', fontWeight: 600 }}>Choose Avatar</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: '.75rem' }}>
-                {AVATAR_TYPES.map(at => (
-                  <div key={at.id}
-                    onClick={() => update('avatar_type', at.id)}
-                    title={at.label}
-                    style={{ width: 32, height: 42, borderRadius: 4, background: avatarType === at.id ? avatarColor + '22' : 'var(--bg-panel)', border: `1px solid ${avatarType === at.id ? avatarColor : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>
-                    <Silhouette type={at.id} size={24} color={avatarColor} />
+          {/* Name block — top left */}
+          <div style={{ minWidth: 160, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.4rem' }}>
+              <div
+                style={{ width: 40, height: 52, borderRadius: 4, background: 'var(--bg-panel)', border: `2px solid ${avatarColor}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: canEdit ? 'pointer' : 'default', position: 'relative' }}
+                onClick={() => canEdit && setShowAvatarPicker(p => !p)}>
+                <Silhouette type={avatarType} size={32} color={avatarColor} />
+                {canEdit && <div style={{ position: 'absolute', bottom: 1, right: 1, fontSize: 7, color: avatarColor }}>✏</div>}
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{char.faction}</div>
+                <div style={{ fontSize: 10, color: 'var(--gold-dim)' }}>{char.school} R{char.school_rank}</div>
+              </div>
+            </div>
+            {/* Avatar picker */}
+            {showAvatarPicker && canEdit && (
+              <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem' }}>
+                  {AVATAR_TYPES.map(at => (
+                    <div key={at.id} onClick={() => update('avatar_type', at.id)} title={at.label}
+                      style={{ width: 28, height: 36, borderRadius: 3, background: avatarType === at.id ? avatarColor + '22' : 'var(--bg-panel)', border: `1px solid ${avatarType === at.id ? avatarColor : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                      <Silhouette type={at.id} size={20} color={avatarColor} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {AVATAR_COLORS.map(ac => (
+                    <div key={ac.id} onClick={() => update('avatar_color', ac.id)} title={ac.label}
+                      style={{ width: 18, height: 18, borderRadius: '50%', background: ac.id, border: `2px solid ${avatarColor === ac.id ? '#fff' : 'transparent'}`, cursor: 'pointer' }} />
+                  ))}
+                </div>
+                <button className="btn btn-sm" style={{ marginTop: '.4rem', fontSize: 9 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 10 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Integrity <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{char.integrity}</span></span>
+              <span style={{ color: 'var(--text-muted)' }}>Rep <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reputation}</span></span>
+              <span style={{ color: 'var(--text-muted)' }}>Status <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.status}</span></span>
+            </div>
+            {/* Wounds */}
+            <div style={{ marginTop: '.5rem', padding: '.4rem .5rem', background: 'var(--bg-panel)', borderRadius: 4, border: `1px solid ${woundColor}44` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: woundColor, lineHeight: 1 }}>{char.current_wounds || 0}</div>
+                <div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>/ {char.max_wounds || (char.stamina || 2) * 10} wounds</div>
+                  <div style={{ fontSize: 10, color: woundColor, fontWeight: 600 }}>{woundLabel}</div>
+                </div>
+                {(isGM && !isPCView) && (
+                  <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
+                    <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => update('current_wounds', Math.max(0, (char.current_wounds || 0) - 1))}>Heal</button>
+                    <button className="btn btn-sm btn-d" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => update('current_wounds', (char.current_wounds || 0) + 1)}>+Wound</button>
                   </div>
-                ))}
+                )}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem', fontWeight: 600 }}>Choose Color</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {AVATAR_COLORS.map(ac => (
-                  <div key={ac.id}
-                    onClick={() => update('avatar_color', ac.id)}
-                    title={ac.label}
-                    style={{ width: 22, height: 22, borderRadius: '50%', background: ac.id, border: `2px solid ${avatarColor === ac.id ? '#fff' : 'transparent'}`, cursor: 'pointer', boxShadow: avatarColor === ac.id ? `0 0 6px ${ac.id}` : 'none' }} />
-                ))}
-              </div>
-              <button className="btn btn-sm" style={{ marginTop: '.5rem', fontSize: 9 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
             </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-            {[['Insight Rank', char.insight_rank], ['Integrity', char.integrity], ['Reputation', char.reputation], ['Status', char.status]].map(([l, v]) => (
-              <div key={l} className="srow"><span className="sl">{l}</span><span className="sv">{v}</span></div>
+            {/* Armor TN / Init */}
+            <div style={{ marginTop: '.4rem', fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
+              <span>TN <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{5 + (char.reflexes || 2) * 5}</span></span>
+              <span>Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span></span>
+              <span>XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span></span>
+            </div>
+          </div>
+
+          {/* Rings — right of name, with traits clearly shown */}
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '.4rem' }}>
+            {[
+              { ring: 'Air',   val: char.air,   traits: [['Reflexes', char.reflexes], ['Awareness', char.awareness]] },
+              { ring: 'Earth', val: char.earth, traits: [['Stamina', char.stamina], ['Willpower', char.willpower]] },
+              { ring: 'Fire',  val: char.fire,  traits: [['Agility', char.agility], ['Intelligence', char.intelligence]] },
+              { ring: 'Water', val: char.water, traits: [['Strength', char.strength], ['Perception', char.perception]] },
+              { ring: 'Void',  val: char.void,  traits: null },
+            ].map(({ ring, val, traits }) => (
+              <div key={ring} style={{ textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 5, padding: '.4rem .2rem', border: `1px solid ${RING_COLORS[ring]}44` }}>
+                <div style={{ fontSize: 8, color: RING_COLORS[ring], textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 1 }}>{ring}</div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: RING_COLORS[ring], lineHeight: 1 }}>{val}</div>
+                {traits ? (
+                  <div style={{ marginTop: 3 }}>
+                    {traits.map(([name, tval]) => (
+                      <div key={name} style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', padding: '1px 2px' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{name.slice(0, 4)}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{tval}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Void — show void points */
+                  <div style={{ marginTop: 3 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+                      {Array.from({ length: char.void || 2 }, (_, i) => (
+                        <div key={i} onClick={() => update('current_void', i < char.current_void ? i : i + 1)}
+                          style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid ${i < (char.current_void || 0) ? RING_COLORS.Void : 'var(--border)'}`, background: i < (char.current_void || 0) ? RING_COLORS.Void : 'transparent', cursor: 'pointer' }} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 2 }}>{char.current_void || 0}/{char.void || 2} pts</div>
+                    <button className="btn btn-sm" style={{ fontSize: 7, padding: '1px 4px', marginTop: 2 }} onClick={() => update('current_void', Math.max(0, (char.current_void || 0) - 1))}>Spend</button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Void */}
+      <div className="g2">
+      {/* Left column — Skills prominent */}
+      <div>
+        {/* Skills */}
         <div className="card">
-          <div className="card-title">Void Points</div>
-          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-            {Array.from({ length: char.void || 2 }, (_, i) => (
-              <div key={i}
-                onClick={() => update('current_void', i < char.current_void ? i : i + 1)}
-                style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${i < char.current_void ? 'var(--gold)' : 'var(--border)'}`, background: i < char.current_void ? 'var(--gold)' : 'transparent', cursor: 'pointer', transition: 'all .15s' }}
-              />
-            ))}
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>{char.current_void}/{char.void || 2}</span>
-            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => update('current_void', Math.max(0, char.current_void - 1))}>
-              Spend Void
-            </button>
-          </div>
-        </div>
-
-        {/* Wounds */}
-        <div className="card">
-          <div className="card-title">Wounds — <span style={{ color: 'var(--red)' }}>{['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR]}</span></div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: '.5rem', flexWrap: 'wrap' }}>
-            {['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'].map((r, i) => {
-              const col = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][i];
+          <div className="card-title">Skills</div>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {(char.skills || []).map(s => {
+              const masteries = SKILL_MASTERIES[s.name] || {};
+              const unlockedMasteries = Object.entries(masteries).filter(([rank]) => s.rank >= +rank);
               return (
-                <div key={i} style={{ fontSize: 9, color: i <= wR && char.current_wounds > 0 ? col : 'var(--text-muted)', textAlign: 'center' }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: i < wR || (i === wR && char.current_wounds > 0) ? col : 'var(--bg-panel)', border: `1px solid ${col}`, margin: '0 auto 2px' }} />
-                  {r.slice(0, 3)}
+                <div key={s.name}>
+                  <div className="skill-row">
+                    <span className={`skill-nm ${s.school ? 'sc' : ''}`}>{s.name}</span>
+                    <SkillDots rank={s.rank} />
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
+                        <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
+                        <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
+                      </div>
+                    )}
+                  </div>
+                  {unlockedMasteries.map(([rank, desc]) => (
+                    <div key={rank} style={{ fontSize: 9, color: 'var(--gold-dim)', paddingLeft: 16, paddingBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <i className="ti ti-star" style={{ fontSize: 8 }} />R{rank}: {desc}
+                    </div>
+                  ))}
                 </div>
               );
             })}
           </div>
-          {(isGM && !isPCView) && (
-            <div style={{ display: 'flex', gap: 5 }}>
-              <button className="btn btn-sm" onClick={() => update('current_wounds', Math.max(0, char.current_wounds - 1))}>− Heal</button>
-              <button className="btn btn-sm btn-d" onClick={() => update('current_wounds', char.current_wounds + 1)}>+ Wound</button>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center' }}>{char.current_wounds} wounds</span>
-            </div>
-          )}
         </div>
 
         {/* XP */}
@@ -310,18 +391,26 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
             </div>
           )}
         </div>
+      </div>
 
+      {/* Right column — Equipment, Techniques, Spells, Advantages */}
+      <div>
         {/* Equipment */}
         <div className="card">
           <div className="card-title">Equipment</div>
-          {(char.equipment || []).map((e, i) => (
-            <div key={i} className="eq-row">
-              <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} title="In use" />
-              <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}>{e.name}</span>
-              {e.dr && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }}>{e.dr}</span>}
-              {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => removeEq(i)}>×</button>}
-            </div>
-          ))}
+          {(char.equipment || []).map((e, i) => {
+            const weapon = WEAPONS_LIST.find(w => w.name === e.name);
+            const loreText = weapon ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}\n${weapon.special ? `Special: ${weapon.special}` : ''}` : e.name;
+            return (
+              <div key={i} className="eq-row">
+                <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} title="In use" />
+                <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}>{e.name}</span>
+                {e.dr && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }}>{e.dr}</span>}
+                <ScrollLore title={e.name} text={loreText} size={10} />
+                {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => removeEq(i)}>×</button>}
+              </div>
+            );
+          })}
           {canEdit && (
             <div style={{ display: 'flex', gap: '.4rem', marginTop: '.5rem', flexWrap: 'wrap' }}>
               <select value={addEq || ''} onChange={e => setAddEq && setAddEq(e.target.value)} style={{ flex: 1 }}>
@@ -333,62 +422,21 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
             </div>
           )}
         </div>
-      </div>
-
-      {/* Right column */}
-      <div>
-        {/* Rings */}
-        <div className="card">
-          <div className="card-title">Rings & Traits</div>
-          <div className="g5" style={{ marginBottom: '.6rem' }}>
-            {[['Air', char.air, `${char.reflexes}/${char.awareness}`], ['Earth', char.earth, `${char.stamina}/${char.willpower}`], ['Fire', char.fire, `${char.agility}/${char.intelligence}`], ['Water', char.water, `${char.strength}/${char.perception}`], ['Void', char.void, char.reflexes]].map(([ring, val, sub]) => (
-              <div key={ring} className="ring-box">
-                <div className="ring-name">{ring}</div>
-                <div className="ring-val">{val}</div>
-                <div className="ring-tr">{sub}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-            Armor TN: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{5 + char.reflexes * 5 + ((char.equipment || []).find(e => e.inUse && e.name?.includes('Armor')) ? 5 : 0)}</span>
-            <span style={{ marginLeft: 10 }}>Init: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{char.reflexes}k{char.air}</span></span>
-          </div>
-        </div>
-
-        {/* Skills */}
-        <div className="card">
-          <div className="card-title">Skills</div>
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-            {(char.skills || []).map(s => (
-              <div key={s.name} className="skill-row">
-                <span className={`skill-nm ${s.school ? 'sc' : ''}`}>{s.name}</span>
-                <SkillDots rank={s.rank} />
-                {canEdit && (
-                  <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
-                    <button className="trait-btn" onClick={() => {
-                      const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x);
-                      update('skills', skills);
-                    }}>−</button>
-                    <button className="trait-btn" onClick={() => {
-                      const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x);
-                      update('skills', skills);
-                    }}>+</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Techniques */}
         <div className="card">
           <div className="card-title">Techniques</div>
-          {Object.entries(char.techniques || {}).map(([r, n]) => (
-            <div key={r} style={{ fontSize: 11, padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-              <span style={{ color: 'var(--text-muted)', marginRight: 5 }}>R{r}</span>
-              <span style={{ color: 'var(--text-primary)' }}>{n}</span>
-            </div>
-          ))}
+          {Object.entries(char.techniques || {}).map(([r, n]) => {
+            const sd = SCHOOL_DATA[char.school];
+            const fullDesc = sd?.techniques?.[+r] || n;
+            return (
+              <div key={r} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '4px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                <span style={{ color: 'var(--gold-dim)', fontSize: 10, minWidth: 20, marginTop: 1 }}>R{r}</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 11, flex: 1 }}>{n}</span>
+                <ScrollLore title={`Rank ${r}: ${n}`} text={fullDesc} />
+              </div>
+            );
+          })}
           {canEdit && (
             <div style={{ marginTop: '.5rem', fontSize: 10, color: 'var(--text-muted)' }}>
               School Rank:
@@ -405,14 +453,15 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
           )}
         </div>
 
-        {/* Spells (Sahir only) */}
-        {isSahirSchool(char.school) && (char.spells || []).length > 0 && (
+        {/* Spells (Sahir/Cokaloi) */}
+        {(isSahirSchool(char.school) || IS_COKALOI_SCHOOL(char.school)) && (
           <div className="card">
-            <div className="card-title">Spells</div>
-            {char.spell_emphasis && <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginBottom: '.4rem' }}>Emphasis: {char.spell_emphasis} (+1k1)</div>}
-            {(char.spells || []).map(s => (
-              <div key={s} style={{ fontSize: 11, padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)', color: 'var(--text-secondary)' }}>• {s}</div>
-            ))}
+            <div className="card-title">Spells & Magic</div>
+            <SpellConstellation
+              character={char}
+              mode="sheet"
+              onUpdate={canEdit ? onUpdate : null}
+            />
           </div>
         )}
 
@@ -422,33 +471,43 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
             {(char.advantages || []).length > 0 && (
               <>
                 <div className="card-title">Advantages</div>
-                {char.advantages.map(a => (
-                  <div key={a.name} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                    {a.name} <span style={{ color: 'var(--gold-dim)', fontSize: 9 }}>({a.cost} pts)</span>
-                  </div>
-                ))}
+                {char.advantages.map(a => {
+                  const adv = ADVANTAGES.find(x => x.name === a.name);
+                  return (
+                    <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                      <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{a.name}</span>
+                      <span style={{ color: 'var(--gold-dim)', fontSize: 9 }}>({a.cost} pts)</span>
+                      {adv?.desc && <ScrollLore title={a.name} text={`Cost: ${a.cost} CP\nType: ${adv.type}\n\n${adv.desc}`} />}
+                    </div>
+                  );
+                })}
               </>
             )}
             {(char.disadvantages || []).length > 0 && (
               <>
                 <div className="card-title" style={{ marginTop: '.5rem' }}>Disadvantages</div>
-                {char.disadvantages.map(d => (
-                  <div key={d.name} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                    {d.name} <span style={{ color: 'var(--red)', fontSize: 9 }}>(+{d.value} CP)</span>
-                  </div>
-                ))}
+                {char.disadvantages.map(d => {
+                  const dis = DISADVANTAGES.find(x => x.name === d.name);
+                  return (
+                    <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                      <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{d.name}</span>
+                      <span style={{ color: 'var(--red)', fontSize: 9 }}>(+{d.value} CP)</span>
+                      {dis?.desc && <ScrollLore title={d.name} text={`Value: ${d.value} CP\nType: ${dis.type}\n\n${dis.desc}`} />}
+                    </div>
+                  );
+                })}
               </>
             )}
           </div>
         )}
       </div>
     </div>
+    </div>
   );
 }
-
-// ── Character Creation ────────────────────────────────────────────────────────
-function CharacterCreation({ onComplete, onCancel }) {
+function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false }) {
   const [step, setStep] = useState(1);
+  const [isNpc, setIsNpc] = useState(defaultIsNpc);
   const [faction, setFaction] = useState('');
   const [subfaction, setSubfaction] = useState('');
   const [school, setSchool] = useState('');
@@ -462,6 +521,7 @@ function CharacterCreation({ onComplete, onCancel }) {
   const [eboniteAny, setEboniteAny] = useState('Strength');
   const [selectedSpells, setSelectedSpells] = useState([]);
   const [spellEmphasis, setSpellEmphasis] = useState('');
+  const [spellDisciplineBonus, setSpellDisciplineBonus] = useState('');
   const TOTAL_CP = 45;
 
   const schoolIsSahir = isSahirSchool(school);
@@ -538,12 +598,24 @@ function CharacterCreation({ onComplete, onCancel }) {
 
   const handleComplete = () => {
     const charData = buildCharacterFromForm({ faction, subfaction, school, name, playerName, pcPassword, traits, skills, advantages, disadvantages, selectedSpells, spellEmphasis });
-    onComplete({ ...charData, game_id: GAME_ID });
+    onComplete({ ...charData, game_id: GAME_ID, is_npc: isNpc });
   };
 
   return (
     <div style={{ maxWidth: 700 }}>
       {onCancel && <button className="btn btn-sm" style={{ marginBottom: '1rem' }} onClick={onCancel}>← Back</button>}
+
+      {/* PC / NPC toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '1rem', padding: '.5rem .75rem', background: isNpc ? 'rgba(200,64,48,.08)' : 'rgba(74,138,64,.08)', border: `1px solid ${isNpc ? 'rgba(200,64,48,.3)' : 'rgba(74,138,64,.3)'}`, borderRadius: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Creating:</span>
+        <button className={`btn btn-sm ${!isNpc ? 'btn-p' : ''}`} onClick={() => setIsNpc(false)}>
+          <i className="ti ti-user" style={{ fontSize: 10, marginRight: 4 }} />Player Character
+        </button>
+        <button className={`btn btn-sm ${isNpc ? 'btn-p' : ''}`} style={isNpc ? { borderColor: '#c84030', background: 'rgba(200,64,48,.2)', color: '#e86050' } : {}} onClick={() => setIsNpc(true)}>
+          <i className="ti ti-user-bolt" style={{ fontSize: 10, marginRight: 4 }} />NPC (Full Sheet)
+        </button>
+        {isNpc && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>GM-only, won't appear on player character list</span>}
+      </div>
 
       {/* Progress */}
       <div className="cc-progress">{steps.map((_, i) => <div key={i} className={`cc-prog-dot ${i < step - 1 ? 'done' : i === step - 1 ? 'active' : ''}`} />)}</div>
@@ -688,7 +760,43 @@ function CharacterCreation({ onComplete, onCancel }) {
         </div>
       )}
 
-      {/* Step 5: Advantages */}
+      {/* Step 5: Spells (Sahir schools only) */}
+      {spellStep && step === spellStep && (
+        <div>
+          <SpellConstellation
+            character={{
+              id: 'creation',
+              school,
+              school_rank: 1,
+              spells: selectedSpells,
+              spell_type_emphases: spellEmphasis ? [spellEmphasis] : [],
+              spell_discipline_bonus: spellDisciplineBonus,
+            }}
+            mode="create"
+            onUpdate={(_, updates) => {
+              if (updates.spells) setSelectedSpells(updates.spells);
+            }}
+            spellEmphasis={spellEmphasis}
+            setSpellEmphasis={setSpellEmphasis}
+            spellDisciplineBonus={spellDisciplineBonus}
+            setSpellDisciplineBonus={setSpellDisciplineBonus}
+          />
+
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button className="btn" onClick={() => setStep(4)}>← Back</button>
+            <div style={{ fontSize: 11, color: selectedSpells.length >= startingSpells ? 'var(--green)' : 'var(--text-muted)' }}>
+              {selectedSpells.length}/{startingSpells} spells selected
+            </div>
+            <button className="btn btn-p"
+              disabled={selectedSpells.length < startingSpells || (!IS_COKALOI_SCHOOL(school) && (!spellEmphasis || !spellDisciplineBonus))}
+              onClick={() => setStep(advStep)}>
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5/6: Advantages */}
       {step === advStep && (
         <div>
           <div className="cp-meter">
@@ -779,47 +887,62 @@ function CharacterCreation({ onComplete, onCancel }) {
 }
 
 // ── Player Management ─────────────────────────────────────────────────────────
-function PlayerManagement({ playerPassword, onSavePlayerPassword }) {
-  const [pw, setPw] = useState(playerPassword || '');
+
+// ── Player Management — 8 username+password pairs ────────────────────────────
+function PlayerManagement() {
+  const EMPTY_SLOTS = Array.from({ length: 8 }, () => ({ username: '', password: '' }));
+  const [slots, setSlots] = useState(EMPTY_SLOTS);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data, error }) => {
+      if (!error && data?.settings?.player_accounts) {
+        const loaded = [...EMPTY_SLOTS];
+        data.settings.player_accounts.forEach((p, i) => { if (i < 8) loaded[i] = p; });
+        setSlots(loaded);
+      }
+      setLoading(false);
+    });
+  }, []);
 
   const save = async () => {
-    await onSavePlayerPassword(pw);
+    const { data } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const current = data?.settings || {};
+    await supabase.from('games').update({ settings: { ...current, player_accounts: slots.filter(s => s.username.trim()) } }).eq('id', GAME_ID);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  if (loading) return <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Loading...</div>;
+
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.5rem' }}>Player Access</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.5rem' }}>Player Accounts</div>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
-        Set a single password for all players. Share it with your group. Anyone who enters it logs in as a Player and can see all characters and edit any of them — trust your players to only touch their own.
+        Create up to 8 player accounts. Each player logs in with their username and password. Leave rows blank to skip them.
       </div>
-
       <div className="card">
-        <div className="card-title">Player Password</div>
-        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-          <input
-            type="text"
-            value={pw}
-            onChange={e => { setPw(e.target.value); setSaved(false); }}
-            placeholder="Set player password..."
-            style={{ flex: 1 }}
-            onKeyDown={e => e.key === 'Enter' && save()}
-          />
-          <button className="btn btn-p" onClick={save}>
-            {saved ? '✓ Saved' : 'Save'}
-          </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Username</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Password</div>
+          {slots.map((slot, i) => (
+            <React.Fragment key={i}>
+              <input value={slot.username} onChange={e => { const s = [...slots]; s[i] = { ...s[i], username: e.target.value }; setSlots(s); }}
+                placeholder={`Player ${i + 1}`} style={{ fontSize: 11 }} />
+              <input value={slot.password} onChange={e => { const s = [...slots]; s[i] = { ...s[i], password: e.target.value }; setSlots(s); }}
+                placeholder="password" style={{ fontSize: 11 }} />
+            </React.Fragment>
+          ))}
         </div>
+        <button className="btn btn-p btn-sm" onClick={save}>{saved ? '✓ Saved' : 'Save Accounts'}</button>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.5rem' }}>
-          Share this with your players. Change it in <code>src/components/AuthScreen.jsx</code> → PLAYER_PASSWORD
+          Players log in at the login screen with their username and password.
         </div>
       </div>
     </div>
   );
 }
-
-// ── NPC Quick Create ──────────────────────────────────────────────────────────
 // GM-only. Pick faction → school → rank → name → save to NPC log.
 function NPCQuickCreate({ onComplete, onCancel }) {
   const [faction, setFaction] = useState('');
@@ -839,6 +962,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
   const submit = async () => {
     const npcName = name.trim() || defaultName;
     if (!faction || !school || !npcName) return;
+    const isSahir = SAHIR_SCHOOLS_LIST.includes(school);
     await onComplete({
       game_id: GAME_ID,
       faction,
@@ -848,6 +972,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
       is_visible_to_players: visible,
       gm_notes: gmNotes,
       player_notes: '',
+      spells: isSahir ? generateNpcSpells(rank) : [],
     });
   };
 
@@ -970,3 +1095,34 @@ function NPCQuickCreate({ onComplete, onCancel }) {
 
 // Need GAME_ID for NPCQuickCreate (already imported above)
 const SAHIR_SCHOOLS_LIST = SAHIR_SCHOOLS;
+
+// Generate random rank-appropriate spells for a Sahir NPC
+// 2 spells per rank, respecting level prerequisites within each type
+function generateNpcSpells(rank) {
+  const result = [];
+  const totalSpells = rank * 2;
+  // Flatten all spells with their type tracking
+  const allTypes = SAHIR_DISCIPLINES.flatMap(d =>
+    d.types.map(t => ({ disciplineId: d.id, typeId: t.id, spells: t.spells }))
+  );
+  // Track learned per type for prerequisite checking
+  const learnedByType = {};
+  let attempts = 0;
+  while (result.length < totalSpells && attempts < 200) {
+    attempts++;
+    const typeGroup = allTypes[Math.floor(Math.random() * allTypes.length)];
+    const key = typeGroup.typeId;
+    const learned = learnedByType[key] || 0;
+    // Can only learn level 1, or next level if previous known
+    const nextLevel = learned + 1;
+    if (nextLevel > 3) continue;
+    const spell = typeGroup.spells.find(s => s.level === nextLevel);
+    if (!spell || result.includes(spell.name)) continue;
+    // Level cap: level 1 always ok, level 2 needs rank 2+, level 3 needs rank 4+
+    if (nextLevel === 2 && rank < 2) continue;
+    if (nextLevel === 3 && rank < 4) continue;
+    result.push(spell.name);
+    learnedByType[key] = nextLevel;
+  }
+  return result;
+}

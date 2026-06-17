@@ -52,25 +52,33 @@ export function useActiveSession() {
   // Real-time subscription — keeps all clients in sync when encounter_data changes
   useEffect(() => {
     const channel = supabase
-      .channel('session_sync')
+      .channel('session_sync_' + GAME_ID)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'sessions',
         filter: `game_id=eq.${GAME_ID}`,
       }, payload => {
-        if (payload.new?.is_active) setSession(payload.new);
+        if (payload.new?.is_active) {
+          // Parse encounter_data if it came back as a string
+          const newSession = { ...payload.new };
+          if (typeof newSession.encounter_data === 'string') {
+            try { newSession.encounter_data = JSON.parse(newSession.encounter_data); } catch {}
+          }
+          setSession(newSession);
+        }
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
   const startSession = async (sessionNumber) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('sessions')
       .insert({ game_id: GAME_ID, session_number: sessionNumber, is_active: true })
       .select()
       .single();
+    if (error) { console.error('startSession failed:', error.message, error.code, error.details, error.hint); return null; }
     setSession(data);
     return data;
   };
@@ -249,12 +257,13 @@ export function useQuests(sessionId) {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createQuest = async (questData) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('quests')
-      .insert({ ...questData, game_id: GAME_ID, session_id: sessionId })
+      .insert({ ...questData, game_id: GAME_ID, session_id: sessionId || null })
       .select()
       .single();
-    setQuests(prev => [...prev, data]);
+    if (error) { console.error('createQuest failed:', error.message, error.code); return null; }
+    if (data) setQuests(prev => [...prev, data]);
     return data;
   };
 

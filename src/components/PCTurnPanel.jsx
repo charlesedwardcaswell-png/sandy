@@ -94,6 +94,32 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
 
   const displaySkills = skillCategory === 'combat' ? combatSkills : skillCategory === 'social' ? socialSkills : otherSkills;
 
+  // Stance bonus to attack rolls
+  const stanceRollBonus = combatant.stance === 'Full Attack' ? 1 : 0;
+  const stanceKeepBonus = 0; // Full Attack only adds rolled dice, not kept
+  const centerBonus = combatant.stance === 'Center' ? (character.school_rank || 1) : 0;
+
+  // Skill mastery bonuses (ranks 3, 5, 7)
+  const MASTERY_ROLL_BONUS = {
+    Swordsmanship: { 5: 1 }, // +1k0 at rank 5
+    Brawling: { 5: 0 },      // +1k0 damage only
+    Athletics: { 5: 1 },
+    Stealth: { 5: 1 },
+    Investigation: { 5: 1 },
+    Medicine: { 5: 1 },
+    Divination: { 5: 1 },
+    Spellcraft: {},
+  };
+  const MASTERY_FREE_RAISE = {
+    Brawling: { 7: true },
+    Hunting: { 3: true, 7: true },
+    Divination: { 3: true },
+    Spellcraft: { 3: true },
+  };
+
+  // Spell emphasis — free raise if spell type matches emphasis
+  const spellEmphases = character.spell_type_emphases || [];
+
   // Calculate dice pool for a skill
   const getPool = (skill) => {
     const SKILL_RINGS = {
@@ -109,9 +135,12 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
     const [traitKey, ringKey] = SKILL_RINGS[skill.name] || ['agility', 'fire'];
     const traitVal = character[traitKey] || 2;
     const ringVal = character[ringKey] || 2;
-    const roll = skill.rank + traitVal + Math.abs(woundPenalty);
-    const keep = ringVal + Math.abs(woundPenalty);
-    return { roll: skill.rank + traitVal, keep: ringVal, traitVal, ringVal, traitKey, ringKey };
+
+    // Mastery roll bonus
+    const masteryBonuses = MASTERY_ROLL_BONUS[skill.name] || {};
+    const masteryRoll = Object.entries(masteryBonuses).reduce((sum, [rank, bonus]) => skill.rank >= +rank ? sum + bonus : sum, 0);
+
+    return { roll: skill.rank + traitVal, keep: ringVal, traitVal, ringVal, traitKey, ringKey, masteryRoll };
   };
 
   // Get armor TN of target
@@ -134,11 +163,19 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
     const tn = selectedTarget ? getTargetTN(selectedTarget) : 15;
     const target = enemies.find(e => e.id === selectedTarget);
 
+    const stanceBonus = isAttack ? stanceRollBonus : 0;
+    const hasMasteryFreeRaise = (MASTERY_FREE_RAISE[selectedSkill.name] || {})[selectedSkill.rank];
+    const bonusNotes = [];
+    if (stanceBonus > 0) bonusNotes.push(`Full Attack: +${stanceBonus} rolled die`);
+    if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
+    if (hasMasteryFreeRaise) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
+    if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
+
     onRoll({
       skill: selectedSkill.name,
       ring: pool.ringKey,
       ringVal: pool.ringVal,
-      baseRoll: pool.roll,
+      baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0),
       baseKeep: pool.keep,
       tn,
       isAttack,
@@ -147,8 +184,14 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
       targetId: selectedTarget,
       currentVoid: character.current_void,
       woundPenalty,
+      character,
+      suggestedFlatMod: centerBonus,
+      bonusNotes,
+      freeRaises: hasMasteryFreeRaise ? 1 : 0,
     });
   };
+
+  const stanceChosen = !!combatant.stance;
 
   return (
     <div style={{
@@ -156,7 +199,7 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
       position: 'sticky', bottom: 0, zIndex: 20,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>
           <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character.name} — Your Turn
         </div>
@@ -165,38 +208,74 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
             {woundRank === 3 ? '–1k0' : woundRank === 4 ? '–2k0' : '–3k0'} wound penalty
           </div>
         )}
-        {/* Stance selector */}
-        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-          {STANCES.map(s => (
-            <button key={s}
-              className={`opt-btn ${combatant.stance === s ? 'sel' : ''}`}
-              style={{ fontSize: 11, padding: '4px 10px' }}
-              onClick={() => onStanceChange(s)}
-            >
-              {s === 'Full Attack' ? 'F.Attack' : s === 'Full Defense' ? 'F.Defense' : s}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Primary action buttons — large and clear */}
+      {/* ── Step 1: Stance — always visible, prominent ── */}
+      <div style={{ marginBottom: '.75rem' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>
+          Choose Stance
+        </div>
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+          {STANCES.map(s => {
+            const isActive = combatant.stance === s;
+            const stanceColors = {
+              'Attack': '#c8962a',
+              'Full Attack': '#c84030',
+              'Defense': '#4a8a40',
+              'Full Defense': '#2a6a30',
+              'Center': '#8050c8',
+              'Water': '#4a8aaa',
+            };
+            const col = stanceColors[s] || 'var(--gold)';
+            return (
+              <button key={s}
+                onClick={() => { onStanceChange(s); setSelectedAction(null); }}
+                style={{
+                  padding: '6px 14px', borderRadius: 5, fontFamily: 'inherit', cursor: 'pointer',
+                  fontSize: 12, fontWeight: isActive ? 700 : 400,
+                  background: isActive ? col + '33' : 'var(--bg-panel)',
+                  border: `2px solid ${isActive ? col : 'var(--border)'}`,
+                  color: isActive ? col : 'var(--text-muted)',
+                  boxShadow: isActive ? `0 0 10px ${col}55` : 'none',
+                  transition: 'all .15s',
+                }}>
+                {s}
+              </button>
+            );
+          })}
+        </div>
+        {combatant.stance && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>
+            {combatant.stance === 'Full Attack' && '+1k0 attack rolls'}
+            {combatant.stance === 'Full Defense' && '+10 Armor TN — cannot attack'}
+            {combatant.stance === 'Center' && `+${character.school_rank || 1} flat bonus to first action (School Rank)`}
+            {combatant.stance === 'Water' && 'Move up to Water Ring as a free action'}
+          </div>
+        )}
+      </div>
+
+      {/* ── Step 2: Actions — only shown after stance chosen ── */}
+      {!stanceChosen ? (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '.5rem 0' }}>
+          Choose a stance above to continue
+        </div>
+      ) : (
+      <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
-          { id: 'attack',  icon: 'ti-sword',        label: 'Attack',       color: '#c84030' },
-          { id: 'skill',   icon: 'ti-list-check',   label: 'Use Skill',    color: 'var(--gold)' },
-          { id: 'draw',    icon: 'ti-hand-stop',    label: 'Draw Weapon',  color: 'var(--text-secondary)' },
-          { id: 'defend',  icon: 'ti-shield',       label: 'Full Defense', color: '#4a8a40' },
-          { id: 'pass',    icon: 'ti-player-skip-forward', label: 'Pass Turn', color: 'var(--text-muted)' },
+          { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       color: '#c84030' },
+          { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    color: 'var(--gold)' },
+          { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  color: 'var(--text-secondary)' },
+          { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', color: '#4a8a40' },
+          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    color: 'var(--text-muted)' },
         ].map(action => (
           <button key={action.id}
             onClick={() => {
               if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
               else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
-              else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
               else {
                 setSelectedAction(action.id);
                 setSelectedSkill(null);
-                // Pre-select drawn weapon when attacking
                 if (action.id === 'attack' && combatant.drawnWeapon) {
                   const drawnName = combatant.drawnWeapon.split(' (')[0];
                   const eq = (character?.equipment || []).find(e => e.name === drawnName);
@@ -206,15 +285,16 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
             }}
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: '.3rem', padding: '.6rem .25rem',
+              gap: '.4rem', padding: '.75rem .25rem',
               background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
-              border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
-              borderRadius: 6, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
+              border: `2px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
+              borderRadius: 8, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
               color: selectedAction === action.id ? action.color : 'var(--text-secondary)',
+              boxShadow: selectedAction === action.id ? `0 0 10px ${action.color}44` : 'none',
             }}
           >
-            <i className={`ti ${action.icon}`} style={{ fontSize: 18, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
-            <span style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
+            <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
           </button>
         ))}
       </div>
@@ -387,6 +467,8 @@ export default function PCTurnPanel({ combatant, character, enemies, isNPCTurn, 
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

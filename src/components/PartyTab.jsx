@@ -69,7 +69,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                     <span className="party-stat" style={{ color: wColor, borderColor: wColor + '44' }}>{WOUND_RANKS[woundRank]}</span>
                     <span className="party-stat">Void {c.current_void || c.void}/{c.void}</span>
                     <span className="party-stat">{c.current_stance || 'Attack'}</span>
-                    {c.current_weapon && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>⚔ {c.current_weapon.split(' ')[0]}</span>}
+                    {c.current_weapon && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>⚔ {typeof c.current_weapon === 'string' ? c.current_weapon.split(' ')[0] : (c.current_weapon?.name || 'Weapon')}</span>}
                     {gmView && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>{(c.xp_total || 0) - (c.xp_spent || 0)} XP</span>}
                   </div>
                 </div>
@@ -170,7 +170,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                   <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 9 }}>{e.encounter_type}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{e.rounds} rds</span>
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>vs {e.enemies}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
               </div>
             ))}
           </div>
