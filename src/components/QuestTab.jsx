@@ -50,19 +50,19 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
           Session {session?.session_number || '—'} — Objectives
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           {/* Players can suggest quests */}
           {!gmView && (
             <button className="btn btn-sm" style={{ borderColor: '#4a8a40', color: '#6aba60' }} onClick={() => setShowPlayerNew(!showPlayerNew)}>
-              <i className="ti ti-plus" style={{ fontSize: 11 }} /> Suggest Quest
+              <i className="ti ti-plus" style={{ fontSize: 13 }} /> Suggest Quest
             </button>
           )}
           {gmView && (
             <button className="btn btn-sm btn-p" onClick={() => setShowNew(!showNew)}>
-              <i className="ti ti-plus" style={{ fontSize: 11 }} /> New Objective
+              <i className="ti ti-plus" style={{ fontSize: 13 }} /> New Objective
             </button>
           )}
         </div>
@@ -97,7 +97,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
       {showPlayerNew && !gmView && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: '#4a8a40' }}>
           <div className="card-title" style={{ color: '#6aba60' }}>Suggest a Quest</div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.5rem' }}>Your suggestion goes to the GM for review. It will appear in green until promoted.</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>Your suggestion goes to the GM for review. It will appear in green until promoted.</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             <input placeholder="Quest title *" autoFocus value={playerQ.title} onChange={e => setPlayerQ({ ...playerQ, title: e.target.value })} style={{ width: '100%' }} />
             <textarea rows={2} placeholder="What do you think the party should pursue?" value={playerQ.description} onChange={e => setPlayerQ({ ...playerQ, description: e.target.value })} style={{ width: '100%', resize: 'vertical' }} />
@@ -117,21 +117,21 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
         return (
           <div key={q.id} className="qitem" style={{ borderLeft: `3px solid ${qt.color}`, background: qt.bg }}>
             <div className="qhdr">
-              <span style={{ fontSize: 8, padding: '1px 5px', border: `1px solid ${qt.border}`, borderRadius: 3, color: qt.color, marginRight: 4, flexShrink: 0 }}>{qt.label}</span>
+              <span style={{ fontSize: 10, padding: '1px 5px', border: `1px solid ${qt.border}`, borderRadius: 3, color: qt.color, marginRight: 4, flexShrink: 0 }}>{qt.label}</span>
               <span className={`qstat ${STATUS_STYLE[q.status] || 'q-active'}`}>
                 {q.status === 'carried_over' ? 'carried' : q.status}
               </span>
-              <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: q.status === 'complete' ? 'line-through' : 'none' }}>{q.title}</span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: q.status === 'complete' ? 'line-through' : 'none' }}>{q.title}</span>
               {/* Complete button — GM always, players for their own quests */}
               {q.status === 'active' && (gmView || q.quest_type === 'player') && (
-                <button className="btn btn-sm" style={{ fontSize: 9, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
+                <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
                   onClick={() => onUpdateQuest(q.id, { status: 'complete' })}>✓ Complete</button>
               )}
               {gmView && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   {/* Promote player quests */}
                   {q.quest_type === 'player' && (
-                    <select style={{ fontSize: 9, padding: '1px 3px', borderColor: '#4a8a40', color: '#6aba60' }}
+                    <select style={{ fontSize: 11, padding: '1px 3px', borderColor: '#4a8a40', color: '#6aba60' }}
                       value="player" onChange={e => onUpdateQuest(q.id, { quest_type: e.target.value })}>
                       <option value="player">Player</option>
                       <option value="main">→ Main</option>
@@ -139,17 +139,17 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
                     </select>
                   )}
                   {q.quest_type !== 'player' && (
-                    <select style={{ fontSize: 9, padding: '1px 3px' }} value={q.quest_type} onChange={e => onUpdateQuest(q.id, { quest_type: e.target.value })}>
+                    <select style={{ fontSize: 11, padding: '1px 3px' }} value={q.quest_type} onChange={e => onUpdateQuest(q.id, { quest_type: e.target.value })}>
                       <option value="main">Main</option>
                       <option value="side">Side</option>
                       <option value="player">Player</option>
                     </select>
                   )}
-                  <select style={{ fontSize: 10, padding: '2px 4px' }} value={q.status} onChange={e => onUpdateQuest(q.id, { status: e.target.value })}>
+                  <select style={{ fontSize: 12, padding: '2px 4px' }} value={q.status} onChange={e => onUpdateQuest(q.id, { status: e.target.value })}>
                     {['active', 'complete', 'failed', 'carried_over'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <span title={q.is_visible ? 'Visible — click to hide' : 'Hidden — click to reveal'}
-                    style={{ cursor: 'pointer', fontSize: 13, color: q.is_visible ? 'var(--green)' : 'var(--text-muted)' }}
+                    style={{ cursor: 'pointer', fontSize: 15, color: q.is_visible ? 'var(--green)' : 'var(--text-muted)' }}
                     onClick={() => onUpdateQuest(q.id, { is_visible: !q.is_visible })}>
                     {q.is_visible ? '●' : '○'}
                   </span>
@@ -158,26 +158,26 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
             </div>
 
             {q.description && (
-              <div style={{ padding: '.4rem .75rem', fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', lineHeight: 1.5 }}>
+              <div style={{ padding: '.4rem .75rem', fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', lineHeight: 1.5 }}>
                 {q.description}
               </div>
             )}
 
             {(q.player_notes || q.notes) && (
-              <div style={{ padding: '.3rem .75rem', background: 'var(--bg-dark)', borderTop: '1px solid rgba(107,78,40,.2)', fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              <div style={{ padding: '.3rem .75rem', background: 'var(--bg-dark)', borderTop: '1px solid rgba(107,78,40,.2)', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                 Notes: {q.player_notes || q.notes}
               </div>
             )}
             {!(q.player_notes || q.notes) && (
               <div style={{ padding: '.3rem .75rem', background: 'var(--bg-dark)', borderTop: '1px solid rgba(107,78,40,.2)' }}>
                 <textarea placeholder="Party notes..." value={q.player_notes || ''} onChange={e => onUpdateQuest(q.id, { player_notes: e.target.value })}
-                  style={{ width: '100%', resize: 'vertical', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 10, outline: 'none', minHeight: 28, fontFamily: 'inherit' }} />
+                  style={{ width: '100%', resize: 'vertical', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 12, outline: 'none', minHeight: 28, fontFamily: 'inherit' }} />
               </div>
             )}
 
             {gmView && (
               <div className="gm-notes-area">
-                <div style={{ fontSize: 9, color: 'var(--gold-dim)', marginBottom: 2 }}>GM Notes (private):</div>
+                <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: 2 }}>GM Notes (private):</div>
                 <textarea placeholder="Private GM notes..." value={q.gm_notes || ''} onChange={e => onUpdateQuest(q.id, { gm_notes: e.target.value })} />
               </div>
             )}

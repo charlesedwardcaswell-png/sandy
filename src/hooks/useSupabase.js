@@ -140,12 +140,13 @@ export function useCharacters() {
   };
 
   const updateCharacter = async (id, updates) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('characters')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+    if (error) { console.error('updateCharacter failed:', error.message); return null; }
     setCharacters(prev => prev.map(c => c.id === id ? data : c));
     return data;
   };
@@ -206,12 +207,13 @@ export function useNPCs() {
   };
 
   const updateNPC = async (id, updates) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('npcs')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+    if (error) { console.error('updateNPC failed:', error.message); return null; }
     setNpcs(prev => prev.map(n => n.id === id ? data : n));
     return data;
   };
@@ -268,12 +270,13 @@ export function useQuests(sessionId) {
   };
 
   const updateQuest = async (id, updates) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('quests')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+    if (error) { console.error('updateQuest failed:', error.message); return null; }
     setQuests(prev => prev.map(q => q.id === id ? data : q));
     return data;
   };
@@ -354,19 +357,21 @@ export function useFactionReputation() {
     const current = reps[faction];
     const newVal = Math.max(-3, Math.min(3, (current?.reputation || 0) + delta));
     if (current) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('faction_reputation')
         .update({ reputation: newVal, updated_at: new Date().toISOString() })
         .eq('id', current.id)
         .select()
         .single();
+      if (error) { console.error('updateRep failed:', error.message); return; }
       setReps(prev => ({ ...prev, [faction]: data }));
     } else {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('faction_reputation')
         .insert({ game_id: GAME_ID, faction, reputation: newVal })
         .select()
         .single();
+      if (error) { console.error('updateRep insert failed:', error.message); return; }
       setReps(prev => ({ ...prev, [faction]: data }));
     }
   };
@@ -393,11 +398,12 @@ export function useEncounterLog() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const addEntry = async (entry) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('encounter_log')
       .insert({ ...entry, game_id: GAME_ID })
       .select()
       .single();
+    if (error) { console.error('addEntry failed:', error.message); return null; }
     setLog(prev => [data, ...prev]);
     return data;
   };

@@ -477,7 +477,7 @@ export function ScrollLore({ title, text, color = 'var(--gold-dim)', size = 11 }
         <div className="modal-overlay" onClick={() => setOpen(false)} style={{ zIndex: 200 }}>
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-title"><i className="ti ti-scroll" style={{ marginRight: 8 }} />{title}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{text}</div>
+            <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{text}</div>
             <button className="btn btn-sm" style={{ marginTop: '1rem' }} onClick={() => setOpen(false)}>Close</button>
           </div>
         </div>
@@ -489,7 +489,7 @@ export function Loading({ message = 'Loading...' }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', flexDirection: 'column', gap: '1rem' }}>
       <i className="ti ti-loader" style={{ fontSize: 24, color: 'var(--gold-dim)', animation: 'spin 1s linear infinite' }} />
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{message}</div>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{message}</div>
       <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
     </div>
   );
@@ -500,7 +500,7 @@ export function Empty({ icon = 'ti-ghost', message, action }) {
   return (
     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
       <i className={`ti ${icon}`} style={{ fontSize: 36, opacity: .3, display: 'block', marginBottom: '.75rem' }} />
-      <div style={{ fontSize: 13, marginBottom: action ? '1rem' : 0 }}>{message}</div>
+      <div style={{ fontSize: 15, marginBottom: action ? '1rem' : 0 }}>{message}</div>
       {action}
     </div>
   );

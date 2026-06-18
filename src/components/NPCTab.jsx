@@ -165,23 +165,23 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                style={{ fontSize: 14, fontWeight: 600, width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', padding: '2px 0' }}
+                style={{ fontSize: 16, fontWeight: 600, width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', padding: '2px 0' }}
                 placeholder="NPC name"
               />
             ) : (
               <div className="modal-title" style={{ marginBottom: 0 }}>{npc.name}</div>
             )}
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{npc.school}{npc.rank ? ` — Rank ${npc.rank}` : ''}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{npc.school}{npc.rank ? ` — Rank ${npc.rank}` : ''}</div>
           </div>
         </div>
 
         {/* Stat block — GM only */}
         {isGM && sd && (
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>
               Stat Block <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(GM only)</span>
             </div>
-            <div style={{ background: 'var(--bg-dark)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, padding: '.6rem', fontSize: 11, lineHeight: 1.6 }}>
+            <div style={{ background: 'var(--bg-dark)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, padding: '.6rem', fontSize: 13, lineHeight: 1.6 }}>
               <div><span style={{ color: 'var(--text-muted)' }}>Type:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.type}</span> <span style={{ color: 'var(--text-muted)', marginLeft: '.75rem' }}>Integrity:</span> <span style={{ color: 'var(--gold)' }}>{sd.integrity}</span></div>
               <div><span style={{ color: 'var(--text-muted)' }}>Bonus Trait:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.bonus_trait}</span></div>
               <div style={{ marginTop: '.3rem' }}><span style={{ color: 'var(--text-muted)' }}>School Skills:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.skills?.join(', ')}</span></div>
@@ -189,7 +189,7 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
                 <span style={{ color: 'var(--text-muted)' }}>Techniques:</span>
                 <div style={{ marginTop: 2 }}>
                   {Object.entries(sd.techniques || {}).map(([r, t]) => (
-                    <div key={r} style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                    <div key={r} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--gold-dim)', minWidth: 20, display: 'inline-block' }}>R{r}:</span> {t}
                     </div>
                   ))}
@@ -203,26 +203,26 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
         {/* GM Notes */}
         {isGM && (
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
               GM Notes <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(private)</span>
             </div>
             <textarea
               rows={3} value={gmNotes} onChange={e => setGmNotes(e.target.value)}
               placeholder="Secrets, motivations, relationships, plot hooks..."
-              style={{ width: '100%', resize: 'vertical', background: 'rgba(200,150,42,.04)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, color: 'var(--text-secondary)', fontSize: 11, padding: '.4rem', fontFamily: 'inherit', outline: 'none' }}
+              style={{ width: '100%', resize: 'vertical', background: 'rgba(200,150,42,.04)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, color: 'var(--text-secondary)', fontSize: 13, padding: '.4rem', fontFamily: 'inherit', outline: 'none' }}
             />
           </div>
         )}
 
         {/* Player Notes */}
         <div style={{ marginBottom: '1rem' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
             Party Notes <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(shared)</span>
           </div>
           <textarea
             rows={3} value={playerNotes} onChange={e => setPlayerNotes(e.target.value)}
             placeholder="What the party has learned about this person..."
-            style={{ width: '100%', resize: 'vertical', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontSize: 11, padding: '.4rem', fontFamily: 'inherit', outline: 'none' }}
+            style={{ width: '100%', resize: 'vertical', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontSize: 13, padding: '.4rem', fontFamily: 'inherit', outline: 'none' }}
           />
         </div>
 
@@ -245,10 +245,10 @@ function LorePanel() {
     return (
       <div style={{ marginTop: '1.5rem', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem', background: 'var(--bg-panel)', cursor: 'pointer' }} onClick={() => setOpen(true)}>
-          <i className="ti ti-book-2" style={{ fontSize: 14, color: 'var(--gold-dim)' }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>Setting background — read-only</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>▼ Expand</span>
+          <i className="ti ti-book-2" style={{ fontSize: 16, color: 'var(--gold-dim)' }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Setting background — read-only</span>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>▼ Expand</span>
         </div>
       </div>
     );
@@ -257,9 +257,9 @@ function LorePanel() {
   return (
     <div style={{ marginTop: '1.5rem', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem', background: 'var(--bg-panel)', cursor: 'pointer' }} onClick={() => setOpen(false)}>
-        <i className="ti ti-book-2" style={{ fontSize: 14, color: 'var(--gold-dim)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
-        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>▲ Collapse</span>
+        <i className="ti ti-book-2" style={{ fontSize: 16, color: 'var(--gold-dim)' }} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>▲ Collapse</span>
       </div>
       <div style={{ padding: '.75rem', background: 'var(--bg-dark)' }}>
         {LORE_SECTIONS.map(section => (
@@ -268,17 +268,17 @@ function LorePanel() {
               style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '.2rem 0', borderBottom: '1px solid rgba(107,78,40,.3)', marginBottom: '.3rem' }}
               onClick={() => setSectionOpen(o => ({ ...o, [section.key]: !o[section.key] }))}
             >
-              <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{sectionOpen[section.key] ? '▼' : '▶'}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold-dim)' }}>{section.label}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sectionOpen[section.key] ? '▼' : '▶'}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--gold-dim)' }}>{section.label}</span>
             </div>
             {sectionOpen[section.key] && section.entries.map(e => (
               <div key={e.key} style={{ marginLeft: '.75rem', marginBottom: '.4rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={() => setEntryOpen(o => ({ ...o, [e.key]: !o[e.key] }))}>
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{entryOpen[e.key] ? '▼' : '▶'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-primary)' }}>{e.label}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{entryOpen[e.key] ? '▼' : '▶'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{e.label}</span>
                 </div>
                 {entryOpen[e.key] && (
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '.4rem .5rem', background: 'rgba(107,78,40,.1)', borderRadius: 3, marginTop: '.2rem', marginLeft: '.75rem' }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '.4rem .5rem', background: 'rgba(107,78,40,.1)', borderRadius: 3, marginTop: '.2rem', marginLeft: '.75rem' }}>
                     {e.text}
                   </div>
                 )}
@@ -336,8 +336,8 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
       )}
 
       <div style={{ marginBottom: '.75rem' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>NPC Log</span>
-        {gmView && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: '.75rem' }}>Add NPCs from the Character tab</span>}
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>NPC Log</span>
+        {gmView && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: '.75rem' }}>Add NPCs from the Character tab</span>}
       </div>
 
       {FACTIONS_DATA.map(fDef => {
@@ -354,15 +354,15 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
               <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.12)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <FacIcon name={fDef.name} size={13} />
               </div>
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', minWidth: 80 }}>{fDef.name}</span>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fDef.tagline}</span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', minWidth: 80 }}>{fDef.name}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fDef.tagline}</span>
               {FACTION_LORE[fDef.name] && (
                 <span onClick={e => e.stopPropagation()}>
                   <ScrollLore title={fDef.name} text={FACTION_LORE[fDef.name]} />
                 </span>
               )}
               {visibleNPCs.length > 0 && (
-                <span style={{ fontSize: 9, background: 'rgba(200,150,42,.15)', color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, background: 'rgba(200,150,42,.15)', color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
                   {visibleNPCs.length}
                 </span>
               )}
@@ -373,24 +373,24 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                 {/* Rep controls — GM only, inside expanded body */}
                 {gmView && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '.3rem 0 .5rem', borderBottom: '1px solid rgba(107,78,40,.2)', marginBottom: '.4rem' }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Reputation:</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reputation:</span>
                     <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: repColor(rep), minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: repColor(rep), minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
                     <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>
-                    <span style={{ fontSize: 10, color: repColor(rep) }}>{repLabel(rep)}</span>
+                    <span style={{ fontSize: 12, color: repColor(rep) }}>{repLabel(rep)}</span>
                   </div>
                 )}
 
                 {/* Faction lore */}
                 {FACTION_LORE[fDef.name] && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5, paddingBottom: '.5rem', borderBottom: '1px solid rgba(107,78,40,.15)', marginBottom: '.4rem' }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5, paddingBottom: '.5rem', borderBottom: '1px solid rgba(107,78,40,.15)', marginBottom: '.4rem' }}>
                     {FACTION_LORE[fDef.name]}
                   </div>
                 )}
 
                 {/* NPC list */}
                 {visibleNPCs.length === 0
-                  ? <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.2rem 0' }}>No NPCs logged.</div>
+                  ? <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.2rem 0' }}>No NPCs logged.</div>
                   : visibleNPCs.map(n => (
                     <div key={n.id} className="npc-row" style={{ cursor: 'pointer' }} onClick={() => setDetailNPC(n)}>
                       {gmView && (
@@ -409,7 +409,7 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                           onBlur={() => { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); }}
                           onKeyDown={e => { if (e.key === 'Enter') { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); } if (e.key === 'Escape') setEditingNPCId(null); }}
                           onClick={e => e.stopPropagation()}
-                          style={{ flex: 1, fontSize: 11, background: 'transparent', border: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
+                          style={{ flex: 1, fontSize: 13, background: 'transparent', border: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
                         />
                       ) : (
                         <span
@@ -418,18 +418,18 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                           title={gmView ? 'Double-click to rename' : ''}
                         >{n.name}</span>
                       )}
-                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</span>
-                      {n.player_notes && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}
-                      {gmView && <span style={{ fontSize: 9, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</span>
+                      {n.player_notes && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}
+                      {gmView && <span style={{ fontSize: 11, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}
                       {n.character_id && onViewCharacter && (
-                        <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 5px' }}
+                        <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); onViewCharacter(n.character_id); }}
                           title="View full character sheet">
-                          <i className="ti ti-user" style={{ fontSize: 9 }} />
+                          <i className="ti ti-user" style={{ fontSize: 11 }} />
                         </button>
                       )}
                       {encActive && (
-                        <button className="btn btn-sm" style={{ fontSize: 9, padding: '1px 5px' }}
+                        <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); handleAddToEncounter(n); }}>+Enc</button>
                       )}
                     </div>

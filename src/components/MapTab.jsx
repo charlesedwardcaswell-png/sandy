@@ -41,7 +41,7 @@ function PinIcon({ type, size = 28, selected, hidden }) {
           position: 'absolute', top: -4, right: -4,
           width: 10, height: 10, borderRadius: '50%',
           background: '#c84030', border: '1px solid rgba(0,0,0,.5)',
-          fontSize: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+          fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
         }}>×</div>
       )}
     </div>
@@ -59,7 +59,7 @@ function QuickPinForm({ onSave, onCancel }) {
       background: 'var(--bg-card)', border: '1px solid var(--border)',
       borderRadius: 8, padding: '.75rem', minWidth: 220,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gold)', marginBottom: '.5rem' }}>New Pin</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold)', marginBottom: '.5rem' }}>New Pin</div>
       <input
         autoFocus
         placeholder="Pin name *"
@@ -83,11 +83,11 @@ function QuickPinForm({ onSave, onCancel }) {
               transition: 'all .1s',
             }}
           >
-            <i className={`ti ${pt.icon}`} style={{ fontSize: 12, color: '#fff' }} />
+            <i className={`ti ${pt.icon}`} style={{ fontSize: 14, color: '#fff' }} />
           </div>
         ))}
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted)', marginBottom: '.5rem', cursor: 'pointer' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem', cursor: 'pointer' }}>
         <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
         Visible to players
       </label>
@@ -133,14 +133,14 @@ function PinEditor({ pin, onSave, onClose }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', boxShadow: form.pin_type === pt.id ? `0 0 10px ${pt.color}` : 'none',
               }}>
-                <i className={`ti ${pt.icon}`} style={{ fontSize: 14, color: '#fff' }} />
+                <i className={`ti ${pt.icon}`} style={{ fontSize: 16, color: '#fff' }} />
               </div>
             ))}
           </div>
         </div>
 
         <div className="modal-section">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
             <input type="checkbox" checked={form.is_visible_to_players} onChange={e => set('is_visible_to_players', e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
             <span style={{ color: 'var(--text-secondary)' }}>Visible to players</span>
           </label>
@@ -150,9 +150,9 @@ function PinEditor({ pin, onSave, onClose }) {
           <span className="modal-label">Tiered Information</span>
           {[['info_tn5','TN 5 — Common knowledge'],['info_tn10','TN 10 — Local knowledge'],['info_tn15','TN 15 — Insider access'],['info_tn20','TN 20+ — Secrets']].map(([key, label]) => (
             <div key={key} style={{ marginBottom: '.4rem' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
               <textarea rows={2} value={form[key]} onChange={e => set(key, e.target.value)}
-                placeholder={label.split(' — ')[1]} style={{ width: '100%', resize: 'vertical', fontSize: 10 }} />
+                placeholder={label.split(' — ')[1]} style={{ width: '100%', resize: 'vertical', fontSize: 12 }} />
             </div>
           ))}
         </div>
@@ -200,28 +200,28 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
     }} onClick={e => e.stopPropagation()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        <i className={`ti ${pt.icon}`} style={{ fontSize: 13, color: pt.color }} />
-        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, flex: 1 }}>{pin.name}</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+        <i className={`ti ${pt.icon}`} style={{ fontSize: 15, color: pt.color }} />
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 15, flex: 1 }}>{pin.name}</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
       </div>
-      <div style={{ fontSize: 9, color: pt.color, marginBottom: 6 }}>{pt.label}</div>
+      <div style={{ fontSize: 11, color: pt.color, marginBottom: 6 }}>{pt.label}</div>
 
       {/* Tiered info */}
       {visibleTiers.map(t => (
         <div key={t.key} style={{ marginBottom: 5 }}>
-          {gmView && <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 1 }}>
+          {gmView && <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 1 }}>
             {t.label}{t.threshold > (pin.visibility_threshold || 5) ? ' 🔒' : ''}
           </div>}
-          <div style={{ fontSize: 10, color: t.threshold > (pin.visibility_threshold || 5) && gmView ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: 'italic' }}>{t.val}</div>
+          <div style={{ fontSize: 12, color: t.threshold > (pin.visibility_threshold || 5) && gmView ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: 'italic' }}>{t.val}</div>
         </div>
       ))}
-      {visibleTiers.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 5 }}>No information yet.</div>}
+      {visibleTiers.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 5 }}>No information yet.</div>}
 
       {/* GM reveal control */}
       {gmView && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', borderTop: '1px solid rgba(107,78,40,.3)', borderBottom: '1px solid rgba(107,78,40,.3)', margin: '4px 0', fontSize: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', borderTop: '1px solid rgba(107,78,40,.3)', borderBottom: '1px solid rgba(107,78,40,.3)', margin: '4px 0', fontSize: 11 }}>
           <span style={{ color: 'var(--text-muted)' }}>Show up to:</span>
-          <select value={pin.visibility_threshold || 5} onChange={e => onUpdatePin(pin.id, { visibility_threshold: +e.target.value })} style={{ fontSize: 9, padding: '1px 3px', flex: 1 }}>
+          <select value={pin.visibility_threshold || 5} onChange={e => onUpdatePin(pin.id, { visibility_threshold: +e.target.value })} style={{ fontSize: 11, padding: '1px 3px', flex: 1 }}>
             <option value={0}>Nothing</option><option value={5}>TN 5</option><option value={10}>TN 10</option><option value={15}>TN 15</option><option value={20}>TN 20+</option>
           </select>
           <span style={{ color: pin.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{pin.is_visible_to_players ? '● shown' : '○ hidden'}</span>
@@ -229,21 +229,21 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
       )}
 
       {/* Party notes */}
-      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>Party notes:</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Party notes:</div>
       <textarea rows={2} value={notes} onChange={e => { setNotes(e.target.value); setNotesChanged(true); }}
-        placeholder="What does the party know?" style={{ width: '100%', resize: 'vertical', fontSize: 10, marginBottom: notesChanged ? 4 : 0 }} />
-      {notesChanged && <button className="btn btn-sm btn-p" style={{ fontSize: 9, marginBottom: 4 }}
+        placeholder="What does the party know?" style={{ width: '100%', resize: 'vertical', fontSize: 12, marginBottom: notesChanged ? 4 : 0 }} />
+      {notesChanged && <button className="btn btn-sm btn-p" style={{ fontSize: 11, marginBottom: 4 }}
         onClick={() => { onUpdatePin(pin.id, { player_notes: notes }); setNotesChanged(false); }}>Save Notes</button>}
 
       {/* GM actions */}
       {gmView && (
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
-          <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => onEdit(pin)}>Edit</button>
-          <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => { onMove(pin.id); onClose(); }}>Move</button>
-          <button className="btn btn-sm" style={{ fontSize: 9 }} onClick={() => onUpdatePin(pin.id, { is_visible_to_players: !pin.is_visible_to_players })}>
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => onEdit(pin)}>Edit</button>
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { onMove(pin.id); onClose(); }}>Move</button>
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => onUpdatePin(pin.id, { is_visible_to_players: !pin.is_visible_to_players })}>
             {pin.is_visible_to_players ? 'Hide' : 'Reveal'}
           </button>
-          <button className="btn btn-sm btn-d" style={{ fontSize: 9 }} onClick={() => onDelete(pin.id)}>Delete</button>
+          <button className="btn btn-sm btn-d" style={{ fontSize: 11 }} onClick={() => onDelete(pin.id)}>Delete</button>
         </div>
       )}
     </div>
@@ -341,24 +341,24 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         {gmView && (
           <button className={`btn btn-sm ${placing ? 'btn-p' : ''}`}
             onClick={() => { setPlacing(!placing); setSelected(null); setNewPinPos(null); }}>
-            <i className={`ti ${placing ? 'ti-x' : 'ti-map-pin'}`} style={{ fontSize: 11 }} />
+            <i className={`ti ${placing ? 'ti-x' : 'ti-map-pin'}`} style={{ fontSize: 13 }} />
             {placing ? 'Cancel' : 'Place Pin'}
           </button>
         )}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
           {visiblePins.length} pin{visiblePins.length !== 1 ? 's' : ''}
         </span>
       </div>
 
       {placing && !newPinPos && (
-        <div style={{ padding: '.35rem .75rem', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.5rem', fontSize: 11, color: 'var(--gold)' }}>
+        <div style={{ padding: '.35rem .75rem', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.5rem', fontSize: 13, color: 'var(--gold)' }}>
           <i className="ti ti-map-pin" style={{ marginRight: 4 }} />Click anywhere on the map to place a pin
         </div>
       )}
       {moving && (
-        <div style={{ padding: '.35rem .75rem', background: 'rgba(74,138,200,.1)', border: '1px solid #4a8ac8', borderRadius: 4, marginBottom: '.5rem', fontSize: 11, color: '#80b8e8', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ padding: '.35rem .75rem', background: 'rgba(74,138,200,.1)', border: '1px solid #4a8ac8', borderRadius: 4, marginBottom: '.5rem', fontSize: 13, color: '#80b8e8', display: 'flex', alignItems: 'center', gap: 6 }}>
           <i className="ti ti-arrows-move" style={{ marginRight: 4 }} />Click new location to move pin
-          <button className="btn btn-sm" style={{ fontSize: 9, marginLeft: 'auto' }} onClick={() => setMovingWithRef(null)}>Cancel</button>
+          <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 'auto' }} onClick={() => setMovingWithRef(null)}>Cancel</button>
         </div>
       )}
 
@@ -427,7 +427,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
               <div style={{
                 position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
                 background: 'rgba(20,12,4,.88)', borderRadius: 3, padding: '1px 5px',
-                fontSize: 9, color: getPinType(p.pin_type).color, whiteSpace: 'nowrap', marginTop: 2,
+                fontSize: 11, color: getPinType(p.pin_type).color, whiteSpace: 'nowrap', marginTop: 2,
                 border: `1px solid ${getPinType(p.pin_type).color}33`, pointerEvents: 'none',
               }}>{p.name}</div>
               {/* Popup */}

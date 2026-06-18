@@ -14,7 +14,7 @@ const CATEGORY_ICONS = {
 
 function ItemIcon({ category }) {
   const icon = CATEGORY_ICONS[category] || 'ti-package';
-  return <i className={`ti ${icon}`} style={{ fontSize: 12, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
+  return <i className={`ti ${icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
 }
 export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog }) {
   const gmView = isGM && !isPCView;
@@ -43,83 +43,90 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
 
   return (
     <div>
-      {/* Party members */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
-        <i className="ti ti-users" style={{ marginRight: 6 }} />Party Overview
-      </div>
+      {/* Party members + Faction standing — side by side, wraps to stacked on narrow screens */}
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        {/* Party members */}
+        <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
+            <i className="ti ti-users" style={{ marginRight: 6 }} />Party Overview
+          </div>
 
-      {characters.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
-          No characters created yet.
-        </div>
-      ) : (
-        <div style={{ marginBottom: '1.5rem' }}>
-          {characters.map(c => {
-            const woundRank = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
-            const wColor = WOUND_COLORS[woundRank];
-            return (
-              <div key={c.id} className="party-card">
-                <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                  <Silhouette type={getArchetype(c.school)} size={36} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{c.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.35rem' }}>{c.faction} · {c.school} R{c.school_rank}</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    <span className="party-stat" style={{ color: wColor, borderColor: wColor + '44' }}>{WOUND_RANKS[woundRank]}</span>
-                    <span className="party-stat">Void {c.current_void || c.void}/{c.void}</span>
-                    <span className="party-stat">{c.current_stance || 'Attack'}</span>
-                    {c.current_weapon && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>⚔ {typeof c.current_weapon === 'string' ? c.current_weapon.split(' ')[0] : (c.current_weapon?.name || 'Weapon')}</span>}
-                    {gmView && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>{(c.xp_total || 0) - (c.xp_spent || 0)} XP</span>}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>{c.copper || 0}</div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>copper</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Faction standing */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
-        <i className="ti ti-shield-half" style={{ marginRight: 6 }} />Faction Standing
-      </div>
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        {FACTIONS_DATA.map(fDef => {
-          const rep = reps[fDef.name]?.reputation ?? 0;
-          return (
-            <div key={fDef.name} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem', borderBottom: '1px solid rgba(107,78,40,.12)' }}>
-              <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <FacIcon name={fDef.name} size={12} />
-              </div>
-              <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 11 }}>{fDef.name}</span>
-              {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
-              <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 12, minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
-              {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>}
-              <span style={{ fontSize: 10, color: repColor(rep), minWidth: 42 }}>{repLabel(rep)}</span>
+          {characters.length === 0 ? (
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
+              No characters created yet.
             </div>
-          );
-        })}
+          ) : (
+            <div>
+              {characters.map(c => {
+                const woundRank = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
+                const wColor = WOUND_COLORS[woundRank];
+                return (
+                  <div key={c.id} className="party-card">
+                    <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                      <Silhouette type={getArchetype(c.school)} size={36} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.35rem' }}>{c.faction} · {c.school} R{c.school_rank}</div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        <span className="party-stat" style={{ color: wColor, borderColor: wColor + '44' }}>{WOUND_RANKS[woundRank]}</span>
+                        <span className="party-stat">Void {c.current_void || c.void}/{c.void}</span>
+                        <span className="party-stat">{c.current_stance || 'Attack'}</span>
+                        {c.current_weapon && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>⚔ {typeof c.current_weapon === 'string' ? c.current_weapon.split(' ')[0] : (c.current_weapon?.name || 'Weapon')}</span>}
+                        {gmView && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>{(c.xp_total || 0) - (c.xp_spent || 0)} XP</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{c.copper || 0}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>copper</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Faction standing */}
+        <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
+            <i className="ti ti-shield-half" style={{ marginRight: 6 }} />Faction Standing
+          </div>
+          <div className="card">
+            {FACTIONS_DATA.map(fDef => {
+              const rep = reps[fDef.name]?.reputation ?? 0;
+              return (
+                <div key={fDef.name} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem', borderBottom: '1px solid rgba(107,78,40,.12)' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FacIcon name={fDef.name} size={12} />
+                  </div>
+                  <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 13 }}>{fDef.name}</span>
+                  {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
+                  <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 14, minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
+                  {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>}
+                  <span style={{ fontSize: 12, color: repColor(rep), minWidth: 42 }}>{repLabel(rep)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Group inventory — full editable */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
         <i className="ti ti-backpack" style={{ marginRight: 6 }} />Group Inventory
       </div>
       <div style={{ maxWidth: 480 }}>
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           {/* Copper row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', padding: '.5rem', background: 'var(--bg-panel)', borderRadius: 4 }}>
-            <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 16 }} />
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>copper</span>
+            <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 18 }} />
+            <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper</span>
             {gmView && (
               <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
                 <input type="number" placeholder="±" value={copperDelta} onChange={e => setCopperDelta(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && applyCopper()} style={{ width: 60, fontSize: 10, padding: '2px 4px' }} />
+                  onKeyDown={e => e.key === 'Enter' && applyCopper()} style={{ width: 60, fontSize: 12, padding: '2px 4px' }} />
                 <button className="btn btn-sm" onClick={applyCopper}>Apply</button>
               </div>
             )}
@@ -131,12 +138,12 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
               <ItemIcon category={item.category} />
               <span className="inv-cat">{item.category}</span>
               <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>×{item.qty}</span>
-              {gmView && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => removeItem(i)}>×</button>}
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>×{item.qty}</span>
+              {gmView && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeItem(i)}>×</button>}
             </div>
           ))}
           {(inventory.items || []).length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items.</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items.</div>
           )}
 
           {/* Add item — GM only */}
@@ -157,20 +164,20 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
       {/* Recent encounters */}
       {encounterLog && encounterLog.length > 0 && (
         <>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
             <i className="ti ti-swords" style={{ marginRight: 6 }} />Recent Encounters
           </div>
           <div className="card">
             {encounterLog.slice(0, 5).map((e, i) => (
-              <div key={i} style={{ padding: '.4rem 0', borderBottom: i < Math.min(encounterLog.length, 5) - 1 ? '1px solid rgba(107,78,40,.2)' : 'none', fontSize: 11 }}>
+              <div key={i} style={{ padding: '.4rem 0', borderBottom: i < Math.min(encounterLog.length, 5) - 1 ? '1px solid rgba(107,78,40,.2)' : 'none', fontSize: 13 }}>
                 <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.15rem' }}>
                   <span style={{ color: 'var(--gold-dim)', fontWeight: 600 }}>S{e.session_number}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{formatDate(e.created_at)}</span>
-                  <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 9 }}>{e.setting}</span>
-                  <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 9 }}>{e.encounter_type}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{e.rounds} rds</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(e.created_at)}</span>
+                  <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 11 }}>{e.setting}</span>
+                  <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 11 }}>{e.encounter_type}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{e.rounds} rds</span>
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
               </div>
             ))}
           </div>

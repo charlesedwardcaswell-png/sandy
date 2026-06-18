@@ -41,29 +41,29 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '2rem', width: 360, maxWidth: '95vw' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.08em', textTransform: 'uppercase' }}>LBS</div>
-          <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: '.25rem' }}>The Heart of the Jewel</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Select your role to enter</div>
+          <div style={{ fontSize: 15, color: 'var(--gold-dim)', marginBottom: '.25rem' }}>The Heart of the Jewel</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Select your role to enter</div>
         </div>
 
         <Slot id="gm" selected={selected} onSelect={id => { setSelected(id); setPw(''); setUsername(''); setError(''); }}
-          icon={<i className="ti ti-crown" style={{ fontSize: 18, color: 'var(--gold)' }} />}
+          icon={<i className="ti ti-crown" style={{ fontSize: 20, color: 'var(--gold)' }} />}
           label="Game Master" sub="Full control" color="var(--gold)" />
 
         <Slot id="player" selected={selected} onSelect={id => { setSelected(id); setPw(''); setUsername(''); setError(''); }}
-          icon={<i className="ti ti-users" style={{ fontSize: 18, color: '#80a8e8' }} />}
+          icon={<i className="ti ti-users" style={{ fontSize: 20, color: '#80a8e8' }} />}
           label="Player" sub="See all characters, play your character" color="#80a8e8" />
 
         {selected && (
           <div style={{ marginTop: '.75rem', padding: '.75rem', background: 'var(--bg-panel)', borderRadius: 5, border: '1px solid var(--border)' }}>
             {selected === 'player' && playerAccounts.length > 0 && (
               <div style={{ marginBottom: '.4rem' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Username:</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Username:</div>
                 <input type="text" value={username} onChange={e => setUsername(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && tryLogin()}
                   placeholder="Your name..." style={{ width: '100%', marginBottom: '.4rem' }} autoFocus />
               </div>
             )}
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
               {selected === 'gm' ? 'GM Password:' : 'Password:'}
             </div>
             <div style={{ display: 'flex', gap: '.4rem' }}>
@@ -73,13 +73,13 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
                 autoFocus={selected === 'gm' || playerAccounts.length === 0} />
               <button className="btn btn-p" onClick={tryLogin}>Enter</button>
             </div>
-            {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.3rem' }}>{error}</div>}
+            {error && <div style={{ fontSize: 13, color: 'var(--red)', marginTop: '.3rem' }}>{error}</div>}
           </div>
         )}
 
         <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-          <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--text-muted)' }} onClick={onObserver}>
-            <i className="ti ti-eye" style={{ fontSize: 10, marginRight: 4 }} />
+          <button className="btn btn-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }} onClick={onObserver}>
+            <i className="ti ti-eye" style={{ fontSize: 12, marginRight: 4 }} />
             Enter as Observer (read-only)
           </button>
         </div>
@@ -102,10 +102,10 @@ function Slot({ id, selected, onSelect, icon, label, sub, color }) {
         {icon}
       </div>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: isSelected ? color : 'var(--text-primary)' }}>{label}</div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{sub}</div>
+        <div style={{ fontSize: 14, fontWeight: 500, color: isSelected ? color : 'var(--text-primary)' }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub}</div>
       </div>
-      {isSelected && <i className="ti ti-chevron-right" style={{ marginLeft: 'auto', color, fontSize: 14 }} />}
+      {isSelected && <i className="ti ti-chevron-right" style={{ marginLeft: 'auto', color, fontSize: 16 }} />}
     </div>
   );
 }

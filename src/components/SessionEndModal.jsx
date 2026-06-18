@@ -45,17 +45,17 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
             <span className="modal-label">XP Amount</span>
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
               <input type="number" min={0} max={20} value={xpAmount} onChange={e => setXpAmount(+e.target.value)} style={{ width: 70 }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>XP to each selected PC</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>XP to each selected PC</span>
             </div>
           </div>
           <div className="modal-section">
             <span className="modal-label">Group Copper Award</span>
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
               <input type="number" min={0} value={copperAward} onChange={e => setCopperAward(+e.target.value)} style={{ width: 70 }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>copper to party treasury</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper to party treasury</span>
             </div>
             {sessionEncounters.length > 0 && (
-              <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginTop: '.3rem' }}>
+              <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginTop: '.3rem' }}>
                 Suggested {suggestedCopper}c based on {sessionEncounters.length} encounter{sessionEncounters.length !== 1 ? 's' : ''} this session
               </div>
             )}
@@ -67,7 +67,7 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
           </div>
           <div className="modal-section">
             <span className="modal-label">PCs Present</span>
-            {characters.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>No characters created.</div>}
+            {characters.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No characters created.</div>}
             {characters.map(c => (
               <label key={c.id} className="chk-row">
                 <input type="checkbox" checked={!!selected[c.id]} onChange={() => setSelected(s => ({ ...s, [c.id]: !s[c.id] }))} />
@@ -78,7 +78,7 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
         </>)}
 
         {tab === 'recap' && (<>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.75rem' }}>Saved to session archive.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem' }}>Saved to session archive.</div>
           {[
             { key: 'event',    label: 'Most significant event',     ph: 'What happened that mattered most?' },
             { key: 'npcs',     label: 'Key NPCs this session',      ph: 'Who did the party interact with?' },

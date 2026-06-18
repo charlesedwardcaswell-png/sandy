@@ -97,7 +97,7 @@ const COKALOI_LAYOUTS = {
 };
 
 // ── Spell tooltip — rendered as HTML overlay, not foreignObject ───────────────
-function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mode, style }) {
+function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mode, style, canEdit = true }) {
   return (
     <div style={{
       position: 'absolute', zIndex: 200, background: 'rgba(20,12,4,.97)',
@@ -106,15 +106,15 @@ function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mo
       pointerEvents: 'all', ...style
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color, flex: 1, marginRight: 8 }}>{spell.name}</div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        <div style={{ fontSize: 14, fontWeight: 700, color, flex: 1, marginRight: 8 }}>{spell.name}</div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
       </div>
-      <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>TN {spell.tn} · Mastery {spell.level}</div>
-      <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5, marginBottom: 8 }}>{spell.desc}</div>
-      {mode !== 'encounter' && (
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>TN {spell.tn} · Mastery {spell.level}</div>
+      <div style={{ fontSize: 12, color: '#ccc', lineHeight: 1.5, marginBottom: 8 }}>{spell.desc}</div>
+      {mode !== 'encounter' && canEdit && (
         <button onClick={onToggle} disabled={!canLearn && !isLearned}
           style={{
-            fontSize: 10, padding: '3px 10px', borderRadius: 4,
+            fontSize: 12, padding: '3px 10px', borderRadius: 4,
             cursor: canLearn || isLearned ? 'pointer' : 'not-allowed',
             background: isLearned ? color + '33' : 'transparent',
             border: `1px solid ${isLearned ? color : canLearn ? color + '88' : '#444'}`,
@@ -124,8 +124,11 @@ function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mo
           {isLearned ? '★ Learned — click to remove' : canLearn ? '☆ Learn this spell' : '🔒 Learn lower level first'}
         </button>
       )}
+      {mode !== 'encounter' && !canEdit && isLearned && (
+        <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>★ Learned</div>
+      )}
       {mode === 'encounter' && isLearned && (
-        <button onClick={onToggle} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, cursor: 'pointer', background: color + '33', border: `1px solid ${color}`, color, fontFamily: 'inherit' }}>
+        <button onClick={onToggle} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 4, cursor: 'pointer', background: color + '33', border: `1px solid ${color}`, color, fontFamily: 'inherit' }}>
           Cast this spell
         </button>
       )}
@@ -134,7 +137,7 @@ function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mo
 }
 
 // ── Sahir Constellation ───────────────────────────────────────────────────────
-function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTypeEmphases, disciplineBonus }) {
+function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTypeEmphases, disciplineBonus, canEdit = true }) {
   const [activeSpell, setActiveSpell] = useState(null);
   const [activeDiscipline, setActiveDiscipline] = useState(0);
 
@@ -160,7 +163,7 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
       <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
         {SAHIR_DISCIPLINES.map((d, i) => (
           <button key={d.id} onClick={() => { setActiveDiscipline(i); setActiveSpell(null); }}
-            style={{ fontSize: 10, padding: '3px 10px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
+            style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
               background: activeDiscipline === i ? d.color + '33' : 'transparent',
               border: `1px solid ${activeDiscipline === i ? d.color : '#444'}`,
               color: activeDiscipline === i ? d.color : '#888',
@@ -244,6 +247,7 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
               canLearn={canLearn(activeSpell.typeIdx, activeSpell.level)}
               onToggle={() => { onToggle(activeSpell.name); setActiveSpell(null); }}
               mode={mode}
+              canEdit={canEdit}
               style={{ position: 'absolute', left: `${leftPct}%`, top: `${topPct}%` }}
             />
           );
@@ -252,16 +256,16 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
         {/* Type legend */}
         <div style={{ display: 'flex', justifyContent: 'space-around', padding: '4px 8px', borderTop: `1px solid ${disc.color}22` }}>
           {disc.types.map((type, ti) => (
-            <div key={type.id} style={{ fontSize: 9, color: hasEmphasis(type.id) ? disc.color : '#666', textAlign: 'center' }}>
+            <div key={type.id} style={{ fontSize: 11, color: hasEmphasis(type.id) ? disc.color : '#666', textAlign: 'center' }}>
               {type.name}{hasEmphasis(type.id) ? ' ★' : ''}
-              <div style={{ fontSize: 8, color: '#444' }}>{disc.types[ti].spells.filter(s => isLearned(s.name)).length}/3 learned</div>
+              <div style={{ fontSize: 10, color: '#444' }}>{disc.types[ti].spells.filter(s => isLearned(s.name)).length}/3 learned</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Learned count */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: '#666', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#666', flexWrap: 'wrap' }}>
         <span style={{ color: disc.color }}>{learnedSpells.length} spells learned</span>
         {disciplineBonus && <span>Discipline bonus: <span style={{ color: SAHIR_DISCIPLINES.find(d => d.id === disciplineBonus)?.color }}>{SAHIR_DISCIPLINES.find(d => d.id === disciplineBonus)?.name}</span> (+1k1)</span>}
         {spellTypeEmphases?.length > 0 && <span>Emphases (free raise): {spellTypeEmphases.join(', ')}</span>}
@@ -271,7 +275,7 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
 }
 
 // ── Cokaloi Constellation ─────────────────────────────────────────────────────
-function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank }) {
+function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, canEdit = true }) {
   const [activeSpell, setActiveSpell] = useState(null);
   const [activeCategory, setActiveCategory] = useState(0);
 
@@ -283,13 +287,13 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank }) {
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#888', marginBottom: 8, fontStyle: 'italic' }}>Cokaloi — Ra'Shari Diviner magic. Dawn spells may be learned in any order.</div>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontStyle: 'italic' }}>Cokaloi — Ra'Shari Diviner magic. Dawn spells may be learned in any order.</div>
 
       {/* Category tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
         {COKALOI_CATEGORIES.map((c, i) => (
           <button key={c.id} onClick={() => { setActiveCategory(i); setActiveSpell(null); }}
-            style={{ fontSize: 10, padding: '3px 10px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
+            style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
               background: activeCategory === i ? c.color + '33' : 'transparent',
               border: `1px solid ${activeCategory === i ? c.color : '#444'}`,
               color: activeCategory === i ? c.color : '#888',
@@ -348,12 +352,12 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank }) {
           );
         })()}
 
-        <div style={{ padding: '4px 8px', borderTop: `1px solid ${cat.color}22`, fontSize: 9, color: '#555' }}>
+        <div style={{ padding: '4px 8px', borderTop: `1px solid ${cat.color}22`, fontSize: 11, color: '#555' }}>
           {cat.desc} · Insight Rank {insightRank || 1} → max mastery level {insightRank || 1}
         </div>
       </div>
 
-      <div style={{ marginTop: 6, fontSize: 10, color: cat.color }}>{learnedSpells.length} Cokaloi learned</div>
+      <div style={{ marginTop: 6, fontSize: 12, color: cat.color }}>{learnedSpells.length} Cokaloi learned</div>
     </div>
   );
 }
@@ -375,10 +379,10 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
     <div>
       {/* Progress */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', padding: '.5rem .75rem', background: 'rgba(200,150,42,.08)', border: '1px solid var(--gold-dim)', borderRadius: 5 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: learnedSpells.length >= maxSpells ? 'var(--green)' : 'var(--gold)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: learnedSpells.length >= maxSpells ? 'var(--green)' : 'var(--gold)' }}>
           {learnedSpells.length}/{maxSpells} spells selected
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>
           Click any spell to learn it. You must know level 1 before level 2 of the same type.
         </div>
       </div>
@@ -387,7 +391,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '.75rem' }}>
         {SAHIR_DISCIPLINES.map((d, i) => (
           <button key={d.id} onClick={() => setActiveDiscipline(i)}
-            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
+            style={{ fontSize: 13, padding: '4px 12px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
               background: activeDiscipline === i ? d.color + '33' : 'var(--bg-panel)',
               border: `1px solid ${activeDiscipline === i ? d.color : 'var(--border)'}`,
               color: activeDiscipline === i ? d.color : 'var(--text-muted)',
@@ -402,7 +406,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {disc.types.map((type, ti) => (
           <div key={type.id}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: disc.color, marginBottom: '.3rem', paddingBottom: '.2rem', borderBottom: `1px solid ${disc.color}44` }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: disc.color, marginBottom: '.3rem', paddingBottom: '.2rem', borderBottom: `1px solid ${disc.color}44` }}>
               {type.name}
             </div>
             {type.spells.map((spell, li) => {
@@ -421,12 +425,12 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
                     transition: 'all .1s',
                   }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 9, color: disc.color, fontWeight: 700, minWidth: 12 }}>L{spell.level}</span>
-                    <span style={{ fontSize: 10, color: learned ? disc.color : 'var(--text-primary)', fontWeight: learned ? 600 : 400, flex: 1 }}>{spell.name}</span>
-                    {learned && <i className="ti ti-check" style={{ fontSize: 10, color: disc.color }} />}
-                    {locked && <i className="ti ti-lock" style={{ fontSize: 9, color: 'var(--text-muted)' }} />}
+                    <span style={{ fontSize: 11, color: disc.color, fontWeight: 700, minWidth: 12 }}>L{spell.level}</span>
+                    <span style={{ fontSize: 12, color: learned ? disc.color : 'var(--text-primary)', fontWeight: learned ? 600 : 400, flex: 1 }}>{spell.name}</span>
+                    {learned && <i className="ti ti-check" style={{ fontSize: 12, color: disc.color }} />}
+                    {locked && <i className="ti ti-lock" style={{ fontSize: 11, color: 'var(--text-muted)' }} />}
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>TN {spell.tn}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>TN {spell.tn}</div>
                 </div>
               );
             })}
@@ -439,7 +443,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
         <div className="card-title">Specialisations (required at Rank 1)</div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Spell Type Emphasis <span style={{ color: 'var(--gold-dim)' }}>(free raise)</span></div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Spell Type Emphasis <span style={{ color: 'var(--gold-dim)' }}>(free raise)</span></div>
             <select value={spellEmphasis} onChange={e => setSpellEmphasis(e.target.value)} style={{ width: '100%' }}>
               <option value="">— Choose a spell type —</option>
               {SAHIR_DISCIPLINES.flatMap(d => d.types.map(t => (
@@ -448,7 +452,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Discipline Bonus <span style={{ color: 'var(--gold-dim)' }}>(+1k1)</span></div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Discipline Bonus <span style={{ color: 'var(--gold-dim)' }}>(+1k1)</span></div>
             <select value={spellDisciplineBonus} onChange={e => setSpellDisciplineBonus(e.target.value)} style={{ width: '100%' }}>
               <option value="">— Choose a discipline —</option>
               {SAHIR_DISCIPLINES.map(d => (
@@ -470,16 +474,16 @@ function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', padding: '.5rem .75rem', background: 'rgba(200,150,42,.08)', border: '1px solid var(--gold-dim)', borderRadius: 5 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: learnedSpells.length >= maxSpells ? 'var(--green)' : 'var(--gold)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: learnedSpells.length >= maxSpells ? 'var(--green)' : 'var(--gold)' }}>
           {learnedSpells.length}/{maxSpells} Cokaloi selected
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>Dawn spells can be learned in any order. Select freely.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Dawn spells can be learned in any order. Select freely.</div>
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: '.75rem' }}>
         {COKALOI_CATEGORIES.map((c, i) => (
           <button key={c.id} onClick={() => setActiveCategory(i)}
-            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
+            style={{ fontSize: 13, padding: '4px 12px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
               background: activeCategory === i ? c.color + '33' : 'var(--bg-panel)',
               border: `1px solid ${activeCategory === i ? c.color : 'var(--border)'}`,
               color: activeCategory === i ? c.color : 'var(--text-muted)',
@@ -500,12 +504,12 @@ function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
                 border: `1px solid ${learned ? cat.color : 'var(--border)'}`,
               }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 9, color: cat.color, fontWeight: 700, minWidth: 14 }}>L{spell.level}</span>
-                <span style={{ fontSize: 11, color: learned ? cat.color : 'var(--text-primary)', fontWeight: learned ? 600 : 400, flex: 1 }}>{spell.name}</span>
-                <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>TN {spell.tn}</span>
-                {learned && <i className="ti ti-check" style={{ fontSize: 10, color: cat.color }} />}
+                <span style={{ fontSize: 11, color: cat.color, fontWeight: 700, minWidth: 14 }}>L{spell.level}</span>
+                <span style={{ fontSize: 13, color: learned ? cat.color : 'var(--text-primary)', fontWeight: learned ? 600 : 400, flex: 1 }}>{spell.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>TN {spell.tn}</span>
+                {learned && <i className="ti ti-check" style={{ fontSize: 12, color: cat.color }} />}
               </div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, paddingLeft: 20, lineHeight: 1.3 }}>{spell.desc.slice(0, 80)}{spell.desc.length > 80 ? '…' : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, paddingLeft: 20, lineHeight: 1.3 }}>{spell.desc.slice(0, 80)}{spell.desc.length > 80 ? '…' : ''}</div>
             </div>
           );
         })}
@@ -528,6 +532,10 @@ export default function SpellConstellation({ character, mode = 'sheet', onUpdate
       : [...current, spellName];
     onUpdate(character.id, { spells: updated });
   };
+
+  // In 'sheet' mode, only show the learn/remove control if an onUpdate handler was actually
+  // provided (i.e. the parent is in edit mode). In 'create'/'encounter' modes this is irrelevant.
+  const canEdit = mode !== 'sheet' || !!onUpdate;
 
   const handleCast = (spellName) => {
     if (onCastSpell) onCastSpell(spellName);
@@ -557,8 +565,8 @@ export default function SpellConstellation({ character, mode = 'sheet', onUpdate
   return (
     <div>
       {isCokaloi
-        ? <CoкaloiConstellation learnedSpells={learnedSpells} onToggle={mode === 'encounter' ? handleCast : toggleSpell} mode={mode} insightRank={insightRank} />
-        : <SahirConstellation learnedSpells={learnedSpells} onToggle={mode === 'encounter' ? handleCast : toggleSpell} mode={mode} schoolRank={insightRank} spellTypeEmphases={character?.spell_type_emphases || []} disciplineBonus={character?.spell_discipline_bonus || null} />
+        ? <CoкaloiConstellation learnedSpells={learnedSpells} onToggle={mode === 'encounter' ? handleCast : toggleSpell} mode={mode} insightRank={insightRank} canEdit={canEdit} />
+        : <SahirConstellation learnedSpells={learnedSpells} onToggle={mode === 'encounter' ? handleCast : toggleSpell} mode={mode} schoolRank={insightRank} spellTypeEmphases={character?.spell_type_emphases || []} disciplineBonus={character?.spell_discipline_bonus || null} canEdit={canEdit} />
       }
     </div>
   );

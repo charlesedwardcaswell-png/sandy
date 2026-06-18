@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import { AuthScreen } from './components/AuthScreen';
 import { Loading } from './components/UI';
+import { playYourTurn } from './lib/sounds';
 import CharacterTab from './components/CharacterTab';
 import EncounterTab from './components/EncounterTab';
 import MapTab from './components/MapTab';
@@ -72,8 +73,8 @@ export default function App() {
   };
 
   const [ticker, setTicker] = useState([]);
-  const push = (icon, text) => {
-    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date() };
+  const push = (icon, text, opts = {}) => {
+    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date(), highlight: !!opts.highlight };
     setTicker(prev => [entry, ...prev].slice(0, 20));
   };
 
@@ -99,13 +100,15 @@ export default function App() {
       if (next.state === 'active' && next.activeTurn !== prev.activeTurn) {
         const active = next.combatants[next.activeTurn % Math.max(1, next.combatants.length)];
         if (active?.type === 'pc') {
-          setTimeout(() => push('ti-bolt', `${active.name}'s turn`), 0);
+          const isMine = active.id === myCharId;
+          if (isMine) playYourTurn();
+          setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
         }
       }
       if (isGM) saveEncounterDebounced(next);
       return next;
     });
-  }, [saveEncounterDebounced, isGM]);
+  }, [saveEncounterDebounced, isGM, myCharId]);
 
   const safeChars = characters.filter(Boolean);
 
@@ -251,14 +254,14 @@ export default function App() {
         <span className="hdr-title">LBS</span>
         <span style={{ color: 'var(--border)' }}>·</span>
         <span className="hdr-game">The Heart of the Jewel</span>
-        {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 10 }} /> Encounter Active</span>}
+        {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
           <div style={{ lineHeight: 1.2, textAlign: 'center' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
-            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Wk {campaignWeek} · Day {campaignDay}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wk {campaignWeek} · Day {campaignDay}</div>
           </div>
         </div>
         {isGM && (
@@ -270,35 +273,35 @@ export default function App() {
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
         <button className="btn btn-sm" onClick={() => { localStorage.removeItem('sandy_auth_mode'); setAuthMode(null); }}>
-          <i className="ti ti-logout" style={{ fontSize: 10 }} /> Logout
+          <i className="ti ti-logout" style={{ fontSize: 12 }} /> Logout
         </button>
       </div>
 
       {isGM && !isPCView && (
         <div className="sess-bar">
-          <i className={`ti ${session ? 'ti-circle-filled' : 'ti-circle'}`} style={{ fontSize: 10, color: session ? 'var(--green)' : 'var(--text-muted)' }} />
+          <i className={`ti ${session ? 'ti-circle-filled' : 'ti-circle'}`} style={{ fontSize: 12, color: session ? 'var(--green)' : 'var(--text-muted)' }} />
           <span>Session {sessionNum}</span>
           <span className={session ? 'sess-active' : ''}>{session ? 'Active' : 'Not started'}</span>
           {/* GM time controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
             <select value={timeOfDay} onChange={e => handleSetTime(e.target.value)}
-              style={{ fontSize: 10, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
+              style={{ fontSize: 12, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
               {TIMES.map(t => <option key={t} value={t}>{TIME_ICONS[t]} {t}</option>)}
             </select>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Wk</span>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 14, textAlign: 'center' }}>{campaignWeek}</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Day</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Wk</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 14, textAlign: 'center' }}>{campaignWeek}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day</span>
             <button className="rep-btn" onClick={() => handleSetDay(Math.max(1, campaignDay - 1))}>−</button>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
             <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
           </div>
           <div style={{ flex: 1 }} />
           {!session
             ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession(sessionNum)}>
-                <i className="ti ti-player-play" style={{ fontSize: 10 }} /> Start Session {sessionNum}
+                <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session {sessionNum}
               </button>
             : <button className="btn btn-sm btn-d" onClick={() => setShowSessionEnd(true)}>
-                <i className="ti ti-player-stop" style={{ fontSize: 10 }} /> End Session → Archive
+                <i className="ti ti-player-stop" style={{ fontSize: 12 }} /> End Session → Archive
               </button>
           }
         </div>
@@ -337,7 +340,7 @@ export default function App() {
             session={session}
             encounter={encounter}
             setEncounter={handleSetEncounter}
-            npcsFromLog={npcs.filter(n => n.is_visible_to_players || isGM)}
+            npcsFromLog={npcs.filter(Boolean).filter(n => n.is_visible_to_players || isGM)}
             onUpdateCharacter={handleUpdateChar}
             onAddEncounterEntry={addEncounterEntry}
             onLogSkill={logSkillUse}
@@ -444,16 +447,22 @@ export default function App() {
           display: 'flex', alignItems: 'center', gap: '1.5rem',
           overflow: 'hidden',
         }}>
-          <span style={{ fontSize: 9, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>Events</span>
+          <span style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>Events</span>
           <div style={{ display: 'flex', gap: '1.5rem', overflow: 'hidden', alignItems: 'center', flex: 1 }}>
             {ticker.slice(0, 5).map((e, i) => (
-              <span key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: i === 0 ? 'var(--text-primary)' : 'var(--text-muted)', flexShrink: 0, opacity: 1 - i * 0.18 }}>
-                <i className={`ti ${e.icon}`} style={{ fontSize: 11, color: i === 0 ? 'var(--gold)' : 'var(--text-muted)' }} />
+              <span key={e.id} className={e.highlight ? 'ticker-mine' : ''} style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: e.highlight ? 17 : 13,
+                fontWeight: e.highlight ? 700 : 400,
+                color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--text-primary)' : 'var(--text-muted)'),
+                flexShrink: 0, opacity: e.highlight ? 1 : 1 - i * 0.18,
+              }}>
+                <i className={`ti ${e.icon}`} style={{ fontSize: e.highlight ? 17 : 13, color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--gold)' : 'var(--text-muted)') }} />
                 {e.text}
               </span>
             ))}
           </div>
-          <button onClick={() => setTicker([])} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, flexShrink: 0, padding: 0 }}>×</button>
+          <button onClick={() => setTicker([])} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, flexShrink: 0, padding: 0 }}>×</button>
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { Silhouette, FacIcon, WoundBadge, SilhouetteToken } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
 import DiceModal from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
+import { playDamage } from '../lib/sounds';
 
 // Random tables
 const PERSONALITIES = ['Nervous','Arrogant','Fanatical','Cowardly','Eerily calm','Chatty','Silent','Grieving','Drunk','Professional','Vengeful','Confused','Bored','Desperate','Proud','Suspicious','Merciful','Sadistic','Loyal','Resigned'];
@@ -86,9 +87,9 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         <span style={{ fontSize: isActive ? 12 : 11, fontWeight: isActive ? 600 : 400, color: isActive ? 'var(--gold)' : 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {c.name}{isMyChar && !isActive ? ' ★' : ''}
         </span>
-        <span style={{ fontSize: 9, color: wColor, fontWeight: 600 }}>{wLabel}</span>
-        <span style={{ fontSize: 9, color: 'var(--text-muted)', minWidth: 28, textAlign: 'right' }}>TN{armorTN}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', minWidth: 20, textAlign: 'right' }}>{c.init}</span>
+        <span style={{ fontSize: 11, color: wColor, fontWeight: 600 }}>{wLabel}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 28, textAlign: 'right' }}>TN{armorTN}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)', minWidth: 20, textAlign: 'right' }}>{c.init}</span>
       </div>
     );
   }
@@ -109,13 +110,13 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
             <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.name}
             </div>
-            {isMyChar && !isActive && <span style={{ fontSize: 8, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 3, padding: '0 3px' }}>YOU</span>}
+            {isMyChar && !isActive && <span style={{ fontSize: 10, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 3, padding: '0 3px' }}>YOU</span>}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isNPC ? (c.sub || c.school || '') : c.school}
           </div>
           <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 9, padding: '1px 5px', border: `1px solid ${wColor}55`, borderRadius: 3, color: wColor, background: wColor + '20', fontWeight: 600 }}>{wLabel}</span>
+            <span style={{ fontSize: 11, padding: '1px 5px', border: `1px solid ${wColor}55`, borderRadius: 3, color: wColor, background: wColor + '20', fontWeight: 600 }}>{wLabel}</span>
             <span className="stance-badge">{c.stance === 'Full Attack' ? 'F.Atk' : c.stance === 'Full Defense' ? 'F.Def' : c.stance}</span>
             {(c.statusEffects || []).map(e => (
               <span key={e} className="effect-badge" onClick={() => onRemoveStatus && onRemoveStatus(c.id, e)}>{e} ×</span>
@@ -124,16 +125,16 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontSize: isActive ? 22 : 16, fontWeight: 700, color: 'var(--gold)' }}>{c.init}</div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>init</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>init</div>
         </div>
       </div>
 
       {/* Bottom row - weapon + armor TN + void */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 10, color: 'var(--text-muted)' }}>
-        <i className="ti ti-sword" style={{ fontSize: 11 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 12, color: 'var(--text-muted)' }}>
+        <i className="ti ti-sword" style={{ fontSize: 13 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.drawnWeapon || 'Unarmed'}</span>
         {/* Armor TN — prominent */}
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}>
           TN <span style={{ color: c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)' }}>{armorTN}</span>
         </span>
         {!isNPC && pc && (
@@ -148,9 +149,9 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
       {/* GM controls */}
       {isGM && !isPCView && (
         <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => onGMWound(c.id, 1)}>+W</button>
-          <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: 9 }} onClick={() => onGMWound(c.id, -1)}>−W</button>
-          <select style={{ fontSize: 9, padding: '1px 4px', flex: 1 }} value="" onChange={e => { if (e.target.value) onApplyStatus(c.id, e.target.value); e.target.value = ''; }}>
+          <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, 1)}>+W</button>
+          <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, -1)}>−W</button>
+          <select style={{ fontSize: 11, padding: '1px 4px', flex: 1 }} value="" onChange={e => { if (e.target.value) onApplyStatus(c.id, e.target.value); e.target.value = ''; }}>
             <option value="">+ Status</option>
             {STATUS_EFFECTS.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
@@ -160,10 +161,10 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
       {/* NPC action controls (GM only, active NPC turn) */}
       {isActive && isNPC && isGM && !isPCView && (
         <div style={{ padding: '.4rem .6rem', borderTop: '1px solid rgba(107,78,40,.3)', background: 'rgba(200,150,42,.04)' }}>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>NPC Action:</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>NPC Action:</div>
           <div style={{ display: 'flex', flexWrap: 'wrap' }}>
             {NPC_ACTIONS.map(a => (
-              <button key={a} className={`act-btn ${c._action === a ? 'sel' : ''}`} style={{ fontSize: 9 }}
+              <button key={a} className={`act-btn ${c._action === a ? 'sel' : ''}`} style={{ fontSize: 11 }}
                 onClick={() => onSetTarget && onSetTarget(c.id, a)}>
                 {a}
               </button>
@@ -190,22 +191,22 @@ function VoidButton() {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(!open)}
-        style={{ width: 42, height: 42, borderRadius: '50%', background: '#000', border: '2px solid rgba(200,150,42,.5)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 9, fontWeight: 700, letterSpacing: '.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: open ? '0 0 12px rgba(200,150,42,.4)' : 'none' }}>
+        style={{ width: 42, height: 42, borderRadius: '50%', background: '#000', border: '2px solid rgba(200,150,42,.5)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: open ? '0 0 12px rgba(200,150,42,.4)' : 'none' }}>
         VOID
       </button>
       {open && (
         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '.6rem', width: 260, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
           onClick={e => e.stopPropagation()}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
             Void Point Uses
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
           </div>
           {VOID_USES.map((u, i) => (
             <div key={i} style={{ display: 'flex', gap: '.5rem', padding: '.3rem 0', borderBottom: i < VOID_USES.length - 1 ? '1px solid rgba(107,78,40,.2)' : 'none' }}>
-              <i className={`ti ${u.icon}`} style={{ fontSize: 12, color: 'var(--gold-dim)', flexShrink: 0, marginTop: 1 }} />
+              <i className={`ti ${u.icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, marginTop: 1 }} />
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)' }}>{u.label}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.4 }}>{u.desc}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{u.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{u.desc}</div>
               </div>
             </div>
           ))}
@@ -241,10 +242,10 @@ function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
       {/* From NPC Log */}
       {npcsFromLog && npcsFromLog.length > 0 && (
         <div style={{ marginBottom: '.5rem' }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem' }}>From NPC Log:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem' }}>From NPC Log:</div>
           <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
             {npcsFromLog.map(n => (
-              <button key={n.id} className="btn btn-sm" style={{ fontSize: 10 }} onClick={() => onAdd({
+              <button key={n.id} className="btn btn-sm" style={{ fontSize: 12 }} onClick={() => onAdd({
                 id: 'npc_log_' + n.id + '_' + Date.now(),
                 name: n.name,
                 school: n.school, rank: n.rank || 1, faction: n.faction,
@@ -255,7 +256,7 @@ function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
                 fire: (n.rings?.Fire) || (n.rank || 1),
                 wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
               })}>
-                <i className="ti ti-user" style={{ fontSize: 10 }} /> {n.name}
+                <i className="ti ti-user" style={{ fontSize: 12 }} /> {n.name}
               </button>
             ))}
           </div>
@@ -263,22 +264,22 @@ function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
       )}
       {/* Library picker */}
       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); }} style={{ fontSize: 10 }}>
+        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); }} style={{ fontSize: 12 }}>
           <option value="">Faction</option>
           {factions.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         {faction && (
-          <select value={school} onChange={e => setSchool(e.target.value)} style={{ fontSize: 10 }}>
+          <select value={school} onChange={e => setSchool(e.target.value)} style={{ fontSize: 12 }}>
             <option value="">School</option>
             {schools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         {school && (
-          <select value={rank} onChange={e => setRank(+e.target.value)} style={{ width: 60, fontSize: 10 }}>
+          <select value={rank} onChange={e => setRank(+e.target.value)} style={{ width: 60, fontSize: 12 }}>
             {Array.from({ length: 5 }, (_, i) => <option key={i + 1} value={i + 1}>R{i + 1}</option>)}
           </select>
         )}
-        <button className="btn btn-sm btn-p" disabled={!school} onClick={add} style={{ fontSize: 10 }}>{label}</button>
+        <button className="btn btn-sm btn-p" disabled={!school} onClick={add} style={{ fontSize: 12 }}>{label}</button>
       </div>
     </div>
   );
@@ -311,12 +312,12 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
   };
 
   const ShiftBtn = ({ dx, dy, icon }) => isGM ? (
-    <button onClick={() => onShift(dx, dy)} style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 4, cursor: 'pointer', padding: '3px 6px', fontSize: 12, lineHeight: 1 }}>{icon}</button>
+    <button onClick={() => onShift(dx, dy)} style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 4, cursor: 'pointer', padding: '3px 6px', fontSize: 14, lineHeight: 1 }}>{icon}</button>
   ) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2 }}>
         Battle Grid {gridSize}×{gridSize}
         {selected && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
       </div>
@@ -399,13 +400,13 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
         if (!unplaced.length) return null;
         return (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', padding: '4px', background: 'rgba(10,8,4,.6)', borderRadius: 4, border: '1px solid rgba(107,78,40,.3)', maxWidth: W, marginTop: 4 }}>
-            <div style={{ width: '100%', fontSize: 8, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 2 }}>Click to select, then click grid to place</div>
+            <div style={{ width: '100%', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 2 }}>Click to select, then click grid to place</div>
             {unplaced.map(c => {
               const color = getTokenColor(c);
               const isSelected = c.id === selected;
               return (
                 <div key={c.id} onClick={e => handleTokenClick(e, c.id)}
-                  style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: `2px solid ${isSelected ? '#fff' : color + '88'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 7, fontWeight: 700, color: '#fff', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }}>
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: `2px solid ${isSelected ? '#fff' : color + '88'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 9, fontWeight: 700, color: '#fff', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }}>
                   {c.name.slice(0, 3).toUpperCase()}
                 </div>
               );
@@ -415,7 +416,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
       })()}
 
       {isGM && combatants.some(c => c.gridX !== undefined) && (
-        <button className="btn btn-sm" style={{ fontSize: 9, marginTop: 4 }} onClick={onClearGrid}>Clear Grid</button>
+        <button className="btn btn-sm" style={{ fontSize: 11, marginTop: 4 }} onClick={onClearGrid}>Clear Grid</button>
       )}
     </div>
   );
@@ -443,23 +444,23 @@ function ComplicationButton({ envQuirk, onSet }) {
   return (
     <div style={{ position: 'relative' }}>
       <button className="btn btn-sm"
-        style={{ borderColor: envQuirk ? 'var(--red)' : 'rgba(200,150,42,.4)', color: envQuirk ? 'var(--red)' : 'var(--gold-dim)', fontSize: 10 }}
+        style={{ borderColor: envQuirk ? 'var(--red)' : 'rgba(200,150,42,.4)', color: envQuirk ? 'var(--red)' : 'var(--gold-dim)', fontSize: 12 }}
         onClick={() => { setOpen(o => !o); setText(envQuirk || ''); }}>
-        <i className="ti ti-alert-triangle" style={{ fontSize: 10, marginRight: 3 }} />
+        <i className="ti ti-alert-triangle" style={{ fontSize: 12, marginRight: 3 }} />
         {envQuirk ? 'Edit Complication' : 'Complication'}
       </button>
       {open && (
         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--red)', borderRadius: 6, padding: '.75rem', width: 280, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
           onClick={e => e.stopPropagation()}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between' }}>
             Mid-Encounter Complication
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
           </div>
-          <input value={text} onChange={e => setText(e.target.value)} placeholder="Describe the complication..." style={{ width: '100%', marginBottom: '.5rem', fontSize: 11 }} onKeyDown={e => e.key === 'Enter' && (onSet(text), setOpen(false))} autoFocus />
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Quick options:</div>
+          <input value={text} onChange={e => setText(e.target.value)} placeholder="Describe the complication..." style={{ width: '100%', marginBottom: '.5rem', fontSize: 13 }} onKeyDown={e => e.key === 'Enter' && (onSet(text), setOpen(false))} autoFocus />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Quick options:</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: '.5rem', maxHeight: 160, overflowY: 'auto' }}>
             {COMPLICATIONS.map(c => (
-              <button key={c} onClick={() => { setText(c); }} style={{ fontSize: 9, textAlign: 'left', background: text === c ? 'rgba(200,64,48,.15)' : 'var(--bg-panel)', border: `1px solid ${text === c ? 'var(--red)' : 'var(--border)'}`, color: 'var(--text-secondary)', borderRadius: 3, padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit' }}>{c}</button>
+              <button key={c} onClick={() => { setText(c); }} style={{ fontSize: 11, textAlign: 'left', background: text === c ? 'rgba(200,64,48,.15)' : 'var(--bg-panel)', border: `1px solid ${text === c ? 'var(--red)' : 'var(--border)'}`, color: 'var(--text-secondary)', borderRadius: 3, padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit' }}>{c}</button>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -503,7 +504,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const beginEncounter = (s) => {
-    const pcCombatants = characters.map(pc => ({
+    const participantIds = s.participantIds || characters.map(c => c.id);
+    const participants = characters.filter(c => participantIds.includes(c.id));
+    const pcCombatants = participants.map(pc => ({
       id: pc.id, name: pc.name, type: 'pc',
       school: pc.school, faction: pc.faction,
       reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
@@ -515,7 +518,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       statusEffects: [], _action: null,
     }));
     const npcCombatants = s.selectedNPCs.map(n => ({
-      ...n, wound: 0, stance: 'Attack',
+      ...n, wound: n.wound || 0, stance: 'Attack',
       init: Math.floor(Math.random() * 10) + 4 + (n.rank || 1),
       statusEffects: [], _action: null,
     }));
@@ -543,6 +546,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const c = combatants.find(x => x.id === id);
     if (!c) return;
     const newWound = Math.max(0, Math.min(7, c.wound + delta));
+    if (delta > 0) playDamage();
     upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWound } : x) });
     if (c.type === 'pc') {
       const pc = pcsMap[id];
@@ -556,6 +560,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const handleRollResult = (result, damage) => {
     setModal(null);
     if (damage !== null && damage !== undefined && modal?.targetId) {
+      playDamage();
       upEnc({
         combatants: combatants.map(c => c.id === modal.targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(damage / 5)) } : c),
         dmgBanner: { attackerName: active?.name, targetId: modal.targetId, damage, result },
@@ -589,6 +594,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const dice = rollN(3).sort((a, b) => b - a);
     const kept = dice.slice(0, 2);
     const dmg = kept.reduce((s, d) => s + d, 0);
+    playDamage();
     upEnc({
       combatants: combatants.map(c => c.id === targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(dmg / 5)) } : c),
       dmgBanner: { attackerName: npc?.name, targetId, damage: dmg },
@@ -602,6 +608,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   };
 
   const endEncounter = async () => {
+    const lastNPCs = combatants.filter(c => c.type === 'npc');
     const entry = {
       session_id: session?.id || null,
       name: setup.name || `Session ${session?.session_number || '?'} — ${setup.setting} — ${setup.type}`,
@@ -613,7 +620,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       env_quirk: envQuirk || null,
     };
     if (onAddEncounterEntry) await onAddEncounterEntry(entry);
-    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null });
+    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs });
     setNpcTargets({});
     setTargeting(null);
   };
@@ -631,12 +638,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
         {/* Party cards — centred */}
         <div style={{ marginBottom: '1rem' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
             {session ? 'No encounter active — downtime / between scenes' : 'No session active'}
           </div>
 
           {characters.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '2rem' }}>No characters created yet.</div>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, padding: '2rem' }}>No characters created yet.</div>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
               {characters.map(c => {
@@ -663,23 +670,23 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                       </div>
                     </div>
                     <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{c.school}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.school}</div>
                     </div>
                     {/* Status */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: '.4rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: '.4rem' }}>
                       <span style={{ color: wColor, fontWeight: 600 }}>{wLabel}</span>
                       <span style={{ color: 'var(--gold-dim)' }}>Void {c.current_void || 0}/{c.void || 2}</span>
                     </div>
                     {/* Armor TN */}
-                    <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-                      Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 13 }}>{5 + (c.reflexes || 2) * 5}</span>
+                    <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+                      Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15 }}>{5 + (c.reflexes || 2) * 5}</span>
                     </div>
 
                     {/* Granted actions — visible to player */}
                     {granted > 0 && (
                       <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
-                        <div style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 600 }}>
+                        <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
                           <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} Action{granted > 1 ? 's' : ''} granted
                         </div>
                       </div>
@@ -688,9 +695,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                     {/* GM: grant actions */}
                     {isGM && !isPCView && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: '.4rem' }}>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)', flex: 1 }}>Grant:</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>Grant:</span>
                         <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: Math.max(0, granted - 1) } })}>−</button>
-                        <span style={{ fontSize: 11, color: granted > 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 14, textAlign: 'center' }}>{granted}</span>
+                        <span style={{ fontSize: 13, color: granted > 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 14, textAlign: 'center' }}>{granted}</span>
                         <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: granted + 1 } })}>+</button>
                       </div>
                     )}
@@ -701,16 +708,54 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           )}
         </div>
 
+        {/* NPCs present during downtime — lingering from the last encounter, or added manually by the GM */}
+        {((isGM && !isPCView) || (encounter.lastEncounterNPCs || []).length > 0) && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '.6rem' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>NPCs Present</span>
+            </div>
+            {(encounter.lastEncounterNPCs || []).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.6rem', justifyContent: 'center', marginBottom: (isGM && !isPCView) ? '.75rem' : 0 }}>
+                {encounter.lastEncounterNPCs.map((n, i) => {
+                  const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][n.wound] || '#4a8a40';
+                  const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][n.wound] || 'Healthy';
+                  return (
+                    <div key={n.id || i} style={{ position: 'relative', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderLeft: `3px solid ${wColor}`, borderRadius: 6, padding: '.6rem .75rem', minWidth: 140 }}>
+                      {isGM && !isPCView && (
+                        <button onClick={() => upEnc({ lastEncounterNPCs: encounter.lastEncounterNPCs.filter((_, j) => j !== i) })}
+                          style={{ position: 'absolute', top: 2, right: 4, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 2, lineHeight: 1 }}>×</button>
+                      )}
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', paddingRight: 12 }}>{n.name}</div>
+                      <div style={{ fontSize: 10, color: wColor }}>{wLabel}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {isGM && !isPCView && (
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <NPCPicker npcsFromLog={npcsFromLog} label="Add NPC to Scene"
+                  onAdd={npc => upEnc({ lastEncounterNPCs: [...(encounter.lastEncounterNPCs || []), { ...npc, wound: 0 }] })} />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* GM start encounter button */}
         {isGM && !isPCView && session && (
           <div style={{ textAlign: 'center' }}>
-            <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] } })}>
+            <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: encounter.lastEncounterNPCs || [] } })}>
               <i className="ti ti-swords" style={{ marginRight: 6 }} /> Start Encounter
             </button>
+            {(encounter.lastEncounterNPCs || []).length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.4rem' }}>
+                {encounter.lastEncounterNPCs.length} NPC{encounter.lastEncounterNPCs.length > 1 ? 's' : ''} present will carry into the new encounter
+              </div>
+            )}
           </div>
         )}
         {!session && isGM && !isPCView && (
-          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
+          <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
         )}
 
         {/* Granted action roll panel — show for player if they have granted actions */}
@@ -748,42 +793,49 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       <div style={{ maxWidth: 660 }}>
         <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
           <button className="btn btn-sm" onClick={() => upEnc({ state: 'idle' })}>← Back</button>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>New Encounter</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>New Encounter</span>
         </div>
         <div className="card">
           {/* Name */}
           <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Encounter Name</span>
-            <input value={s.name || defaultName} onChange={e => upS({ name: e.target.value })} style={{ width: '100%', fontSize: 13 }} placeholder={defaultName} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Encounter Name</span>
+            <input value={s.name || defaultName} onChange={e => upS({ name: e.target.value })} style={{ width: '100%', fontSize: 15 }} placeholder={defaultName} />
           </div>
           {/* Type */}
           <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Type</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Type</span>
             <div>{['Action','Intrigue','Travel','Downtime'].map(t => (
               <button key={t} className={`opt-btn ${s.type === t ? 'sel' : ''}`} onClick={() => upS({ type: t, name: '' })}>{t}</button>
             ))}</div>
             {s.type && (() => {
               const custom = customRoundLimits[s.type];
               const limit = (custom !== undefined && custom !== '') ? (+custom || null) : ROUND_LIMITS[s.type];
-              return limit ? <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: '.3rem' }}>{limit} round limit</div> : null;
+              return limit ? <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem' }}>{limit} round limit</div> : null;
             })()}
           </div>
           {/* Setting */}
           <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Setting</span>
-            <div>{['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"].map(t => (
-              <button key={t} className={`opt-btn ${s.setting === t ? 'sel' : ''}`} onClick={() => upS({ setting: t, name: '' })}>{t}</button>
-            ))}</div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Setting</span>
+            <div>
+              {['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"].map(t => (
+                <button key={t} className={`opt-btn ${s.setting === t && !s.settingIsCustom ? 'sel' : ''}`} onClick={() => upS({ setting: t, settingIsCustom: false, name: '' })}>{t}</button>
+              ))}
+              <button className={`opt-btn ${s.settingIsCustom ? 'sel' : ''}`} onClick={() => upS({ setting: '', settingIsCustom: true, name: '' })}>Custom...</button>
+            </div>
+            {s.settingIsCustom && (
+              <input type="text" value={s.setting || ''} onChange={e => upS({ setting: e.target.value })}
+                placeholder="Type a setting name..." autoFocus style={{ marginTop: '.5rem', width: '100%' }} />
+            )}
           </div>
           {/* Scene description */}
           <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Scene Description</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Scene Description</span>
             <textarea rows={2} value={s.desc || ''} onChange={e => upS({ desc: e.target.value })} placeholder="Describe the scene for players..." style={{ width: '100%', resize: 'vertical' }} />
           </div>
           {/* NPCs */}
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>NPCs</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>NPCs</span>
               {s.setting && (
                 <button className="btn btn-sm" onClick={() => {
                   const d = ['Easy','Moderate','Hard','Deadly'][Math.floor(Math.random() * 4)];
@@ -795,24 +847,44 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             {(s.selectedNPCs || []).length > 0 && (
               <div style={{ marginTop: '.5rem' }}>
                 {s.selectedNPCs.map((n, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', fontSize: 11, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', fontSize: 13, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
                     <span style={{ flex: 1 }}>{n.name}</span>
-                    {n.fromLog && <span style={{ fontSize: 9, color: 'var(--gold-dim)' }}>log</span>}
-                    {!n.fromLog && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>{n.personality}</span>}
-                    <button className="btn btn-sm btn-d" style={{ fontSize: 9, padding: '1px 5px' }} onClick={() => upS({ selectedNPCs: s.selectedNPCs.filter((_, j) => j !== i) })}>×</button>
+                    {n.fromLog && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>log</span>}
+                    {!n.fromLog && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{n.personality}</span>}
+                    <button className="btn btn-sm btn-d" style={{ fontSize: 11, padding: '1px 5px' }} onClick={() => upS({ selectedNPCs: s.selectedNPCs.filter((_, j) => j !== i) })}>×</button>
                   </div>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.5rem' }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 60 }}>Difficulty:</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 60 }}>Difficulty:</span>
                   <div className="diff-bar"><div className="diff-fill" style={{ width: `${diffPct}%`, background: diffColor(diff) }} /></div>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: diffColor(diff), width: 70 }}>{diff}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: diffColor(diff), width: 70 }}>{diff}</span>
                 </div>
               </div>
             )}
           </div>
-          {/* Party */}
-          <div style={{ padding: '.5rem', background: 'var(--bg-panel)', borderRadius: 4, marginBottom: '1rem', fontSize: 10, color: 'var(--text-muted)' }}>
-            PCs: {characters.map(c => c.name).join(', ')}
+          {/* Party — pick who's participating */}
+          <div style={{ marginBottom: '1rem' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Participants</span>
+            {characters.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No characters created yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+                {characters.map(c => {
+                  const participantIds = s.participantIds || characters.map(ch => ch.id);
+                  const included = participantIds.includes(c.id);
+                  return (
+                    <label key={c.id} className="chk-row" style={{ border: '1px solid var(--border)', borderRadius: 5, padding: '.3rem .6rem', margin: 0, cursor: 'pointer', opacity: included ? 1 : .5 }}>
+                      <input type="checkbox" checked={included} onChange={() => {
+                        const current = s.participantIds || characters.map(ch => ch.id);
+                        const next = included ? current.filter(id => id !== c.id) : [...current, c.id];
+                        upS({ participantIds: next });
+                      }} />
+                      {c.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <button className="btn btn-p" style={{ width: '100%' }} disabled={!s.type || !s.setting}
             onClick={() => beginEncounter({ ...s, name: s.name || defaultName })}>
@@ -844,17 +916,20 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       {/* Turn banner */}
       <div className="turn-banner">
         <div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Round {round || 1} — Active</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Round {round || 1} — Active</div>
           <div className="turn-name">{active?.name || '—'}</div>
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{setup.name}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{setup.name}</div>
         {/* Void button */}
         <VoidButton />
-        {/* View toggle */}
+        {/* View toggle — mutually exclusive */}
         <div className="layer-tog">
           <button className={`layer-btn ${view === 'columns' ? 'active' : ''}`} onClick={() => setView('columns')}>Columns</button>
           <button className={`layer-btn ${view === 'initiative' ? 'active' : ''}`} onClick={() => setView('initiative')}>Initiative</button>
+        </div>
+        {/* Independent display toggles — visually separated to show they're not part of the view-mode group */}
+        <div className="layer-tog" style={{ marginLeft: 10 }}>
           <button className={`layer-btn ${compact ? 'active' : ''}`} onClick={() => setCompact(c => !c)}>Compact</button>
           {(isGM && !isPCView) && (
             <button className={`layer-btn ${showGrid ? 'active' : ''}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
@@ -882,7 +957,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       {/* Env quirk */}
       {envQuirk && (
         <div className="env-banner">
-          <i className="ti ti-map-pin" style={{ color: 'var(--gold)', fontSize: 14 }} />
+          <i className="ti ti-map-pin" style={{ color: 'var(--gold)', fontSize: 16 }} />
           <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Environment: </span>
           <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic', flex: 1 }}>{envQuirk}</span>
         </div>
@@ -891,7 +966,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       {/* Scene description */}
       {setup.desc && (
         <div className="card" style={{ marginBottom: '.75rem', borderColor: 'var(--gold-dim)', padding: '.6rem .75rem' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{setup.desc}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{setup.desc}</div>
         </div>
       )}
 
@@ -901,7 +976,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           <i className="ti ti-sword" style={{ color: 'var(--red)' }} />
           <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dmgBanner.attackerName}</span>
           <span style={{ color: 'var(--text-muted)' }}>deals</span>
-          <span style={{ color: 'var(--red)', fontWeight: 700, fontSize: 16 }}>{dmgBanner.damage} wounds</span>
+          <span style={{ color: 'var(--red)', fontWeight: 700, fontSize: 18 }}>{dmgBanner.damage} wounds</span>
           <span style={{ color: 'var(--text-muted)' }}>to {combatants.find(c => c.id === dmgBanner.targetId)?.name || 'target'}</span>
         </div>
       )}
@@ -911,10 +986,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '1fr auto 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
           {/* Enemies */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <i className="ti ti-skull" style={{ fontSize: 11 }} /> Enemies ({enemies.length})
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemies.length})
             </div>
-            {enemies.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.5rem' }}>No enemies</div>}
+            {enemies.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.5rem' }}>No enemies</div>}
             {enemies.map(c => (
               <CombatantCard key={c.id} c={c}
                 isActive={c.id === active?.id}
@@ -934,7 +1009,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             {/* NPC attack target selection */}
             {targeting && isGM && !isPCView && (
               <div style={{ padding: '.5rem', background: 'rgba(200,64,48,.08)', border: '1px solid var(--red-dim)', borderRadius: 5, marginTop: '.4rem' }}>
-                <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: '.3rem' }}>▼ Select target to attack:</div>
+                <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: '.3rem' }}>▼ Select target to attack:</div>
                 <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
                   {party.map(t => (
                     <button key={t.id} className="btn btn-sm btn-d" onClick={() => handleNPCAttack(targeting, t.id)}>
@@ -997,8 +1072,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
           {/* Party */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <i className="ti ti-shield" style={{ fontSize: 11 }} /> Party ({party.length})
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
             </div>
             {party.map(c => (
               <CombatantCard key={c.id} c={c}
@@ -1028,16 +1103,16 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               border: `1px solid ${i === activeTurn % combatants.length ? 'var(--gold-dim)' : 'transparent'}`,
               marginBottom: 2
             }}>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 16, textAlign: 'right' }}>{i + 1}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 16, textAlign: 'right' }}>{i + 1}</span>
               <Silhouette type={getArchetype(c.school) || 'warrior'} size={16} />
-              <span style={{ flex: 1, fontSize: 11, color: 'var(--text-primary)' }}>{c.name}</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{c.name}</span>
               <WoundBadge rank={c.wound} />
-              <span className="stance-badge" style={{ fontSize: 8 }}>{c.stance === 'Full Attack' ? 'F.Atk' : c.stance === 'Full Defense' ? 'F.Def' : c.stance}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)', width: 24, textAlign: 'right' }}>{c.init}</span>
+              <span className="stance-badge" style={{ fontSize: 10 }}>{c.stance === 'Full Attack' ? 'F.Atk' : c.stance === 'Full Defense' ? 'F.Def' : c.stance}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', width: 24, textAlign: 'right' }}>{c.init}</span>
               {isGM && !isPCView && (
                 <div style={{ display: 'flex', gap: 2 }}>
-                  <button className="btn btn-sm btn-d" style={{ padding: '1px 4px', fontSize: 9 }} onClick={() => gmWound(c.id, 1)}>+W</button>
-                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 9 }} onClick={() => gmWound(c.id, -1)}>−W</button>
+                  <button className="btn btn-sm btn-d" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, 1)}>+W</button>
+                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, -1)}>−W</button>
                 </div>
               )}
             </div>
@@ -1051,6 +1126,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           combatant={active}
           character={pcsMap[active.id]}
           enemies={enemies}
+          allies={party.filter(c => c.id !== active.id)}
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id] })}
           onStanceChange={(stance) => handleStanceChange(active.id, stance)}
           onDrawWeapon={(weapon) => handleDrawWeapon(active.id, weapon)}
