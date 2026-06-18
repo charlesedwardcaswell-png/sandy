@@ -8,7 +8,6 @@ function getCtx() {
     if (!AC) return null;
     ctx = new AC();
   }
-  if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
 
@@ -55,11 +54,14 @@ function noiseBurst(c, { start, dur, gain = 0.15, filterFreq = 1200, filterType 
   noise.start(c.currentTime + start);
 }
 
-function play(fn) {
+async function play(fn) {
   if (!isSoundEnabled()) return;
   const c = getCtx();
   if (!c) return;
-  try { fn(c); } catch { /* ignore audio errors — never break gameplay over a sound cue */ }
+  try {
+    if (c.state === 'suspended') await c.resume();
+    fn(c);
+  } catch { /* ignore audio errors — never break gameplay over a sound cue */ }
 }
 
 // Dice roll success — a bright "tin ding"

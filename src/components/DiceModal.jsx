@@ -187,12 +187,11 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             </div>
           )}
 
-          {/* TN (adjusted for free raises) */}
+          {/* TN breakdown (the total itself is shown at top) */}
           <div className="modal-section">
-            <span className="modal-label">Target Number</span>
-            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--gold)' }}>{tn}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              Base {context?.tn || 15}{raises.length > 0 ? ` + ${raises.length * 5} from raises` : ''}{manualFreeRaises > 0 ? ` − ${manualFreeRaises * 5} from manual free raise${manualFreeRaises > 1 ? 's' : ''}` : ''}
+            <span className="modal-label">Target Number Calculation</span>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+              Base {context?.tn || 15}{raises.length > 0 ? ` + ${raises.length * 5} from raises` : ''}{manualFreeRaises > 0 ? ` − ${manualFreeRaises * 5} from manual free raise${manualFreeRaises > 1 ? 's' : ''}` : ''} = <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{tn}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '.4rem' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Free Raise (from an effect not auto-detected)</span>

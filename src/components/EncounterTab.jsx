@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID } from '../data/constants';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA } from '../data/constants';
 import { supabase } from '../lib/supabase';
-import { Silhouette, FacIcon, WoundBadge, SilhouetteToken } from './UI';
+import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
 import DiceModal from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
@@ -110,6 +110,13 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
             <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.name}
             </div>
+            {isNPC && (() => {
+              const sd = SCHOOL_DATA[c.school];
+              const techs = [];
+              for (let r = 1; r <= (c.rank || 1); r++) { if (sd?.techniques?.[r]) techs.push(`Rank ${r}: ${sd.techniques[r]}`); }
+              if (techs.length === 0) return null;
+              return <ScrollLore title={`${c.name} — ${c.school} Techniques`} text={techs.join('\n\n')} />;
+            })()}
             {isMyChar && !isActive && <span style={{ fontSize: 10, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 3, padding: '0 3px' }}>YOU</span>}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -477,6 +484,7 @@ function ComplicationButton({ envQuirk, onSet }) {
 export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
   const [modal, setModal] = useState(null);
+  const [activeNpcId, setActiveNpcId] = useState(null);
   const [view, setView] = useState('columns');
   const [compact, setCompact] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
@@ -720,9 +728,17 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][n.wound] || '#4a8a40';
                   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][n.wound] || 'Healthy';
                   return (
-                    <div key={n.id || i} style={{ position: 'relative', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderLeft: `3px solid ${wColor}`, borderRadius: 6, padding: '.6rem .75rem', minWidth: 140 }}>
+                    <div key={n.id || i}
+                      onClick={() => { if (isGM && !isPCView) setActiveNpcId(prev => prev === n.id ? null : n.id); }}
+                      style={{
+                        position: 'relative', background: 'var(--bg-panel)',
+                        border: `1px solid ${activeNpcId === n.id ? 'var(--gold)' : 'var(--border)'}`,
+                        borderLeft: `3px solid ${wColor}`, borderRadius: 6, padding: '.6rem .75rem', minWidth: 140,
+                        cursor: (isGM && !isPCView) ? 'pointer' : 'default',
+                        boxShadow: activeNpcId === n.id ? '0 0 10px rgba(200,150,42,.3)' : 'none',
+                      }}>
                       {isGM && !isPCView && (
-                        <button onClick={() => upEnc({ lastEncounterNPCs: encounter.lastEncounterNPCs.filter((_, j) => j !== i) })}
+                        <button onClick={(e) => { e.stopPropagation(); upEnc({ lastEncounterNPCs: encounter.lastEncounterNPCs.filter((_, j) => j !== i) }); if (activeNpcId === n.id) setActiveNpcId(null); }}
                           style={{ position: 'absolute', top: 2, right: 4, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 2, lineHeight: 1 }}>×</button>
                       )}
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', paddingRight: 12 }}>{n.name}</div>
@@ -740,6 +756,25 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             )}
           </div>
         )}
+
+        {/* NPC action panel — opens when the GM clicks an NPC card above */}
+        {isGM && !isPCView && activeNpcId && (() => {
+          const npc = (encounter.lastEncounterNPCs || []).find(n => n.id === activeNpcId);
+          if (!npc) return null;
+          const updateThisNpc = patch => upEnc({ lastEncounterNPCs: encounter.lastEncounterNPCs.map(n => n.id === activeNpcId ? { ...n, ...patch } : n) });
+          return (
+            <PCTurnPanel
+              combatant={npc}
+              character={null}
+              enemies={characters}
+              isNPCTurn
+              onRoll={ctx => setModal(ctx)}
+              onStanceChange={(stance) => updateThisNpc({ stance })}
+              onDrawWeapon={(weapon) => updateThisNpc({ drawnWeapon: weapon })}
+              onPass={() => setActiveNpcId(null)}
+            />
+          );
+        })()}
 
         {/* GM start encounter button */}
         {isGM && !isPCView && session && (
@@ -984,6 +1019,66 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       {/* Two column view */}
       {view === 'columns' && (
         <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '1fr auto 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
+          {/* Party */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
+            </div>
+            {party.map(c => (
+              <CombatantCard key={c.id} c={c}
+                isActive={c.id === active?.id}
+                isGM={isGM} isPCView={isPCView}
+                myCharId={myCharId} pcs={pcsMap}
+                onGMWound={gmWound}
+                onApplyStatus={applyStatus}
+                onRemoveStatus={removeStatus}
+                targeting={null}
+                onSetTarget={null}
+                compact={compact}
+              />
+            ))}
+          </div>
+
+          {/* Battle Grid — centre column, GM toggle only */}
+          {showGrid && (
+            <BattleGrid
+              combatants={combatants}
+              active={active}
+              pcsMap={pcsMap}
+              gridSize={GRID_SIZE}
+              isGM={isGM && !isPCView}
+              settingBg={settingUrls[setup.setting] || null}
+              onMove={(id, x, y) => {
+                upEnc({ combatants: combatants.map(c => {
+                  if (c.id !== id) return c;
+                  // Save starting position on first placement
+                  const isFirstPlace = c.gridX === undefined;
+                  return { ...c, gridX: x, gridY: y, ...(isFirstPlace ? { startX: x, startY: y } : {}) };
+                })});
+              }}
+              onClearGrid={() => {
+                upEnc({ combatants: combatants.map(c => ({
+                  ...c,
+                  gridX: c.startX !== undefined ? c.startX : undefined,
+                  gridY: c.startY !== undefined ? c.startY : undefined,
+                }))});
+              }}
+              onShift={(dx, dy) => {
+                upEnc({
+                  combatants: combatants.map(c => {
+                    if (c.gridX === undefined || c.gridY === undefined) return c;
+                    const nx = c.gridX + dx;
+                    const ny = c.gridY + dy;
+                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
+                      return { ...c, gridX: undefined, gridY: undefined };
+                    }
+                    return { ...c, gridX: nx, gridY: ny };
+                  })
+                });
+              }}
+            />
+          )}
+
           {/* Enemies */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1028,66 +1123,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 }} />
               </div>
             )}
-          </div>
-
-          {/* Battle Grid — centre column, GM toggle only */}
-          {showGrid && (
-            <BattleGrid
-              combatants={combatants}
-              active={active}
-              pcsMap={pcsMap}
-              gridSize={GRID_SIZE}
-              isGM={isGM && !isPCView}
-              settingBg={settingUrls[setup.setting] || null}
-              onMove={(id, x, y) => {
-                upEnc({ combatants: combatants.map(c => {
-                  if (c.id !== id) return c;
-                  // Save starting position on first placement
-                  const isFirstPlace = c.gridX === undefined;
-                  return { ...c, gridX: x, gridY: y, ...(isFirstPlace ? { startX: x, startY: y } : {}) };
-                })});
-              }}
-              onClearGrid={() => {
-                upEnc({ combatants: combatants.map(c => ({
-                  ...c,
-                  gridX: c.startX !== undefined ? c.startX : undefined,
-                  gridY: c.startY !== undefined ? c.startY : undefined,
-                }))});
-              }}
-              onShift={(dx, dy) => {
-                upEnc({
-                  combatants: combatants.map(c => {
-                    if (c.gridX === undefined || c.gridY === undefined) return c;
-                    const nx = c.gridX + dx;
-                    const ny = c.gridY + dy;
-                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
-                      return { ...c, gridX: undefined, gridY: undefined };
-                    }
-                    return { ...c, gridX: nx, gridY: ny };
-                  })
-                });
-              }}
-            />
-          )}
-
-          {/* Party */}
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
-            </div>
-            {party.map(c => (
-              <CombatantCard key={c.id} c={c}
-                isActive={c.id === active?.id}
-                isGM={isGM} isPCView={isPCView}
-                myCharId={myCharId} pcs={pcsMap}
-                onGMWound={gmWound}
-                onApplyStatus={applyStatus}
-                onRemoveStatus={removeStatus}
-                targeting={null}
-                onSetTarget={null}
-                compact={compact}
-              />
-            ))}
           </div>
         </div>
       )}

@@ -322,6 +322,8 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             isPlayer={isPlayer}
             characters={safeChars}
+            npcs={npcs}
+            onUpdateNPC={handleUpdateNPC}
             onUpdateCharacter={handleUpdateChar}
             onCreateCharacter={handleCreateChar}
             onDeleteCharacter={handleDeleteChar}

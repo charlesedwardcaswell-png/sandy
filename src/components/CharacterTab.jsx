@@ -7,9 +7,10 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool } fro
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
+  const [selNpcId, setSelNpcId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [showDel, setShowDel] = useState(0);
   const [addEq, setAddEq] = useState('');
@@ -18,6 +19,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
   useEffect(() => {
     if (jumpToCharId && characters.find(c => c.id === jumpToCharId)) {
       setSelId(jumpToCharId);
+      setSelNpcId(null);
       setView('sheet');
       if (onClearJump) onClearJump();
     }
@@ -97,37 +99,48 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
             <i className="ti ti-user" style={{ fontSize: 12 }} /> Characters
           </button>
           <button className={`btn btn-sm ${view === 'create' ? 'btn-p' : ''}`} onClick={() => setView('create')}>
-            <i className="ti ti-plus" style={{ fontSize: 12 }} /> New PC
+            <i className="ti ti-plus" style={{ fontSize: 12 }} /> Full Character
           </button>
           {onCreateNPC && (
             <button className={`btn btn-sm ${view === 'npc' ? 'btn-p' : ''}`} onClick={() => setView('npc')}>
-              <i className="ti ti-user-bolt" style={{ fontSize: 12 }} /> New NPC
+              <i className="ti ti-user-bolt" style={{ fontSize: 12 }} /> Library NPC
             </button>
           )}
         </div>
 
-      {view === 'sheet' && characters.length > 0 && (
+      {view === 'sheet' && (characters.length > 0 || (npcs?.length || 0) > 0) && (
           <>
             {/* PC selector */}
             {characters.filter(c => !c.is_npc).length > 0 && (
-              <select className="pc-sel" value={!characters.find(c => c.id === selId)?.is_npc ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setShowDel(0); }}>
+              <select className="pc-sel" value={(!selNpcId && !characters.find(c => c.id === selId)?.is_npc) ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}>
                 <option value="" disabled>Player Characters</option>
                 {characters.filter(c => !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
               </select>
             )}
-            {/* NPC selector */}
+            {/* NPC selector (full character sheet NPCs) */}
             {characters.filter(c => c.is_npc).length > 0 && (
-              <select className="pc-sel" value={characters.find(c => c.id === selId)?.is_npc ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setShowDel(0); }} style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
+              <select className="pc-sel" value={(!selNpcId && characters.find(c => c.id === selId)?.is_npc) ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }} style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
                 <option value="" disabled>Full NPCs</option>
                 {characters.filter(c => c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
               </select>
             )}
-            <button className={`btn btn-sm ${editMode ? 'btn-p' : ''}`} onClick={() => setEditMode(!editMode)}>
-              <i className={`ti ${editMode ? 'ti-lock' : 'ti-edit'}`} style={{ fontSize: 12 }} /> {editMode ? 'Lock' : 'Edit'}
-            </button>
-            <button className="btn btn-sm btn-d" onClick={() => setShowDel(s => s < 2 ? s + 1 : s)}>
-              {showDel === 0 ? 'Delete' : showDel === 1 ? 'Really?' : 'CONFIRM'}
-            </button>
+            {/* Library NPC selector (lightweight quick-add NPCs) */}
+            {(npcs?.length || 0) > 0 && (
+              <select className="pc-sel" value={selNpcId || ''} onChange={e => { setSelNpcId(e.target.value || null); setShowDel(0); }} style={{ borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}>
+                <option value="">Library NPCs</option>
+                {npcs.map(n => <option key={n.id} value={n.id}>{n.name} — {n.faction}</option>)}
+              </select>
+            )}
+            {!selNpcId && (
+              <button className={`btn btn-sm ${editMode ? 'btn-p' : ''}`} onClick={() => setEditMode(!editMode)}>
+                <i className={`ti ${editMode ? 'ti-lock' : 'ti-edit'}`} style={{ fontSize: 12 }} /> {editMode ? 'Lock' : 'Edit'}
+              </button>
+            )}
+            {!selNpcId && (
+              <button className="btn btn-sm btn-d" onClick={() => setShowDel(s => s < 2 ? s + 1 : s)}>
+                {showDel === 0 ? 'Delete' : showDel === 1 ? 'Really?' : 'CONFIRM'}
+              </button>
+            )}
             {showDel === 2 && char && (
               <button className="btn btn-sm btn-d" onClick={async () => { await onDeleteCharacter(char.id); setSelId(null); setShowDel(0); }}>
                 Yes, delete {char.name}
@@ -138,7 +151,99 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, onU
       </div>
 
       {/* Views */}
-      {view === 'sheet' && (
+      {view === 'sheet' && selNpcId && (() => {
+        const npc = npcs?.find(n => n.id === selNpcId);
+        if (!npc) return null;
+        const sd = SCHOOL_DATA[npc.school];
+        const npcTechniques = [];
+        for (let r = 1; r <= (npc.rank || 1); r++) { if (sd?.techniques?.[r]) npcTechniques.push({ rank: r, text: sd.techniques[r] }); }
+        const combinedLore = npcTechniques.length > 0
+          ? npcTechniques.map(t => `Rank ${t.rank}: ${t.text}`).join('\n\n')
+          : 'No technique data found for this school — check the school name matches one in the reference data.';
+        const alreadyPromoted = !!npc.character_id && characters.some(c => c.id === npc.character_id);
+
+        const promoteNpc = async () => {
+          const techs = {};
+          npcTechniques.forEach(t => { techs[t.rank] = t.text; });
+          const ringVal = (npc.rank || 1) + 1;
+          const newChar = await onCreateCharacter({
+            name: npc.name, faction: npc.faction || '', school: npc.school || '', school_rank: npc.rank || 1,
+            is_npc: true,
+            air: ringVal, earth: ringVal, fire: ringVal, water: ringVal, void: 2,
+            reflexes: ringVal, awareness: ringVal, stamina: ringVal, willpower: ringVal,
+            agility: ringVal, intelligence: ringVal, strength: ringVal, perception: ringVal,
+            current_wounds: 0, max_wounds: ringVal * 10, current_void: 2,
+            integrity: 0, reputation: 0, status: 0, copper: 0,
+            skills: [], equipment: [], advantages: [], disadvantages: [],
+            techniques: techs, spells: npc.spells || [],
+          });
+          if (newChar) {
+            if (onUpdateNPC) await onUpdateNPC(npc.id, { character_id: newChar.id });
+            setSelNpcId(null);
+            setSelId(newChar.id);
+            setEditMode(true);
+          }
+        };
+
+        return (
+          <div className="card" style={{ maxWidth: 480 }}>
+            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {npc.name}
+              <ScrollLore title={`${npc.name} — ${npc.school} Techniques`} text={combinedLore} />
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
+              {npc.faction} · {npc.school} Rank {npc.rank}
+            </div>
+            <div style={{ fontSize: 12, color: npc.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)', marginBottom: '.75rem' }}>
+              {npc.is_visible_to_players ? '● Visible to players' : '○ Hidden from players'}
+            </div>
+            {npcTechniques.length > 0 && (
+              <div style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>Techniques</div>
+                {npcTechniques.map(t => (
+                  <div key={t.rank} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                    <span style={{ color: 'var(--gold-dim)', fontSize: 12, minWidth: 20, marginTop: 1 }}>R{t.rank}</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 13, flex: 1 }}>{t.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {npc.gm_notes && (
+              <div style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>GM Notes</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{npc.gm_notes}</div>
+              </div>
+            )}
+            {npc.player_notes && (
+              <div style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Player Notes</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{npc.player_notes}</div>
+              </div>
+            )}
+            {(npc.spells || []).length > 0 && (
+              <div style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Spells</div>
+                {npc.spells.map((s, i) => (
+                  <div key={i} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.name || s}</div>
+                ))}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: '.5rem 0' }}>
+              This is a lightweight library NPC — no full sheet. Manage visibility and notes from the NPC tab.
+            </div>
+            {alreadyPromoted ? (
+              <button className="btn btn-sm" onClick={() => { setSelId(npc.character_id); setSelNpcId(null); }}>
+                <i className="ti ti-arrow-up-right" style={{ fontSize: 11, marginRight: 4 }} /> View Promoted Full Character
+              </button>
+            ) : (
+              <button className="btn btn-sm btn-p" onClick={promoteNpc}>
+                <i className="ti ti-arrow-up" style={{ fontSize: 11, marginRight: 4 }} /> Promote to Full Character
+              </button>
+            )}
+          </div>
+        );
+      })()}
+      {view === 'sheet' && !selNpcId && (
         char
           ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} addEq={addEq} setAddEq={setAddEq} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
@@ -197,6 +302,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
   const avatarUrl = (char.avatar_url || '').trim();
   const [imgError, setImgError] = useState(false);
   useEffect(() => { setImgError(false); }, [avatarUrl]);
+  const [urlDraft, setUrlDraft] = useState(char.avatar_url || '');
+  useEffect(() => { setUrlDraft(char.avatar_url || ''); }, [char.id, char.avatar_url]);
 
   const RING_COLORS = { Air: '#a0c0e0', Earth: '#80c090', Fire: '#e09050', Water: '#60b0d0', Void: '#c0a0e0' };
   const woundLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
@@ -246,7 +353,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, addEq, setAdd
             {showAvatarPicker && canEdit && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Portrait URL <span style={{ fontWeight: 400 }}>(optional — overrides the icon below if set)</span></div>
-                <input type="text" value={char.avatar_url || ''} onChange={e => update('avatar_url', e.target.value)}
+                <input type="text" value={urlDraft} onChange={e => setUrlDraft(e.target.value)}
+                  onBlur={() => { if (urlDraft !== (char.avatar_url || '')) update('avatar_url', urlDraft); }}
+                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                   placeholder="https://..." style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem' }}>
                   {AVATAR_TYPES.map(at => (
