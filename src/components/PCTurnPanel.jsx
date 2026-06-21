@@ -42,7 +42,21 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           ].map(action => (
             <button key={action.id}
               onClick={() => {
-                if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
+                if (action.id === 'defend') {
+                  // Full Defense is a Complex Action requiring a roll (Agility + Defense, TN 5)
+                  const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
+                  const agl = combatant.agility || character?.agility || 2;
+                  const defRank = defenseSkill?.rank || 0;
+                  onRoll({
+                    skill: 'Defense (Full Defense)',
+                    tn: 5,
+                    baseRoll: agl + defRank,
+                    baseKeep: agl,
+                    character,
+                    onComplete: () => { onStanceChange('Full Defense'); onSpendAction && onSpendAction('full'); },
+                  });
+                  setSelectedAction('defend');
+                }
                 else if (action.id === 'pass') { onPass(); }
                 else setSelectedAction(action.id);
               }}
@@ -395,15 +409,20 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             <div style={{ minWidth: 160 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.06em' }}>Weapon</div>
               <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                {/* Equipped weapons from character sheet */}
-                {(character.equipment || []).filter(e => e.dr).map(e => (
-                  <button key={e.name}
-                    className={`btn btn-sm ${selectedWeapon?.name === e.name ? 'btn-p' : ''}`}
-                    onClick={() => setSelectedWeapon({ name: e.name, dr: e.dr, skill: e.skill || 'Swordsmanship' })}>
-                    {e.name}
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 3 }}>{e.dr}</span>
-                  </button>
-                ))}
+                {/* Only drawn weapon is available — use Draw Weapon to change */}
+                {combatant.drawnWeapon && combatant.drawnWeapon !== 'Unarmed (1k1)' && (() => {
+                  const wName = combatant.drawnWeapon.split(' (')[0];
+                  const wDr = combatant.dr || (combatant.drawnWeapon.match(/\(([^)]+)\)/)?.[1] || '1k1');
+                  const wSkillGuess = WEAPONS_LIST.find(w => w.name === wName)?.skill || 'Swordsmanship';
+                  return (
+                    <button
+                      className={`btn btn-sm ${selectedWeapon?.name === wName ? 'btn-p' : ''}`}
+                      onClick={() => setSelectedWeapon({ name: wName, dr: wDr, skill: wSkillGuess })}>
+                      {wName}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 3 }}>{wDr}</span>
+                    </button>
+                  );
+                })()}
                 {/* Unarmed always available */}
                 <button
                   className={`btn btn-sm ${selectedWeapon?.name === 'Unarmed' ? 'btn-p' : ''}`}
@@ -411,6 +430,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   Unarmed <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1k1</span>
                 </button>
               </div>
+              {!combatant.drawnWeapon || combatant.drawnWeapon === 'Unarmed (1k1)' ? (
+                <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 3 }}>
+                  Use Draw Weapon to equip a weapon
+                </div>
+              ) : null}
               {selectedWeapon && (
                 <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 3 }}>
                   {selectedWeapon.skill} · {selectedWeapon.dr} dmg

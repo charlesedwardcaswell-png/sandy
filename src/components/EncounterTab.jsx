@@ -44,7 +44,7 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
     );
   }
 
-  const avatarUrl = (!isNPC && (pc?.avatar_url || c.avatar_url || '')).trim();
+  const avatarUrl = (!isNPC ? (pc?.avatar_url || c.avatar_url || '') : '').trim();
   const avatarColor = (!isNPC && pc?.avatar_color) ? pc.avatar_color : (isNPC ? '#8a3030' : '#4a8a40');
   const avatarType = (!isNPC && pc?.avatar_type) ? pc.avatar_type : (getArchetype(c.school) || 'warrior');
 
@@ -79,6 +79,12 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
           <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: 11, padding: '1px 5px', border: `1px solid ${wColor}55`, borderRadius: 3, color: wColor, background: wColor + '20', fontWeight: 600 }}>{wLabel}</span>
             <span className="stance-badge">{c.stance === 'Full Attack' ? 'F.Atk' : c.stance === 'Full Defense' ? 'F.Def' : c.stance}</span>
+            {/* HP — always visible on PC cards, never on NPCs */}
+            {!isNPC && pc && (
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 4px' }}>
+                {pc.current_wounds ?? 0} / {pc.max_wounds ?? 20} hp
+              </span>
+            )}
             {(c.statusEffects || []).map(e => (
               <span key={e} className="effect-badge" onClick={() => onRemoveStatus && onRemoveStatus(c.id, e)}>{e} ×</span>
             ))}
@@ -282,6 +288,7 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
 // ── Battle Grid ───────────────────────────────────────────────────────────────
 function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg }) {
   const [selected, setSelected] = useState(null);
+  const [hoverCell, setHoverCell] = useState(null); // {x, y} while a token is selected
   const CELL = 36;
   const W = gridSize * CELL;
 
@@ -300,6 +307,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
     if (occupied) return;
     onMove(selected, x, y);
     setSelected(null);
+    setHoverCell(null);
   };
 
   const handleTokenClick = (e, id) => {
@@ -340,7 +348,15 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             const x = Math.floor((e.clientX - rect.left) / CELL);
             const y = Math.floor((e.clientY - rect.top) / CELL);
             handleCellClick(x, y);
-          }}>
+          }}
+          onMouseMove={e => {
+            if (!selected) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / CELL);
+            const y = Math.floor((e.clientY - rect.top) / CELL);
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) setHoverCell({ x, y });
+          }}
+          onMouseLeave={() => setHoverCell(null)}>
 
           {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
 
@@ -359,6 +375,24 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             })
           )}
 
+          {/* Trail line — from selected token's current position to hovered cell */}
+          {selected && hoverCell && (() => {
+            const selC = combatants.find(c => c.id === selected);
+            if (!selC || selC.gridX === undefined) return null;
+            const x1 = selC.gridX * CELL + CELL / 2;
+            const y1 = selC.gridY * CELL + CELL / 2;
+            const x2 = hoverCell.x * CELL + CELL / 2;
+            const y2 = hoverCell.y * CELL + CELL / 2;
+            if (x1 === x2 && y1 === y2) return null;
+            return (
+              <g pointerEvents="none">
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(200,150,42,.5)" strokeWidth="2" strokeDasharray="5,3" />
+                <circle cx={x1} cy={y1} r={4} fill="rgba(200,150,42,.4)" />
+                <circle cx={x2} cy={y2} r={4} fill="rgba(200,150,42,.8)" />
+              </g>
+            );
+          })()}
+
           {combatants.map(c => {
             if (c.gridX === undefined || c.gridY === undefined) return null;
             const isActive = c.id === active?.id;
@@ -369,10 +403,12 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             const r = 13;
             const pc = pcsMap[c.id];
             const avatarType = pc?.avatar_type || 'warrior';
+            const tokenUrl = (pc?.token_url || '').trim();
             const ringColor = c.type === 'npc' ? '#c84030' : '#4a8a40';
             const isDead = c.wound >= 6;
             const statusLabel = c.wound >= 7 ? 'DEAD' : c.wound >= 6 ? 'DOWN' : null;
             const shortName = c.name.length > 7 ? c.name.slice(0, 6) + '…' : c.name;
+            const clipId = `tok-${c.id.replace(/[^a-z0-9]/gi, '')}`;
             return (
               <g key={c.id} style={{ cursor: 'pointer' }} onClick={e => handleTokenClick(e, c.id)}>
                 {isActive && <circle cx={cx} cy={cy} r={r + 6} fill={color} opacity="0.2" />}
@@ -380,7 +416,20 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
                 {isSelected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="3,2" />}
                 <circle cx={cx} cy={cy} r={r + 1} fill={ringColor + '33'} stroke={isDead ? '#600010' : ringColor} strokeWidth="1.5" opacity={isDead ? 0.5 : 1} />
                 <circle cx={cx} cy={cy} r={r} fill={isDead ? '#1a0808' : '#1a1208'} />
-                <SilhouetteToken type={avatarType} cx={cx} cy={cy} r={r} color={isDead ? '#600010' : color} />
+                {tokenUrl ? (
+                  <>
+                    <defs>
+                      <clipPath id={clipId}>
+                        <circle cx={cx} cy={cy} r={r} />
+                      </clipPath>
+                    </defs>
+                    <image href={tokenUrl} x={cx - r} y={cy - r} width={r * 2} height={r * 2}
+                      clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
+                      opacity={isDead ? 0.4 : 1} />
+                  </>
+                ) : (
+                  <SilhouetteToken type={avatarType} cx={cx} cy={cy} r={r} color={isDead ? '#600010' : color} />
+                )}
                 {c.wound > 0 && !isDead && (
                   <circle cx={cx + r - 3} cy={cy - r + 3} r="4"
                     fill={['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828'][c.wound - 1] || '#c84030'}
@@ -434,16 +483,51 @@ function ComplicationButton({ envQuirk, onSet }) {
   const [text, setText] = useState('');
 
   const COMPLICATIONS = [
+    // — Tactical escalation —
     'Reinforcements arrive — roll 1d6 for count',
+    'A second group of enemies flanks from the rear',
+    'Sniper on the rooftop — ranged attacks from unknown direction',
+    'Hostage taken — enemy holds a civilian at knifepoint',
+    'Assassination target: an enemy is trying to reach a specific PC',
+    'One enemy reveals a hidden weapon (upgrade their DR)',
+    // — Environment —
     'Fire breaks out — spreads 1 zone per round',
-    'Civilians caught in crossfire',
+    'Sandstorm reduces all visibility to 5 feet',
     'Structure becomes unstable — collapses in 3 rounds',
+    'Oil spill ignites — floor becomes hazard zone',
+    'Sewer grate bursts open — difficult terrain floods the area',
+    'Rope bridge or walkway begins to give way',
+    'Darkness falls — torches extinguished, combat in shadow',
+    'Flash flood — river or channel suddenly surges',
+    'Market stalls collapse — debris blocks half the battlefield',
+    // — Supernatural —
     'A Jinn is drawn to the violence',
+    'A minor Jinn offers a deal at a price',
+    'Undead stir — a ghul crawls from the sewer',
+    'A sahir witness begins casting from the crowd',
+    'Cursed object on an enemy radiates fear — Fear Roll TN 15',
+    'Void spike — all Void Point costs double this round',
+    'Magic goes wild — next spell rolled on the wild surge table',
+    // — Social / Political —
     'City Guard arrives — whose side are they on?',
-    'Sandstorm reduces visibility',
-    'Someone important flees',
-    'Hidden trap triggers',
-    'An ally turns',
+    'A Caliphate official witnesses the fight — reputation consequences',
+    'Press gang watching — they want recruits',
+    'Merchant attempts to negotiate a cease-fire for a cut',
+    'A known NPC passes through and recognizes the PCs',
+    'A faction ally of one PC intervenes — briefly, at a cost',
+    // — Faction complications —
+    'Qabal agent emerges from shadow to observe',
+    'Assassin marks the most dangerous PC',
+    'Dahabi enforcer calls in a debt — demands a PC stand down',
+    'Ra\'Shari caravan blocks the escape route',
+    // — Narrative twists —
+    'Someone important flees with something valuable',
+    'Hidden trap triggers beneath a PC\'s feet',
+    'An ally turns — acting on separate orders',
+    'The enemy has a written message that changes context',
+    'One enemy surrenders and begs for mercy',
+    'A dying enemy reveals a secret with their last breath',
+    'A PC\'s past connection to an enemy is revealed mid-fight',
   ];
 
   return (
@@ -479,6 +563,121 @@ function ComplicationButton({ envQuirk, onSet }) {
 }
 
 // ── Main Encounter Tab ────────────────────────────────────────────────────────
+// ── Duel Initiator ────────────────────────────────────────────────────────────
+function DuelInitiator({ combatants, pcsMap, onStart }) {
+  const [open, setOpen] = useState(false);
+  const [challenger, setChallenger] = useState('');
+  const [defender, setDefender] = useState('');
+  const list = combatants.filter(c => c.id && c.name);
+
+  return (
+    <>
+      <button className="btn btn-sm" style={{ borderColor: '#9060c8', color: '#a080d8' }} onClick={() => setOpen(o => !o)}>
+        ⚔ Duel
+      </button>
+      {open && (
+        <div style={{
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+          background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8,
+          padding: '1.25rem', zIndex: 400, minWidth: 280, boxShadow: '0 8px 40px rgba(0,0,0,.8)',
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontWeight: 700, color: 'var(--gold)', marginBottom: '.75rem', fontSize: 15 }}>⚔ Initiate Tahaddi Duel</div>
+          {['Challenger', 'Defender'].map((label, i) => {
+            const val = i === 0 ? challenger : defender;
+            const setVal = i === 0 ? setChallenger : setDefender;
+            const exclude = i === 1 ? challenger : defender;
+            return (
+              <div key={label} style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
+                <select value={val} onChange={e => setVal(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">— Select —</option>
+                  {list.filter(c => c.id !== exclude).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem' }}>
+            <button className="btn btn-p" style={{ flex: 1 }} disabled={!challenger || !defender} onClick={() => {
+              const c = list.find(x => x.id === challenger);
+              const d = list.find(x => x.id === defender);
+              if (c && d) { onStart(c, d); setOpen(false); }
+            }}>Begin Duel</button>
+            <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Add Enemy mid-encounter — explicit always-visible controls ─────────────
+function AddEnemy({ npcsFromLog, onAdd }) {
+  const [faction, setFaction] = useState('');
+  const [school, setSchool] = useState('');
+  const [rank, setRank] = useState(1);
+  const [count, setCount] = useState(1);
+  const factions = Object.keys(NPC_BY_FACTION);
+  const schools = faction ? (NPC_BY_FACTION[faction] || []) : [];
+
+  const spawn = () => {
+    if (!school) return;
+    for (let i = 0; i < count; i++) {
+      onAdd({
+        id: 'npc_' + Date.now() + '_' + i,
+        name: count > 1 ? `${school} ${i + 1}` : school,
+        school, rank, faction,
+        dr: rank >= 3 ? '4k2' : '3k2',
+        drawnWeapon: rank >= 3 ? 'Longsword (4k2)' : 'Longsword (3k2)',
+        reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
+        wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
+      });
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '.5rem', padding: '.4rem .5rem', background: 'rgba(200,64,48,.06)', border: '1px solid rgba(200,64,48,.2)', borderRadius: 5 }}>
+      <div style={{ fontSize: 10, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem', fontWeight: 700 }}>
+        ⚔ Spawn Enemy
+      </div>
+      <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(NPC_BY_FACTION[e.target.value]?.[0] || ''); }} style={{ fontSize: 12, flex: 1 }}>
+          <option value="">Faction…</option>
+          {factions.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <select value={school} onChange={e => setSchool(e.target.value)} style={{ fontSize: 12, flex: 2 }} disabled={!faction}>
+          <option value="">Type…</option>
+          {schools.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={rank} onChange={e => setRank(+e.target.value)} style={{ fontSize: 12, width: 52 }}>
+          {[1,2,3,4,5].map(r => <option key={r} value={r}>R{r}</option>)}
+        </select>
+        <select value={count} onChange={e => setCount(+e.target.value)} style={{ fontSize: 12, width: 44 }}>
+          {[1,2,3,4,5,6].map(n => <option key={n} value={n}>×{n}</option>)}
+        </select>
+        <button className="btn btn-sm btn-d" disabled={!school} onClick={spawn} style={{ flexShrink: 0 }}>+ Spawn</button>
+      </div>
+      {/* Log NPCs */}
+      {npcsFromLog && npcsFromLog.length > 0 && (
+        <div style={{ marginTop: '.35rem', display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+          {npcsFromLog.map(n => (
+            <button key={n.id} className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => onAdd({
+              id: 'npc_log_' + n.id + '_' + Date.now(),
+              name: n.name, school: n.school, rank: n.rank || 1, faction: n.faction,
+              dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
+              reflexes: n.traits?.Reflexes || (n.rank || 1) + 1,
+              agility: n.traits?.Agility || (n.rank || 1) + 1,
+              air: n.rings?.Air || (n.rank || 1), fire: n.rings?.Fire || (n.rank || 1),
+              wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
+            })}>
+              + {n.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, preparedEncounters = [], onSavePreparedEncounters }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
   const [modal, setModal] = useState(null);
@@ -574,6 +773,15 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       nextCombatants = [...nextCombatants].sort((a, b) => (b.init || 0) - (a.init || 0));
     }
     upEnc({ activeTurn: isNewRound ? 0 : nextIdx, round: newRound, dmgBanner: null, combatants: nextCombatants });
+    setTargeting(null);
+  };
+
+  const stepBackTurn = () => {
+    if (combatants.length === 0) return;
+    const prevIdx = activeTurn === 0 ? combatants.length - 1 : activeTurn - 1;
+    const isNewRound = activeTurn === 0 && (round || 1) > 1;
+    const newRound = isNewRound ? (round || 1) - 1 : round || 1;
+    upEnc({ activeTurn: prevIdx, round: newRound, dmgBanner: null });
     setTargeting(null);
   };
 
@@ -727,6 +935,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       const pc = pcsMap[active.id];
       if (pc) onUpdateCharacter(active.id, { current_void: Math.max(0, (pc.current_void || 0) - 1) });
     }
+
+    // Fire onComplete callback if present (e.g. Full Defense stance change after roll)
+    if (modal?.onComplete) modal.onComplete(result);
   };
 
   const handleStanceChange = (id, stance) => {
@@ -798,6 +1009,32 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
             {session ? 'No encounter active — downtime / between scenes' : 'No session active'}
           </div>
+
+          {isGM && !isPCView && session && characters.length >= 2 && (
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <DuelInitiator
+                combatants={characters.map(c => ({ ...c, type: 'pc' }))}
+                pcsMap={pcsMap}
+                onStart={(challenger, defender) => {
+                  const makeSide = (c) => ({
+                    id: c.id, name: c.name, school: c.school || '',
+                    avatarUrl: (c.avatar_url || '').trim(),
+                    avatarColor: c.avatar_color || '#c8962a',
+                    avatarType: c.avatar_type || 'warrior',
+                    void: c.void || 2, reflexes: c.reflexes || 2, skills: c.skills || [],
+                  });
+                  upEnc({ duelState: {
+                    phase: 'assessment', challenger: makeSide(challenger), defender: makeSide(defender),
+                    assessmentRolls: {}, focusInputs: { challenger: { raises: 0, void: 0 }, defender: { raises: 0, void: 0 } },
+                    focusRevealed: false, strikeRolls: {}, winner: null,
+                  }});
+                }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Initiate a Tahaddi duel outside combat — blocks all players until resolved
+              </div>
+            </div>
+          )}
 
           {characters.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, padding: '2rem' }}>No characters created yet.</div>
@@ -995,6 +1232,23 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         {(isGM && !isPCView) && (
           <>
             <ComplicationButton envQuirk={envQuirk} onSet={(text) => { upEnc({ envQuirk: text || null }); if (text) onLogEvent && onLogEvent('ti-alert-triangle', `Complication: ${text}`); }} />
+            <DuelInitiator combatants={combatants} pcsMap={pcsMap} onStart={(challenger, defender) => {
+              const makeSide = (c) => ({
+                id: c.id, name: c.name, school: c.school || '',
+                avatarUrl: (pcsMap[c.id]?.avatar_url || c.avatar_url || '').trim(),
+                avatarColor: pcsMap[c.id]?.avatar_color || c.avatar_color || '#c8962a',
+                avatarType: pcsMap[c.id]?.avatar_type || c.avatar_type || 'warrior',
+                void: pcsMap[c.id]?.void || c.void || 2,
+                reflexes: pcsMap[c.id]?.reflexes || c.reflexes || 2,
+                skills: pcsMap[c.id]?.skills || c.skills || [],
+              });
+              upEnc({ duelState: {
+                phase: 'assessment', challenger: makeSide(challenger), defender: makeSide(defender),
+                assessmentRolls: {}, focusInputs: { challenger: { raises: 0, void: 0 }, defender: { raises: 0, void: 0 } },
+                focusRevealed: false, strikeRolls: {}, winner: null,
+              }});
+            }} />
+            <button className="btn btn-sm" onClick={stepBackTurn} title="Step back one turn (GM correction)">← Back</button>
             <button className="btn btn-p btn-sm" onClick={advanceTurn}>End Turn →</button>
             <button className="btn btn-sm btn-d" onClick={endEncounter}>End Encounter</button>
           </>
@@ -1141,12 +1395,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             )}
             {/* Reinforce mid-encounter */}
             {isGM && !isPCView && (
-              <div style={{ marginTop: '.5rem' }}>
-                <NPCPicker npcsFromLog={npcsFromLog} label="+ Reinforce" onAdd={npc => {
-                  const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + 3, statusEffects: [], _action: null };
-                  upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
-                }} />
-              </div>
+              <AddEnemy npcsFromLog={npcsFromLog} onAdd={npc => {
+                const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + (npc.reflexes || 3), statusEffects: [], _action: null };
+                upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
+              }} />
             )}
           </div>
         </div>

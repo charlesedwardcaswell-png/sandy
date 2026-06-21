@@ -36,6 +36,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const [rollResult, setRollResult] = useState(null);
   const [dmgDice, setDmgDice] = useState([]);
   const [dmgKept, setDmgKept] = useState(new Set());
+  const [finalDamage, setFinalDamage] = useState(null);
   const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
 
   const voidBonus = useVoid ? 1 : 0;
@@ -54,62 +55,54 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
 
   const toggleRaise = (r) => setRaises(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
+  // Roll a single die, auto-exploding 10s immediately
+  const rollOneDie = () => {
+    const base = Math.floor(Math.random() * 10) + 1;
+    if (base !== 10) return { total: base, exploded: false, bonus: 0 };
+    let bonus = 0, last = 10, safety = 0;
+    while (last === 10 && safety < 20) {
+      last = Math.floor(Math.random() * 10) + 1;
+      bonus += last;
+      safety++;
+    }
+    return { total: 10 + bonus, exploded: true, bonus };
+  };
+
+  const rollAllDice = (n) => Array.from({ length: n }, rollOneDie);
+
   const doRoll = () => {
-    const newDice = rollN(rollCount);
+    const newDice = rollAllDice(rollCount);
     setDice(newDice);
-    // Default keep selection — pre-select the highest dice
-    const sortedIdx = newDice.map((d, i) => i).sort((a, b) => newDice[b] - newDice[a]);
-    setKept(new Set(sortedIdx.slice(0, keepCount)));
+    setKept(new Set());
     setRollResult(null);
     setPhase('rolling');
   };
 
   const toggleKeep = (i) => {
-    if (kept.has(i)) {
-      const n = new Set(kept);
-      n.delete(i);
-      setKept(n);
-      return;
-    }
+    if (kept.has(i)) { const n = new Set(kept); n.delete(i); setKept(n); return; }
     if (kept.size >= keepCount) return;
-    const n = new Set(kept);
-    n.add(i);
-    if (dice[i] === 10) {
-      // Exploding 10s — roll additional d10s (chaining on further 10s), auto-kept, doesn't count against keepCount
-      const extra = [];
-      let last = 10, safety = 0;
-      while (last === 10 && safety < 20) {
-        const r = Math.floor(Math.random() * 10) + 1;
-        extra.push(r);
-        last = r;
-        safety++;
-      }
-      const newDice = [...dice, ...extra];
-      extra.forEach((_, j) => n.add(dice.length + j));
-      setDice(newDice);
-    }
-    setKept(n);
+    const n = new Set(kept); n.add(i); setKept(n);
   };
 
   const confirmRoll = () => {
-    const total = [...kept].reduce((s, i) => s + dice[i], 0) + flatMod;
+    const total = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
     const success = total >= tn;
     const result = { total, success, margin: total - tn, tn, raises, flatMod };
     setRollResult(result);
     if (success) playSuccess(); else playFailure();
-    // Log to ticker
     if (onLogEvent) {
       const skillName = context?.skill || 'Roll';
       const icon = success ? 'ti-check' : 'ti-x';
       const txt = success
-        ? `${skillName} — ${total} vs TN ${tn} ✓ (${total >= tn ? '+' : ''}${total - tn})`
+        ? `${skillName} — ${total} vs TN ${tn} ✓ (+${total - tn})`
         : `${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
       onLogEvent(icon, txt);
     }
     if (success && isAttack) {
-      const newDmgDice = rollN(dmgRoll);
+      // Auto-explode damage dice too
+      const newDmgDice = Array.from({ length: dmgRoll }, rollOneDie);
       setDmgDice(newDmgDice);
-      const sortedIdx = newDmgDice.map((d, i) => i).sort((a, b) => newDmgDice[b] - newDmgDice[a]);
+      const sortedIdx = newDmgDice.map((d, i) => ({ i, v: d.total })).sort((a, b) => b.v - a.v).map(x => x.i);
       setDmgKept(new Set(sortedIdx.slice(0, dmgKeep)));
       setPhase('damage');
     } else {
@@ -119,33 +112,14 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   };
 
   const toggleDmgKeep = (i) => {
-    if (dmgKept.has(i)) {
-      const n = new Set(dmgKept);
-      n.delete(i);
-      setDmgKept(n);
-      return;
-    }
+    if (dmgKept.has(i)) { const n = new Set(dmgKept); n.delete(i); setDmgKept(n); return; }
     if (dmgKept.size >= dmgKeep) return;
-    const n = new Set(dmgKept);
-    n.add(i);
-    if (dmgDice[i] === 10) {
-      const extra = [];
-      let last = 10, safety = 0;
-      while (last === 10 && safety < 20) {
-        const r = Math.floor(Math.random() * 10) + 1;
-        extra.push(r);
-        last = r;
-        safety++;
-      }
-      const newDmgDice = [...dmgDice, ...extra];
-      extra.forEach((_, j) => n.add(dmgDice.length + j));
-      setDmgDice(newDmgDice);
-    }
-    setDmgKept(n);
+    const n = new Set(dmgKept); n.add(i); setDmgKept(n);
   };
 
   const confirmDamage = () => {
-    const dmg = [...dmgKept].reduce((s, i) => s + dmgDice[i], 0);
+    const dmg = [...dmgKept].reduce((s, i) => s + dmgDice[i].total, 0);
+    setFinalDamage(dmg);
     if (onLogEvent) {
       onLogEvent('ti-sword', `${context?.skill || 'Attack'} → ${dmg} wounds to ${context?.targetName || 'target'}`);
     }
@@ -309,14 +283,17 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             <span className="modal-label">Click to keep — {kept.size}/{keepCount} kept — TN {tn}{flatMod !== 0 ? ` (${flatMod >= 0 ? '+' : ''}${flatMod} modifier)` : ''}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dice.map((d, i) => (
-                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d === 10 ? 'ten' : ''}`} onClick={() => toggleKeep(i)}>
-                  {d}{kept.has(i) && <span className="die-lbl">✓</span>}
+                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleKeep(i)}
+                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : ''}>
+                  {d.total}
+                  {d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
+                  {kept.has(i) && <span className="die-lbl">✓</span>}
                 </div>
               ))}
             </div>
             <div style={{ marginTop: '.75rem', fontSize: 13, color: 'var(--text-muted)' }}>
               {(() => {
-                const runningTotal = [...kept].reduce((s, i) => s + dice[i], 0) + flatMod;
+                const runningTotal = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
                 const wouldSucceed = runningTotal >= tn;
                 return (<>
                   Total: <span style={{ color: kept.size > 0 ? (wouldSucceed ? 'var(--green)' : 'var(--red)') : 'var(--text-primary)', fontWeight: 600 }}>{runningTotal}</span>
@@ -341,11 +318,12 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
               Confirm {kept.size}/{keepCount} {kept.size < keepCount ? `(keeping fewer — may fail)` : ''}
             </button>
             <button className="btn btn-sm" onClick={() => {
-              const newDice = rollN(rollCount);
-              setDice(newDice);
-              const sortedIdx = newDice.map((d, i) => i).sort((a, b) => newDice[b] - newDice[a]);
+              const sortedIdx = dice.map((d, i) => ({ i, v: d.total })).sort((a, b) => b.v - a.v).map(x => x.i);
               setKept(new Set(sortedIdx.slice(0, keepCount)));
             }}>
+              Best {keepCount}
+            </button>
+            <button className="btn btn-sm" onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); }}>
               <i className="ti ti-refresh" /> Reroll
             </button>
           </div>
@@ -361,18 +339,20 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             <span className="modal-label">Damage Dice — click to keep ({dmgKept.size}/{dmgKeep})</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dmgDice.map((d, i) => (
-                <div key={i} className={`die ${dmgKept.has(i) ? 'kept' : ''}`} onClick={() => toggleDmgKeep(i)} style={{ borderColor: 'var(--red-dim)' }}>
-                  {d}{dmgKept.has(i) && <span className="die-lbl" style={{ background: 'var(--red)' }}>✓</span>}
+                <div key={i} className={`die ${dmgKept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleDmgKeep(i)} style={{ borderColor: 'var(--red-dim)' }}>
+                  {d.total}
+                  {d.exploded && <span style={{ fontSize: 9, display: 'block', color: dmgKept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
+                  {dmgKept.has(i) && <span className="die-lbl" style={{ background: 'var(--red)' }}>✓</span>}
                 </div>
               ))}
             </div>
             <div style={{ marginTop: '.75rem', fontSize: 15, fontWeight: 600, color: 'var(--red)' }}>
-              Damage: {[...dmgKept].reduce((s, i) => s + dmgDice[i], 0)} wounds
+              Damage: {[...dmgKept].reduce((s, i) => s + dmgDice[i].total, 0)} wounds
             </div>
           </div>
           <button className="btn btn-p btn-d" disabled={dmgKept.size !== dmgKeep} onClick={confirmDamage}
             style={{ background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' }}>
-            Apply {[...dmgKept].reduce((s, i) => s + dmgDice[i], 0)} Wounds
+            Apply {[...dmgKept].reduce((s, i) => s + dmgDice[i].total, 0)} Wounds
           </button>
         </>)}
 
@@ -393,10 +373,16 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
                 {rollResult.success ? `+${rollResult.margin}` : rollResult.margin}
               </span>
             </div>
-            {raises.length > 0 && (
-              <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: '.75rem' }}>Raises: {raises.join(', ')}</div>
+            {finalDamage !== null && context?.targetName && (
+              <div style={{ marginTop: '.5rem', padding: '.5rem 1rem', background: 'rgba(200,64,48,.12)', border: '1px solid rgba(200,64,48,.4)', borderRadius: 6 }}>
+                <span style={{ fontSize: 24, fontWeight: 900, color: 'var(--red)' }}>{finalDamage}</span>
+                <span style={{ fontSize: 14, color: 'var(--text-muted)', marginLeft: 8 }}>wounds → {context.targetName}</span>
+              </div>
             )}
-            <button className="btn btn-p" style={{ marginTop: '.5rem' }} onClick={onClose}>Close</button>
+            {raises.length > 0 && (
+              <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: '.75rem', marginTop: '.4rem' }}>Raises: {raises.join(', ')}</div>
+            )}
+            <button className="btn btn-p" style={{ marginTop: '.75rem' }} onClick={onClose}>Close</button>
           </div>
         )}
         {phase === 'done' && !rollResult && (

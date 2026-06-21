@@ -161,6 +161,8 @@ export default function SettingsTab({ onWipe = {} }) {
 
   const SETTINGS = ['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"];
   const [mapUrl, setMapUrl] = useState('https://i.imgur.com/6fuMHqq.jpeg');
+  const [mapUrlNight, setMapUrlNight] = useState('');
+  const [musicUrl, setMusicUrl] = useState('');
   const [settingUrls, setSettingUrls] = useState({});
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
@@ -169,6 +171,8 @@ export default function SettingsTab({ onWipe = {} }) {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings) {
         if (data.settings.map_url) setMapUrl(data.settings.map_url);
+        if (data.settings.map_url_night) setMapUrlNight(data.settings.map_url_night);
+        if (data.settings.music_url) setMusicUrl(data.settings.music_url);
         if (data.settings.setting_urls) setSettingUrls(data.settings.setting_urls);
         if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2', ...data.settings.round_limits });
       }
@@ -178,7 +182,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, setting_urls: settingUrls, round_limits: roundLimits } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -258,7 +262,7 @@ export default function SettingsTab({ onWipe = {} }) {
 
         {/* Map background */}
         <div style={{ marginBottom: '.75rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>City Map (Map Tab)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>City Map — Day (Map Tab)</div>
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <input value={mapUrl} onChange={e => setMapUrl(e.target.value)}
               placeholder="https://i.imgur.com/6fuMHqq.jpeg"
@@ -267,6 +271,33 @@ export default function SettingsTab({ onWipe = {} }) {
               onClick={() => setMapUrl('https://i.imgur.com/6fuMHqq.jpeg')}
               title="Reset to default map">↺</button>
           </div>
+        </div>
+
+        {/* Night map background */}
+        <div style={{ marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>
+            City Map — Night <span style={{ fontWeight: 400 }}>(auto-switches at Evening &amp; Night)</span>
+          </div>
+          <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+            <input value={mapUrlNight} onChange={e => setMapUrlNight(e.target.value)}
+              placeholder="https://... (night/evening variant)"
+              style={{ flex: 1, fontSize: 12 }} />
+            {mapUrlNight && (
+              <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }}
+                onClick={() => setMapUrlNight('')}
+                title="Clear night map">✕</button>
+            )}
+          </div>
+        </div>
+
+        {/* Background music */}
+        <div style={{ marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>
+            Background Music URL <span style={{ fontWeight: 400 }}>(mp3/ogg — toggle ♪ in top bar)</span>
+          </div>
+          <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)}
+            placeholder="https://... (direct .mp3 or .ogg link)"
+            style={{ width: '100%', fontSize: 12 }} />
         </div>
 
         {/* Per-setting backgrounds */}

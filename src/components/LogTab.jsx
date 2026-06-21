@@ -140,13 +140,21 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                     )}
 
                     {/* Past session recap */}
-                    {isPast && Object.values(recap).some(v => v?.trim()) && (
+                    {isPast && (
                       <div style={{ marginBottom: '.6rem' }}>
-                        {recap.event && <RecapRow label="Key Event" value={recap.event} />}
-                        {recap.npcs && <RecapRow label="Key NPCs" value={recap.npcs} />}
-                        {recap.factions && <RecapRow label="Faction Changes" value={recap.factions} />}
-                        {recap.loot && <RecapRow label="Loot / Rewards" value={recap.loot} />}
-                        {recap.changes && <RecapRow label="Character Changes" value={recap.changes} />}
+                        {recap._stamp && (
+                          <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: '.4rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <i className="ti ti-calendar" style={{ fontSize: 11 }} />
+                            {recap._stamp}
+                          </div>
+                        )}
+                        {Object.values(recap).some(v => v && typeof v === 'string' && v.trim()) && (<>
+                          {recap.event && <RecapRow label="Key Event" value={recap.event} />}
+                          {recap.npcs && <RecapRow label="Key NPCs" value={recap.npcs} />}
+                          {recap.factions && <RecapRow label="Faction Changes" value={recap.factions} />}
+                          {recap.loot && <RecapRow label="Loot / Rewards" value={recap.loot} />}
+                          {recap.changes && <RecapRow label="Character Changes" value={recap.changes} />}
+                        </>)}
                       </div>
                     )}
 

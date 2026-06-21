@@ -265,7 +265,9 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
 }
 
 // ── Main Map Tab ──────────────────────────────────────────────────────────────
-export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin, onDeletePin }) {
+export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin, onDeletePin, timeOfDay }) {
+  const NIGHT_TIMES = ['Evening', 'Night'];
+  const isNight = NIGHT_TIMES.includes(timeOfDay);
   const [layer, setLayer] = useState('surface');
   const [selected, setSelected] = useState(null);
   const [placing, setPlacing] = useState(false);
@@ -275,18 +277,21 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const [newPinPos, setNewPinPos] = useState(null);
   const [editingPin, setEditingPin] = useState(null);
   const [imgAspect, setImgAspect] = useState(null);
-  const [mapImage, setMapImage] = useState(DEFAULT_MAP);
+  const [mapImageDay, setMapImageDay] = useState(DEFAULT_MAP);
+  const [mapImageNight, setMapImageNight] = useState('');
+  const mapImage = (isNight && mapImageNight) ? mapImageNight : mapImageDay;
   const mapRef = useRef(null);
   // Drag state
-  const dragRef = useRef(null); // { pinId, startX, startY }
+  const dragRef = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
-  const [dragPos, setDragPos] = useState(null); // { x%, y% } live position during drag
+  const [dragPos, setDragPos] = useState(null);
   const gmView = isGM && !isPCView;
 
-  // Load custom map URL from games settings
+  // Load map URLs from games settings
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
-      if (data?.settings?.map_url) setMapImage(data.settings.map_url);
+      if (data?.settings?.map_url) setMapImageDay(data.settings.map_url);
+      if (data?.settings?.map_url_night) setMapImageNight(data.settings.map_url_night);
     });
   }, []);
 
@@ -402,10 +407,22 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
             {placing ? 'Cancel' : 'Place Pin'}
           </button>
         )}
+        {isNight && (
+          <span style={{ fontSize: 11, color: '#8080c8', border: '1px solid #4040a8', borderRadius: 3, padding: '1px 6px' }}>
+            🌙 {timeOfDay} — {mapImageNight ? 'Night map' : 'No night map set'}
+          </span>
+        )}
         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
           {visiblePins.length} pin{visiblePins.length !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {/* Imgur album URL warning */}
+      {isNight && mapImageNight && mapImageNight.includes('imgur.com/a/') && (
+        <div style={{ padding: '.35rem .75rem', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.4)', borderRadius: 4, marginBottom: '.5rem', fontSize: 12, color: 'var(--red)' }}>
+          ⚠ Night map URL looks like an Imgur album link — needs a direct image URL (e.g. https://i.imgur.com/XXXXX.jpg). Right-click the image in the album → Copy image address.
+        </div>
+      )}
 
       {placing && !newPinPos && (
         <div style={{ padding: '.35rem .75rem', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.5rem', fontSize: 13, color: 'var(--gold)' }}>
@@ -419,56 +436,61 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         </div>
       )}
 
-      {/* Map container */}
-      <div
-        className="map-con"
-        ref={mapRef}
-        onClick={handleMapClick}
-        style={{
-          cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : 'default',
-          height: 'auto',
-          aspectRatio: imgAspect ? `${imgAspect}` : '4/3',
-          maxHeight: '70vh',
-        }}
-      >
-        {/* Image */}
+      {/* Map container — aspect ratio locked to image, NO max-height (it breaks ring/pin alignment) */}
+      <div style={{
+        position: 'relative', width: '100%',
+        aspectRatio: imgAspect ? `${imgAspect}` : '4/3',
+        overflow: 'hidden', borderRadius: 6,
+        background: '#1a1208',
+      }}>
+        <div
+          className="map-con"
+          ref={mapRef}
+          onClick={handleMapClick}
+          style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : 'default',
+          }}
+        >
+        {/* Image — objectFit:contain so no cropping, pins always match their placed position */}
         {layer === 'surface' && (
           <img src={mapImage} alt="Medinaat al-Salaam"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
             onError={e => { e.target.style.display = 'none'; }}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'fill' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
           />
         )}
 
-        {/* Underground — darkened version of same map */}
+        {/* Underground — darkened version */}
         {layer === 'underground' && (
           <img src={mapImage} alt="Underground"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'fill', filter: 'brightness(0.25) saturate(0.4)' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(0.25) saturate(0.4)' }}
           />
         )}
 
-        {/* Ring overlays */}
+        {/* Ring overlays — viewBox 100×100, preserveAspectRatio:none maps 1:1 to container pixels
+             ry = % of container height, rx = ry/imgAspect → perfect circles on screen */}
         {layer === 'surface' && imgAspect && (() => {
-          const W = 100, H = +(100 / imgAspect).toFixed(4), cx = 50, cy = 50;
-          const ring = (rx, label) => {
-            const ry = +(rx / imgAspect * 0.9).toFixed(2);
-            const ty = +(cy - ry - 1).toFixed(2);
-            return <g key={rx}>
-              <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="none" stroke="#e8b840" strokeWidth=".5" strokeDasharray="2,1.5" opacity=".55" />
-              <text x={cx} y={ty} textAnchor="middle" fill="#e8b840" fontSize="2.5" fontFamily="Georgia,serif" filter="url(#ts)" opacity=".9">{label}</text>
+          const ring = (ry, label) => {
+            const rx = +(ry / imgAspect).toFixed(2);
+            return <g key={ry}>
+              <ellipse cx={50} cy={50} rx={rx} ry={ry} fill="none" stroke="#e8b840" strokeWidth=".4" strokeDasharray="1.5,1" opacity=".65" />
+              <text x={50} y={+(50 - ry - 1).toFixed(1)} textAnchor="middle" fill="#e8b840" fontSize="2.2" fontFamily="Georgia,serif" filter="url(#ts)" opacity=".9">{label}</text>
             </g>;
           };
+          const palRy = 9;
+          const palRx = +(palRy / imgAspect).toFixed(2);
           return (
-            <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-              <defs><filter id="ts"><feDropShadow dx="0" dy="0" stdDeviation="1" floodColor="#000" floodOpacity=".9" /></filter></defs>
-              {ring(42, 'Outer City')}
-              {ring(32, 'Merchant District')}
-              {ring(23, 'Faction Quarter')}
-              {ring(15, 'Noble District')}
-              <ellipse cx={cx} cy={cy} rx="8" ry={+(8/imgAspect*0.9).toFixed(2)} fill="rgba(200,150,42,.06)" stroke="#e8b840" strokeWidth=".8" opacity=".85" />
-              <text x={cx} y={cy + 0.5} textAnchor="middle" fill="#e8b840" fontSize="2.8" fontFamily="Georgia,serif" fontWeight="bold" filter="url(#ts)">Palace</text>
+              <defs><filter id="ts"><feDropShadow dx="0" dy="0" stdDeviation=".8" floodColor="#000" floodOpacity=".9" /></filter></defs>
+              {ring(44, 'Outer City')}
+              {ring(34, 'Merchant District')}
+              {ring(25, 'Faction Quarter')}
+              {ring(17, 'Noble District')}
+              <ellipse cx={50} cy={50} rx={palRx} ry={palRy} fill="rgba(200,150,42,.06)" stroke="#e8b840" strokeWidth=".7" opacity=".85" />
+              <text x={50} y={51} textAnchor="middle" fill="#e8b840" fontSize="2.5" fontFamily="Georgia,serif" fontWeight="bold" filter="url(#ts)">Palace</text>
             </svg>
           );
         })()}
@@ -528,6 +550,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           </div>
         )}
       </div>
+      </div>{/* end aspect-ratio wrapper */}
 
       {/* Pin Legend — right of map, sorted by type */}
       {visiblePins.length > 0 && (

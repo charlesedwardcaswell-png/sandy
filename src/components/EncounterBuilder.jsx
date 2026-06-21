@@ -19,6 +19,7 @@ export const NPC_BY_FACTION = {
   'Ebonites':     ['Ebonite Templar'],
   'Jackals':      ['Jani','Necromancer','Kabir'],
   'Independent':  ['Alley Thug','Street Rat'],
+  'Creatures':    ['Ghul','Jinn','Greater Jinn','Undead Soldier','Giant Scorpion','Desert Wraith','Ivory Kingdoms Beast','Blood-Drinker'],
 };
 
 const SETTING_FACTIONS = {

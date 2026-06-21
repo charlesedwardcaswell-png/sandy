@@ -116,7 +116,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 .eq-row { display: flex; align-items: center; gap: .5rem; padding: 3px 0; border-bottom: 1px solid rgba(107,78,40,.2); font-size: 13px; }
 
 /* ── Modal ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
 .modal-title { font-size: 16px; font-weight: 600; color: var(--gold); margin-bottom: 1rem; }
 .modal-section { margin-bottom: 1rem; }

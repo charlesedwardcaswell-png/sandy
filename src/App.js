@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
+import { supabase } from './lib/supabase';
 import { AuthScreen } from './components/AuthScreen';
 import { Loading } from './components/UI';
 import { playYourTurn } from './lib/sounds';
@@ -14,7 +15,8 @@ import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
-import { BOOK_TOC, DRIVE_FOLDER_URL } from './data/constants';
+import DuelPane from './components/DuelPane';
+import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID } from './data/constants';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
@@ -108,6 +110,7 @@ function BookDropdown() {
 
 export default function App() {
   const [authMode, setAuthMode] = useState(() => localStorage.getItem('sandy_auth_mode') || null);
+  const [playerUsername, setPlayerUsername] = useState(() => localStorage.getItem('sandy_player_username') || '');
   const isGM = authMode === 'gm';
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
@@ -135,7 +138,7 @@ export default function App() {
     if (session?.encounter_data) {
       setEncounter(session.encounter_data);
     } else if (session && !session.encounter_data) {
-      setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1 });
+      setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, encounterDataJson, isGM]);
@@ -160,17 +163,30 @@ export default function App() {
 
   const [ticker, setTicker] = useState([]);
   const [fullEventLog, setFullEventLog] = useState([]);
+  const audioRef = useRef(null);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicUrl, setMusicUrlState] = useState('');
+
+  // Load music URL from games settings on mount
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.music_url) setMusicUrlState(data.settings.music_url);
+    });
+  }, []);
 
   const push = (icon, text, opts = {}) => {
-    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date().toISOString(), highlight: !!opts.highlight };
+    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date().toISOString(), highlight: !!opts.highlight, gmOnly: !!opts.gmOnly };
     setTicker(prev => [entry, ...prev].slice(0, 20));
-    setFullEventLog(prev => {
-      const next = [entry, ...prev];
-      return next;
-    });
+    setFullEventLog(prev => [entry, ...prev]);
   };
 
-  const [tab, setTab] = useState('character');
+  // tab state — persisted in localStorage so players return to last tab on reload
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sandy_tab');
+      return saved && ['character','encounter','map','npc','quest','party','log','settings'].includes(saved) ? saved : 'character';
+    } catch { return 'character'; }
+  });
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
   const [viewCharId, setViewCharId] = useState(null);
@@ -220,7 +236,7 @@ export default function App() {
     return (
       <AuthScreen
         onGMLogin={() => { localStorage.setItem('sandy_auth_mode', 'gm'); setAuthMode('gm'); }}
-        onPlayerLogin={() => { localStorage.setItem('sandy_auth_mode', 'player'); setAuthMode('player'); }}
+        onPlayerLogin={(username) => { localStorage.setItem('sandy_auth_mode', 'player'); localStorage.setItem('sandy_player_username', username || 'Player'); setAuthMode('player'); setPlayerUsername(username || 'Player'); }}
         onObserver={() => { localStorage.setItem('sandy_auth_mode', 'observer'); setAuthMode('observer'); }}
       />
     );
@@ -236,20 +252,24 @@ export default function App() {
     localStorage.setItem('sandy_my_char_id', id);
     setMyCharId(id);
     const char = characters.find(c => c.id === id);
-    if (char) push('ti-user-check', `Playing as ${char.name}`);
+    if (char) {
+      push('ti-user-check', `Playing as ${char.name}`, { gmOnly: true });
+      // Write player_name to Supabase so it shows on the character sheet for everyone
+      if (playerUsername) updateCharacter(id, { player_name: playerUsername });
+    }
   };
 
   const handleUpdateChar = async (id, updates) => { await updateCharacter(id, updates); };
   const handleCreateChar = async (charData) => {
     const result = await createCharacter(charData);
-    if (result) push('ti-user-plus', `New character created: ${result.name}`);
+    if (result) push('ti-user-plus', `New character created: ${result.name}`, { gmOnly: true });
     return result;
   };
   const handleDeleteChar = async (id) => { await deleteCharacter(id); };
 
   const handleCreateNPC = async (npcData) => {
     const result = await createNPC(npcData);
-    if (result) push('ti-user-bolt', `NPC added: ${result.name}`);
+    if (result) push('ti-user-bolt', `NPC added: ${result.name}`, { gmOnly: true });
     return result;
   };
 
@@ -278,7 +298,7 @@ export default function App() {
     return result;
   };
 
-  const handleSessionEnd = async ({ xpAmount, xpReason, selectedCharIds, copperAward, recap }) => {
+  const handleSessionEnd = async ({ xpAmount, xpReason, selectedCharIds, copperAward, recap, integrityAwards = {}, repAwards = {} }) => {
     if (xpAmount > 0) {
       for (const charId of selectedCharIds) {
         const c = characters.find(x => x.id === charId);
@@ -289,16 +309,43 @@ export default function App() {
       const names = selectedCharIds.map(id => characters.find(c => c.id === id)?.name).filter(Boolean).join(', ');
       push('ti-star', `${xpAmount} XP granted to ${names || 'selected characters'} — ${xpReason}`);
     }
+
+    // Apply Integrity averaging and Reputation setting per character
+    for (const charId of selectedCharIds) {
+      const c = characters.find(x => x.id === charId);
+      if (!c) continue;
+      const updates = {};
+      // Integrity — average current with GM value
+      const gmInt = integrityAwards[charId];
+      if (gmInt !== '' && gmInt !== undefined && !isNaN(+gmInt)) {
+        const curInt = Number(c.integrity) || 0;
+        updates.integrity = Math.round(((curInt + +gmInt) / 2) * 10) / 10;
+        push('ti-award', `${c.name} integrity ${curInt.toFixed(1)} → ${updates.integrity.toFixed(1)}`);
+      }
+      // Reputation — direct whole number set by GM
+      const gmRep = repAwards[charId];
+      if (gmRep !== '' && gmRep !== undefined && !isNaN(+gmRep)) {
+        updates.reputation = Math.round(+gmRep);
+        push('ti-shield-star', `${c.name} reputation set to ${updates.reputation}`);
+      }
+      if (Object.keys(updates).length > 0) {
+        await updateCharacter(charId, updates);
+      }
+    }
+
     if (copperAward > 0) {
       await updateInventory({ copper: (inventory.copper || 0) + copperAward });
       push('ti-coin', `${copperAward} copper added to party treasury`);
     }
     if (session) {
-      // Save event log before closing session
       if (ticker.length > 0) {
-        await saveEventLog(session.id, ticker.map(e => ({ icon: e.icon, text: e.text, ts: e.ts.toISOString() })));
+        await saveEventLog(session.id, ticker.map(e => ({ icon: e.icon, text: e.text, ts: typeof e.ts === 'string' ? e.ts : e.ts.toISOString() })));
       }
-      await endSession(session.id, JSON.stringify(recap));
+      const stampedRecap = {
+        ...recap,
+        _stamp: `Week ${campaignWeek}, Day ${campaignDay} — ${timeOfDay}`,
+      };
+      await endSession(session.id, JSON.stringify(stampedRecap));
     }
     push('ti-books', `Session ${sessionNum} archived`);
     clearTimeout(saveTimer.current);
@@ -329,6 +376,10 @@ export default function App() {
   };
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...(gmView ? ['settings'] : [])];
+  const handleTabChange = (id) => {
+    setTab(id);
+    try { localStorage.setItem('sandy_tab', id); } catch {}
+  };
 
   return (
     <div className="app">
@@ -362,6 +413,17 @@ export default function App() {
           </label>
         )}
         <BookDropdown />
+        {musicUrl && (
+          <button onClick={() => {
+            const a = audioRef.current;
+            if (!a) return;
+            if (musicPlaying) { a.pause(); setMusicPlaying(false); }
+            else { a.play().catch(() => {}); setMusicPlaying(true); }
+          }} title={musicPlaying ? 'Pause music' : 'Play music'}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, color: musicPlaying ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer', padding: '3px 8px', fontSize: 13 }}>
+            <i className={`ti ${musicPlaying ? 'ti-player-pause' : 'ti-player-play'}`} style={{ fontSize: 14 }} />
+          </button>
+        )}
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
@@ -384,7 +446,7 @@ export default function App() {
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Wk</span>
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 14, textAlign: 'center' }}>{campaignWeek}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day</span>
-            <button className="rep-btn" onClick={() => handleSetDay(Math.max(1, campaignDay - 1))}>−</button>
+            <button className="rep-btn" onClick={() => handleSetDay(campaignDay - 1)}>−</button>
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
             <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
           </div>
@@ -402,14 +464,14 @@ export default function App() {
 
       <div className="tabbar">
         {TABS.map(id => (
-          <div key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
+          <div key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)}>
             {id.charAt(0).toUpperCase() + id.slice(1)}
             {id === 'encounter' && encActive && <span className="tab-dot" />}
           </div>
         ))}
       </div>
 
-      <div className="content" style={{ paddingBottom: ticker.length > 0 ? '3rem' : '1.25rem' }}>
+      <div className="content" style={{ paddingBottom: (gmView ? ticker : ticker.filter(e => !e.gmOnly)).length > 0 ? '3rem' : '1.25rem' }}>
         {tab === 'character' && (
           <CharacterTab
             isGM={isGM} isPCView={isPCView}
@@ -451,6 +513,7 @@ export default function App() {
             onCreatePin={createPin}
             onUpdatePin={updatePin}
             onDeletePin={deletePin}
+            timeOfDay={timeOfDay}
           />
         )}
         {tab === 'npc' && (
@@ -464,7 +527,7 @@ export default function App() {
             onUpdateRep={handleUpdateRep}
             encounter={encounter}
             setEncounter={handleSetEncounter}
-            onViewCharacter={(charId) => { setViewCharId(charId); setTab('character'); }}
+            onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
           />
         )}
         {tab === 'quest' && (
@@ -596,6 +659,24 @@ export default function App() {
         );
       })()}
 
+      {/* Background music player — hidden, controlled by toggle button */}
+      {musicUrl && (
+        <audio ref={audioRef} src={musicUrl} loop style={{ display: 'none' }}
+          onEnded={() => setMusicPlaying(false)} />
+      )}
+
+      {/* Global Duel Pane — full-screen overlay, all players see it */}
+      {encounter.duelState && (
+        <DuelPane
+          duel={encounter.duelState}
+          myCharId={myCharId}
+          isGM={isGM && !isPCView}
+          pcsMap={safeChars.reduce((acc, c) => ({ ...acc, [c.id]: c }), {})}
+          onUpdate={(patch) => handleSetEncounter(e => ({ ...e, duelState: { ...e.duelState, ...patch } }))}
+          onClose={() => handleSetEncounter(e => ({ ...e, duelState: null }))}
+        />
+      )}
+
       {/* Global Dice Modal — accessible from any tab */}
       {globalModal && (
         <DiceModal
@@ -647,33 +728,37 @@ export default function App() {
         );
       })()}
 
-      {/* Event Ticker */}
-      {ticker.length > 0 && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90,
-          background: 'rgba(24,16,6,.97)', borderTop: '1px solid var(--border)',
-          padding: '0 1rem', height: '2.25rem',
-          display: 'flex', alignItems: 'center', gap: '1.5rem',
-          overflow: 'hidden',
-        }}>
-          <span style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>Events</span>
-          <div style={{ display: 'flex', gap: '1.5rem', overflow: 'hidden', alignItems: 'center', flex: 1 }}>
-            {ticker.slice(0, 5).map((e, i) => (
-              <span key={e.id} className={e.highlight ? 'ticker-mine' : ''} style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: e.highlight ? 17 : 13,
-                fontWeight: e.highlight ? 700 : 400,
-                color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--text-primary)' : 'var(--text-muted)'),
-                flexShrink: 0, opacity: e.highlight ? 1 : 1 - i * 0.18,
-              }}>
-                <i className={`ti ${e.icon}`} style={{ fontSize: e.highlight ? 17 : 13, color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--gold)' : 'var(--text-muted)') }} />
-                {e.text}
-              </span>
-            ))}
+      {/* Event Ticker — gmOnly events hidden from players */}
+      {(() => {
+        const visibleTicker = gmView ? ticker : ticker.filter(e => !e.gmOnly);
+        if (visibleTicker.length === 0) return null;
+        return (
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90,
+            background: 'rgba(24,16,6,.97)', borderTop: '1px solid var(--border)',
+            padding: '0 1rem', height: '2.25rem',
+            display: 'flex', alignItems: 'center', gap: '1.5rem',
+            overflow: 'hidden',
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>Events</span>
+            <div style={{ display: 'flex', gap: '1.5rem', overflow: 'hidden', alignItems: 'center', flex: 1 }}>
+              {visibleTicker.slice(0, 5).map((e, i) => (
+                <span key={e.id} className={e.highlight ? 'ticker-mine' : ''} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: e.highlight ? 17 : 13,
+                  fontWeight: e.highlight ? 700 : 400,
+                  color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--text-primary)' : 'var(--text-muted)'),
+                  flexShrink: 0, opacity: e.highlight ? 1 : 1 - i * 0.18,
+                }}>
+                  <i className={`ti ${e.icon}`} style={{ fontSize: e.highlight ? 17 : 13, color: e.highlight ? 'var(--gold)' : (i === 0 ? 'var(--gold)' : 'var(--text-muted)') }} />
+                  {e.text}
+                </span>
+              ))}
+            </div>
+            <button onClick={() => setTicker([])} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, flexShrink: 0, padding: 0 }}>×</button>
           </div>
-          <button onClick={() => setTicker([])} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, flexShrink: 0, padding: 0 }}>×</button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

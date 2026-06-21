@@ -25,12 +25,14 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
     }
   }, [jumpToCharId, characters, onClearJump]);
 
-  // Set initial selection
+  // Set initial selection — prefer myCharId (claimed character) over first non-NPC character
   useEffect(() => {
     if (characters.length > 0 && !selId) {
-      setSelId(characters[0].id);
+      const claimed = myCharId && characters.find(c => c.id === myCharId && !c.is_npc);
+      const firstPc = characters.find(c => !c.is_npc);
+      setSelId(claimed ? claimed.id : firstPc ? firstPc.id : null);
     }
-  }, [characters, selId]);
+  }, [characters, selId, myCharId]);
 
   // Player view — see all characters, create own, edit any (honour system)
   if (!isGM && !isPCView) {
@@ -46,12 +48,14 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       );
     }
 
+    const playerChars = characters.filter(c => !c.is_npc);
+
     return (
       <div>
         <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-          {characters.length > 0 && (
+          {playerChars.length > 0 && (
             <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)} style={{ flex: 1 }}>
-              {characters.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              {playerChars.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
             </select>
           )}
           <button className="btn btn-sm btn-p" onClick={() => setView('create')}>
@@ -71,16 +75,18 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             </button>
           )}
         </div>
-        {characters.length === 0 && (
+        {playerChars.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
             No characters yet — create yours above.
           </div>
         )}
-        {selId && characters.find(c => c.id === selId) && (
+        {selId && characters.find(c => c.id === selId && !c.is_npc) && (
           <CharacterSheet
             char={characters.find(c => c.id === selId)}
             isGM={false} canEdit={true}
             onUpdate={onUpdateCharacter}
+            myCharId={myCharId}
+            onClaimCharacter={onClaimCharacter}
           />
         )}
       </div>
@@ -110,36 +116,54 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
 
       {view === 'sheet' && (characters.length > 0 || (npcs?.length || 0) > 0) && (
           <>
-            {/* PC selector */}
+            {/* 1 — Player Characters */}
             {characters.filter(c => !c.is_npc).length > 0 && (
-              <select className="pc-sel" value={(!selNpcId && !characters.find(c => c.id === selId)?.is_npc) ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}>
+              <select className="pc-sel"
+                value={(!selNpcId && selId && !characters.find(c => c.id === selId)?.is_npc) ? selId : ''}
+                onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}>
                 <option value="" disabled>Player Characters</option>
-                {characters.filter(c => !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+                {characters.filter(c => !c.is_npc).map(c => (
+                  <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>
+                ))}
               </select>
             )}
-            {/* NPC selector (full character sheet NPCs) */}
+            {/* 2 — Full NPC sheets (GM only) */}
             {characters.filter(c => c.is_npc).length > 0 && (
-              <select className="pc-sel" value={(!selNpcId && characters.find(c => c.id === selId)?.is_npc) ? selId || '' : ''} onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }} style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
-                <option value="" disabled>Full NPCs</option>
-                {characters.filter(c => c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              <select className="pc-sel"
+                value={(!selNpcId && selId && characters.find(c => c.id === selId)?.is_npc) ? selId : ''}
+                onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}
+                style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
+                <option value="" disabled>Full NPC Sheets</option>
+                {characters.filter(c => c.is_npc).map(c => (
+                  <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>
+                ))}
               </select>
             )}
-            {/* Library NPC selector (lightweight quick-add NPCs) */}
+            {/* 3 — Library (quick) NPCs */}
             {(npcs?.length || 0) > 0 && (
               <select className="pc-sel" value={selNpcId || ''} onChange={e => { setSelNpcId(e.target.value || null); setShowDel(0); }} style={{ borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}>
                 <option value="">Library NPCs</option>
                 {npcs.map(n => <option key={n.id} value={n.id}>{n.name} — {n.faction}</option>)}
               </select>
             )}
-            {!selNpcId && (
-              <button className="btn btn-sm btn-d" onClick={() => setShowDel(s => s < 2 ? s + 1 : s)}>
-                {showDel === 0 ? 'Delete' : showDel === 1 ? 'Really?' : 'CONFIRM'}
-              </button>
-            )}
-            {showDel === 2 && char && (
-              <button className="btn btn-sm btn-d" onClick={async () => { await onDeleteCharacter(char.id); setSelId(null); setShowDel(0); }}>
-                Yes, delete {char.name}
-              </button>
+            {/* GM-only delete — single clean confirmation flow */}
+            {isGM && !isPCView && !selNpcId && (
+              <>
+                {showDel === 0 && (
+                  <button className="btn btn-sm btn-d" onClick={() => setShowDel(1)}>
+                    Delete
+                  </button>
+                )}
+                {showDel === 1 && char && (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--red)' }}>Delete {char.name}?</span>
+                    <button className="btn btn-sm btn-d" onClick={async () => { await onDeleteCharacter(char.id); setSelId(null); setShowDel(0); }}>
+                      Yes, delete
+                    </button>
+                    <button className="btn btn-sm" onClick={() => setShowDel(0)}>Cancel</button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -240,7 +264,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       })()}
       {view === 'sheet' && !selNpcId && (
         char
-          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} />
+          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
       )}
 
@@ -307,20 +331,15 @@ function AddSkillControl({ char, onAdd }) {
 function RankUpOverlay({ char, newRank, onConfirm }) {
   const [choice, setChoice] = useState(null); // { school, techName, techDesc }
 
+  // Only the current school's technique and Rank 1 of any other school are valid choices
   const currentSchoolTech = SCHOOL_DATA[char.school]?.techniques?.[newRank];
   const currentSchoolDesc = TECHNIQUE_DESCRIPTIONS[currentSchoolTech] || '';
 
-  // Every other school's Rank 1
+  // Rank 1 of every other school (multi-school option)
   const allSchoolRank1 = Object.entries(SCHOOL_DATA)
     .filter(([s]) => s !== char.school)
     .map(([s, sd]) => ({ school: s, techName: sd.techniques?.[1], techDesc: TECHNIQUE_DESCRIPTIONS[sd.techniques?.[1]] || '' }))
     .filter(x => x.techName);
-
-  // Any school that has a technique AT this exact rank (paths/alternate progressions)
-  const othersAtRank = newRank > 1 ? Object.entries(SCHOOL_DATA)
-    .filter(([s]) => s !== char.school)
-    .map(([s, sd]) => ({ school: s, techName: sd.techniques?.[newRank], techDesc: TECHNIQUE_DESCRIPTIONS[sd.techniques?.[newRank]] || '' }))
-    .filter(x => x.techName) : [];
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.96)', zIndex: 300, display: 'flex', flexDirection: 'column', padding: '2rem', overflowY: 'auto' }}>
@@ -341,21 +360,10 @@ function RankUpOverlay({ char, newRank, onConfirm }) {
           </div>
         )}
 
-        {/* Option B — Other schools at this rank (paths with this rank, etc.) */}
-        {othersAtRank.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.5rem' }}>Alternate Path — Rank {newRank}</div>
-            {othersAtRank.map(x => (
-              <TechOption key={x.school} label={x.school} name={x.techName} desc={x.techDesc}
-                selected={choice?.techName === x.techName}
-                onSelect={() => setChoice(x)} />
-            ))}
-          </div>
-        )}
-
-        {/* Option C — Rank 1 of any other school */}
+        {/* Option B — Rank 1 of any other school (multi-school) */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.5rem' }}>Begin a New School — Rank 1</div>
+          <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>Begin a New School — Rank 1</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', fontStyle: 'italic' }}>Takes you into another tradition. You forfeit your current school's Rank {newRank} technique.</div>
           <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
             {allSchoolRank1.map(x => (
               <TechOption key={x.school} label={`${x.school} — Rank 1`} name={x.techName} desc={x.techDesc}
@@ -420,7 +428,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
     const cartKey = `trait_${traitKey}`;
     const alreadyPending = cart[cartKey];
     const effectiveFrom = alreadyPending ? alreadyPending.to : currentVal;
-    if (effectiveFrom >= 5) return; // max trait
+    if (effectiveFrom >= 10) return; // max trait
     const to = effectiveFrom + 1;
     const cost = traitXpCost(effectiveFrom);
     setCart(c => ({ ...c, [cartKey]: { type: 'trait', key: traitKey, from: currentVal, to, cost: (alreadyPending?.cost || 0) + cost, label: traitKey.charAt(0).toUpperCase() + traitKey.slice(1) } }));
@@ -595,7 +603,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 }
 
 // ── Character Sheet ───────────────────────────────────────────────────────────
-function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq }) {
+function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
   const xpAvail = (char.xp_total || 0) - (char.xp_spent || 0);
   const [showXpPanel, setShowXpPanel] = useState(false);
@@ -604,7 +612,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const insight = calcInsight(char);
   const insightRank = insightRankFor(insight);
   // Show rank-up overlay if insight qualifies for a higher rank than current school_rank
-  const needsRankUp = insightRank > (char.school_rank || 1) && (char.school_rank || 1) < 5;
+  const needsRankUp = insightRank > (char.school_rank || 1);
 
   const update = (field, value) => onUpdate(char.id, { [field]: value });
 
@@ -647,6 +655,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   useEffect(() => { setImgError(false); }, [avatarUrl]);
   const [urlDraft, setUrlDraft] = useState(char.avatar_url || '');
   useEffect(() => { setUrlDraft(char.avatar_url || ''); }, [char.id, char.avatar_url]);
+  const [tokenDraft, setTokenDraft] = useState(char.token_url || '');
+  useEffect(() => { setTokenDraft(char.token_url || ''); }, [char.id, char.token_url]);
 
   const woundLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
   const woundColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
@@ -701,6 +711,32 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           }}
         />
       )}
+
+      {/* ── Player name banner ── */}
+      {(() => {
+        const isMine = myCharId === char.id;
+        const playerName = char.player_name;
+        if (playerName) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: isMine ? 'rgba(74,138,64,.15)' : 'var(--bg-dark)', borderRadius: 5, border: `1px solid ${isMine ? 'rgba(74,138,64,.4)' : 'var(--border)'}` }}>
+              <i className="ti ti-user-check" style={{ fontSize: 16, color: isMine ? 'var(--green)' : 'var(--gold-dim)' }} />
+              <span style={{ fontSize: 20, fontWeight: 800, color: isMine ? 'var(--green)' : 'var(--text-primary)', letterSpacing: '.02em' }}>{playerName}</span>
+              {isMine && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 2, fontStyle: 'italic' }}>— your character</span>}
+            </div>
+          );
+        } else if (onClaimCharacter && !isGM) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: 'rgba(200,150,42,.08)', borderRadius: 5, border: '1px solid rgba(200,150,42,.35)' }}>
+              <i className="ti ti-user-question" style={{ fontSize: 18, color: 'var(--gold-dim)' }} />
+              <span style={{ fontSize: 14, color: 'var(--text-muted)', flex: 1 }}>No player has claimed this character</span>
+              <button className="btn btn-p" style={{ fontSize: 13, padding: '.35rem .75rem' }} onClick={() => onClaimCharacter(char.id)}>
+                <i className="ti ti-user-check" style={{ fontSize: 13, marginRight: 4 }} />Claim as Mine
+              </button>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* ── Top card: Name/Avatar + Rings + Wounds ── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
@@ -768,11 +804,16 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             {/* Avatar picker */}
             {showAvatarPicker && canEdit && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Portrait URL <span style={{ fontWeight: 400 }}>(optional — overrides the icon below if set)</span></div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Portrait URL <span style={{ fontWeight: 400 }}>(card portrait in encounters)</span></div>
                 <input type="text" value={urlDraft} onChange={e => setUrlDraft(e.target.value)}
                   onBlur={() => { if (urlDraft !== (char.avatar_url || '')) update('avatar_url', urlDraft); }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                   placeholder="https://..." style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Token URL <span style={{ fontWeight: 400 }}>(grid map token — 64×64px GIF/PNG works best)</span></div>
+                <input type="text" value={tokenDraft} onChange={e => setTokenDraft(e.target.value)}
+                  onBlur={() => { if (tokenDraft !== (char.token_url || '')) update('token_url', tokenDraft); }}
+                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+                  placeholder="https://... (leave blank to use silhouette)" style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem' }}>
                   {AVATAR_TYPES.map(at => (
                     <div key={at.id} onClick={() => update('avatar_type', at.id)} title={at.label}
@@ -790,36 +831,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <button className="btn btn-sm" style={{ marginTop: '.4rem', fontSize: 11 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Integrity <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{char.integrity}</span></span>
-            </div>
-            {/* Reputation & Status — prominent */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-              <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid #a07830', borderRadius: 5, padding: '3px 10px', minWidth: 52 }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: '#c8a040', lineHeight: 1 }}>{char.reputation ?? 1}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Rep</div>
-              </div>
-              <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid #6080a0', borderRadius: 5, padding: '3px 10px', minWidth: 52 }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: '#80a8c8', lineHeight: 1 }}>{char.status ?? 1}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Status</div>
-              </div>
-              {canEdit && isGM && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="rep-btn" onClick={() => update('reputation', Math.max(0, (char.reputation || 1) - 1))}>−</button>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', minWidth: 22 }}>Rep</span>
-                    <button className="rep-btn" onClick={() => update('reputation', (char.reputation || 1) + 1)}>+</button>
-                  </div>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="rep-btn" onClick={() => update('status', Math.max(0, (char.status || 1) - 1))}>−</button>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', minWidth: 22 }}>Stat</span>
-                    <button className="rep-btn" onClick={() => update('status', (char.status || 1) + 1)}>+</button>
-                  </div>
-                </div>
-              )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, marginBottom: '.3rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{char.school} · {char.faction}</span>
             </div>
             {/* Wounds */}
-            <div style={{ marginTop: '.5rem', padding: '.4rem .5rem', background: 'var(--bg-panel)', borderRadius: 4, border: `1px solid ${woundColor}44` }}>
+            <div style={{ marginTop: '.25rem', padding: '.4rem .5rem', background: 'var(--bg-panel)', borderRadius: 4, border: `1px solid ${woundColor}44` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: woundColor, lineHeight: 1 }}>{char.current_wounds || 0}</div>
                 <div>
@@ -882,35 +898,35 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       </g>
                     ))}
 
-                    {/* Trait labels — LEFT rings (Fire, Earth): labels on the far left */}
+                    {/* Trait labels — LEFT rings (Fire, Earth): value just outside ring, name further left */}
                     {rings.filter(r => r.side === 'left').map(r =>
                       (r.traits || []).map(([name, val], ti) => {
-                        const ty = r.cy + (ti === 0 ? -12 : 12);
+                        const ty = r.cy + (ti === 0 ? -13 : 13);
+                        const numX = r.cx - 67;   // just outside ring edge (radius=62)
+                        const lblX = r.cx - 70;   // name anchor, text runs further left
                         return (
                           <g key={name}>
-                            {/* value in ring color */}
-                            <text x={r.cx - 36} y={ty + 5} textAnchor="end"
+                            <text x={numX} y={ty + 5} textAnchor="end"
                               fill={RING_COLORS[r.key]} fontSize={16} fontWeight={800}>{val}</text>
-                            {/* name label */}
-                            <text x={r.cx - 40} y={ty + 5} textAnchor="end"
-                              fill="var(--text-muted)" fontSize={11} fontWeight={500}
-                              dx={-2}>{name}</text>
+                            <text x={lblX} y={ty + 5} textAnchor="end" dx={-16}
+                              fill="var(--text-muted)" fontSize={11} fontWeight={500}>{name}</text>
                           </g>
                         );
                       })
                     )}
 
-                    {/* Trait labels — RIGHT rings (Air, Water): labels on the far right */}
+                    {/* Trait labels — RIGHT rings (Air, Water): value just outside ring, name further right */}
                     {rings.filter(r => r.side === 'right').map(r =>
                       (r.traits || []).map(([name, val], ti) => {
-                        const ty = r.cy + (ti === 0 ? -12 : 12);
+                        const ty = r.cy + (ti === 0 ? -13 : 13);
+                        const numX = r.cx + 67;   // just outside ring right edge
+                        const lblX = r.cx + 70;   // name anchor, text runs further right
                         return (
                           <g key={name}>
-                            <text x={r.cx + 36} y={ty + 5} textAnchor="start"
+                            <text x={numX} y={ty + 5} textAnchor="start"
                               fill={RING_COLORS[r.key]} fontSize={16} fontWeight={800}>{val}</text>
-                            <text x={r.cx + 40} y={ty + 5} textAnchor="start"
-                              fill="var(--text-muted)" fontSize={11} fontWeight={500}
-                              dx={20}>{name}</text>
+                            <text x={lblX} y={ty + 5} textAnchor="start" dx={16}
+                              fill="var(--text-muted)" fontSize={11} fontWeight={500}>{name}</text>
                           </g>
                         );
                       })
@@ -939,6 +955,28 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 </div>
               );
             })()}
+          </div>
+
+          {/* ── Social Stats — top right column ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90 }}>
+            {[
+              { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
+              { label: 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation' },
+              { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
+            ].map(({ label, value, color, borderColor, key, isDecimal }) => (
+              <div key={key} style={{ textAlign: 'center', background: 'var(--bg-panel)', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '4px 12px', width: '100%' }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1 }}>
+                  {isDecimal ? (Number(value) || 0).toFixed(1) : (value || 0)}
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: 1 }}>{label}</div>
+                {canEdit && isGM && (
+                  <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
+                    <button className="rep-btn" onClick={() => update(key, Math.max(0, +(value || 0) - (isDecimal ? 0.5 : 1)))}>−</button>
+                    <button className="rep-btn" onClick={() => update(key, +(value || 0) + (isDecimal ? 0.5 : 1))}>+</button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -1173,12 +1211,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             );
           })}
           {canEdit && isGM && (
-            <div style={{ marginTop: '.5rem', fontSize: 12, color: 'var(--text-muted)' }}>
+            <div style={{ marginTop: '.5rem', fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               School Rank:
-              <input type="number" min={1} max={8} value={char.school_rank || 1} style={{ width: 50, marginLeft: 6 }}
+              <input type="number" min={1} max={8} value={char.school_rank || 1} style={{ width: 50 }}
                 onChange={e => {
                   const newRank = +e.target.value;
-                  // Add the school's expected technique for new slots, but keep existing custom ones
                   const existing = char.techniques || {};
                   const sd = SCHOOL_DATA[char.school];
                   const updated = { ...existing };
@@ -1188,6 +1225,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   update('school_rank', newRank);
                   update('techniques', updated);
                 }} />
+              <button className="btn btn-sm btn-p" style={{ fontSize: 11 }}
+                onClick={() => setPendingRankUp(true)}
+                title="Open rank-up overlay to choose next technique">
+                ⬆ Rank Up
+              </button>
             </div>
           )}
           {canEdit && !isGM && (

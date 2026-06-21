@@ -120,29 +120,29 @@ export const SUBFACTION_BONUSES = {
 export const SAHIR_SCHOOLS = ['Dahabi Bargainer','Qabal Summoner','Children of Midnight',"Ra'Shari Diviner",'Senpet Sahir','Necromancer','Heartless Khadi'];
 
 export const SCHOOL_DATA = {
-  'Soldier of the City Guard': { faction:'City Guard', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Lore: Law','Investigation','Spears','Swordsmanship','Intimidation'], techniques:{1:'Trained For War',2:'Strike With Fury',3:'Armored Advance',4:"City's Shield",5:'Guardian of the Jewel'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Traveling Pack'], starting_copper:3 },
-  'Dahabi Enforcer': { faction:'Dahab', type:'Warrior', integrity:2.5, bonus_trait:'Strength', skills:['Athletics','Defense','Lore: Law','Investigation','Spears','Swordsmanship','Intimidation'], techniques:{1:'Moonless Night',2:'Dangerous Maneuvers',3:'Simple Violence',4:"The Enforcer's Way",5:"House's Fist"}, equipment:['Longsword','Knife','Light Armor','Traveling Pack'], starting_copper:5 },
+  'Soldier of the City Guard': { faction:'City Guard', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Lore: Law','Investigation','Spears','Swordsmanship','Intimidation'], techniques:{1:'Trained For War',2:'Strike With Fury',3:'Implacable Foe',4:'Instrument of the Caliph',5:'The Sublime Warrior'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Traveling Pack'], starting_copper:3 },
+  'Dahabi Enforcer': { faction:'Dahab', type:'Warrior', integrity:2.5, bonus_trait:'Strength', skills:['Athletics','Defense','Knives','Lore: Underworld','Staves','Swordsmanship','Intimidation'], techniques:{1:'Moonless Night',2:'Dangerous Maneuvers',3:'Show of Force',4:'Bitter Shadows',5:'Final Strike'}, equipment:['Longsword','Knife','Light Armor','Traveling Pack'], starting_copper:5 },
   'Dahabi Bargainer': { faction:'Dahab', type:'Sahir', integrity:1.5, bonus_trait:'Perception', skills:['Calligraphy','Commerce','Courtier','Divination','Medicine','Spellcraft','Sincerity'], techniques:{1:'Penetrating Words'}, equipment:['Knife','Fine Clothes','Traveling Pack'], starting_copper:20 },
-  'Dahabi Merchant': { faction:'Dahab', type:'Diplomat', integrity:4.5, bonus_trait:'Awareness', skills:['Commerce','Courtier','Sincerity','Etiquette','Lore: Underworld','Temptation','Storytelling'], techniques:{1:'Master of the Subtle Flow',2:'Reading the Market',3:'Silver Tongue',4:'Master Negotiator',5:'Voice of Dahab'}, equipment:['Longsword','Knife','Fine Clothes','Traveling Pack'], starting_copper:5 },
-  'Qabal Agent': { faction:'Qabal', type:'Diplomat', integrity:1.5, bonus_trait:'Perception', skills:['Sincerity','Etiquette','Forgery','Investigation','Sleight of Hand','Stealth','Commerce'], techniques:{1:'No One of Import',2:'The Shadow Network',3:'False Face',4:'Ghost in the Crowd',5:'Master of Masks'}, equipment:['Knife','Clothes','Cloak','Calligraphy Kit'], starting_copper:5 },
+  'Dahabi Merchant': { faction:'Dahab', type:'Diplomat', integrity:4.5, bonus_trait:'Awareness', skills:['Commerce','Courtier','Sincerity','Etiquette','Lore: Underworld','Temptation','Storytelling'], techniques:{1:'Master of the Subtle Flow',2:'Upstanding Citizen',3:'An Eye for a Deal',4:'Silver Tongued Devil',5:'Merchant King'}, equipment:['Longsword','Knife','Fine Clothes','Traveling Pack'], starting_copper:5 },
+  'Qabal Agent': { faction:'Qabal', type:'Diplomat', integrity:1.5, bonus_trait:'Perception', skills:['Sincerity','Etiquette','Forgery','Investigation','Sleight of Hand','Stealth','Commerce'], techniques:{1:'No One of Import',2:'A Good Excuse',3:'Unassailable Reputation',4:'The Ordered Bolthole',5:'Pillar of the Community'}, equipment:['Knife','Clothes','Cloak','Calligraphy Kit'], starting_copper:5 },
   'Qabal Summoner': { faction:'Qabal', type:'Sahir', integrity:2.5, bonus_trait:'Intelligence', skills:['Calligraphy','Divination','Spellcraft','Lore: Theology','Lore: History','Meditation','Etiquette'], techniques:{1:'The Crucible of Knowledge'}, equipment:['Staff','Knife','Clothes','Traveling Pack'], starting_copper:5 },
-  'Assassin Slayer': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Agility', skills:['Acting','Athletics','Sincerity','Stealth','Lore: Underworld','Knives','Sleight of Hand'], techniques:{1:'All Shadows Walk in the Light',2:'The Knife Between Moments',3:'Simple Action',4:'Death from Nowhere',5:"The Old Man's Gift"}, equipment:['Knife','Jambiya','Fine Robes','Traveling Pack'], starting_copper:10 },
-  'Assassin Keeper': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Etiquette','Investigation','Swordsmanship','Lore: Burning Sands','Stealth'], techniques:{1:"The Keeper's Courage",2:"Sentinel's Eye",3:'Guard the Gate',4:"Keeper's Advance",5:'Final Guardian'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Robes'], starting_copper:3 },
-  'Blood-Sworn': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Strength', skills:['Athletics','Battle','Defense','Swordsmanship','Polearms','Lore: Theology','Knives'], techniques:{1:'Blessed by the Crystal',2:'Crystal Strike',3:"Ashalan's Fury",4:'Ancient Warrior',5:'Oath Unbroken'}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:5 },
-  'Children of Midnight': { faction:'Ashalan', type:'Sahir', integrity:4.5, bonus_trait:'Awareness', skills:['Divination','Lore: History','Medicine','Meditation','Spellcraft','Lore: Theology','Lore: Stars'], techniques:{1:'Wisdom of the Stars'}, equipment:['Scimitar','Khadja','Robe','Traveling Pack'], starting_copper:5 },
-  'Heart-Seekers': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Willpower', skills:['Battle','Defense','Investigation','Lore: Khadi','Spellcraft','Stealth','Swordsmanship'], techniques:{1:'Truth is My Ally',2:'Sense the Corruption',3:'Purifying Strike',4:'Hunter of Darkness',5:"Heart's Justice"}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:3 },
-  "Ra'Shari Knife-Fighter": { faction:"Ra'Shari", type:'Warrior', integrity:3.5, bonus_trait:'Agility', skills:['Temptation','Defense','Divination','Knives','Perform: Dancing','Tahaddi','Athletics'], techniques:{1:'The Endless Dance',2:'Blade and Step',3:'Three Knives',4:'Dance of Death',5:'The Final Curtain'}, equipment:['Knife','Knife','Staff','Clothes','Cloak'], starting_copper:5 },
-  "Ra'Shari Trader": { faction:"Ra'Shari", type:'Diplomat', integrity:2.5, bonus_trait:'Intelligence', skills:['Temptation','Commerce','Courtier','Etiquette','Lore: Underworld','Sincerity','Storytelling'], techniques:{1:'Opening Offer',2:'Fair Exchange',3:'The Long Con',4:'Master Trader',5:'Voice of the Caravan'}, equipment:['Staff','Clothes','Cloak','Scales'], starting_copper:10 },
-  "Ra'Shari Diviner": { faction:"Ra'Shari", type:'Sahir', integrity:3.5, bonus_trait:'Perception', skills:['Temptation','Divination','Medicine','Spellcraft','Lore: Theology','Perform: Dance','Lore: Burning Sands'], techniques:{1:'The Whispers of the Song'}, equipment:['Knife','Staff','Clothes','Cloak','Traveling Pack'], starting_copper:5 },
-  'Senpet Legionnaire': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Reflexes', skills:['Battle','Defense','Hunting','Swordsmanship','Lore: Theology','Athletics','Spears'], techniques:{1:'Divine Insight',2:"Legionnaire's March",3:'Ten Thousand Shields',4:"Avatar's Advance",5:'Will of the Gods'}, equipment:['Khopesh','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
-  'Senpet Charioteer': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Archery','Battle','Horsemanship','Swordsmanship','Lore: Theology','Defense','Athletics'], techniques:{1:'Ride Into Battle',2:'Arrow of the Gods',3:'Mounted Strike',4:'Chariot Charge',5:'Thundering Hooves'}, equipment:['Khopesh','Composite Bow','Chain Shirt','Sandals'], starting_copper:5 },
+  'Assassin Slayer': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Agility', skills:['Acting','Athletics','Sincerity','Stealth','Lore: Underworld','Knives','Assassin Ranged Weapons'], techniques:{1:'All Shadows Walk in the Light',2:'Rite of Assassination',3:'Let Him Bleed',4:'Blood Calls for Blood',5:'Swifter Than Life Itself'}, equipment:['Knife','Jambiya','Fine Robes','Traveling Pack'], starting_copper:10 },
+  'Assassin Keeper': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Etiquette','Investigation','Swordsmanship','Lore: Burning Sands','Stealth'], techniques:{1:"The Keeper's Courage",2:"The Keeper's Judgment",3:"The Keeper's Justice",4:"The Keeper's Art",5:'By the Force of Will Alone'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Robes'], starting_copper:3 },
+  'Blood-Sworn': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Strength', skills:['Athletics','Battle','Defense','Swordsmanship','Polearms','Lore: Theology','Knives'], techniques:{1:'Blessed by the Crystal',2:'Your Blood is My Blood',3:'Fortification in Form',4:'To Fight for the Future',5:'One is Never Truly Alone'}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:5 },
+  'Children of Midnight': { faction:'Ashalan', type:'Sahir', integrity:4.5, bonus_trait:'Awareness', skills:['Divination','Lore: History','Medicine','Meditation','Spellcraft','Lore: Theology','Lore: Burning Sands'], techniques:{1:'Wisdom of the Stars'}, equipment:['Scimitar','Khadja','Robe','Traveling Pack'], starting_copper:5 },
+  'Heart-Seekers': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Willpower', skills:['Battle','Defense','Investigation','Lore: Khadi','Spellcraft','Stealth','Swordsmanship'], techniques:{1:'Truth is My Ally',2:'Diligence is the Best Teacher',3:'One Mind, One Action',4:'Bane of the Heartless',5:'My Will is My Fortress'}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:3 },
+  "Ra'Shari Knife-Fighter": { faction:"Ra'Shari", type:'Warrior', integrity:3.5, bonus_trait:'Agility', skills:['Temptation','Defense','Divination','Knives','Perform: Dancing','Tahaddi','Athletics'], techniques:{1:'The Endless Dance',2:'Flashing Talons',3:'Through the Cracks',4:'Two Knives, Two Wounds',5:'Strike to Slay'}, equipment:['Knife','Knife','Staff','Clothes','Cloak'], starting_copper:5 },
+  "Ra'Shari Trader": { faction:"Ra'Shari", type:'Diplomat', integrity:2.5, bonus_trait:'Intelligence', skills:['Temptation','Commerce','Courtier','Etiquette','Lore: Underworld','Sincerity','Storytelling'], techniques:{1:'Opening Offer',2:'Acquiring the Goods',3:'Making the Deal',4:'Expediency is Important',5:'The Perfect Supplier'}, equipment:['Staff','Clothes','Cloak','Scales'], starting_copper:10 },
+  "Ra'Shari Diviner": { faction:"Ra'Shari", type:'Sahir', integrity:3.5, bonus_trait:'Perception', skills:['Temptation','Divination','Medicine','Spellcraft','Lore: Theology','Perform: Dancing','Lore: Burning Sands'], techniques:{1:'The Whispers of the Song'}, equipment:['Knife','Staff','Clothes','Cloak','Traveling Pack'], starting_copper:5 },
+  'Senpet Legionnaire': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Reflexes', skills:['Battle','Defense','Hunting','Swordsmanship','Lore: Theology','Athletics','Spears'], techniques:{1:'Divine Insight',2:'Divine Strength',3:'Divine Retribution',4:'The Gods Protect Me',5:'The Gods Guide my Hand'}, equipment:['Khopesh','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
+  'Senpet Charioteer': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Archery','Battle','Horsemanship','Swordsmanship','Lore: Theology','Defense','Athletics'], techniques:{1:'Ride Into Battle',2:'Swift Volley',3:'Speed is my Armor',4:'Ruthless Advance',5:'Deadly Strike'}, equipment:['Khopesh','Composite Bow','Chain Shirt','Sandals'], starting_copper:5 },
   'Senpet Sahir': { faction:'Senpet', type:'Sahir', integrity:3.5, bonus_trait:'Intelligence', skills:['Defense','Medicine','Meditation','Spellcraft','Lore: Theology','Battle','Lore: History'], techniques:{1:'By the Grace of the Gods'}, equipment:['Sandals','Tunic','Traveling Pack'], starting_copper:5 },
-  'Yodotai Legionnaire': { faction:'Yodotai', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Battle','Defense','Horsemanship','Lore: Yodotai History','Spears','Swordsmanship','Athletics'], techniques:{1:'Tortoise Formation',2:'Gladius Thrust',3:'Legion Advance',4:'Iron Wall',5:"Empire's Fist"}, equipment:['Gladius','Pilum','Lorica Segmentata','Sandals','Tunic'], starting_copper:5 },
-  'Yodotai Mercenary': { faction:'Yodotai', type:'Diplomat', integrity:3.5, bonus_trait:'Reflexes', skills:['Intimidation','Defense','Etiquette','Spears','Swordsmanship','Sincerity','Battle'], techniques:{1:'Importance of Speed',2:'Contract Terms',3:"Mercenary's Edge",4:'Price of Steel',5:"Victor's Spoils"}, equipment:['Gladius','Pilum','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
-  'Ebonite Templar': { faction:'Ebonites', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Defense','Investigation','Lore: Law','Lore: Theology','Swordsmanship','Lore: Ebonites','Athletics'], techniques:{1:'Tapping the Inner Strength',2:"Stone's Resolve",3:"Templar's Advance",4:'Ebon Shield',5:"Order's Champion"}, equipment:['Longsword','Knife','Light Armor','Sturdy Clothing'], starting_copper:10 },
-  'Jani': { faction:'Jackals', type:'Warrior', integrity:1.5, bonus_trait:'Agility', skills:['Athletics','Brawling','Knives','Acting','Lore: Jackal','Assassin Ranged Weapons','Lore: Underworld'], techniques:{1:'Quicker Than the Eye',2:'Sewer Speed',3:"Jackal's Bite",4:'Ghost of the Sewers',5:"Soul Slayer's Gift"}, equipment:['Knife','Light Armor','Street Clothes'], starting_copper:1 },
-  'Necromancer': { faction:'Jackals', type:'Sahir', integrity:0.5, bonus_trait:'Intelligence', skills:['Lore: Anatomy','Knives','Lore: Jackal','Lore: Undead','Medicine','Craft: Poison','Staves'], techniques:{1:'Initiate of Undeath'}, equipment:['Knife','Staff','Robe','Sandals'], starting_copper:2 },
-  'Kabir': { faction:'Jackals', type:'Diplomat', integrity:2.5, bonus_trait:'Awareness', skills:['Courtier','Sincerity','Knives','Medicine','Craft: Poison','Sleight of Hand','Lore: Underworld'], techniques:{1:'Rotting the Foundation',2:'Poison Smile',3:'The Long Corruption',4:'Master Poisoner',5:'Kingdom Ender'}, equipment:['Knife','Apothecary Kit','Clothes','Shoes'], starting_copper:2 },
+  'Yodotai Legionnaire': { faction:'Yodotai', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Battle','Defense','Horsemanship','Lore: Yodotai History','Spears','Swordsmanship','Athletics'], techniques:{1:'Tortoise Formation',2:'In Close Quarters',3:'Deadly Strike',4:'Wedge Formation',5:'With My Brothers'}, equipment:['Gladius','Pilum','Lorica Segmentata','Sandals','Tunic'], starting_copper:5 },
+  'Yodotai Mercenary': { faction:'Yodotai', type:'Diplomat', integrity:3.5, bonus_trait:'Reflexes', skills:['Intimidation','Defense','Etiquette','Spears','Swordsmanship','Sincerity','Battle'], techniques:{1:'Importance of Speed',2:'Stranger in a Foreign Land',3:'Unfriendly Glare',4:'Combat Diplomacy',5:'Hoplon Bash'}, equipment:['Gladius','Pilum','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
+  'Ebonite Templar': { faction:'Ebonites', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Defense','Investigation','Lore: Law','Lore: Theology','Swordsmanship','Lore: Ebonites','Athletics'], techniques:{1:'Tapping the Inner Strength',2:'By Thy Will',3:'The Ebon Hand',4:'By Word Or By Sword',5:'Will of the Stone'}, equipment:['Longsword','Knife','Light Armor','Sturdy Clothing'], starting_copper:10 },
+  'Jani': { faction:'Jackals', type:'Warrior', integrity:1.5, bonus_trait:'Agility', skills:['Athletics','Brawling','Knives','Acting','Assassin Ranged Weapons','Staves','Lore: Underworld'], techniques:{1:'Quicker Than the Eye',2:'What the Eye Sees, What the Ear Hears',3:'Strike Quickly, Strike True',4:'Seen and Not Noticed',5:'Blinding Speed'}, equipment:['Knife','Light Armor','Street Clothes'], starting_copper:1 },
+  'Necromancer': { faction:'Jackals', type:'Sahir', integrity:0.5, bonus_trait:'Intelligence', skills:['Medicine','Knives','Lore: Jackal','Lore: Undead','Lore: History','Spellcraft','Staves'], techniques:{1:'Initiate of Undeath',2:'Master of Undeath and Death',3:'Creator of Undeath',4:'Leader of Undead',5:'Agent of Death'}, equipment:['Knife','Staff','Robe','Sandals'], starting_copper:2 },
+  'Kabir': { faction:'Jackals', type:'Diplomat', integrity:2.5, bonus_trait:'Awareness', skills:['Courtier','Sincerity','Knives','Medicine','Craft: Poison','Sleight of Hand','Lore: Underworld'], techniques:{1:'Rotting the Foundation',2:'A Honeyed Tongue',3:'Killing with Subtlety',4:'Tearing Out the Foundation',5:'Jackal Ambassador'}, equipment:['Knife','Apothecary Kit','Clothes','Shoes'], starting_copper:2 },
   'Free Sahir': { faction:'Independent', type:'Sahir', integrity:4.5, bonus_trait:'Willpower', skills:['Etiquette','Spellcraft','Lore: Theology','Lore: History','Lore: Burning Sands','Athletics','Stealth'], techniques:{1:'Self-Taught Sorcerer'}, equipment:['Staff','Knife','Clothes','Cloak','Traveling Pack'], starting_copper:5 },
   'Alley Thug': { faction:'Independent', type:'Path', integrity:2.5, bonus_trait:'Strength', skills:['Brawling','Intimidation','Knives','Stealth','Lore: Underworld','Athletics','Sincerity'], techniques:{1:'Predator of the Alleys'}, equipment:['Knife','Street Clothes'], starting_copper:2 },
   'Scholar': { faction:'Independent', type:'Path', integrity:3.5, bonus_trait:'Intelligence', skills:['Calligraphy','Etiquette','Storytelling','Lore: History','Lore: Theology','Lore: Law','Lore: Burning Sands'], techniques:{1:'A Man of Knowledge'}, equipment:['Writing Kit','Book','Traveling Clothes'], starting_copper:5 },
@@ -424,124 +424,172 @@ export const IS_SAHIR_SCHOOL = (school) => [
 
 export const IS_COKALOI_SCHOOL = (school) => school === "Ra'Shari Diviner";
 
-// ── Technique Descriptions ────────────────────────────────────────────────────
-// Keyed by technique name (same string stored in char.techniques).
+// ── Technique Descriptions (LBS 4th Ed Conversion) ───────────────────────────
+// All text from the LBS L5R RPG 4th Edition Conversion document (AEG 2010).
 export const TECHNIQUE_DESCRIPTIONS = {
-  // Soldier of the City Guard
-  'Trained For War': 'Add Class Rank to rolls resisting duties (Fear Rolls, Contested Social Rolls like Intimidation or Temptation). Subtract Class Rank from Wound penalties. When attacking using a Class Skill and spending a Void Point, gain +2k1 instead of +1k1.',
-  'Strike With Fury': '+1k0 to Initiative Rolls. +1k0 to Attack Rolls while in Full Attack Stance.',
-  'Implacable Foe': 'Choose one weapon skill: gain a free Emphasis of choice. When attacking with a melee weapon with the relevant emphasis, may make attacks as a Simple Action.',
-  'Instrument of the Caliph': 'Add twice Class Rank to rolls resisting duties. When spending Void to reduce damage, remaining wounds are not applied until the Reactions Stage.',
-  'The Sublime Warrior': 'Spend a Void Point to negate all TN penalties for one round (including Wound penalties). When spending Void to increase Armor TN or Initiative, benefit is increased by 5.',
-  // Dahabi Enforcer
-  'Moonless Night': '+1k0 to Attack and Damage Rolls in Full Attack Stance. Penalties for poor visibility and difficult terrain are halved (round down).',
-  'Dangerous Maneuvers': '+1k1 to Contested Strength Rolls and +1k0 to Damage Rolls during grapple. Opponents suffer -1k0 to all Skill rolls for each ally reduced to Down or Out (highest penalty only; not cumulative with other Enforcers; mindless/Fear-immune enemies ignore this).',
-  'Show of Force': 'When attacking unarmed or with Warrior keyword weapons, may make attacks as Simple Actions.',
-  'Bitter Shadows': 'Upgrade Rank 2: now +2k2 to Contested Strength Rolls and +2k0 to Damage Rolls during grapple.',
-  'Final Strike': 'Once per skirmish: spend a Void Point to take Complex or Simple Actions normally while in Center Stance. Gain Center Stance benefits this round AND the following round. +0k2 to Damage Rolls while in Center Stance and the round after adopting it.',
-  // Dahabi Merchant
-  'Master of the Subtle Flow': '+2k0 to Commerce Rolls. +1k0 to Contested Sincerity and Temptation Rolls. Purchase Wealthy Advantage for 1 point less (minimum 1).',
-  'Upstanding Citizen': 'If opponent declares Raises on Contested Commerce, Sincerity, or Temptation against you, gain +2k0 to your roll.',
-  'An Eye for a Deal': 'When spending Void on non-Weapon Skill Rolls, add Class Rank to total. Opponents with Greedy Disadvantage cannot explode or reroll dice in Contested Social Rolls against you.',
-  'Silver Tongued Devil': 'Class Rank times per session: if you fail a Sincerity Social Roll, may reroll as Commerce instead (must take Commerce result). May negate opponent\'s Irreproachable or Clear Thinker when making Contested Social Rolls. When purchasing Wealthy advantage during play, copper gain is doubled (cumulative with Rank 1).',
-  'Merchant King': 'When making uncontested Social Skill Roll with no Raises called, gain +5k0.',
-  // Qabal Agent
-  'No One of Import': 'Learn a Mastery level 1 Control Spell; may cast it subtly without Awareness/Stealth Roll. Qabal Agent Class Rank counts as Sahir School ranks for Control Spell casting. Opponents suffer -1k0 on rolls to determine if you are lying.',
-  'A Good Excuse': 'TN of rolls to determine your Integrity or identity increased by 10 (cumulative with Bland Advantage). +2k0 to Sincerity (Deceit) Rolls.',
-  'Unassailable Reputation': 'Learn a Mastery level 1 or 2 Control Spell; may cast subtly. +1k0 to all Contested Social Skill Rolls you do not initiate.',
-  'The Ordered Bolthole': '+2k0 to Stealth Rolls. Spend GM-determined time to conceal evidence or make a building inconspicuous; Investigation Rolls on the scene suffer -Xk0 penalty (X = Class Rank).',
-  'Pillar of the Community': 'Learn a Mastery level 1, 2, or 3 Control Spell (subtly). Learn a Mastery level 1, 2, or 3 Blessing or Curses Spell (subtly). May select spells without having lower ranks. When opponent makes Investigation Roll against you, spend a Void Point to prevent their dice from exploding.',
-  // Assassin Slayer
-  'All Shadows Walk in the Light': '+1k0 to Acting, Sincerity (Deceit), Etiquette, and Stealth Rolls. +1k0 Damage Rolls against opponents unaware of your presence.',
-  'Rite of Assassination': 'At the start of each day, nominate one target as subject to Rite of Assassination. Gain Armor TN bonus equal to Stealth Skill ranks; doubled against the Rite target in combat or Tahaddi Duels.',
-  'Let Him Bleed': 'Attacking a lone opponent or Rite target is a Simple Action.',
-  'Blood Calls for Blood': 'When facing lone opponent or Rite target: bonus to all Attack and Contested Rolls equal to Stealth Skill; Raises on Attack Rolls are no longer limited.',
-  'Swifter Than Life Itself': 'Once per day when ambushing, facing lone opponent, or facing Rite target: may switch Initiative Score with opponent\'s at end of Initiative Stage.',
-  // Assassin Keeper
-  'The Keeper\'s Courage': '+1k0 to all Rolls involving Perception Trait. When inflicting Wounds, may ignore half of opponent\'s Reduction (round up).',
-  'The Keeper\'s Judgment': 'When attacking, may choose to disable rather than wound: no damage, but inflicts Dazed Conditional Effect instead.',
-  'The Keeper\'s Justice': 'Attacks that don\'t inflict damage (Rank 2 technique or initiating grapple) are Simple Actions. If you make a Complex Action attack and miss, may immediately use Rank 2 technique as a Free Action.',
-  'The Keeper\'s Art': 'TN to resist all Conditional Effects you inflict is raised by twice your Class Rank. When attacking Dazed opponent, may make 1 Raise on Attack Roll; if successful, opponent is Fatigued until end of Skirmish (not cumulative).',
-  'By the Force of Will Alone': 'When adopting Full Defense Stance, choose one opponent: they must spend 2 Void Points to declare an attack against you. When adopting Full Attack Stance, spend a Void Point and choose one opponent: your Attack Rolls ignore all Armor TN bonuses from Stance, Skills, Mastery Abilities, Spells, Kiho, or Techniques.',
-  // Blood-Sworn (Ashalan)
-  'The Tiger Claw Cut': '+2k1 to all rolls while in Center Stance.',
-  'No Escape': 'Once per turn while wielding a weapon in each hand, Extra Attack Maneuver costs 3 Raises instead of 5. Second attack from off-hand weapon. May not increase damage via Raises on either attack.',
-  'The Final Strike': 'May spend any amount of Void to enhance Damage Rolls during a Tahaddi Duel.',
-  // Heart-Seekers (Ashalan)
-  'Blessed by the Crystal': 'May pass impressions/emotions to others with this technique within 500\' without speech. May sense position of such others within 500\' if they wish. Add Class Rank to all rolls resisting Fear, Intimidation, Temptation, and effects preventing defense of your people.',
-  'Your Blood is My Blood': 'Class Rank times per round: absorb up to Stamina + Insight Rank damage taken by an ally within 50\', transferring those wounds to yourself.',
-  'Fortification in Form': 'Gain special Reduction equal to Earth Ring. Stacks with armor/spell Reduction. Also applies (without stacking) to wounds from non-physical sources (magic, Rank 2 technique).',
-  'To Fight for the Future': 'Making an attack is a Simple Action.',
-  'One is Never Truly Alone': 'If surrounded on 3+ sides or no allies within 300\': Strength increases by 5, gain an additional Wound Rank at Nicked penalty level. Benefits end Reactions Stage after conditions no longer apply.',
-  // Children of Midnight (Ashalan)
-  'Truth is My Ally': '+2k0 to all rolls finding hidden/concealed things, and against effects altering/misleading perceptions.',
-  'Diligence is the Best Teacher': 'Free Raise to all Perception or Awareness-based rolls.',
-  'One Mind, One Action': '+2 x Class Rank bonus to Armor TN. When targeted by a spell, may make Intelligence/Spellcraft Roll vs TN equal to Spellcasting Roll to avoid effects.',
-  'Bane of the Heartless': 'Making an attack with an Ashalan Weapon is a Simple Action. Special attack (3 Raises): in addition to normal damage, opponent must succeed Void Roll vs TN 5 x Insight Rank or suffer +30 TN penalty to all Skill/Spellcasting Rolls and have Water Ring reduced by Class Rank for rounds equal to Class Rank.',
-  'My Will is My Fortress': 'All Spells/Skills/effects affecting your mind have TN increased by 5 x Insight Rank. If you find a Khadi\'s heart, utterly unaffected by that Khadi\'s magic while holding it.',
-  // Ra'Shari Knife-Fighter
-  'The Endless Dance': 'Bonus to Armor TN equal to Perform (Dance) Skill when not in heavy armor or similarly encumbered. +1k0 to Initiative Rolls.',
-  'Flashing Talons': 'May throw knives accurately (without TN penalty) up to 60\'. +1k0 Damage Rolls with bladed weapons.',
-  'Through the Cracks': 'If fighting unarmed or with only knives, Extra Attack maneuver costs 3 Raises. +1k0 to Initiative Rolls (+2k0 total).',
-  'Two Knives, Two Wounds': 'Making attacks with a knife or unarmed strike is a Simple Action.',
-  'Strike to Slay': 'When attacking with knife or unarmed strike, spend a Void Point to add +1k1 to Damage Roll. +1k0 to Initiative Rolls (+3k0 total).',
-  // Ra'Shari Trader
-  'Opening Offer': '+1k0 to Sincerity, Temptation, and Commerce Rolls. May make Contested Temptation (Bribery)/Awareness to determine one material item the subject wants. When buying from another Ra\'Shari Caravan, pay only 75% of normal price.',
-  'Acquiring the Goods': '+1k0 to Courtier, Etiquette, and Lore: Underworld Rolls.',
-  'Making the Deal': '+1k0 to Sincerity, Temptation, Commerce Rolls (+2k0 total). If you satisfy an NPC\'s material wants, may halve XP cost of purchasing them as an Ally.',
-  'Expediency is Important': '+1k0 to Courtier, Etiquette, and Lore: Underworld Rolls (+2k0 total). When waiting for goods to be shipped, only wait 75% of normal time.',
-  'The Perfect Supplier': '+1k0 to Sincerity, Temptation, Commerce Rolls (+3k0 total). After 20 minutes of conversation, may learn all target\'s material desires and gain them as a free Ally until promised goods arrive.',
-  // Senpet Legionnaire
-  'Divine Insight': 'Add Lore: Theology skill to benefit gained from assuming Center Stance and to Armor TN while in Center Stance. +1k1 to all Hunting (Survival) Rolls in the desert.',
-  'Divine Strength': 'Spend one Void Point to roll additional +1k1 damage with any weapon.',
-  'Divine Retribution': 'May make attacks as Simple Actions while using weapons with the Senpet keyword.',
-  'The Gods Protect Me': 'When assuming Center Stance, spend a Void Point to gain +20 to Armor TN. Effect ends at start of Reactions Stage when activated.',
-  'The Gods Guide my Hand': 'Once per skirmish: spend a Void Point to gain +4k1 to Attack Rolls for one round.',
-  // Senpet Charioteer
-  'Ride Into Battle': 'When spending Void to increase Armor TN, gain additional bonus equal to Lore: Theology ranks. While mounted on chariot, +1k0 to Initiative Rolls.',
-  'Swift Volley': 'If you take 2 Simple Actions to move full movement while mounted on chariot or in Full Attack Stance, enemies in Full Attack Stance cannot attack you, and spells cast against you suffer +5 TN penalty.',
-  'Speed is my Armor': 'While mounted on chariot or in Full Attack Stance, may make attacks as Simple Actions.',
-  'Ruthless Advance': 'While mounted on chariot or in Full Attack Stance, spend a Void Point to gain +3k0 to all Attack Rolls until next Reactions Stage.',
-  // Yodotai Legionnaire
-  'Tortoise Formation': 'No Attack Roll penalties from carrying any Yodotai shield. While using scutum in Full Defense Stance, +Insight Rank to Armor TN. Free Action: spend Void Point to grant this bonus to allies using scutum in Full Defense Stance within 10\'.',
-  'In Close Quarters': 'In rounds where you switch from Full Defense to Full Attack Stance, +1k0 to Attack Rolls. Free Action: spend Void Point to grant this bonus to allies within 10\' wielding gladius who made same switch this round.',
-  'Wedge Formation': 'While in Attack Stance, gain Reduction equal to Class Rank. When making Complex Action attack against opponent in Full Defense Stance, may ignore their Full Defense Armor TN benefit.',
-  'With My Brothers': 'No longer need to spend Void for Rank 1 and 2 benefits; range extended to 30\'. All allies wielding Yodotai weapons within 30\' add +1k0 to Damage Rolls.',
-  // Yodotai Mercenary
-  'Importance of Speed': 'Reduce TN penalties from carrying a shield by Class Rank. May move as if Water Ring was 1 Rank higher.',
-  'Stranger in a Foreign Land': '+1k0 to Battle, Intimidation, and Courtier Rolls. After 5 minutes of conversation, may make Contested Courtier to determine what tactics they\'d use in a hypothetical scenario.',
-  'Unfriendly Glare': 'May make attacks with Warrior and Yodotai weapons as Simple Actions.',
-  'Combat Diplomacy': 'Simple Action: Contested Battle/Perception vs opponent\'s Sincerity/Awareness to determine one of their Advantages or Disadvantages.',
-  'Hoplon Bash': 'May use shield to perform attack as Complex Action while in Full Defense Stance. Roll Agility/Brawling (Shield Bash) vs target\'s Armor TN; if successful, inflict 1k2 damage. Target subject to Knockdown Maneuver.',
-  // Ebonite Templar
-  'Tapping the Inner Strength': 'When facing an opponent with lower Integrity: +1k0 to all Attack, Damage, and Social Skill Rolls.',
-  'By Thy Will': 'During Reactions Stage, spend Void Point to increase Initiative score as if it were the beginning of the round. Lasts until end of skirmish.',
-  'The Ebon Hand': 'May make attacks as Simple Actions when using Warrior or Ebonite keyword weapons.',
-  'By Word Or By Sword': 'Spend Void Point to gain additional rolled dice equal to half your Integrity (round down) on a single Social Skill Roll.',
-  'Will of the Stone': 'Spend Void Point to ignore all wound penalties (including Down and Out) for remainder of skirmish.',
-  // Jani (Jackals)
-  'Quicker Than the Eye': '+1k0 to Initiative Rolls. +1k0 to Stealth Skill Rolls.',
-  'What the Eye Sees, What the Ear Hears': '+1k0 to all Skill Rolls using Perception. When performing Feint Maneuver using Knives, Staves, or Assassin Ranged Weapons, +1k0 to Attack and Damage Rolls.',
-  'Strike Quickly, Strike True': '+1k0 to Initiative Rolls, Stealth, and Perception Rolls (+2k0 total). Free Raise when using Disguise Emphasis of Acting Skill.',
-  'Seen and Not Noticed': 'Making attacks with Knives, Staves, or Assassin Ranged Weapons is a Simple Action.',
-  'Blinding Speed': 'When attacking with Knives, Staves, or Assassin Ranged Weapons, Extra Attack Maneuver costs only 3 Raises.',
-  // Kabir (Jackals)
-  'Rotting the Foundation': 'When spending a Void Point to enhance a Low Skill, gain +2k2 instead of usual +1k1.',
-  'A Honeyed Tongue': '+1k0 to Etiquette, Storytelling, Courtier, and Deceit Rolls.',
-  'Killing with Subtlety': '+2k0 to Poison and Sleight of Hand Rolls. Gain Herbalism Emphasis of Medicine Skill for free.',
-  'Tearing Out the Foundation': '+2k0 to Stealth and Forgery Skill Rolls. Free Raise on any Skill Roll to destroy, disguise, or otherwise alter a physical object.',
-  'Jackal Ambassador': '+1k0 to Etiquette, Storytelling, Courtier, and Deceit Rolls (+2k0 total). May purchase Perceived Honor Advantage for 1 less XP per Rank.',
-  // Necromancer
-  'Initiate of Undeath': 'May use Soul of the Slayer to create Soul Jars. Gain 3 Mastery Levels of spells from Ghul Creation or Death Disciplines. May cast each spell a number of times per day equal to Earth Ring.',
-  'Master of Undeath and Death': '+2k0 on all Contested Rolls involving Willpower. Gain additional 2 Mastery Levels from Ghul Creation or Death.',
-  'Creator of Undeath': '+1k0 to Intimidation, Deceit, and Sincerity Rolls. Gain additional 1 Mastery Level spell from Ghul Creation or Death.',
-  'Leader of Undead': 'When using Ghul Creation 1, may make Raises to target additional Undead within range. All Undead under your control gain +1k0 to Attack and Damage Rolls.',
-  'Agent of Death': 'All Undead created by the Necromancer obey until dismissed or another Necromancer steals control. Non-necromancers may not take control of your Undead.',
-  // Senpet Legionnaire (group rank 3)
-  'Might of the Ten Thousand': 'Spend a Void Point at start of combat: you and allies gain a Free Raise to all attack rolls, and allies gain one additional Void Point, for duration of skirmish.',
-  'Power of the Devout': 'Pray as Complex Action: you and allies within 30\' add twice Theology Skill Rank to initiative roll; may make melee attacks as Simple Actions for rounds equal to Theology Skill Rank.',
-  'We Carry the Gods': 'When using Rank 1, each ally gains two Void Points instead of one, and you and allies add Theology Skill Rank to all damage rolls during skirmish.',
+  // ── City Guard ──────────────────────────────────────────────────────────
+  'Trained For War': 'Add your Class Rank to rolls resisting duties (Fear Rolls, Contested Social Rolls such as Intimidation or Temptation). Subtract your Class Rank from Wound penalties. When attacking using a Class Skill and spending a Void Point, gain +2k1 instead of +1k1.',
+  'Strike With Fury': 'You receive a +1k0 bonus to Initiative Rolls. You receive a +1k0 bonus to Attack Rolls while in the Full Attack Stance.',
+  'Implacable Foe': 'Choose any one weapon skill you possess: you receive a free Emphasis of your choice in that skill. When attacking with a melee weapon for which you possess the relevant emphasis you may make attacks as a Simple Action.',
+  'Instrument of the Caliph': 'Add twice your Class Rank to rolls resisting duties. When spending Void to reduce damage, any remaining wounds incurred from that strike are not applied until the Reactions Stage of the current round.',
+  'The Sublime Warrior': 'You may spend a Void Point to negate all TN penalties for one round, including Wound penalties. When spending a Void Point to increase your Armor TN or to add to your Initiative score, the benefit is increased by 5.',
+
+  // ── Free Sahir ─────────────────────────────────────────────────────────
+  'Self-Taught Sorcerer': 'You receive a +1k0 bonus to your Initiative Rolls for each rank you possess in this Class. When learning magic, you do so in the same manner as a Qabal Summoner. However, you may only learn or improve 2 Disciplines at each Insight Rank, rather than 3.',
+
+  // ── Dahabi Enforcer ────────────────────────────────────────────────────
+  'Moonless Night': 'You gain a +1k0 bonus to Attack and Damage Rolls while in the Full Attack Stance. Your penalties for fighting in poor visibility conditions and in areas of difficult terrain are halved, round down.',
+  'Dangerous Maneuvers': 'You gain a +1k1 bonus to all Contested Strength Rolls and +1k0 to all Damage Rolls during a grapple. Opponents suffer a -1k0 penalty to all Skill rolls for each ally of theirs you have reduced to Down or Out. Opponents only suffer the highest dice penalty when facing multiple Dahabi Enforcers — the effect is not cumulative. Mindless enemies or those immune to Fear ignore this effect.',
+  'Show of Force': 'When attacking unarmed or using weapons with the Warrior keyword, you may make attacks as Simple Actions.',
+  'Bitter Shadows': 'You now gain +2k2 to all Contested Strength Rolls and +2k0 to all Damage Rolls during a grapple, replacing the benefit gained at Rank 2.',
+  'Final Strike': 'Once per skirmish you may spend a Void Point to take a Complex Action or Simple Actions as normal while in the Center Stance. You gain the benefits of Center Stance this round in addition to the round following its adoption. You also gain +0k2 to all Damage Rolls while in the Center Stance and the round following its adoption.',
+
+  // ── Dahabi Bargainer ───────────────────────────────────────────────────
+  'Penetrating Words': 'When casting a Control spell you may spend a Void Point to add a number of hours to its Duration equal to your Rank in this Class. You receive a +1k1 bonus to Contested Rolls bargaining with Jinn for services.',
+
+  // ── Dahabi Merchant ────────────────────────────────────────────────────
+  'Master of the Subtle Flow': 'You receive a +2k0 bonus to all Commerce Skill Rolls. You receive a +1k0 bonus to Contested Sincerity and Temptation Skill Rolls. You may purchase the Wealthy Advantage for one point less (minimum 1).',
+  'Upstanding Citizen': 'If an opponent declares any Raises on a Contested Commerce, Sincerity or Temptation Skill Roll initiated against you, you gain +2k0 to your roll.',
+  'An Eye for a Deal': 'When spending Void Points on non-Weapon Skill Rolls, you add your Class Rank to the total of the roll. Anyone with the Greedy Disadvantage cannot explode or re-roll any of their dice in Contested Social Rolls against you.',
+  'Silver Tongued Devil': "A number of times per session equal to your Class Rank, if you have failed a Sincerity Social Skill Roll, you may re-roll it as a Commerce Social Skill Roll instead. You must take the Commerce result. You may negate the benefit of an opponent's Irreproachable or Clear Thinker Advantages when making a Contested Social Roll. When purchasing new ranks in the Wealthy advantage during play, the gain in Copper is doubled.",
+  'Merchant King': 'When making an uncontested Social Skill Roll for which you call no Raises, you gain +5k0 to the roll.',
+
+  // ── Qabal Agent ────────────────────────────────────────────────────────
+  'No One of Import': 'You learn a Mastery level 1 Control Spell, which you may cast with subtlety without the usual Awareness/Stealth Roll. Your Qabal Agent Class Rank counts as ranks of the Sahir School for determining your ability to cast Control Spells. Opponents suffer a -1k0 penalty on all rolls to determine if you are lying.',
+  'A Good Excuse': 'The TN of rolls made to determine your Integrity or identity are increased by a further 10 (cumulative with the Bland Advantage). You gain a +2k0 bonus to all Sincerity (Deceit) Rolls.',
+  'Unassailable Reputation': 'You learn a Mastery level 1 or 2 Control Spell, castable with subtlety. You gain a +1k0 bonus to all Contested Social Skill Rolls you do not initiate.',
+  'The Ordered Bolthole': 'You gain a +2k0 bonus to all Stealth Rolls. You may spend an amount of time determined by the GM to conceal evidence or make a building inconspicuous. Anyone making an Investigation Roll on the scene suffers a -Xk0 penalty, where X is your Class Rank.',
+  'Pillar of the Community': 'You learn a Mastery level 1, 2 or 3 Control Spell and a Mastery level 1, 2 or 3 Blessing or Curses Spell, both castable with subtlety. You may select spells without having the previous ranks. When an opponent makes an Investigation Skill Roll against you, you may spend a Void Point to prevent their dice from exploding.',
+
+  // ── Qabal Summoner ─────────────────────────────────────────────────────
+  'The Crucible of Knowledge': 'At Rank one and each Class Rank thereafter, choose 1 type of spell you know. You function as if you possess a skill emphasis when making Spellcasting Rolls for that type. Select one discipline; you gain a +1k1 bonus when casting spells of that discipline.',
+
+  // ── Blood-Sworn ────────────────────────────────────────────────────────
+  'Blessed by the Crystal': "You may pass impressions and emotions to others with this technique within 500' without speech, and sense their position within 500' if they wish to be sensed. You add your Class Rank to all Rolls to resist Fear, Intimidation, Temptation and effects intended to prevent you from defending your people.",
+  'Your Blood is My Blood': "A number of times per round equal to your Class Rank, you may absorb an amount of damage up to your Stamina + Insight Rank taken by an ally within 50', transferring those wounds to yourself.",
+  'Fortification in Form': 'You gain a special form of Reduction equal to your Earth Ring. This Reduction stacks with Reduction from armor or spells, but also applies (without stacking with other sources) to wounds taken from non-physical sources, such as magic.',
+  'To Fight for the Future': 'Making an attack is a Simple Action for you.',
+  'One is Never Truly Alone': "If you are surrounded on three or more sides by enemies, or fighting with no allies within 300' of you, your Strength increases by 5 and you gain an additional Wound Rank at the Nicked Wound Penalty level. Any wounds suffered remain, which may result in greater wound penalties or even death.",
+
+  // ── Children of Midnight ───────────────────────────────────────────────
+  'Wisdom of the Stars': 'The Sahir gains a Free Raise to spells from the Celestial Discipline. A number of times per day equal to their Class Rank as a Free Action they may switch this Free Raise to any other Discipline they wish, but suffer a -1k0 penalty to Spellcasting Rolls of other Disciplines for the same duration.',
+
+  // ── Heart-Seekers ──────────────────────────────────────────────────────
+  'Truth is My Ally': 'You gain a +2k0 bonus to all rolls involving finding something hidden or concealed, and against effects (mundane or magical) which would alter or mislead your perceptions.',
+  'Diligence is the Best Teacher': 'You gain a Free Raise to all Perception or Awareness based rolls.',
+  'One Mind, One Action': "You gain a bonus equal to 2 x your Rank in this Class to your Armor TN. When targeted by a spell, you may make an Intelligence/Spellcraft Roll vs. a TN equal to the Spellcasting Roll to avoid the spell's effects. If sufficient cover is available, you may instead make the roll using Agility/Stealth (Sneaking).",
+  'Bane of the Heartless': 'Making an attack with an Ashalan Weapon is a Simple Action for you. You may make a special attack requiring 3 Raises; your opponent must succeed at a Void Roll vs. TN 5 x your Insight Rank or suffer a +30 TN penalty to all Skill or Spellcasting Rolls and have their Water Ring reduced by your Rank in this Class for a number of rounds equal to your Rank in this Class.',
+  'My Will is My Fortress': "All Spells, Skills or other effects that would affect your mind have their TN increased by 5 x your Insight Rank. If you ever find a Khadi's heart, you are utterly unaffected by that Khadi's magic while you hold it.",
+
+  // ── Assassin Slayer ────────────────────────────────────────────────────
+  'All Shadows Walk in the Light': 'You gain a +1k0 bonus to all Acting, Sincerity (Deceit), Etiquette and Stealth Rolls. You gain +1k0 on Damage Rolls against opponents unaware of your presence.',
+  'Rite of Assassination': 'At the beginning of each day, you may nominate a target as subject to your Rite of Assassination. You gain a bonus to your Armor TN equal to your Stealth Skill Ranks; this bonus is doubled against the target of your Rite while facing them in combat or in Tahaddi Duels.',
+  'Let Him Bleed': 'Attacking a lone opponent or the target of your Rite of Assassination is a Simple Action for you.',
+  'Blood Calls for Blood': 'When facing a lone opponent or the target of your Rite, you gain a bonus to all Attack and Contested Rolls equal to your Stealth Skill, and your Raises on Attack Rolls are no longer limited in any way.',
+  'Swifter Than Life Itself': "Once per day when ambushing an opponent, facing a lone opponent, or facing the target of your Rite, you may switch your Initiative Score with your opponent's at the end of the Initiative Stage.",
+
+  // ── Assassin Keeper ────────────────────────────────────────────────────
+  "The Keeper's Courage": 'You gain a +1k0 bonus to all Rolls involving the Perception Trait. When inflicting Wounds to an opponent, you may ignore half of their Reduction rating (round up).',
+  "The Keeper's Judgment": 'When attacking an opponent, you may choose to disable them rather than wound them — dealing no damage, but inflicting the Dazed Conditional Effect on them instead.',
+  "The Keeper's Justice": 'Making an Attack which does not inflict damage (such as the Rank 2 Technique or initiating a grapple) is a Simple Action for you. If you make an attack as a Complex Action and miss your opponent you may immediately use the Rank 2 Technique as a Free Action.',
+  "The Keeper's Art": 'The difficulty of resisting all Conditional Effects you inflict is raised by twice your Class Rank. When attacking a Dazed opponent you may make 1 Raise on your Attack Roll; if successful that opponent is Fatigued until the end of the Skirmish.',
+  'By the Force of Will Alone': 'When adopting the Full Defense Stance you may choose one opponent: they must spend two Void Points to declare an attack against you. When adopting the Full Attack Stance you may spend a Void Point and choose one opponent: your Attack Rolls against them ignore all bonuses to their Armor TN from Stance, Skills, Mastery Abilities, Spells, Kiho or Techniques.',
+
+  // ── Assassin Duelist ───────────────────────────────────────────────────
+  'The Tiger Claw Cut': 'You gain a +2k1 bonus to all rolls while in the Center Stance.',
+  'No Escape': 'Treat as the Spinning Blades style Kata from L5R 4th Edition. When fighting with a weapon in each hand, the Extra Attack maneuver costs only 3 Raises. You may not increase damage via Raises on either attack.',
+  'The Final Strike': 'You may spend any amount of Void to enhance Damage Rolls during a Tahaddi Duel.',
+
+  // ── Ra'Shari Knife-Fighter ─────────────────────────────────────────────
+  'The Endless Dance': 'You gain a bonus to your Armor TN equal to your Perform (Dance) Skill when not in heavy armor or similarly encumbered. You gain a +1k0 bonus on Initiative Rolls.',
+  'Flashing Talons': "You may throw knives accurately (without TN penalty) up to 60'. You gain a +1k0 bonus to Damage Rolls with bladed weapons.",
+  'Through the Cracks': 'If fighting unarmed or wielding only knives, the Extra Attack maneuver only costs 3 Raises. You gain a further +1k0 bonus to Initiative Rolls (+2k0 in total).',
+  'Two Knives, Two Wounds': 'Making attacks with a knife or an unarmed strike is a Simple Action for you.',
+  'Strike to Slay': 'When attacking with a knife or unarmed strike, you may spend a Void Point to add +1k1 to the Damage Roll. You gain a further +1k0 bonus to Initiative Rolls (+3k0 in total).',
+
+  // ── Ra'Shari Trader ────────────────────────────────────────────────────
+  'Opening Offer': "You gain a +1k0 bonus to Sincerity, Temptation and Commerce Rolls. You may make a Contested Temptation/Awareness against an opponent's Etiquette/Awareness to determine a single material item the subject wants. When buying from another Ra'Shari Caravan, you only pay 75% of the normal price.",
+  'Acquiring the Goods': 'You gain a +1k0 bonus on all Courtier, Etiquette and Lore: Underworld Rolls.',
+  'Making the Deal': "You receive a further +1k0 bonus to Sincerity, Temptation and Commerce Rolls (+2k0 in total). If you satisfy an NPC's material wants, you may halve the XP cost of purchasing them as an Ally.",
+  'Expediency is Important': "You gain a further +1k0 bonus to all Courtier, Etiquette, and Lore: Underworld Rolls (+2k0 in total). When waiting for goods to be shipped to you, you only wait 75% of the normal time.",
+  'The Perfect Supplier': "You receive a further +1k0 bonus to Sincerity, Temptation and Commerce Rolls (+3k0 in total). If you spend 20 minutes in conversation with someone and succeed at a Contested Temptation Roll, you may learn all of the Target's material desires and potentially gain them as an Ally at no cost until the promised goods arrive.",
+
+  // ── Ra'Shari Diviner ───────────────────────────────────────────────────
+  'The Whispers of the Song': 'You may add your Divination skill to the result of all Lore skill Rolls.',
+
+  // ── Senpet Legionnaire ─────────────────────────────────────────────────
+  'Divine Insight': 'You add your Lore: Theology skill to the benefit gained from assuming the Center Stance and to your Armor TN while in the Center Stance. You gain +1k1 to all Hunting (Survival) Rolls in the desert.',
+  'Divine Strength': 'You may spend one Void Point to roll an additional +1k1 damage with any weapon.',
+  'Divine Retribution': 'You may make attacks as a Simple Action instead of a Complex Action while using weapons with the Senpet keyword.',
+  'The Gods Protect Me': 'When assuming the Center Stance you may spend a Void Point to gain +20 to your Armor TN. This effect ends at the start of the Reactions Stage during which it was activated and does not apply during the Strike Stage of a duel.',
+  'The Gods Guide my Hand': 'Once per skirmish you may spend a Void Point to gain +4k1 to Attack Rolls for one round.',
+
+  // ── Senpet Charioteer ──────────────────────────────────────────────────
+  'Ride Into Battle': 'When spending Void to increase your Armor TN you gain an additional bonus equal to your Lore: Theology Skill Ranks. While mounted on a chariot you gain a +1k0 bonus to your Initiative Rolls.',
+  'Swift Volley': 'If you take 2 Simple Actions to move your full movement in a round while mounted on a chariot or in the Full Attack Stance, enemies in the Full Attack Stance cannot attack you, and spells cast against you suffer a +5 TN penalty to their Spellcasting Roll.',
+  'Speed is my Armor': 'While mounted on a chariot or in the Full Attack Stance you may make attacks as a Simple Action instead of a Complex Action.',
+  'Ruthless Advance': 'While mounted on a chariot or in the Full Attack Stance you may spend a Void Point to gain +3k0 to all Attack Rolls until the next Reactions Stage.',
+  'Deadly Strike': 'Once per skirmish, while mounted on a chariot or assuming the Full Attack Stance, you may spend a Void Point to roll additional damage dice equal to your Lore: Theology Skill on all Damage Rolls until the Reactions Stage.',
+
+  // ── Senpet Sahir ───────────────────────────────────────────────────────
+  'By the Grace of the Gods': 'You gain a Free Raise on all Spellcasting Rolls. Add your Lore: Theology ranks to the total of all Social Skill Rolls involving religious matters.',
+
+  // ── Yodotai Legionnaire ────────────────────────────────────────────────
+  'Tortoise Formation': "You do not receive penalties to your Attack Rolls from carrying any type of Yodotai shield. You receive a bonus to your Armor TN equal to your Insight Rank while using a scutum in the Full Defense Stance. As a Free Action you may spend a Void Point to grant this bonus to all allies using scutum within 10' for a number of rounds equal to your Class Rank.",
+  'In Close Quarters': "In any round you switch from Full Defense to Full Attack Stance you gain +1k0 to Attack Rolls. As a Free Action you may spend a Void Point to grant this bonus to allies within 10' wielding a gladius who made the same switch this round.",
+  'Wedge Formation': 'While in the Attack Stance you gain Reduction equal to your Class Rank. If you make a Complex Action attack against an opponent in the Full Defense Stance you may ignore the Full Defense Armor TN benefit, instead calculating their Armor TN as if they were in the Attack Stance.',
+  'With My Brothers': "You no longer need to spend Void to grant the benefits of your Rank 1 and 2 Class Techniques to your allies and the range is extended to 30'. All allies wielding Yodotai weapons within 30' also add +1k0 to their Damage Rolls.",
+
+  // ── Yodotai Mercenary ──────────────────────────────────────────────────
+  'Importance of Speed': 'You reduce the TN penalties associated with carrying a shield by an amount equal to your Class Rank. You may move as if your Water Ring was 1 Rank higher.',
+  'Stranger in a Foreign Land': 'You gain a +1k0 to Battle, Intimidation and Courtier Rolls. If you pose a hypothetical scenario to an opponent after 5 minutes of conversation you may make a Contested Courtier/Awareness Roll against them to determine what tactics they might use.',
+  'Unfriendly Glare': 'You may make attacks with Warrior and Yodotai weapons as a Simple Action.',
+  'Combat Diplomacy': "You may make a Contested Battle/Perception Roll against an opponent's Sincerity/Awareness as a Simple Action to determine one of their Advantages or Disadvantages. You may spend a Void Point on first meeting someone to gain a Free Raise on rolls to gain their favor for the next 24 hours.",
+  'Hoplon Bash': "You may use your shield to perform an attack as a Complex Action while in the Full Defense Stance. Roll Agility/Brawling (Shield Bash) against a target's Armor TN; if successful you inflict 1k2 damage and subject them to a Knockdown Maneuver.",
+
+  // ── Yodotai Berserker ──────────────────────────────────────────────────
+  // Rank 1 shares name "Deadly Strike" with Senpet Charioteer Rank 5 and Yodotai Legionnaire Rank 3.
+  // Lookup by context in character sheet; descriptions differ.
+  'Aura of Power': "While in the Full Attack Stance all allies within 30' gain +1k0 to Damage Rolls with a Yodotai weapon (not cumulative with multiple Berserkers). While in the Full Attack Stance you gain Reduction equal to your Berserker Class Rank.",
+  'Killing Blow': 'While in the Full Attack Stance you may spend a Void Point to gain +5k0 to all Damage Rolls for one round.',
+
+  // ── Jani ───────────────────────────────────────────────────────────────
+  'Quicker Than the Eye': 'You gain a +1k0 bonus to all Initiative Rolls. You gain a +1k0 bonus to all Stealth Skill Rolls.',
+  'What the Eye Sees, What the Ear Hears': 'You gain an additional +1k0 to all Skill Rolls using Perception. When performing the Feint Maneuver using the Knives, Staves or Assassin Ranged Weapons Skills, you add +1k0 to your Attack and Damage Rolls.',
+  'Strike Quickly, Strike True': 'You gain a further +1k0 bonus to Initiative Rolls, Stealth Skill Rolls, and Perception based Rolls (+2k0 total). You gain a Free Raise when using the Disguise Emphasis of the Acting Skill.',
+  'Seen and Not Noticed': 'Making Attacks with the Knives, Staves or Assassin Ranged Weapons Skills is a Simple Action for you.',
+  'Blinding Speed': 'When attacking with the Knives, Staves or Assassin Ranged Weapons Skills you may make the Extra Attack Maneuver for only 3 Raises.',
+
+  // ── Necromancer ────────────────────────────────────────────────────────
+  'Initiate of Undeath': 'You may use the Soul of the Slayer to create Soul Jars. You gain three Mastery Levels of Spells from the Ghul Creation or Death Disciplines. You may cast each spell a number of times per day equal to your Earth Ring.',
+  'Master of Undeath and Death': 'You gain +2k0 on all Contested Rolls involving Willpower. You gain an additional 2 Mastery Levels from Ghul Creation or Death.',
+  'Creator of Undeath': 'You gain +1k0 to Intimidation, Deceit, and Sincerity Rolls and an additional 1 Mastery Level spell from Ghul Creation or Death.',
+  'Leader of Undead': 'When using Ghul Creation 1, you may make Raises to target additional Undead within range, at a rate of one extra target per Raise. All Undead under your control gain a +1k0 bonus to Attack and Damage Rolls.',
+  'Agent of Death': 'All Undead created by the Necromancer will do your bidding until dismissed or another Necromancer steals control. Non-necromancers may not take control of your Undead.',
+
+  // ── Kabir ──────────────────────────────────────────────────────────────
+  'Rotting the Foundation': 'When spending a Void Point to enhance a Low Skill, you gain a +2k2 bonus to the Roll rather than the usual +1k1.',
+  'A Honeyed Tongue': 'You gain a +1k0 bonus to all Etiquette, Storytelling, Courtier and Deceit Rolls.',
+  'Killing with Subtlety': 'You gain a +2k0 bonus to all Poison and Sleight of Hand Rolls. You gain the Herbalism Emphasis of the Medicine Skill for free.',
+  'Tearing Out the Foundation': 'You gain a +2k0 bonus to Stealth and Forgery Skill Rolls. You gain 1 Free Raise to any Skill Roll to destroy, disguise or otherwise alter a physical object.',
+  'Jackal Ambassador': "You gain an additional +1k0 bonus to all Etiquette, Storytelling, Courtier and Deceit Rolls (total of +2k0). You may purchase the Perceived Honor Advantage for 1 less Experience Point per Rank.",
+
+  // ── Ebonite Templar ────────────────────────────────────────────────────
+  'Tapping the Inner Strength': 'When facing an opponent with lower Integrity you roll an additional +1k0 on all Attack, Damage and Social Skill Rolls.',
+  'By Thy Will': 'During the Reactions Stage at the end of the round you may spend a Void Point to increase your Initiative score as if it was the beginning of the round. This increase lasts until the end of the skirmish.',
+  'The Ebon Hand': 'You may make attacks as a Simple Action when using weapons with the Warrior or Ebonite Keywords.',
+  'By Word Or By Sword': 'You may spend a Void Point to gain additional rolled dice equal to half your Integrity (round down) on a single Social Skill Roll.',
+  'Will of the Stone': 'You may spend a Void Point to ignore all wound penalties (including Down and Out) for the remainder of the skirmish.',
+
+  // ── Paths of the Free ─────────────────────────────────────────────────
+  'Predator of the Alleys': 'When attempting the Knockdown Maneuver you gain +1k0 to the Attack Roll. Your penalties for fighting in poor visibility conditions and in areas of difficult terrain are halved, round down.',
+  'A Man of Knowledge': 'You gain a Free Raise on Lore Skill Rolls. You gain a bonus equal to the number of Lore Skills you possess to all Etiquette and Storytelling Rolls.',
+  'Master of the Streets': "You add +1k0 to Sleight-of-Hand and Athletics Skill Rolls. Choose a quarter of Medinaat al-Salam; when in that quarter, you roll an additional +1k0 to Athletics, Stealth, and Underworld Skill Rolls.",
+
+  // ── Master of Wolves (Path) ────────────────────────────────────────────
+  'Master of Wolves': 'When fighting alongside your pack of wolves you may spend Void Points to augment their Attack Rolls. If one of your wolves dies you immediately suffer 5 Wounds that cannot be prevented or reduced in any way.',
 };
+
 
 
 

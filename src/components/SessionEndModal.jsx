@@ -11,11 +11,19 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
   );
   const [recap, setRecap] = useState({ event: '', npcs: '', factions: '', loot: '', changes: '' });
 
-  // Copper — calculate suggestion from encounters this session
+  // Per-character Integrity GM input (empty = no change)
+  const [integrityAwards, setIntegrityAwards] = useState(
+    characters.reduce((acc, c) => ({ ...acc, [c.id]: '' }), {})
+  );
+  // Per-character Reputation GM input (empty = no change)
+  const [repAwards, setRepAwards] = useState(
+    characters.reduce((acc, c) => ({ ...acc, [c.id]: '' }), {})
+  );
+
+  // Copper
   const sessionEncounters = (encounterLog || []).filter(e => e.session_number === session?.session_number);
   const suggestedCopper = sessionEncounters.reduce((sum, e) => sum + (COPPER_DEFAULTS[e.encounter_type] || 5), 0) || 10;
   const [copperAward, setCopperAward] = useState(suggestedCopper);
-
   const sessionNum = session?.session_number || '?';
 
   const handleConfirm = () => {
@@ -25,18 +33,23 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
       selectedCharIds: Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
       copperAward,
       recap,
+      integrityAwards,
+      repAwards,
     });
   };
 
+  const presentChars = characters.filter(c => selected[c.id]);
+
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 440 }}>
+      <div className="modal" style={{ maxWidth: 460 }}>
         <div className="modal-title">
           <i className="ti ti-player-stop" /> End Session {sessionNum}
         </div>
 
-        <div style={{ display: 'flex', gap: 4, marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: '1rem', flexWrap: 'wrap' }}>
           <button className={`btn btn-sm ${tab === 'xp' ? 'btn-p' : ''}`} onClick={() => setTab('xp')}>XP & Copper</button>
+          <button className={`btn btn-sm ${tab === 'awards' ? 'btn-p' : ''}`} onClick={() => setTab('awards')}>Integrity & Rep</button>
           <button className={`btn btn-sm ${tab === 'recap' ? 'btn-p' : ''}`} onClick={() => setTab('recap')}>Session Recap</button>
         </div>
 
@@ -77,6 +90,64 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
           </div>
         </>)}
 
+        {tab === 'awards' && (<>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.75rem', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--gold)' }}>Integrity:</strong> enter a GM value — new integrity = average of current + your value.<br />
+            <strong style={{ color: 'var(--gold)' }}>Reputation:</strong> set directly as a whole number. Leave blank to leave unchanged.
+          </div>
+
+          {presentChars.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No PCs marked present — check PCs Present on the XP tab first.</div>
+          )}
+
+          {presentChars.map(c => {
+            const curInt = Number(c.integrity) || 0;
+            const gmInt = integrityAwards[c.id];
+            const newInt = gmInt !== '' && !isNaN(+gmInt)
+              ? Math.round(((curInt + (+gmInt)) / 2) * 10) / 10
+              : null;
+
+            return (
+              <div key={c.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '.75rem', marginBottom: '.75rem' }}>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.4rem' }}>{c.name}</div>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {/* Integrity */}
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
+                      Integrity — current: <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{curInt.toFixed(1)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="number" min={0} max={10} step={0.5}
+                        placeholder="GM score"
+                        value={integrityAwards[c.id]}
+                        onChange={e => setIntegrityAwards(a => ({ ...a, [c.id]: e.target.value }))}
+                        style={{ width: 80, fontSize: 13 }} />
+                      {newInt !== null && (
+                        <span style={{ fontSize: 13, color: 'var(--green)' }}>
+                          → <strong>{newInt.toFixed(1)}</strong>
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Averaged with current value</div>
+                  </div>
+                  {/* Reputation */}
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
+                      Reputation — current: <span style={{ color: '#c8a040', fontWeight: 600 }}>{c.reputation ?? 1}</span>
+                    </div>
+                    <input type="number" min={0} step={1}
+                      placeholder="Set value"
+                      value={repAwards[c.id]}
+                      onChange={e => setRepAwards(a => ({ ...a, [c.id]: e.target.value }))}
+                      style={{ width: 80, fontSize: 13 }} />
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Whole number, GM-set</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </>)}
+
         {tab === 'recap' && (<>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem' }}>Saved to session archive.</div>
           {[
@@ -104,3 +175,4 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
     </div>
   );
 }
+
