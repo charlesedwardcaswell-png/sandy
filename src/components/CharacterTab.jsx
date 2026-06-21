@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
+import JinnRandomizer from './JinnRandomizer';
 import { supabase } from '../lib/supabase';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
@@ -14,6 +15,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
   const [editMode, setEditMode] = useState(false);
   const [showDel, setShowDel] = useState(0);
   const [addEq, setAddEq] = useState('');
+  const [jinnOpen, setJinnOpen] = useState(false);
 
   // Jump to a specific character (e.g. from NPC tab)
   useEffect(() => {
@@ -50,6 +52,13 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
 
     const playerChars = characters.filter(c => !c.is_npc);
 
+    const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
+    const hasSummonAbility = myChar && (
+      (myChar.advantages || []).some(a => a.name && a.name.toLowerCase().includes('smokeless')) ||
+      (myChar.spells || []).some(s => s.discipline === 'summoning' || (s.type && s.type === 'jinn') || (s.name && s.name.toLowerCase().includes('jinn')))
+    );
+    const myInsightRank = myChar ? (insightRankFor ? insightRankFor(myChar) : myChar.school_rank || 1) : 1;
+
     return (
       <div>
         <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
@@ -74,6 +83,13 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
               }
             </button>
           )}
+          {hasSummonAbility && onCreateNPC && (
+            <button className="btn btn-sm" onClick={() => setJinnOpen(true)}
+              style={{ borderColor: 'rgba(160,120,200,.5)', color: 'var(--gold)' }}
+              title="You know Jinn Summoning — open the Summoning ritual">
+              ✦ Summon Jinn
+            </button>
+          )}
         </div>
         {playerChars.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
@@ -87,6 +103,14 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onUpdate={onUpdateCharacter}
             myCharId={myCharId}
             onClaimCharacter={onClaimCharacter}
+          />
+        )}
+        {jinnOpen && onCreateNPC && (
+          <JinnRandomizer
+            onClose={() => setJinnOpen(false)}
+            onCreateNPC={onCreateNPC}
+            isGM={false}
+            summonsInsightRank={myInsightRank}
           />
         )}
       </div>
@@ -110,6 +134,13 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           {onCreateNPC && (
             <button className={`btn btn-sm ${view === 'npc' ? 'btn-p' : ''}`} onClick={() => setView('npc')}>
               <i className="ti ti-user-bolt" style={{ fontSize: 12 }} /> Library NPC
+            </button>
+          )}
+          {onCreateNPC && (
+            <button className="btn btn-sm" onClick={() => setJinnOpen(true)}
+              style={{ borderColor: 'rgba(160,120,200,.5)', color: 'var(--gold)' }}
+              title="Open the Jinn Summoning randomizer">
+              ✦ Summon Jinn
             </button>
           )}
         </div>
@@ -282,6 +313,14 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           if (result) setView('sheet');
           return result;
         }} onCancel={() => setView('sheet')} />
+      )}
+      {jinnOpen && onCreateNPC && (
+        <JinnRandomizer
+          onClose={() => setJinnOpen(false)}
+          onCreateNPC={onCreateNPC}
+          isGM={true}
+          summonsInsightRank={5}
+        />
       )}
     </div>
   );
@@ -1418,17 +1457,62 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false }) {
       {/* Step 1: Faction */}
       {step === 1 && (
         <div>
-          {FACTIONS_LIST.map(f => (
-            <div key={f} className={`faction-card ${faction === f ? 'sel' : ''}`} onClick={() => setFaction(f)}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-                <FacIcon name={f} size={18} />
-                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{f}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>{FACTIONS_DATA.find(x => x.name === f)?.tagline}</span>
-                {faction === f && <i className="ti ti-check" style={{ color: 'var(--gold)', fontSize: 16 }} />}
+          {FACTIONS_LIST.map(f => {
+            const fd = FACTIONS_DATA.find(x => x.name === f);
+            const av = fd?.avatar ? FACTION_AVATARS[fd.avatar] : null;
+            const isSelected = faction === f;
+            return (
+              <div key={f} className={`faction-card ${isSelected ? 'sel' : ''}`} onClick={() => setFaction(f)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                  {/* Avatar icon block */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+                    background: fd?.color ? fd.color + '33' : 'var(--bg-panel)',
+                    border: `1px solid ${fd?.color || 'var(--border)'}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 18,
+                  }}>
+                    {av?.icon || <FacIcon name={f} size={18} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{f}</span>
+                      {fd?.page && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                          p.{fd.page}
+                        </span>
+                      )}
+                      {isSelected && <i className="ti ti-check" style={{ color: 'var(--gold)', fontSize: 14, marginLeft: 'auto' }} />}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{fd?.tagline}</div>
+                  </div>
+                </div>
+                {isSelected && (
+                  <div style={{ marginTop: '.6rem', paddingTop: '.6rem', borderTop: '1px solid rgba(200,150,42,.2)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: '.3rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Schools: </span>
+                      {(FACTION_SCHOOLS[f] || []).join(', ')}
+                    </div>
+                    {av?.desc && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '.3rem' }}>
+                        {av.desc}
+                      </div>
+                    )}
+                    {fd?.page && (
+                      <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: '.2rem' }}>
+                        📖 Read more in the rulebook — page {fd.page}
+                        {fd.loreKey && (
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>
+                            · see Lore Reference in NPC tab
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {faction === f && <div style={{ marginTop: '.4rem', fontSize: 12, color: 'var(--text-secondary)' }}>Schools: {(FACTION_SCHOOLS[f] || []).join(', ')}</div>}
-            </div>
-          ))}
+            );
+          })}
           <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
             <button className="btn btn-p" disabled={!faction} onClick={() => setStep(2)}>Next →</button>
           </div>

@@ -242,20 +242,35 @@ export const DISADVANTAGES = [
 ];
 
 export const FACTIONS_DATA = [
-  { name:'City Guard',        tagline:'The only legal armed force in the Jewel.',              rep:0 },
-  { name:'Dahab',             tagline:'The merchant houses and their shadowy conspiracy.',       rep:0 },
-  { name:'Qabal',             tagline:"Masters of summoning magic, keepers of Hakhim's Seal.", rep:0 },
-  { name:'Assassins',         tagline:'The Order of the Mountain, blades for hire.',            rep:-1 },
-  { name:'Ashalan',           tagline:'Ancient immortals who remember the Day of Wrath.',       rep:0 },
-  { name:"Ra'Shari",          tagline:'Nomadic traders and diviners of the Great Caravan.',     rep:1 },
-  { name:'Senpet',            tagline:'Priests and warriors of the Ten Thousand Gods.',         rep:0 },
-  { name:'Yodotai',           tagline:'Legionnaires of the ever-expanding Empire.',             rep:0 },
-  { name:'Ebonites',          tagline:'Templars of the Order of the Ebon Hand.',               rep:0 },
-  { name:'Jackals',           tagline:'A criminal cult of necromancers and diplomats.',         rep:-2 },
-  { name:'Merchants',         tagline:'Independent traders not affiliated with Dahab.',         rep:0 },
-  { name:'Rogues / Foreigners', tagline:'Criminals, wanderers, visitors from distant lands.',  rep:0 },
-  { name:'Monsters',          tagline:'Creatures of the desert, sewers, and darker places.',   rep:0 },
+  { name:'City Guard',          tagline:'The only legal armed force in the Jewel.',              rep:0,  page:100, loreKey:'caliphate',  avatar:'warrior',    color:'#4a6a8a' },
+  { name:'Dahab',               tagline:'The merchant houses and their shadowy conspiracy.',       rep:0,  page:104, loreKey:'dahab',      avatar:'courtier',   color:'#8a6a20' },
+  { name:'Qabal',               tagline:"Masters of summoning magic, keepers of Hakhim's Seal.", rep:0,  page:112, loreKey:'qabal',      avatar:'sahir',      color:'#5a3a7a' },
+  { name:'Assassins',           tagline:'The Order of the Mountain, blades for hire.',            rep:-1, page:151, loreKey:'assassins',  avatar:'assassin',   color:'#6a2a2a' },
+  { name:'Ashalan',             tagline:'Ancient immortals who remember the Day of Wrath.',       rep:0,  page:127, loreKey:'ashalan',    avatar:'ashalan',    color:'#2a5a4a' },
+  { name:"Ra'Shari",            tagline:'Nomadic traders and diviners of the Great Caravan.',     rep:1,  page:173, loreKey:'rashari',    avatar:'nomad',      color:'#7a4a20' },
+  { name:'Senpet',              tagline:'Priests and warriors of the Ten Thousand Gods.',         rep:0,  page:197, loreKey:'senpet',     avatar:'legionnaire',color:'#8a5a20' },
+  { name:'Yodotai',             tagline:'Legionnaires of the ever-expanding Empire.',             rep:0,  page:221, loreKey:'yodotai',    avatar:'legionnaire',color:'#5a4a3a' },
+  { name:'Ebonites',            tagline:'Templars of the Order of the Ebon Hand.',               rep:0,  page:261, loreKey:'ebonites',   avatar:'templar',    color:'#2a2a2a' },
+  { name:'Jackals',             tagline:'A criminal cult of necromancers and diplomats.',         rep:-2, page:245, loreKey:'jackals',    avatar:'rogue',      color:'#3a2a4a' },
+  { name:'Merchants',           tagline:'Independent traders not affiliated with Dahab.',         rep:0,  page:104, loreKey:'dahab',      avatar:'merchant',   color:'#6a5a30' },
+  { name:'Rogues / Foreigners', tagline:'Criminals, wanderers, visitors from distant lands.',    rep:0,  page:83,  loreKey:'city',       avatar:'rogue',      color:'#4a4a4a' },
+  { name:'Monsters',            tagline:'Creatures of the desert, sewers, and darker places.',   rep:0,  page:285, loreKey:'jinn',       avatar:'creature',   color:'#3a3a2a' },
 ];
+
+// Faction avatar descriptors used in character creation
+export const FACTION_AVATARS = {
+  warrior:     { icon: '⚔',  label: 'Warrior',     desc: "Armed and trained for combat in the Jewel's streets." },
+  courtier:    { icon: '💰', label: 'Merchant',    desc: 'Commerce, influence, and the art of the deal.' },
+  sahir:       { icon: '✦',  label: 'Sahir',       desc: "Scholar of Hakhim's Seal and the Five Disciplines." },
+  assassin:    { icon: '🗡', label: 'Assassin',    desc: 'The blade in the dark, the smile at the feast.' },
+  ashalan:     { icon: '◈',  label: 'Ashalan',     desc: 'Tattooed immortal, survivor of the Day of Wrath.' },
+  nomad:       { icon: '🌙', label: 'Nomad',       desc: 'Wagon-dweller, keeper of ancient knowledge.' },
+  legionnaire: { icon: '🛡', label: 'Legionnaire', desc: 'Soldier of a great military tradition.' },
+  templar:     { icon: '◆',  label: 'Templar',     desc: "Guardian of the Ebon Stone's legacy." },
+  rogue:       { icon: '👁', label: 'Rogue',       desc: 'Operating outside the law and faction politics.' },
+  merchant:    { icon: '⚖', label: 'Merchant',    desc: "Independent trader in the world's greatest market." },
+  creature:    { icon: '🔥', label: 'Creature',    desc: 'Something other than human walks these streets.' },
+};
 
 // ── Sahir Spell Data ──────────────────────────────────────────────────────────
 export const SAHIR_DISCIPLINES = [

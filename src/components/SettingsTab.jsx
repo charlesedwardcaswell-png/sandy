@@ -202,6 +202,37 @@ export default function SettingsTab({ onWipe = {} }) {
     if (afterRefetch) afterRefetch();
   };
 
+  const clearActiveSession = async () => {
+    // Find the active session
+    const { data, error } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('game_id', GAME_ID)
+      .eq('is_active', true)
+      .single();
+    if (error || !data) { console.warn('No active session to clear'); return; }
+    // End it without archiving — wipe encounter_data, mark inactive, no recap
+    const { error: updateError } = await supabase
+      .from('sessions')
+      .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
+      .eq('id', data.id);
+    if (updateError) { console.error('clearActiveSession failed:', updateError.message); }
+    if (onWipe.session) onWipe.session();
+  };
+
+  const wipeAllSessions = async () => {
+    // First kill the active session if one exists
+    await supabase
+      .from('sessions')
+      .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
+      .eq('game_id', GAME_ID)
+      .eq('is_active', true);
+    // Then delete all session rows
+    const { error } = await supabase.from('sessions').delete().eq('game_id', GAME_ID);
+    if (error) { console.error('wipeAllSessions failed:', error.message); return; }
+    if (onWipe.session) onWipe.session();
+  };
+
   const handleExport = async () => {
     setExportStatus('Exporting...');
     try {
@@ -424,12 +455,13 @@ export default function SettingsTab({ onWipe = {} }) {
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
           All wipes are permanent and cannot be undone. Each requires a confirmation click.
         </div>
+        <DangerAction label="Clear Active Session" description="Ends the current session without archiving it — wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
+        <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
         <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
         <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0"
           onConfirm={async () => { await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); }} />
         <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests', {}, onWipe.quests)} />
         <DangerAction label="Wipe Encounter Log" description="Clears the full encounter history" onConfirm={() => wipeTable('encounter_log')} />
-        <DangerAction label="Wipe Session Archive" description="Deletes all archived sessions and their recaps" onConfirm={() => wipeTable('sessions', { is_active: false })} />
         <DangerAction label="Wipe All NPCs" description="Removes every NPC from the log" onConfirm={() => wipeTable('npcs', {}, onWipe.npcs)} />
         <DangerAction label="Wipe All Characters" description="Deletes every player character — use before a new campaign" onConfirm={() => wipeTable('characters', {}, onWipe.characters)} />
         <DangerAction label="Reset Faction Reputation" description="Sets all faction reputations back to 0"

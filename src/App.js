@@ -116,7 +116,7 @@ export default function App() {
   const isPlayer = authMode === 'player';
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, refetch: refetchNpcs } = useNPCs();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
@@ -396,7 +396,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v62</span>
+        <span className="hdr-game">The Tool — v63</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -566,7 +566,7 @@ export default function App() {
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab
-          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars }}
+          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession }}
         />}
       </div>
 
