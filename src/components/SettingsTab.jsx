@@ -149,7 +149,7 @@ function PlayerAccounts() {
 }
 
 // ── SettingsTab ───────────────────────────────────────────────────────────────
-export default function SettingsTab() {
+export default function SettingsTab({ onWipe = {} }) {
   const [playerPw, setPlayerPw] = useState(PLAYER_PASSWORD);
   const [pwSaved, setPwSaved] = useState(false);
   const [status, setStatus] = useState('');
@@ -162,7 +162,7 @@ export default function SettingsTab() {
   const SETTINGS = ['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"];
   const [mapUrl, setMapUrl] = useState('https://i.imgur.com/6fuMHqq.jpeg');
   const [settingUrls, setSettingUrls] = useState({});
-  const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2' });
+  const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
 
   React.useEffect(() => {
@@ -190,11 +190,12 @@ export default function SettingsTab() {
     else { setPwSaved(true); setStatus('Updated. Change in AuthScreen.jsx → PLAYER_PASSWORD.'); setTimeout(() => setPwSaved(false), 3000); }
   };
 
-  const wipeTable = async (table, filter = {}) => {
+  const wipeTable = async (table, filter = {}, afterRefetch) => {
     let q = supabase.from(table).delete();
     Object.entries({ game_id: GAME_ID, ...filter }).forEach(([k, v]) => { q = q.eq(k, v); });
     const { error } = await q;
-    if (error) console.error(`Wipe ${table} failed:`, error.message);
+    if (error) { console.error(`Wipe ${table} failed:`, error.message); return; }
+    if (afterRefetch) afterRefetch();
   };
 
   const handleExport = async () => {
@@ -279,15 +280,33 @@ export default function SettingsTab() {
         ))}
 
         {/* Round limits */}
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Round Limits per Encounter Type <span style={{ fontWeight: 400 }}>(blank = unlimited)</span></div>
-        {['Action','Intrigue','Travel','Downtime'].map(t => (
-          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 80 }}>{t}</span>
-            <input type="number" min={1} max={99} value={roundLimits[t] || ''} onChange={e => setRoundLimits(r => ({ ...r, [t]: e.target.value }))}
-              placeholder="unlimited" style={{ width: 80, fontSize: 12 }} />
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>rounds</span>
-          </div>
-        ))}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Round Limits per Encounter Type</div>
+        {['Action','Intrigue','Travel','Downtime'].map(t => {
+          const val = roundLimits[t]; // '' or null = unlimited; number string = limited
+          const isUnlimited = !val || val === '';
+          const numVal = isUnlimited ? null : parseInt(val, 10);
+          return (
+            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 80 }}>{t}</span>
+              <button className="rep-btn" onClick={() => {
+                if (isUnlimited) return; // already unlimited
+                const next = numVal - 1;
+                setRoundLimits(r => ({ ...r, [t]: next <= 0 ? '' : String(next) }));
+              }} disabled={isUnlimited}>−</button>
+              <span style={{ fontSize: 13, fontWeight: 600, color: isUnlimited ? 'var(--text-muted)' : 'var(--gold)', minWidth: 64, textAlign: 'center', fontStyle: isUnlimited ? 'italic' : 'normal' }}>
+                {isUnlimited ? 'Unlimited' : `${numVal} rounds`}
+              </span>
+              <button className="rep-btn" onClick={() => {
+                const next = isUnlimited ? 1 : numVal + 1;
+                setRoundLimits(r => ({ ...r, [t]: String(next) }));
+              }}>+</button>
+              {!isUnlimited && (
+                <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--text-muted)' }}
+                  onClick={() => setRoundLimits(r => ({ ...r, [t]: '' }))}>∞</button>
+              )}
+            </div>
+          );
+        })}
 
         <button className="btn btn-p btn-sm" style={{ marginTop: '.75rem' }} onClick={saveImageSettings}>
           {imagesSaved ? '✓ Saved' : 'Save Settings'}
@@ -377,11 +396,11 @@ export default function SettingsTab() {
         <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
         <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0"
           onConfirm={async () => { await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); }} />
-        <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests')} />
+        <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests', {}, onWipe.quests)} />
         <DangerAction label="Wipe Encounter Log" description="Clears the full encounter history" onConfirm={() => wipeTable('encounter_log')} />
         <DangerAction label="Wipe Session Archive" description="Deletes all archived sessions and their recaps" onConfirm={() => wipeTable('sessions', { is_active: false })} />
-        <DangerAction label="Wipe All NPCs" description="Removes every NPC from the log" onConfirm={() => wipeTable('npcs')} />
-        <DangerAction label="Wipe All Characters" description="Deletes every player character — use before a new campaign" onConfirm={() => wipeTable('characters')} />
+        <DangerAction label="Wipe All NPCs" description="Removes every NPC from the log" onConfirm={() => wipeTable('npcs', {}, onWipe.npcs)} />
+        <DangerAction label="Wipe All Characters" description="Deletes every player character — use before a new campaign" onConfirm={() => wipeTable('characters', {}, onWipe.characters)} />
         <DangerAction label="Reset Faction Reputation" description="Sets all faction reputations back to 0"
           onConfirm={async () => { await supabase.from('faction_reputation').update({ reputation: 0 }).eq('game_id', GAME_ID); }} />
       </div>

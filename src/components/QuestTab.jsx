@@ -20,10 +20,13 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
   const [newQ, setNewQ] = useState({ title: '', description: '', is_visible: false, quest_type: 'main' });
   const [showPlayerNew, setShowPlayerNew] = useState(false);
   const [playerQ, setPlayerQ] = useState({ title: '', description: '' });
+  const [hideCompleted, setHideCompleted] = useState(false);
   const gmView = isGM && !isPCView;
 
   const visibleQuests = (gmView ? quests : quests.filter(q => q.is_visible)).filter(Boolean);
-  const sorted = [...visibleQuests].sort((a, b) => {
+  const sorted = [...visibleQuests]
+    .filter(q => !hideCompleted || q.status !== 'complete')
+    .sort((a, b) => {
     // Sort by type first (main, side, player), then by status
     const typeOrder = { main: 0, side: 1, player: 2 };
     const ta = typeOrder[a.quest_type] ?? 1;
@@ -49,11 +52,15 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem', flexWrap: 'wrap', gap: '.5rem' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
           Session {session?.session_number || '—'} — Objectives
         </span>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={hideCompleted} onChange={e => setHideCompleted(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
+            Hide completed
+          </label>
           {/* Players can suggest quests */}
           {!gmView && (
             <button className="btn btn-sm" style={{ borderColor: '#4a8a40', color: '#6aba60' }} onClick={() => setShowPlayerNew(!showPlayerNew)}>
@@ -115,9 +122,22 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
       ) : sorted.map(q => {
         const qt = QUEST_TYPES[q.quest_type] || QUEST_TYPES.side;
         return (
-          <div key={q.id} className="qitem" style={{ borderLeft: `3px solid ${qt.color}`, background: qt.bg }}>
+          <div key={q.id} className="qitem" style={{ borderLeft: 'none', background: qt.bg, display: 'flex' }}>
+            {/* Rotated type label — vertical stripe on the left */}
+            <div style={{
+              width: 24, minHeight: '100%', background: qt.color, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: '4px 0 0 4px',
+            }}>
+              <span style={{
+                writingMode: 'vertical-rl', transform: 'rotate(180deg)',
+                fontSize: 9, fontWeight: 800, letterSpacing: '.12em',
+                color: '#000', textTransform: 'uppercase', userSelect: 'none',
+                padding: '6px 0',
+              }}>{qt.label}</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div className="qhdr">
-              <span style={{ fontSize: 10, padding: '1px 5px', border: `1px solid ${qt.border}`, borderRadius: 3, color: qt.color, marginRight: 4, flexShrink: 0 }}>{qt.label}</span>
               <span className={`qstat ${STATUS_STYLE[q.status] || 'q-active'}`}>
                 {q.status === 'carried_over' ? 'carried' : q.status}
               </span>
@@ -129,7 +149,6 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
               )}
               {gmView && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  {/* Promote player quests */}
                   {q.quest_type === 'player' && (
                     <select style={{ fontSize: 11, padding: '1px 3px', borderColor: '#4a8a40', color: '#6aba60' }}
                       value="player" onChange={e => onUpdateQuest(q.id, { quest_type: e.target.value })}>
@@ -181,6 +200,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
                 <textarea placeholder="Private GM notes..." value={q.gm_notes || ''} onChange={e => onUpdateQuest(q.id, { gm_notes: e.target.value })} />
               </div>
             )}
+            </div> {/* end inner flex-1 */}
           </div>
         );
       })}

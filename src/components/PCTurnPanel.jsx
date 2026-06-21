@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, onRoll, onStanceChange, onDrawWeapon, onPass }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [selectedWeapon, setSelectedWeapon] = useState(null);
   const [skillCategory, setSkillCategory] = useState('combat');
   const [allowFriendly, setAllowFriendly] = useState(false);
+  const [showSkillPicker, setShowSkillPicker] = useState(false); // full-screen skill overlay
 
   if (!isNPCTurn && !character) return null;
 
@@ -62,14 +63,17 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               ))}
             </div>
             {selectedTarget && (
-              <button className="btn btn-p" onClick={() => onRoll({
-                skill: 'Attack', isAttack: true, tn: 15,
-                baseRoll: (combatant.reflexes || 2) + 1,
-                baseKeep: combatant.air || 2,
-                dr: combatant.dr || '3k2',
-                targetName: enemies.find(e => e.id === selectedTarget)?.name,
-                targetId: selectedTarget,
-              })}>
+              <button className="btn btn-p" onClick={() => {
+                onRoll({
+                  skill: 'Attack', isAttack: true, tn: 15,
+                  baseRoll: (combatant.reflexes || 2) + 1,
+                  baseKeep: combatant.air || 2,
+                  dr: combatant.dr || '3k2',
+                  targetName: enemies.find(e => e.id === selectedTarget)?.name,
+                  targetId: selectedTarget,
+                });
+                onSpendAction && onSpendAction('full');
+              }}>
                 Roll Attack — {(combatant.reflexes || 2) + 1}k{combatant.air || 2} vs TN 15
               </button>
             )}
@@ -160,11 +164,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     setSelectedAction('skill');
   };
 
-  const handleRoll = () => {
+  const handleRoll = (manualTn) => {
     if (!selectedSkill) return;
     const pool = getPool(selectedSkill);
     const isAttack = combatSkills.some(s => s.name === selectedSkill.name) && selectedSkill.name !== 'Defense' && selectedSkill.name !== 'Athletics';
-    const tn = selectedTarget ? getTargetTN(selectedTarget) : 15;
+    const tn = manualTn || (selectedTarget ? getTargetTN(selectedTarget) : 15);
     const target = targetPool.find(e => e.id === selectedTarget);
 
     const stanceBonus = isAttack ? stanceRollBonus : 0;
@@ -186,26 +190,84 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       dr: combatant.dr || '3k2',
       targetName: target?.name || null,
       targetId: selectedTarget,
-      currentVoid: character.current_void,
+      currentVoid: character?.current_void,
       woundPenalty,
       character,
       suggestedFlatMod: centerBonus,
       bonusNotes,
       freeRaises: hasMasteryFreeRaise ? 1 : 0,
     });
+    if (onSpendAction) onSpendAction('full');
   };
 
   const stanceChosen = !!combatant.stance;
 
+  const actions = actionsLeft || { full: 1, simple: 2 };
+  const noActionsLeft = actions.full <= 0 && actions.simple <= 0;
+
   return (
     <div style={{
       background: 'var(--bg-dark)', borderTop: '2px solid var(--gold)', padding: '1rem',
-      position: 'sticky', bottom: 0, zIndex: 20,
+      position: 'sticky', bottom: 0, zIndex: 100,
     }}>
-      {/* Header */}
+      {/* Full-screen skill picker overlay */}
+      {showSkillPicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.92)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: '2rem' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem' }}>Choose a Skill</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Your GM will tell you the TN. Pick the skill first.</div>
+          <div style={{ display: 'flex', flex: 1, gap: '1.5rem', flexWrap: 'wrap', alignContent: 'flex-start', overflowY: 'auto' }}>
+            {Object.entries(SKILL_CATEGORIES).map(([cat, catSkills]) => {
+              const playerSkills = catSkills.filter(s => character && (character.skills || []).some(sk => (sk.name || sk) === s));
+              const otherSkills = catSkills.filter(s => !playerSkills.includes(s) && !s.endsWith('[Custom]'));
+              const customSkills = character ? (character.skills || []).filter(sk => {
+                const name = sk.name || sk;
+                return !catSkills.includes(name) && (
+                  (cat === 'Lore' && name.startsWith('Lore:')) ||
+                  (cat === 'Craft' && name.startsWith('Craft:')) ||
+                  (cat === 'Perform' && name.startsWith('Perform:'))
+                );
+              }).map(sk => sk.name || sk) : [];
+              const allForCat = [...playerSkills, ...customSkills, ...otherSkills.slice(0, 3)];
+              if (allForCat.length === 0) return null;
+              return (
+                <div key={cat} style={{ minWidth: 160 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>{cat}</div>
+                  {allForCat.map(sName => {
+                    const sk = character ? (character.skills || []).find(s => (s.name || s) === sName) : null;
+                    const rank = sk?.rank || sk || 0;
+                    const hasSkill = typeof rank === 'number' ? rank > 0 : false;
+                    return (
+                      <button key={sName} onClick={() => {
+                        setShowSkillPicker(false);
+                        setSelectedSkill({ name: sName, rank: typeof rank === 'number' ? rank : 0 });
+                        setSelectedAction('skill');
+                      }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: hasSkill ? 'rgba(107,78,40,.15)' : 'transparent', border: `1px solid ${hasSkill ? 'var(--gold-dim)' : 'var(--border)'}`, borderRadius: 4, padding: '.3rem .5rem', marginBottom: '.25rem', cursor: 'pointer', color: hasSkill ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
+                        <span style={{ flex: 1 }}>{sName}</span>
+                        {hasSkill && <span style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700 }}>R{rank}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+          <button className="btn" style={{ marginTop: '1.5rem', alignSelf: 'flex-start' }} onClick={() => setShowSkillPicker(false)}>← Cancel</button>
+        </div>
+      )}
+
+      {/* Header with action economy */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>
-          <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character.name} — Your Turn
+        <div style={{ fontSize: 16, fontWeight: 700, color: noActionsLeft ? 'var(--text-muted)' : 'var(--gold)' }}>
+          <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character?.name || combatant.name} — {isNPCTurn ? 'NPC Turn' : 'Your Turn'}
+        </div>
+        {/* Action Economy Display */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Actions:</div>
+          <div title="Full Action" style={{ width: 20, height: 20, borderRadius: 3, background: actions.full > 0 ? 'var(--gold)' : 'var(--bg-panel)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: actions.full > 0 ? '#1a1208' : 'var(--text-muted)' }}>F</div>
+          <div title="Simple Action 1" style={{ width: 16, height: 20, borderRadius: 3, background: actions.simple >= 1 ? 'var(--gold-dim)' : 'var(--bg-panel)', border: '1px solid var(--border)' }} />
+          <div title="Simple Action 2" style={{ width: 16, height: 20, borderRadius: 3, background: actions.simple >= 2 ? 'var(--gold-dim)' : 'var(--bg-panel)', border: '1px solid var(--border)' }} />
+          {noActionsLeft && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Done</span>}
         </div>
         {woundRank >= 3 && (
           <div style={{ fontSize: 12, padding: '2px 7px', border: '1px solid var(--red-dim)', borderRadius: 3, color: 'var(--red)', background: 'rgba(200,64,48,.1)' }}>
@@ -275,8 +337,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         ].map(action => (
           <button key={action.id}
             onClick={() => {
-              if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); }
+              if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); onSpendAction && onSpendAction('simple'); }
               else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
+              else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
               else {
                 setSelectedAction(action.id);
                 setSelectedSkill(null);
@@ -379,6 +442,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       woundPenalty,
                       character,
                     });
+                    onSpendAction && onSpendAction('full');
                   }}>
                     Roll {selectedWeapon.name} — {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
                   </button>
@@ -392,79 +456,57 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </div>
       )}
 
-      {/* Skill action - full skill list */}
-      {selectedAction === 'skill' && (
-        <div>
-          {/* Category tabs */}
-          <div style={{ display: 'flex', gap: '.3rem', marginBottom: '.5rem' }}>
-            {['combat', 'social', 'other'].map(cat => (
-              <button key={cat} className={`btn btn-sm ${skillCategory === cat ? 'btn-p' : ''}`}
-                style={{ fontSize: 12, textTransform: 'capitalize' }}
-                onClick={() => { setSkillCategory(cat); setSelectedSkill(null); }}>
-                {cat} ({cat === 'combat' ? combatSkills.length : cat === 'social' ? socialSkills.length : otherSkills.length})
-              </button>
-            ))}
-          </div>
-
-          {/* Skill grid */}
-          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', maxHeight: 120, overflowY: 'auto', marginBottom: '.5rem' }}>
-            {displaySkills.length === 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No {skillCategory} skills</span>}
-            {displaySkills.map(skill => {
-              const pool = getPool(skill);
-              return (
-                <button key={skill.name}
-                  className={`btn btn-sm ${selectedSkill?.name === skill.name ? 'btn-p' : ''}`}
-                  style={{ fontSize: 12 }}
-                  onClick={() => handleSkillClick(skill)}
-                >
-                  {skill.name}
-                  <span style={{ fontSize: 11, color: selectedSkill?.name === skill.name ? '#1a1208' : 'var(--text-muted)', marginLeft: 4 }}>
-                    {pool.roll}k{pool.keep}
-                  </span>
-                  {skill.school && <span style={{ fontSize: 10, marginLeft: 3, color: selectedSkill?.name === skill.name ? '#1a1208' : 'var(--gold-dim)' }}>★</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Selected skill details + roll button */}
-          {selectedSkill && (() => {
-            const pool = getPool(selectedSkill);
-            const isAtk = combatSkills.some(s => s.name === selectedSkill.name) && selectedSkill.name !== 'Defense' && selectedSkill.name !== 'Athletics';
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.5rem .75rem', background: 'rgba(200,150,42,.08)', border: '1px solid var(--gold-dim)', borderRadius: 5, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gold)' }}>{selectedSkill.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Rank {selectedSkill.rank} + {pool.traitKey} {pool.traitVal} = {pool.roll}k{pool.keep}
-                    {woundPenalty < 0 && <span style={{ color: 'var(--red)' }}> ({woundPenalty}k0 wound penalty)</span>}
+      {/* Skill action - shown after picking from the overlay */}
+      {selectedAction === 'skill' && selectedSkill && (() => {
+        const pool = getPool(selectedSkill);
+        const isAtk = combatSkills.some(s => s.name === selectedSkill.name) && selectedSkill.name !== 'Defense' && selectedSkill.name !== 'Athletics';
+        return (
+          <div style={{ padding: '.6rem .75rem', background: 'rgba(200,150,42,.08)', border: '1px solid var(--gold-dim)', borderRadius: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gold)' }}>{selectedSkill.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Rank {selectedSkill.rank} + {pool.traitKey} {pool.traitVal} = {pool.roll}k{pool.keep}
+                  {woundPenalty < 0 && <span style={{ color: 'var(--red)' }}> ({woundPenalty}k0 wound penalty)</span>}
+                </div>
+              </div>
+              {/* Manual TN entry — GM tells the player what to type */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>TN (ask your GM):</label>
+                <input type="number" min={5} max={60} defaultValue={15}
+                  id="manual-tn-input"
+                  style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
+              </div>
+              {isAtk && (
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Target:</div>
+                  <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                    {targetPool.filter(e => e.wound < 7).map(e => (
+                      <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12 }} onClick={() => setSelectedTarget(e.id)}>
+                        {e.name.split(' —')[0]}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                {isAtk && (
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Target:</div>
-                    {allies.length > 0 && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', marginBottom: '.3rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={allowFriendly} onChange={e => { setAllowFriendly(e.target.checked); setSelectedTarget(null); }} style={{ accentColor: 'var(--gold)' }} />
-                        Allow targeting allies
-                      </label>
-                    )}
-                    <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                      {targetPool.filter(e => e.wound < 7).map(e => (
-                        <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12, ...(allies.includes(e) ? { borderColor: 'var(--green-dim)', color: 'var(--green)' } : {}) }} onClick={() => setSelectedTarget(e.id)}>
-                          {e.name.split(' —')[0]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <button className="btn btn-p" disabled={isAtk && !selectedTarget} onClick={handleRoll}>
-                  Roll {pool.roll}k{pool.keep} vs TN {isAtk && selectedTarget ? getTargetTN(selectedTarget) : 15}
+              )}
+              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                <button className="btn btn-sm" onClick={() => { setShowSkillPicker(true); setSelectedSkill(null); }}>← Change</button>
+                <button className="btn btn-p" disabled={isAtk && !selectedTarget} onClick={() => {
+                  const manualTn = parseInt(document.getElementById('manual-tn-input')?.value, 10) || 15;
+                  handleRoll(manualTn);
+                  onSpendAction && onSpendAction('full');
+                }}>
+                  Roll {pool.roll}k{pool.keep}
                 </button>
               </div>
-            );
-          })()}
-        </div>
+            </div>
+          </div>
+        );
+      })()}
+      {selectedAction === 'skill' && !selectedSkill && (
+        <button className="btn btn-p" onClick={() => setShowSkillPicker(true)}>
+          <i className="ti ti-list-check" style={{ marginRight: 6 }} /> Choose Skill…
+        </button>
       )}
 
       {/* Draw weapon */}

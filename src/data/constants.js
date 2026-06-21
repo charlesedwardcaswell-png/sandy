@@ -12,6 +12,42 @@ export const ATTACK_MANEUVERS = ['Knockdown','Feint','Disarm','Extra Attack','Ca
 export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3, Downtime: 2 };
 export const TRAITS = ['Reflexes','Awareness','Stamina','Willpower','Agility','Intelligence','Strength','Perception'];
 
+// ── Full skill list ───────────────────────────────────────────────────────────
+// Grouped by category. Lore: / Craft: / Perform: are open-ended — a special
+// placeholder value signals the UI to show a free-text input for the subtopic.
+export const SKILL_CATEGORIES = {
+  'Bugei (Combat)': [
+    'Athletics','Archery','Assassin Ranged Weapons','Battle','Brawling',
+    'Defense','Horsemanship','Hunting','Intimidation','Knives',
+    'Polearms','Spears','Staves','Swordsmanship','Tahaddi',
+  ],
+  'High (Social/Scholarly)': [
+    'Calligraphy','Courtier','Divination','Etiquette','Games',
+    'Medicine','Meditation','Sincerity','Storytelling','Tea Ceremony',
+  ],
+  'Low (Common/Criminal)': [
+    'Acting','Forgery','Gambling','Sleight of Hand','Stealth',
+  ],
+  'Merchant': [
+    'Appraisal','Commerce','Temptation',
+  ],
+  'LBS-Specific': [
+    'Locksmithing','Spellcraft',
+  ],
+  'Lore': [
+    'Lore: Burning Sands','Lore: Ebonites','Lore: History','Lore: Jackal',
+    'Lore: Khadi','Lore: Law','Lore: Theology','Lore: Undead',
+    'Lore: Underworld','Lore: Yodotai History','Lore: [Custom]',
+  ],
+  'Craft': ['Craft: Poison','Craft: Weaponsmith','Craft: Armorsmith','Craft: [Custom]'],
+  'Perform': ['Perform: Dancing','Perform: Singing','Perform: [Custom]'],
+};
+
+// Flat list of all skills for convenience (custom placeholders excluded)
+export const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flat().filter(s => !s.endsWith('[Custom]'));
+// Skills that are open-ended and need a free-text subtopic field
+export const OPEN_SKILLS = ['Lore','Craft','Perform'];
+
 export const FACTION_ICONS = {
   'City Guard':          'ti-shield-filled',
   'Dahab':               'ti-coin',
@@ -387,3 +423,461 @@ export const IS_SAHIR_SCHOOL = (school) => [
 ].includes(school);
 
 export const IS_COKALOI_SCHOOL = (school) => school === "Ra'Shari Diviner";
+
+// ── Technique Descriptions ────────────────────────────────────────────────────
+// Keyed by technique name (same string stored in char.techniques).
+export const TECHNIQUE_DESCRIPTIONS = {
+  // Soldier of the City Guard
+  'Trained For War': 'Add Class Rank to rolls resisting duties (Fear Rolls, Contested Social Rolls like Intimidation or Temptation). Subtract Class Rank from Wound penalties. When attacking using a Class Skill and spending a Void Point, gain +2k1 instead of +1k1.',
+  'Strike With Fury': '+1k0 to Initiative Rolls. +1k0 to Attack Rolls while in Full Attack Stance.',
+  'Implacable Foe': 'Choose one weapon skill: gain a free Emphasis of choice. When attacking with a melee weapon with the relevant emphasis, may make attacks as a Simple Action.',
+  'Instrument of the Caliph': 'Add twice Class Rank to rolls resisting duties. When spending Void to reduce damage, remaining wounds are not applied until the Reactions Stage.',
+  'The Sublime Warrior': 'Spend a Void Point to negate all TN penalties for one round (including Wound penalties). When spending Void to increase Armor TN or Initiative, benefit is increased by 5.',
+  // Dahabi Enforcer
+  'Moonless Night': '+1k0 to Attack and Damage Rolls in Full Attack Stance. Penalties for poor visibility and difficult terrain are halved (round down).',
+  'Dangerous Maneuvers': '+1k1 to Contested Strength Rolls and +1k0 to Damage Rolls during grapple. Opponents suffer -1k0 to all Skill rolls for each ally reduced to Down or Out (highest penalty only; not cumulative with other Enforcers; mindless/Fear-immune enemies ignore this).',
+  'Show of Force': 'When attacking unarmed or with Warrior keyword weapons, may make attacks as Simple Actions.',
+  'Bitter Shadows': 'Upgrade Rank 2: now +2k2 to Contested Strength Rolls and +2k0 to Damage Rolls during grapple.',
+  'Final Strike': 'Once per skirmish: spend a Void Point to take Complex or Simple Actions normally while in Center Stance. Gain Center Stance benefits this round AND the following round. +0k2 to Damage Rolls while in Center Stance and the round after adopting it.',
+  // Dahabi Merchant
+  'Master of the Subtle Flow': '+2k0 to Commerce Rolls. +1k0 to Contested Sincerity and Temptation Rolls. Purchase Wealthy Advantage for 1 point less (minimum 1).',
+  'Upstanding Citizen': 'If opponent declares Raises on Contested Commerce, Sincerity, or Temptation against you, gain +2k0 to your roll.',
+  'An Eye for a Deal': 'When spending Void on non-Weapon Skill Rolls, add Class Rank to total. Opponents with Greedy Disadvantage cannot explode or reroll dice in Contested Social Rolls against you.',
+  'Silver Tongued Devil': 'Class Rank times per session: if you fail a Sincerity Social Roll, may reroll as Commerce instead (must take Commerce result). May negate opponent\'s Irreproachable or Clear Thinker when making Contested Social Rolls. When purchasing Wealthy advantage during play, copper gain is doubled (cumulative with Rank 1).',
+  'Merchant King': 'When making uncontested Social Skill Roll with no Raises called, gain +5k0.',
+  // Qabal Agent
+  'No One of Import': 'Learn a Mastery level 1 Control Spell; may cast it subtly without Awareness/Stealth Roll. Qabal Agent Class Rank counts as Sahir School ranks for Control Spell casting. Opponents suffer -1k0 on rolls to determine if you are lying.',
+  'A Good Excuse': 'TN of rolls to determine your Integrity or identity increased by 10 (cumulative with Bland Advantage). +2k0 to Sincerity (Deceit) Rolls.',
+  'Unassailable Reputation': 'Learn a Mastery level 1 or 2 Control Spell; may cast subtly. +1k0 to all Contested Social Skill Rolls you do not initiate.',
+  'The Ordered Bolthole': '+2k0 to Stealth Rolls. Spend GM-determined time to conceal evidence or make a building inconspicuous; Investigation Rolls on the scene suffer -Xk0 penalty (X = Class Rank).',
+  'Pillar of the Community': 'Learn a Mastery level 1, 2, or 3 Control Spell (subtly). Learn a Mastery level 1, 2, or 3 Blessing or Curses Spell (subtly). May select spells without having lower ranks. When opponent makes Investigation Roll against you, spend a Void Point to prevent their dice from exploding.',
+  // Assassin Slayer
+  'All Shadows Walk in the Light': '+1k0 to Acting, Sincerity (Deceit), Etiquette, and Stealth Rolls. +1k0 Damage Rolls against opponents unaware of your presence.',
+  'Rite of Assassination': 'At the start of each day, nominate one target as subject to Rite of Assassination. Gain Armor TN bonus equal to Stealth Skill ranks; doubled against the Rite target in combat or Tahaddi Duels.',
+  'Let Him Bleed': 'Attacking a lone opponent or Rite target is a Simple Action.',
+  'Blood Calls for Blood': 'When facing lone opponent or Rite target: bonus to all Attack and Contested Rolls equal to Stealth Skill; Raises on Attack Rolls are no longer limited.',
+  'Swifter Than Life Itself': 'Once per day when ambushing, facing lone opponent, or facing Rite target: may switch Initiative Score with opponent\'s at end of Initiative Stage.',
+  // Assassin Keeper
+  'The Keeper\'s Courage': '+1k0 to all Rolls involving Perception Trait. When inflicting Wounds, may ignore half of opponent\'s Reduction (round up).',
+  'The Keeper\'s Judgment': 'When attacking, may choose to disable rather than wound: no damage, but inflicts Dazed Conditional Effect instead.',
+  'The Keeper\'s Justice': 'Attacks that don\'t inflict damage (Rank 2 technique or initiating grapple) are Simple Actions. If you make a Complex Action attack and miss, may immediately use Rank 2 technique as a Free Action.',
+  'The Keeper\'s Art': 'TN to resist all Conditional Effects you inflict is raised by twice your Class Rank. When attacking Dazed opponent, may make 1 Raise on Attack Roll; if successful, opponent is Fatigued until end of Skirmish (not cumulative).',
+  'By the Force of Will Alone': 'When adopting Full Defense Stance, choose one opponent: they must spend 2 Void Points to declare an attack against you. When adopting Full Attack Stance, spend a Void Point and choose one opponent: your Attack Rolls ignore all Armor TN bonuses from Stance, Skills, Mastery Abilities, Spells, Kiho, or Techniques.',
+  // Blood-Sworn (Ashalan)
+  'The Tiger Claw Cut': '+2k1 to all rolls while in Center Stance.',
+  'No Escape': 'Once per turn while wielding a weapon in each hand, Extra Attack Maneuver costs 3 Raises instead of 5. Second attack from off-hand weapon. May not increase damage via Raises on either attack.',
+  'The Final Strike': 'May spend any amount of Void to enhance Damage Rolls during a Tahaddi Duel.',
+  // Heart-Seekers (Ashalan)
+  'Blessed by the Crystal': 'May pass impressions/emotions to others with this technique within 500\' without speech. May sense position of such others within 500\' if they wish. Add Class Rank to all rolls resisting Fear, Intimidation, Temptation, and effects preventing defense of your people.',
+  'Your Blood is My Blood': 'Class Rank times per round: absorb up to Stamina + Insight Rank damage taken by an ally within 50\', transferring those wounds to yourself.',
+  'Fortification in Form': 'Gain special Reduction equal to Earth Ring. Stacks with armor/spell Reduction. Also applies (without stacking) to wounds from non-physical sources (magic, Rank 2 technique).',
+  'To Fight for the Future': 'Making an attack is a Simple Action.',
+  'One is Never Truly Alone': 'If surrounded on 3+ sides or no allies within 300\': Strength increases by 5, gain an additional Wound Rank at Nicked penalty level. Benefits end Reactions Stage after conditions no longer apply.',
+  // Children of Midnight (Ashalan)
+  'Truth is My Ally': '+2k0 to all rolls finding hidden/concealed things, and against effects altering/misleading perceptions.',
+  'Diligence is the Best Teacher': 'Free Raise to all Perception or Awareness-based rolls.',
+  'One Mind, One Action': '+2 x Class Rank bonus to Armor TN. When targeted by a spell, may make Intelligence/Spellcraft Roll vs TN equal to Spellcasting Roll to avoid effects.',
+  'Bane of the Heartless': 'Making an attack with an Ashalan Weapon is a Simple Action. Special attack (3 Raises): in addition to normal damage, opponent must succeed Void Roll vs TN 5 x Insight Rank or suffer +30 TN penalty to all Skill/Spellcasting Rolls and have Water Ring reduced by Class Rank for rounds equal to Class Rank.',
+  'My Will is My Fortress': 'All Spells/Skills/effects affecting your mind have TN increased by 5 x Insight Rank. If you find a Khadi\'s heart, utterly unaffected by that Khadi\'s magic while holding it.',
+  // Ra'Shari Knife-Fighter
+  'The Endless Dance': 'Bonus to Armor TN equal to Perform (Dance) Skill when not in heavy armor or similarly encumbered. +1k0 to Initiative Rolls.',
+  'Flashing Talons': 'May throw knives accurately (without TN penalty) up to 60\'. +1k0 Damage Rolls with bladed weapons.',
+  'Through the Cracks': 'If fighting unarmed or with only knives, Extra Attack maneuver costs 3 Raises. +1k0 to Initiative Rolls (+2k0 total).',
+  'Two Knives, Two Wounds': 'Making attacks with a knife or unarmed strike is a Simple Action.',
+  'Strike to Slay': 'When attacking with knife or unarmed strike, spend a Void Point to add +1k1 to Damage Roll. +1k0 to Initiative Rolls (+3k0 total).',
+  // Ra'Shari Trader
+  'Opening Offer': '+1k0 to Sincerity, Temptation, and Commerce Rolls. May make Contested Temptation (Bribery)/Awareness to determine one material item the subject wants. When buying from another Ra\'Shari Caravan, pay only 75% of normal price.',
+  'Acquiring the Goods': '+1k0 to Courtier, Etiquette, and Lore: Underworld Rolls.',
+  'Making the Deal': '+1k0 to Sincerity, Temptation, Commerce Rolls (+2k0 total). If you satisfy an NPC\'s material wants, may halve XP cost of purchasing them as an Ally.',
+  'Expediency is Important': '+1k0 to Courtier, Etiquette, and Lore: Underworld Rolls (+2k0 total). When waiting for goods to be shipped, only wait 75% of normal time.',
+  'The Perfect Supplier': '+1k0 to Sincerity, Temptation, Commerce Rolls (+3k0 total). After 20 minutes of conversation, may learn all target\'s material desires and gain them as a free Ally until promised goods arrive.',
+  // Senpet Legionnaire
+  'Divine Insight': 'Add Lore: Theology skill to benefit gained from assuming Center Stance and to Armor TN while in Center Stance. +1k1 to all Hunting (Survival) Rolls in the desert.',
+  'Divine Strength': 'Spend one Void Point to roll additional +1k1 damage with any weapon.',
+  'Divine Retribution': 'May make attacks as Simple Actions while using weapons with the Senpet keyword.',
+  'The Gods Protect Me': 'When assuming Center Stance, spend a Void Point to gain +20 to Armor TN. Effect ends at start of Reactions Stage when activated.',
+  'The Gods Guide my Hand': 'Once per skirmish: spend a Void Point to gain +4k1 to Attack Rolls for one round.',
+  // Senpet Charioteer
+  'Ride Into Battle': 'When spending Void to increase Armor TN, gain additional bonus equal to Lore: Theology ranks. While mounted on chariot, +1k0 to Initiative Rolls.',
+  'Swift Volley': 'If you take 2 Simple Actions to move full movement while mounted on chariot or in Full Attack Stance, enemies in Full Attack Stance cannot attack you, and spells cast against you suffer +5 TN penalty.',
+  'Speed is my Armor': 'While mounted on chariot or in Full Attack Stance, may make attacks as Simple Actions.',
+  'Ruthless Advance': 'While mounted on chariot or in Full Attack Stance, spend a Void Point to gain +3k0 to all Attack Rolls until next Reactions Stage.',
+  // Yodotai Legionnaire
+  'Tortoise Formation': 'No Attack Roll penalties from carrying any Yodotai shield. While using scutum in Full Defense Stance, +Insight Rank to Armor TN. Free Action: spend Void Point to grant this bonus to allies using scutum in Full Defense Stance within 10\'.',
+  'In Close Quarters': 'In rounds where you switch from Full Defense to Full Attack Stance, +1k0 to Attack Rolls. Free Action: spend Void Point to grant this bonus to allies within 10\' wielding gladius who made same switch this round.',
+  'Wedge Formation': 'While in Attack Stance, gain Reduction equal to Class Rank. When making Complex Action attack against opponent in Full Defense Stance, may ignore their Full Defense Armor TN benefit.',
+  'With My Brothers': 'No longer need to spend Void for Rank 1 and 2 benefits; range extended to 30\'. All allies wielding Yodotai weapons within 30\' add +1k0 to Damage Rolls.',
+  // Yodotai Mercenary
+  'Importance of Speed': 'Reduce TN penalties from carrying a shield by Class Rank. May move as if Water Ring was 1 Rank higher.',
+  'Stranger in a Foreign Land': '+1k0 to Battle, Intimidation, and Courtier Rolls. After 5 minutes of conversation, may make Contested Courtier to determine what tactics they\'d use in a hypothetical scenario.',
+  'Unfriendly Glare': 'May make attacks with Warrior and Yodotai weapons as Simple Actions.',
+  'Combat Diplomacy': 'Simple Action: Contested Battle/Perception vs opponent\'s Sincerity/Awareness to determine one of their Advantages or Disadvantages.',
+  'Hoplon Bash': 'May use shield to perform attack as Complex Action while in Full Defense Stance. Roll Agility/Brawling (Shield Bash) vs target\'s Armor TN; if successful, inflict 1k2 damage. Target subject to Knockdown Maneuver.',
+  // Ebonite Templar
+  'Tapping the Inner Strength': 'When facing an opponent with lower Integrity: +1k0 to all Attack, Damage, and Social Skill Rolls.',
+  'By Thy Will': 'During Reactions Stage, spend Void Point to increase Initiative score as if it were the beginning of the round. Lasts until end of skirmish.',
+  'The Ebon Hand': 'May make attacks as Simple Actions when using Warrior or Ebonite keyword weapons.',
+  'By Word Or By Sword': 'Spend Void Point to gain additional rolled dice equal to half your Integrity (round down) on a single Social Skill Roll.',
+  'Will of the Stone': 'Spend Void Point to ignore all wound penalties (including Down and Out) for remainder of skirmish.',
+  // Jani (Jackals)
+  'Quicker Than the Eye': '+1k0 to Initiative Rolls. +1k0 to Stealth Skill Rolls.',
+  'What the Eye Sees, What the Ear Hears': '+1k0 to all Skill Rolls using Perception. When performing Feint Maneuver using Knives, Staves, or Assassin Ranged Weapons, +1k0 to Attack and Damage Rolls.',
+  'Strike Quickly, Strike True': '+1k0 to Initiative Rolls, Stealth, and Perception Rolls (+2k0 total). Free Raise when using Disguise Emphasis of Acting Skill.',
+  'Seen and Not Noticed': 'Making attacks with Knives, Staves, or Assassin Ranged Weapons is a Simple Action.',
+  'Blinding Speed': 'When attacking with Knives, Staves, or Assassin Ranged Weapons, Extra Attack Maneuver costs only 3 Raises.',
+  // Kabir (Jackals)
+  'Rotting the Foundation': 'When spending a Void Point to enhance a Low Skill, gain +2k2 instead of usual +1k1.',
+  'A Honeyed Tongue': '+1k0 to Etiquette, Storytelling, Courtier, and Deceit Rolls.',
+  'Killing with Subtlety': '+2k0 to Poison and Sleight of Hand Rolls. Gain Herbalism Emphasis of Medicine Skill for free.',
+  'Tearing Out the Foundation': '+2k0 to Stealth and Forgery Skill Rolls. Free Raise on any Skill Roll to destroy, disguise, or otherwise alter a physical object.',
+  'Jackal Ambassador': '+1k0 to Etiquette, Storytelling, Courtier, and Deceit Rolls (+2k0 total). May purchase Perceived Honor Advantage for 1 less XP per Rank.',
+  // Necromancer
+  'Initiate of Undeath': 'May use Soul of the Slayer to create Soul Jars. Gain 3 Mastery Levels of spells from Ghul Creation or Death Disciplines. May cast each spell a number of times per day equal to Earth Ring.',
+  'Master of Undeath and Death': '+2k0 on all Contested Rolls involving Willpower. Gain additional 2 Mastery Levels from Ghul Creation or Death.',
+  'Creator of Undeath': '+1k0 to Intimidation, Deceit, and Sincerity Rolls. Gain additional 1 Mastery Level spell from Ghul Creation or Death.',
+  'Leader of Undead': 'When using Ghul Creation 1, may make Raises to target additional Undead within range. All Undead under your control gain +1k0 to Attack and Damage Rolls.',
+  'Agent of Death': 'All Undead created by the Necromancer obey until dismissed or another Necromancer steals control. Non-necromancers may not take control of your Undead.',
+  // Senpet Legionnaire (group rank 3)
+  'Might of the Ten Thousand': 'Spend a Void Point at start of combat: you and allies gain a Free Raise to all attack rolls, and allies gain one additional Void Point, for duration of skirmish.',
+  'Power of the Devout': 'Pray as Complex Action: you and allies within 30\' add twice Theology Skill Rank to initiative roll; may make melee attacks as Simple Actions for rounds equal to Theology Skill Rank.',
+  'We Carry the Gods': 'When using Rank 1, each ally gains two Void Points instead of one, and you and allies add Theology Skill Rank to all damage rolls during skirmish.',
+};
+
+
+
+// ── Creature Library ──────────────────────────────────────────────────────────
+// Static bestiary — always available in the Monsters faction, no DB records needed.
+// attack/damage use LBS dice notation (e.g. '6k3'). tn = TN to Be Hit. wpl = Wounds per Level.
+export const CREATURES_LIBRARY = [
+  // ── Animals ─────────────────────────────────────────────────────────────────
+  {
+    id: 'creature_camel', name: 'Camel', category: 'Animal',
+    air: 2, earth: 3, fire: 2, water: 3,
+    traits: { Stamina: 3, Strength: 6 },
+    attack: '3k2', damage: '3k2', tn: 10, wpl: 10,
+    specials: [],
+    gm_notes: 'Riding animal and beast of burden. Can go long periods without water. Attacks by biting. Bad-tempered. Horsemanship (Camel emphasis).',
+  },
+  {
+    id: 'creature_horse', name: 'Horse', category: 'Animal',
+    air: 2, earth: 3, fire: 1, water: 3,
+    traits: { Agility: 3, Strength: 5 },
+    attack: '3k2', damage: '6k3', tn: 10, wpl: 10,
+    specials: ['Fleet — uses Strength instead of Water for movement. TN 15 at gallop.'],
+    gm_notes: 'Not native to Burning Sands. Status symbol for wealthy citizens.',
+  },
+  {
+    id: 'creature_gorilla', name: 'Gorilla', category: 'Animal',
+    air: 2, earth: 3, fire: 2, water: 3,
+    traits: { Agility: 3, Strength: 5 },
+    attack: '6k3', damage: '5k1', tn: 15, wpl: 6,
+    specials: [],
+    gm_notes: 'Originally from Ra\'Shari caravans. Fashionable guard pets for the wealthy. Requires ~80 lbs food/day. Dahabi House keep trained gorilla bodyguards.',
+  },
+  {
+    id: 'creature_snake', name: 'Snake (Venomous)', category: 'Animal',
+    air: 1, earth: 1, fire: 1, water: 1,
+    traits: { Reflexes: 3, Agility: 3, Awareness: 3 },
+    attack: '3k2', damage: '1k1', tn: 20, wpl: 4,
+    specials: ['Poison — successful attack forces target to resist snake venom.'],
+    gm_notes: 'Common in the Burning Sands. Used as assassination tools by Assassins, Jackals, and Senpet.',
+  },
+  {
+    id: 'creature_monkey', name: 'Monkey', category: 'Animal',
+    air: 3, earth: 1, fire: 2, water: 2,
+    traits: { Reflexes: 3, Agility: 4 },
+    attack: '2k2', damage: '1k1', tn: 20, wpl: 2,
+    specials: [
+      'Nimble — moves through trees, walls, and structures freely as a Free Action.',
+      'Theft — may attempt to steal a small item from a target as a Simple Action (opposed Agility/Sleight of Hand vs Reflexes/Defense).',
+    ],
+    gm_notes: 'Brought in by Ra\'Shari caravans. Kept as pets or trained by thieves. Some wealthy houses use them as messengers within large compounds.',
+  },
+  {
+    id: 'creature_jackal', name: 'Jackal', category: 'Animal',
+    air: 2, earth: 2, fire: 2, water: 2,
+    traits: { Reflexes: 3, Awareness: 3 },
+    attack: '3k2', damage: '2k1', tn: 15, wpl: 4,
+    specials: [
+      'Pack Hunter — gains +1k0 to attack rolls for each additional jackal attacking the same target (max +3k0).',
+      'Scent — cannot be surprised and ignores penalties for fighting in darkness.',
+    ],
+    gm_notes: 'Desert scavengers found in packs of 3–8 near battlefields, refuse heaps, and city edges. The Jackal faction takes its name from them. Rarely attack healthy humans alone — much bolder in packs.',
+  },
+  {
+    id: 'creature_crocodile', name: 'Crocodile', category: 'Animal',
+    air: 1, earth: 4, fire: 2, water: 4,
+    traits: { Stamina: 5, Strength: 6 },
+    attack: '4k2', damage: '5k2', tn: 10, wpl: 12,
+    specials: [
+      'Carapace 3 — thick hide reduces damage dice rolled by 3 (minimum 1 die).',
+      'Ambush Predator — gains +2k0 to attack rolls when attacking from water or when target is unaware.',
+      'Death Roll — on a successful grapple, may make a free damage roll each subsequent round without needing a new attack roll.',
+    ],
+    gm_notes: 'Found in the river and large oases outside Medinaat al-Salaam. Considered sacred by some Senpet. Slow on land (Water Ring for movement), lethal in water. Rarely ventures into the city proper — but the deeper sewer channels occasionally have them.',
+  },
+  // ── Supernatural ────────────────────────────────────────────────────────────
+  {
+    id: 'creature_cat', name: 'Cat of Many Tongues', category: 'Supernatural',
+    air: 3, earth: 1, fire: 1, water: 1,
+    traits: { Perception: 2 },
+    attack: '3k2', damage: '1k1', tn: 15, wpl: 3,
+    specials: [
+      'Magic Resistance — Jinn attacks/effects suffer +10 TN; Jinn magic within 30\' suffers +20 TN.',
+      'Mimicry — Repeats anything said within 30\' in the language of every listener present.',
+    ],
+    gm_notes: 'Appear as ordinary strays but eyes glow golden at sunrise/sunset. Sought for translation. Jinn are loathe to harm them.',
+  },
+  {
+    id: 'creature_ghul', name: 'Ghul', category: 'Undead',
+    air: 2, earth: 3, fire: 2, water: 4,
+    traits: { Reflexes: 3, Agility: 3 },
+    attack: '6k3', damage: '4k2', tn: 15, wpl: 8,
+    specials: [
+      'Fear 1 — Willpower TN 10 to confront; fail by 15+ means flee.',
+      'Immune to disease and poison.',
+      'No Wound penalties.',
+      'Fight until destroyed unless commanded otherwise.',
+    ],
+    gm_notes: 'Undead haunt the sewers, serving Jackal Necromancers. Created via Sahir magic (Ghul Creation spells), Senpet ritual, or Soul of the Slayer artifact.',
+  },
+  {
+    id: 'creature_roc', name: 'Roc', category: 'Supernatural',
+    air: 2, earth: 3, fire: 2, water: 4,
+    traits: { Reflexes: 6, Agility: 4, Strength: 6 },
+    attack: '6k4', damage: '6k4', tn: 25, wpl: 6,
+    specials: [
+      'Fear 3 — Willpower TN 20 to confront.',
+      'Flight — movement rate of twenty times Water Ring.',
+      'May attack twice per round with talons.',
+      'Pounce — if both talon attacks hit, gain 2 Free Raises on any subsequent grapple.',
+    ],
+    gm_notes: 'Bird of prey large enough to carry elephants. Adult wingspan 200 ft. Common near Medinaat al-Salaam since increase in Ivory Kingdoms caravans.',
+  },
+  {
+    id: 'creature_wyrm', name: 'Desert Wyrm', category: 'Supernatural',
+    air: 1, earth: 5, fire: 3, water: 4,
+    traits: { Stamina: 6, Strength: 7 },
+    attack: '6k3', damage: '6k3', tn: 15, wpl: 14,
+    specials: [
+      'Fear 2 — Willpower TN 15 to confront.',
+      'Carapace 2 — thick scales reduce damage dice rolled by 2 (minimum 1).',
+      'Burrow — moves through sand and loose earth as easily as open ground; attacks from below add +2k0 to the first attack roll.',
+      'Constrict — on a successful grapple, deals automatic Strength+2k2 damage each round without a new attack roll; target must beat TN 25 Strength roll to break free.',
+      'Invulnerable to mundane weapons of less than Damage 3k2 — hide too thick for small blades and arrows.',
+    ],
+    gm_notes: 'Ancient serpentine predators, longer than ten men laid end to end. Rare even in deep desert — most sightings are juveniles. A full adult can swallow a camel whole. Revered as sacred by some desert tribes; feared by everyone else. Believed to be remnants of a pre-creation age. Some scholars suggest they are degenerate Jinn who took physical form during the Day of Wrath and could not return.',
+  },
+  // ── Demonic ─────────────────────────────────────────────────────────────────
+  {
+    id: 'creature_progeny', name: 'Progeny of the Destroyer', category: 'Demonic',
+    air: 3, earth: 5, fire: 3, water: 4,
+    traits: { Reflexes: 4, Agility: 5 },
+    attack: '8k5', damage: '7k4', tn: 25, wpl: 10,
+    specials: [
+      'Carapace 3 — reduces damage dice rolled by 3 (min 1).',
+      'False Form — can assume form of a beautiful local woman; shapeshifting, not illusion — no magic can penetrate it.',
+      'Natural Weapons — 6 clawed arms, fangs, horns; may make 4 melee attacks per round.',
+      'Nightsight — sees in darkness with absolute clarity.',
+      'Spellcasting — minimum Rank 2 sahir equivalent.',
+    ],
+    gm_notes: 'Blood-borne daughters of Kali-Ma. Exceptionally rare — only two known: Sarna and Anata.',
+  },
+  // ── Jinn Templates ──────────────────────────────────────────────────────────
+  {
+    id: 'creature_jinn_minor', name: 'Minor Jinn', category: 'Jinn',
+    air: 2, earth: 2, fire: 2, water: 2, void: 2,
+    traits: {},
+    attack: '4k2', damage: '4k2', tn: 10, wpl: 4,
+    specials: [
+      'Invincible — no mortal weapon can slay a Jinn; if reduced past Out, returns to its realm.',
+      'Shapeshifting — may change shape at will (self only).',
+    ],
+    gm_notes: 'Base template. 40 CP, max 1 Advantage. Roll on Tables A2.2–A2.10 to customize. Skills: Brawling 2, Commerce 3.',
+  },
+  {
+    id: 'creature_jinn_medium', name: 'Medium Jinn', category: 'Jinn',
+    air: 3, earth: 3, fire: 4, water: 3, void: 4,
+    traits: {},
+    attack: '6k4', damage: '6k4', tn: 20, wpl: 6,
+    specials: [
+      'Invincible — no mortal weapon can slay a Jinn.',
+      'Shapeshifting — may change shape at will (self only).',
+    ],
+    gm_notes: 'Base template. 60 CP, max 3 Advantages. Skills: Brawling 4, Commerce 4.',
+  },
+];
+
+// ── LBS Book Reference — Table of Contents ────────────────────────────────────
+// File IDs from Google Drive share links (the string between /d/ and /view in the URL)
+export const DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1ItTpn0-2yRB-06sJLJm_ZZxWF1I8kgCZ';
+
+export const BOOK_TOC = [
+  {
+    chapter: 'Introduction & Table of Contents',
+    page: 1,
+    fileId: '1dRtdGMcXCpZbsce_x95VShAZL52fmczs',
+    sections: [
+      { title: 'Introduction — Journal of Iuchi Yue', page: 5 },
+      { title: 'Tales of Yesterday and Today', page: 7 },
+      { title: 'How to Use This Book', page: 8 },
+      { title: 'The Line of the Prophet (Mekhem / Shinsei)', page: 10 },
+      { title: 'Rokugan and the Gaijin', page: 11 },
+    ],
+  },
+  {
+    chapter: 'Chapter 1: Rules — Roll & Keep, Characters, Skills',
+    page: 15,
+    fileId: '1ntnWXNsrUESkFT-00TW_iu7_rlOAIymi',
+    sections: [
+      { title: 'Basic Game Mechanics — Roll and Keep', page: 13 },
+      { title: 'Rings and Traits', page: 19 },
+      { title: 'Character Creation', page: 22 },
+      { title: 'High Skills (Calligraphy, Courtier, Lore, Medicine…)', page: 28 },
+      { title: 'Merchant Skills (Commerce, Appraisal, Temptation)', page: 34 },
+      { title: 'Combat Skills (Athletics, Knives, Swordsmanship, Tahaddi…)', page: 36 },
+    ],
+  },
+  {
+    chapter: 'Chapter 1 cont.: Low Skills, Advantages & Disadvantages',
+    page: 41,
+    fileId: '1eSpvzCVSzbPweVmd971S3GBQR1g88O57',
+    sections: [
+      { title: 'Low Skills (Acting, Stealth, Forgery, Sleight of Hand…)', page: 39 },
+      { title: 'Advantages (full list)', page: 42 },
+      { title: 'Disadvantages (full list)', page: 48 },
+    ],
+  },
+  {
+    chapter: 'Chapter 1 cont.: Equipment, Combat & Magic',
+    page: 49,
+    fileId: '1RSw5RZdj0y1LeGAE4ivlaoK4xQzZSY5c',
+    sections: [
+      { title: 'Equipment — Weapons, Armor, Gear', page: 53 },
+      { title: 'Combat Resolution', page: 61 },
+      { title: 'Tahaddi (Knife-Fighting Duel Rules)', page: 68 },
+      { title: 'Spellcasting', page: 70 },
+      { title: 'Void Points', page: 71 },
+      { title: 'Poison, Disease and Powders', page: 72 },
+      { title: 'Building Character (XP and advancement)', page: 77 },
+    ],
+  },
+  {
+    chapter: 'Chapter 2: Medinaat al-Salaam',
+    page: 85,
+    fileId: '1gPtlmQe2VbqpwOSNyCcYTH6shQf78iKY',
+    sections: [
+      { title: 'Overview — Government, Economics, Landscape, Demographics', page: 84 },
+      { title: 'History of the Jewel', page: 90 },
+      { title: 'The Caliphate and the Khadi', page: 95 },
+      { title: 'The Immortal Caliph Hanan', page: 95 },
+      { title: 'Houses of Dahab', page: 104 },
+      { title: 'The Qolat (secret conspiracy)', page: 105 },
+      { title: 'The Qabal — Politics of Sorcery', page: 112 },
+      { title: 'The Five Sahir Disciplines (magic system)', page: 118 },
+      { title: 'City Guard / Free Sahir / Heartless Khadi', page: 100 },
+    ],
+  },
+  {
+    chapter: 'Chapter 3: The Ashalan',
+    page: 127,
+    fileId: '1HmBetSHE-SDA6sK2XRq61CgMS4kYy-Xt',
+    sections: [
+      { title: 'Overview — Blue-Skinned Immortals', page: 128 },
+      { title: 'History — Creation and the Day of Wrath', page: 129 },
+      { title: 'Political and Social Organization', page: 134 },
+      { title: 'The Ishanti Crystal', page: 136 },
+      { title: 'Religious Beliefs — Souls of the Twelve', page: 136 },
+      { title: 'Culture — Tattoos, Reproduction, Sandsmithing', page: 139 },
+      { title: 'Blood-Sworn / Children of Midnight / Heart-Seekers / Sun-Riders', page: 144 },
+    ],
+  },
+  {
+    chapter: 'Chapter 4: The Assassins',
+    page: 153,
+    fileId: '1cyspJdsDUKB2AJ2mBG-NThh0h3YSPYyL',
+    sections: [
+      { title: 'Overview and Secret History', page: 153 },
+      { title: 'History — Order of the Mountain', page: 155 },
+      { title: 'Political and Social Organization', page: 162 },
+      { title: 'Assassin Slayer / Keeper / Duelist', page: 163 },
+      { title: 'The Curse of the Grey Crone', page: 169 },
+    ],
+  },
+  {
+    chapter: "Chapter 5: The Ra'Shari",
+    page: 175,
+    fileId: '1l_DiU4LhHu0ltfW1ENlnszFIZTMgg605',
+    sections: [
+      { title: 'Overview and History', page: 175 },
+      { title: 'The Four Great Caravans (Mysticism, Entertainment, Commerce, Memory)', page: 180 },
+      { title: "Ra'Shari and the Jinn", page: 183 },
+      { title: 'Culture — Nomadic Life and Language', page: 184 },
+      { title: "Ra'Shari Knife-Fighter / Trader / Diviner", page: 188 },
+      { title: 'Cokaloi Magic — Dawn, Dusk, Night', page: 190 },
+    ],
+  },
+  {
+    chapter: 'Chapter 6: The Senpet',
+    page: 199,
+    fileId: '18kDmzy2duRSTSKPXxVi4FTOOB3qTvPXe',
+    sections: [
+      { title: 'Overview — Fallen Empire', page: 197 },
+      { title: 'History', page: 199 },
+      { title: 'Political and Social Organization', page: 204 },
+      { title: 'Religious Beliefs — The Ten Thousand Gods', page: 206 },
+      { title: 'Culture — Ritual, Sacrifice, Military Tradition', page: 208 },
+      { title: 'Senpet Legionnaire / Charioteer / Sahir', page: 212 },
+      { title: 'Avatar of the Ten Thousand / New Spells', page: 215 },
+    ],
+  },
+  {
+    chapter: 'Chapter 7: The Yodotai',
+    page: 223,
+    fileId: '17RmOCCAbXCY3RDXNv0LiDV9ztSgr0IQZ',
+    sections: [
+      { title: 'A Letter to Moto Chagatai', page: 223 },
+      { title: 'History — The Unstoppable Empire', page: 223 },
+      { title: 'Political and Social Organization', page: 227 },
+      { title: 'Religious Beliefs — Ancestral Warrior Spirits', page: 230 },
+      { title: 'Culture and Language', page: 233 },
+      { title: 'Yodotai Legionnaire / Mercenary / Berserker', page: 236 },
+    ],
+  },
+  {
+    chapter: 'Chapter 8: The Jackals',
+    page: 245,
+    fileId: '13Cs_ywbbD8itTaq6UWkXKJMR5l6cHg-G',
+    sections: [
+      { title: 'Overview and History', page: 246 },
+      { title: 'The Hall of Souls', page: 249 },
+      { title: 'Kali-Ma — Religion of Death and Rebirth', page: 249 },
+      { title: 'Culture — Sewers, Ghuls, Necromancy', page: 252 },
+      { title: 'Jani / Necromancer / Kabir', page: 255 },
+    ],
+  },
+  {
+    chapter: 'Chapter 9: The Ebonites',
+    page: 263,
+    fileId: '1PgA8uJzyCVAS_h0VnR-kQwDjzboteWfb',
+    sections: [
+      { title: 'Overview and History — The Ebon Hand', page: 263 },
+      { title: 'The Ebon Stone and the Virtues', page: 271 },
+      { title: 'The Code of the Ebonites', page: 273 },
+      { title: 'Culture, Language, Naming Conventions', page: 275 },
+      { title: 'Ebonite Templar / New Paths / Martial Arts', page: 278 },
+    ],
+  },
+  {
+    chapter: 'Appendix: Creatures, Jinn & Maps',
+    page: 284,
+    fileId: '1OHUaIzqFxgrrfxFtVIXmzf7dTIQZlKu2',
+    sections: [
+      { title: 'Creatures of the Burning Sands (stat blocks)', page: 286 },
+      { title: 'Special Abilities — Carapace, Fear, Invulnerability', page: 290 },
+      { title: 'The Jinn — Creation Templates and Tables', page: 291 },
+      { title: 'Negotiating with Jinn', page: 295 },
+      { title: 'Map of the Burning Sands', page: 296 },
+    ],
+  },
+];

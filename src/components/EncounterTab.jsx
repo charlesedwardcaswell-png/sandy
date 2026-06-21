@@ -5,70 +5,20 @@ import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore } from './
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
 import DiceModal from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
+import EncounterBuilder, { NPCPicker, NPC_BY_FACTION, generateGroup } from './EncounterBuilder';
 import { playDamage } from '../lib/sounds';
 
-// Random tables
-const PERSONALITIES = ['Nervous','Arrogant','Fanatical','Cowardly','Eerily calm','Chatty','Silent','Grieving','Drunk','Professional','Vengeful','Confused','Bored','Desperate','Proud','Suspicious','Merciful','Sadistic','Loyal','Resigned'];
-const PHYSICALS = ['Scarred','Hooded','Enormous','Limping','Veiled','Tattooed','Missing a hand','Unusually young','Ancient','Masked','Burns','Foreign features','Richly dressed','In rags','Military bearing','Shaking hands'];
-const TACTICALS = ['Flees at half wounds','Never retreats','Protects a specific ally','Targets the biggest threat','Hangs back at range','Rushes the nearest','Fights dirty','Surrenders if alone','Tries to disarm first'];
-
-const NPC_BY_FACTION = {
-  'City Guard': ['Soldier of the City Guard'],
-  'Dahab': ['Dahabi Enforcer','Dahabi Bargainer','Dahabi Merchant'],
-  'Qabal': ['Qabal Agent','Qabal Summoner'],
-  'Assassins': ['Assassin Slayer','Assassin Keeper'],
-  'Ashalan': ['Blood-Sworn','Children of Midnight','Heart-Seekers'],
-  "Ra'Shari": ["Ra'Shari Knife-Fighter","Ra'Shari Trader","Ra'Shari Diviner"],
-  'Senpet': ['Senpet Legionnaire','Senpet Charioteer','Senpet Sahir'],
-  'Yodotai': ['Yodotai Legionnaire','Yodotai Mercenary'],
-  'Ebonites': ['Ebonite Templar'],
-  'Jackals': ['Jani','Necromancer','Kabir'],
-  'Monsters': ['Desert Ghul','Bone Ghul','Jinn'],
-};
-
-const SETTING_FACTIONS = {
-  Streets:           { primary:['City Guard','Dahab','Jackals'],    secondary:['Qabal',"Ra'Shari",'Assassins'] },
-  Sewers:            { primary:['Jackals','Monsters'],              secondary:['Assassins'] },
-  Desert:            { primary:["Ra'Shari",'Monsters'],             secondary:['Yodotai','Senpet'] },
-  Palace:            { primary:['City Guard','Senpet','Dahab'],     secondary:['Ashalan','Qabal'] },
-  Indoors:           { primary:['Dahab','Monsters'],                secondary:['City Guard','Jackals'] },
-  "Khan's Warcamp":  { primary:['Yodotai','Senpet'],               secondary:['Monsters','City Guard'] },
-  "Barracks Lounge": { primary:['City Guard','Yodotai','Senpet'],  secondary:['Merchants','Rogues / Foreigners'] },
-};
-
-function generateGroup(setting, difficulty) {
-  const counts = { Easy:[2,3], Moderate:[3,5], Hard:[4,6], Deadly:[5,8] };
-  const ranks = { Easy:[1,2], Moderate:[1,3], Hard:[2,4], Deadly:[3,5] };
-  const fp = SETTING_FACTIONS[setting] || SETTING_FACTIONS.Streets;
-  const [cMin, cMax] = counts[difficulty] || counts.Moderate;
-  const [rMin, rMax] = ranks[difficulty] || ranks.Moderate;
-  const count = cMin + Math.floor(Math.random() * (cMax - cMin + 1));
-  return Array.from({ length: count }, (_, i) => {
-    const pool = Math.random() < 0.7 ? fp.primary : fp.secondary;
-    const faction = pick(pool);
-    const schools = NPC_BY_FACTION[faction] || ['Soldier of the City Guard'];
-    const school = pick(schools);
-    const rank = rMin + Math.floor(Math.random() * (rMax - rMin + 1));
-    return {
-      id: 'npc_' + Date.now() + '_' + i,
-      name: `${school} — Rank ${rank}`,
-      school, rank, faction,
-      dr: '3k2', drawnWeapon: 'Longsword (3k2)',
-      reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
-      personality: pick(PERSONALITIES), physical: pick(PHYSICALS), tactical: pick(TACTICALS),
-      wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
-    };
-  });
-}
-
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense }) {
   const isNPC = c.type === 'npc';
   const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
-  const armorTN = 5 + (c.reflexes || 2) * 5 + (c.stance === 'Full Defense' ? 10 : 0);
+  const voidTnBoost = c.voidArmor ? 10 : 0;
+  const armorTN = 5 + (c.reflexes || 2) * 5 + (c.stance === 'Full Defense' ? 10 : 0) + voidTnBoost;
+  const currentVoid = c.current_void ?? pc?.current_void ?? 0;
+  const maxVoid = c.void || pc?.void || 2;
 
   const cardClass = [
     'combat-card',
@@ -94,16 +44,20 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
     );
   }
 
+  const avatarUrl = (!isNPC && (pc?.avatar_url || c.avatar_url || '')).trim();
+  const avatarColor = (!isNPC && pc?.avatar_color) ? pc.avatar_color : (isNPC ? '#8a3030' : '#4a8a40');
+  const avatarType = (!isNPC && pc?.avatar_type) ? pc.avatar_type : (getArchetype(c.school) || 'warrior');
+
   return (
     <div className={cardClass}>
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderBottom: '1px solid var(--border)', background: isActive ? 'rgba(200,150,42,.08)' : 'transparent' }}>
-        <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : isNPC ? '#8a3030' : '#4a8a40'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
-          <Silhouette
-            type={(!isNPC && pc?.avatar_type) ? pc.avatar_type : (getArchetype(c.school) || (isNPC ? 'warrior' : 'warrior'))}
-            size={isActive ? 28 : 22}
-            color={(!isNPC && pc?.avatar_color) ? pc.avatar_color : undefined}
-          />
+        <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+            : null}
+          <Silhouette type={avatarType} size={isActive ? 28 : 22} color={avatarColor}
+            style={{ display: avatarUrl ? 'none' : undefined }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -140,9 +94,10 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 12, color: 'var(--text-muted)' }}>
         <i className="ti ti-sword" style={{ fontSize: 13 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.drawnWeapon || 'Unarmed'}</span>
-        {/* Armor TN — prominent */}
+        {/* Armor TN — shows boost if void spent */}
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}>
-          TN <span style={{ color: c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)' }}>{armorTN}</span>
+          TN <span style={{ color: c.voidArmor ? '#6aba60' : (c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)') }}>{armorTN}</span>
+          {c.voidArmor && <span style={{ fontSize: 10, color: '#6aba60', marginLeft: 2 }}>⬡</span>}
         </span>
         {!isNPC && pc && (
           <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginLeft: 4 }}>
@@ -152,6 +107,33 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
           </div>
         )}
       </div>
+
+      {/* Void defense buttons — player's own card only, any time during combat */}
+      {isMyChar && !isNPC && onVoidDefense && currentVoid > 0 && (
+        <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: '100%', marginBottom: 2 }}>Spend Void ({currentVoid} left):</span>
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.voidArmor ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60' }}
+            disabled={!!c.voidArmor || currentVoid <= 0}
+            onClick={() => onVoidDefense(c.id, 'armor')}
+            title="+10 Armor TN this round">
+            ⬡ +10 TN
+          </button>
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.voidReduceDamage ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60' }}
+            disabled={!!c.voidReduceDamage || currentVoid <= 0}
+            onClick={() => onVoidDefense(c.id, 'damage')}
+            title={`Reduce next wound rank gain by your Void Ring (${maxVoid})`}>
+            ⬡ -{maxVoid} Wounds
+          </button>
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.pendingInitBoost ? 0.5 : 1, borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
+            disabled={!!c.pendingInitBoost || currentVoid <= 0}
+            onClick={() => onVoidDefense(c.id, 'initiative')}
+            title="+10 Initiative — applies on next round change">
+            ⬡ +10 Init
+          </button>
+          {c.pendingInitBoost && <span style={{ fontSize: 10, color: 'var(--gold-dim)', alignSelf: 'center' }}>+10 next round</span>}
+          {c.voidReduceDamage && <span style={{ fontSize: 10, color: '#6aba60', alignSelf: 'center' }}>Absorb ready</span>}
+        </div>
+      )}
 
       {/* GM controls */}
       {isGM && !isPCView && (
@@ -223,83 +205,97 @@ function VoidButton() {
   );
 }
 
-// ── NPC Picker ────────────────────────────────────────────────────────────────
-function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
-  const [faction, setFaction] = useState('');
-  const [school, setSchool] = useState('');
-  const [rank, setRank] = useState(1);
-  const factions = Object.keys(NPC_BY_FACTION);
-  const schools = faction ? NPC_BY_FACTION[faction] || [] : [];
-
-  const add = () => {
-    if (!school) return;
-    onAdd({
-      id: 'npc_' + Date.now(),
-      name: `${school} — Rank ${rank}`,
-      school, rank, faction,
-      dr: '3k2', drawnWeapon: 'Longsword (3k2)',
-      reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
-      personality: pick(PERSONALITIES), physical: pick(PHYSICALS), tactical: pick(TACTICALS),
-      wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
-    });
-  };
+// ── Party Card — extracted as a proper component so useState is legal ─────────
+function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combatants, onUpdateCharacter, upEnc }) {
+  const [imgErr, setImgErr] = useState(false);
+  const wR = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
+  const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
+  const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
+  const pc = pcsMap[c.id];
+  const avatarColor = pc?.avatar_color || c.avatar_color || '#c8962a';
+  const avatarType = pc?.avatar_type || c.avatar_type || 'warrior';
+  const avatarUrl = (pc?.avatar_url || c.avatar_url || '').trim();
+  const granted = grantedActions[c.id] || 0;
+  const isMyChar = c.id === myCharId;
 
   return (
-    <div>
-      {/* From NPC Log */}
-      {npcsFromLog && npcsFromLog.length > 0 && (
-        <div style={{ marginBottom: '.5rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem' }}>From NPC Log:</div>
-          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-            {npcsFromLog.map(n => (
-              <button key={n.id} className="btn btn-sm" style={{ fontSize: 12 }} onClick={() => onAdd({
-                id: 'npc_log_' + n.id + '_' + Date.now(),
-                name: n.name,
-                school: n.school, rank: n.rank || 1, faction: n.faction,
-                dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
-                reflexes: (n.traits?.Reflexes) || (n.rank || 1) + 1,
-                agility: (n.traits?.Agility) || (n.rank || 1) + 1,
-                air: (n.rings?.Air) || (n.rank || 1),
-                fire: (n.rings?.Fire) || (n.rank || 1),
-                wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
-              })}>
-                <i className="ti ti-user" style={{ fontSize: 12 }} /> {n.name}
-              </button>
-            ))}
+    <div style={{
+      background: 'var(--bg-panel)', border: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
+      borderLeft: `3px solid ${isMyChar ? avatarColor : '#4a8a40'}`,
+      borderRadius: 6, padding: '.75rem', width: 160, position: 'relative',
+      boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '.5rem' }}>
+        <div style={{ width: 48, height: 62, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {avatarUrl && !imgErr
+            ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
+            : <Silhouette type={avatarType} size={40} color={avatarColor} />}
+        </div>
+      </div>
+      <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.school}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: '.4rem' }}>
+        <span style={{ color: wColor, fontWeight: 600 }}>{wLabel}</span>
+        {isMyChar ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--gold-dim)' }}>
+            <button onClick={() => {
+              const newVoid = Math.max(0, (c.current_void || 0) - 1);
+              upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, current_void: newVoid } : x) });
+              if (pc) onUpdateCharacter(c.id, { current_void: newVoid });
+            }} style={{ background: 'none', border: 'none', color: 'var(--gold-dim)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>−</button>
+            <span>Void {c.current_void || 0}/{pc?.void || c.void || 2}</span>
+            <button onClick={() => {
+              const max = pc?.void || c.void || 2;
+              const newVoid = Math.min(max, (c.current_void || 0) + 1);
+              upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, current_void: newVoid } : x) });
+              if (pc) onUpdateCharacter(c.id, { current_void: newVoid });
+            }} style={{ background: 'none', border: 'none', color: 'var(--gold-dim)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>+</button>
+          </span>
+        ) : (
+          <span style={{ color: 'var(--gold-dim)' }}>Void {c.current_void || 0}/{pc?.void || c.void || 2}</span>
+        )}
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+        Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15 }}>{5 + (c.reflexes || 2) * 5}</span>
+      </div>
+      {granted > 0 && (
+        <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
+          <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
+            <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} Action{granted > 1 ? 's' : ''} granted
           </div>
         </div>
       )}
-      {/* Library picker */}
-      <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); }} style={{ fontSize: 12 }}>
-          <option value="">Faction</option>
-          {factions.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
-        {faction && (
-          <select value={school} onChange={e => setSchool(e.target.value)} style={{ fontSize: 12 }}>
-            <option value="">School</option>
-            {schools.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
-        {school && (
-          <select value={rank} onChange={e => setRank(+e.target.value)} style={{ width: 60, fontSize: 12 }}>
-            {Array.from({ length: 5 }, (_, i) => <option key={i + 1} value={i + 1}>R{i + 1}</option>)}
-          </select>
-        )}
-        <button className="btn btn-sm btn-p" disabled={!school} onClick={add} style={{ fontSize: 12 }}>{label}</button>
-      </div>
+      {isGM && !isPCView && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: '.4rem' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>Grant:</span>
+          <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: Math.max(0, granted - 1) } })}>−</button>
+          <span style={{ fontSize: 13, color: granted > 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 14, textAlign: 'center' }}>{granted}</span>
+          <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: granted + 1 } })}>+</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShift, onClearGrid, settingBg }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg }) {
   const [selected, setSelected] = useState(null);
   const CELL = 36;
   const W = gridSize * CELL;
 
+  // Can a given combatant token be moved by the current user?
+  const canMoveToken = (id) => {
+    if (isGM) return true;                  // GM can move anything anytime
+    if (id !== myCharId) return false;       // Players can only move their own token
+    if (!isMyTurn) return false;             // Only on their turn
+    return true;
+  };
+
   const handleCellClick = (x, y) => {
     if (!selected) return;
+    if (!canMoveToken(selected)) return;
     const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
     if (occupied) return;
     onMove(selected, x, y);
@@ -308,7 +304,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
 
   const handleTokenClick = (e, id) => {
     e.stopPropagation();
-    if (!isGM && active?.id !== id) return;
+    if (!canMoveToken(id)) return;
     setSelected(selected === id ? null : id);
   };
 
@@ -327,6 +323,8 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, onMove, onShif
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2 }}>
         Battle Grid {gridSize}×{gridSize}
         {selected && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
+        {!isGM && !isMyTurn && myCharId && <span style={{ color: 'var(--text-muted)', marginLeft: 6, textTransform: 'none' }}>— Move your token on your turn</span>}
+        {!isGM && isMyTurn && !selected && myCharId && <span style={{ color: 'var(--green)', marginLeft: 6, textTransform: 'none' }}>— Click your token to move</span>}
       </div>
 
       <ShiftBtn dx={0} dy={-1} icon="↑" />
@@ -481,13 +479,15 @@ function ComplicationButton({ envQuirk, onSet }) {
 }
 
 // ── Main Encounter Tab ────────────────────────────────────────────────────────
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent }) {
-  const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, preparedEncounters = [], onSavePreparedEncounters }) {
+  const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
   const [modal, setModal] = useState(null);
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [view, setView] = useState('columns');
   const [compact, setCompact] = useState(false);
-  const [showGrid, setShowGrid] = useState(false);
+  // showGrid lives in encounter state so it syncs to players
+  const showGrid = !!(encounter.showGrid);
+  const setShowGrid = (val) => upEnc({ showGrid: typeof val === 'function' ? val(showGrid) : val });
   const [settingUrls, setSettingUrls] = useState({});
   const [customRoundLimits, setCustomRoundLimits] = useState({});
   const GRID_SIZE = 12;
@@ -514,22 +514,40 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const beginEncounter = (s) => {
     const participantIds = s.participantIds || characters.map(c => c.id);
     const participants = characters.filter(c => participantIds.includes(c.id));
-    const pcCombatants = participants.map(pc => ({
-      id: pc.id, name: pc.name, type: 'pc',
-      school: pc.school, faction: pc.faction,
-      reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
-      wound: getWoundRank(pc.current_wounds, pc.max_wounds),
-      stance: 'Attack',
-      init: (pc.reflexes || 2) * 2 + Math.floor(Math.random() * 8) + 6,
-      dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
-      drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
-      statusEffects: [], _action: null,
-    }));
-    const npcCombatants = s.selectedNPCs.map(n => ({
-      ...n, wound: n.wound || 0, stance: 'Attack',
-      init: Math.floor(Math.random() * 10) + 4 + (n.rank || 1),
-      statusEffects: [], _action: null,
-    }));
+    const G = 12; // GRID_SIZE
+    const centerY = Math.floor(G / 2);
+
+    const pcCombatants = participants.map((pc, i) => {
+      const col = 2;
+      const row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.length / 2) + i));
+      return {
+        id: pc.id, name: pc.name, type: 'pc',
+        school: pc.school, faction: pc.faction,
+        reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
+        void: pc.void || 2, current_void: pc.current_void ?? pc.void ?? 2,
+        avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || '#c8962a',
+        wound: getWoundRank(pc.current_wounds, pc.max_wounds),
+        stance: 'Attack',
+        init: (pc.reflexes || 2) * 2 + Math.floor(Math.random() * 8) + 6,
+        dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
+        drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
+        statusEffects: [], _action: null,
+        gridX: col, gridY: row, startX: col, startY: row,
+      };
+    });
+
+    const npcList = s.selectedNPCs || [];
+    const npcCombatants = npcList.map((n, i) => {
+      const col = G - 3;
+      const row = Math.max(0, Math.min(G - 1, centerY - Math.floor(npcList.length / 2) + i));
+      return {
+        ...n, wound: n.wound || 0, stance: 'Attack',
+        init: Math.floor(Math.random() * 10) + 4 + (n.rank || 1),
+        statusEffects: [], _action: null,
+        gridX: col, gridY: row, startX: col, startY: row,
+      };
+    });
+
     const all = [...pcCombatants, ...npcCombatants].sort((a, b) => b.init - a.init);
     upEnc({ state: 'active', setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null });
     setNpcTargets({});
@@ -537,13 +555,98 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   const advanceTurn = () => {
     const nextIdx = (activeTurn + 1) % combatants.length;
-    const newRound = nextIdx === 0 ? (round || 1) + 1 : round || 1;
-    upEnc({ activeTurn: nextIdx, round: newRound, dmgBanner: null });
+    const isNewRound = nextIdx === 0;
+    const newRound = isNewRound ? (round || 1) + 1 : round || 1;
+    let nextCombatants = combatants.map((c, i) => {
+      let updated = i === nextIdx ? { ...c, _actionsLeft: { full: 1, simple: 2 } } : c;
+      // On round change: apply pending init boosts and clear per-round void flags
+      if (isNewRound) {
+        updated = {
+          ...updated,
+          voidArmor: false,
+          ...(updated.pendingInitBoost ? { init: (updated.init || 0) + (updated.pendingInitBoost || 0), pendingInitBoost: null } : {}),
+        };
+      }
+      return updated;
+    });
+    // Re-sort by initiative at round change
+    if (isNewRound) {
+      nextCombatants = [...nextCombatants].sort((a, b) => (b.init || 0) - (a.init || 0));
+    }
+    upEnc({ activeTurn: isNewRound ? 0 : nextIdx, round: newRound, dmgBanner: null, combatants: nextCombatants });
     setTargeting(null);
   };
 
+  // Spend void for defensive options (available outside of turn)
+  const handleVoidDefense = (combatantId, type) => {
+    const c = combatants.find(x => x.id === combatantId);
+    if (!c || (c.current_void || 0) <= 0) return;
+    const newVoid = (c.current_void || 0) - 1;
+    const patch = { current_void: newVoid };
+    if (type === 'armor') patch.voidArmor = true;
+    if (type === 'damage') patch.voidReduceDamage = true;
+    if (type === 'initiative') patch.pendingInitBoost = 10;
+    upEnc({ combatants: combatants.map(x => x.id === combatantId ? { ...x, ...patch } : x) });
+    // Sync to DB
+    const pc = pcsMap[combatantId];
+    if (pc) onUpdateCharacter(combatantId, { current_void: newVoid });
+  };
+
+  // Spend an action for the active combatant; auto-advance if spent
+  const spendAction = (type = 'full') => {
+    const c = combatants[activeTurn];
+    if (!c) return;
+    const actions = c._actionsLeft || { full: 1, simple: 2 };
+    let next;
+    if (type === 'full') {
+      next = { full: 0, simple: 0 };
+    } else {
+      const remaining = Math.max(0, (actions.simple || 2) - 1);
+      next = { ...actions, simple: remaining };
+      if (remaining <= 0) next.full = 0;
+    }
+    const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next } : x);
+    upEnc({ combatants: newCombatants });
+    // Auto-advance when all actions spent
+    if (next.full === 0 && next.simple === 0) {
+      setTimeout(() => advanceTurn(), 800);
+    }
+  };
+
+  const WOUND_LABELS  = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'];
+  const WOUND_COLORS  = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'];
+  const WOUND_PENALTY = ['+0 TN','+3 TN','+5 TN','+10 TN','+15 TN','+20 TN','+40 TN','Incapacitated'];
+
+  const makeWoundBanner = (combatant, newWound) => {
+    const pc = pcsMap[combatant.id];
+    return {
+      type: 'wound',
+      charName: combatant.name,
+      avatarUrl: (pc?.avatar_url || combatant.avatar_url || '').trim(),
+      avatarColor: pc?.avatar_color || combatant.avatar_color || '#c8962a',
+      label: WOUND_LABELS[newWound] || 'Unknown',
+      sublabel: newWound > 0 ? `Wound Penalty ${WOUND_PENALTY[newWound]}` : 'Back to Healthy',
+      color: WOUND_COLORS[newWound] || '#4a8a40',
+      ts: Date.now(),
+    };
+  };
+
   const applyStatus = (id, effect) => {
-    upEnc({ combatants: combatants.map(c => c.id === id ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== effect), effect] } : c) });
+    const c = combatants.find(x => x.id === id);
+    upEnc({
+      combatants: combatants.map(x => x.id === id ? { ...x, statusEffects: [...(x.statusEffects || []).filter(e => e !== effect), effect] } : x),
+      ...(c?.type === 'pc' ? { statusBanner: {
+        type: 'condition',
+        charName: c.name,
+        avatarUrl: (pcsMap[id]?.avatar_url || c.avatar_url || '').trim(),
+        avatarColor: pcsMap[id]?.avatar_color || c.avatar_color || '#c8962a',
+        label: effect.toUpperCase(),
+        sublabel: null,
+        color: '#c8782a',
+        ts: Date.now(),
+      }} : {}),
+    });
+    if (c?.type === 'pc') setTimeout(() => upEnc({ statusBanner: null }), 4000);
   };
 
   const removeStatus = (id, effect) => {
@@ -555,7 +658,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     if (!c) return;
     const newWound = Math.max(0, Math.min(7, c.wound + delta));
     if (delta > 0) playDamage();
-    upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWound } : x) });
+    const extra = (c.type === 'pc' && delta > 0 && newWound !== c.wound)
+      ? { statusBanner: makeWoundBanner(c, newWound) }
+      : {};
+    upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWound } : x), ...extra });
+    if (extra.statusBanner) setTimeout(() => upEnc({ statusBanner: null }), 4000);
     if (c.type === 'pc') {
       const pc = pcsMap[id];
       if (pc) {
@@ -567,13 +674,54 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   const handleRollResult = (result, damage) => {
     setModal(null);
+
+    // Broadcast result to all players via encounter state
+    const banner = {
+      charName: modal?.character?.name || active?.name || '',
+      skillName: modal?.skill || 'Roll',
+      total: result?.total ?? result,
+      tn: modal?.tn,
+      success: result?.success ?? (typeof result === 'number' ? result >= (modal?.tn || 15) : false),
+      ts: Date.now(),
+    };
     if (damage !== null && damage !== undefined && modal?.targetId) {
       playDamage();
+      const target = combatants.find(c => c.id === modal.targetId);
+      // Apply void damage reduction if player spent void for it
+      let woundDelta = Math.ceil(damage / 5);
+      if (target?.voidReduceDamage && target?.type === 'pc') {
+        const voidRing = target.void || pcsMap[target.id]?.void || 2;
+        woundDelta = Math.max(0, woundDelta - voidRing);
+      }
+      const newWound = target ? Math.min(7, (target.wound || 0) + woundDelta) : 0;
+      const WOUND_LABELS = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'];
+      const woundChanged = target && woundDelta > 0 && newWound !== target.wound;
+      const sb = (woundChanged && target.type === 'pc') ? makeWoundBanner(target, newWound) : null;
+
+      // For NPC targets — add damage info to the success banner itself
+      const bannerWithDmg = target?.type === 'npc' ? {
+        ...banner,
+        damage,
+        targetName: target.name,
+        newWoundLabel: woundChanged ? WOUND_LABELS[newWound] : null,
+        oldWoundLabel: woundChanged ? WOUND_LABELS[target.wound || 0] : null,
+      } : banner;
+
       upEnc({
-        combatants: combatants.map(c => c.id === modal.targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(damage / 5)) } : c),
-        dmgBanner: { attackerName: active?.name, targetId: modal.targetId, damage, result },
+        combatants: combatants.map(c => c.id === modal.targetId
+          ? { ...c, wound: Math.min(7, c.wound + woundDelta), voidReduceDamage: false }
+          : c),
+        dmgBanner: { attackerName: active?.name, targetId: modal.targetId, damage, result: result?.total ?? result },
+        rollBanner: bannerWithDmg,
+        ...(sb ? { statusBanner: sb } : {}),
       });
+      if (sb) setTimeout(() => upEnc({ statusBanner: null }), 4000);
+    } else {
+      upEnc({ rollBanner: banner });
     }
+    // Auto-clear banner after 5 seconds
+    setTimeout(() => upEnc({ rollBanner: null }), 5000);
+
     // Spend void if used
     if (result?.usedVoid && active?.type === 'pc') {
       const pc = pcsMap[active.id];
@@ -644,8 +792,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           <DiceModal context={modal} onClose={() => setModal(null)} onResult={() => setModal(null)} onLogEvent={onLogEvent} />
         )}
 
-        {/* Party cards — centred */}
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          {/* ── Left: party cards + NPC scene + start button ── */}
+          <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
             {session ? 'No encounter active — downtime / between scenes' : 'No session active'}
           </div>
@@ -654,64 +803,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, padding: '2rem' }}>No characters created yet.</div>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              {characters.map(c => {
-                const wR = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
-                const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
-                const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
-                const pc = pcsMap[c.id];
-                const avatarColor = c.avatar_color || '#c8962a';
-                const avatarType = c.avatar_type || 'warrior';
-                const granted = grantedActions[c.id] || 0;
-                const isMyChar = c.id === myCharId;
-
-                return (
-                  <div key={c.id} style={{
-                    background: 'var(--bg-panel)', border: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
-                    borderLeft: `3px solid ${isMyChar ? avatarColor : '#4a8a40'}`,
-                    borderRadius: 6, padding: '.75rem', width: 160, position: 'relative',
-                    boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
-                  }}>
-                    {/* Avatar */}
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '.5rem' }}>
-                      <div style={{ width: 48, height: 62, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        <Silhouette type={avatarType} size={40} color={avatarColor} />
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.school}</div>
-                    </div>
-                    {/* Status */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: '.4rem' }}>
-                      <span style={{ color: wColor, fontWeight: 600 }}>{wLabel}</span>
-                      <span style={{ color: 'var(--gold-dim)' }}>Void {c.current_void || 0}/{c.void || 2}</span>
-                    </div>
-                    {/* Armor TN */}
-                    <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-                      Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15 }}>{5 + (c.reflexes || 2) * 5}</span>
-                    </div>
-
-                    {/* Granted actions — visible to player */}
-                    {granted > 0 && (
-                      <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
-                        <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
-                          <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} Action{granted > 1 ? 's' : ''} granted
-                        </div>
-                      </div>
-                    )}
-
-                    {/* GM: grant actions */}
-                    {isGM && !isPCView && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: '.4rem' }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>Grant:</span>
-                        <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: Math.max(0, granted - 1) } })}>−</button>
-                        <span style={{ fontSize: 13, color: granted > 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 14, textAlign: 'center' }}>{granted}</span>
-                        <button className="rep-btn" onClick={() => upEnc({ grantedActions: { ...grantedActions, [c.id]: granted + 1 } })}>+</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {characters.map(c => (
+                <PartyCard key={c.id} c={c} pcsMap={pcsMap} myCharId={myCharId}
+                  isGM={isGM} isPCView={isPCView} grantedActions={grantedActions}
+                  combatants={combatants} onUpdateCharacter={onUpdateCharacter} upEnc={upEnc} />
+              ))}
             </div>
           )}
         </div>
@@ -757,7 +853,43 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           </div>
         )}
 
-        {/* NPC action panel — opens when the GM clicks an NPC card above */}
+        {/* GM start encounter button */}
+        {isGM && !isPCView && session && (
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: encounter.lastEncounterNPCs || [], participantIds: null } })}>
+              <i className="ti ti-swords" style={{ marginRight: 6 }} /> Start Encounter
+            </button>
+            {(encounter.lastEncounterNPCs || []).length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.4rem' }}>
+                {encounter.lastEncounterNPCs.length} NPC{encounter.lastEncounterNPCs.length > 1 ? 's' : ''} present will carry into the new encounter
+              </div>
+            )}
+          </div>
+        )}
+        {!session && isGM && !isPCView && (
+          <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
+        )}
+
+        {/* Granted action roll panel */}
+        {(() => {
+          const myGranted = grantedActions[myCharId] || 0;
+          const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
+          if (!myGranted || !myChar) return null;
+          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: 'Attack', drawnWeapon: null, dr: '3k2', current_void: myChar.current_void };
+          return (
+            <PCTurnPanel
+              combatant={fakeCombatant}
+              character={myChar}
+              enemies={[]}
+              onRoll={ctx => setModal({ ...ctx, character: myChar })}
+              onStanceChange={() => {}}
+              onDrawWeapon={() => {}}
+              onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
+            />
+          );
+        })()}
+
+        {/* NPC action panel */}
         {isGM && !isPCView && activeNpcId && (() => {
           const npc = (encounter.lastEncounterNPCs || []).find(n => n.id === activeNpcId);
           if (!npc) return null;
@@ -775,158 +907,48 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             />
           );
         })()}
-
-        {/* GM start encounter button */}
-        {isGM && !isPCView && session && (
-          <div style={{ textAlign: 'center' }}>
-            <button className="btn btn-p btn-lg" onClick={() => upEnc({ state: 'setup', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: encounter.lastEncounterNPCs || [] } })}>
-              <i className="ti ti-swords" style={{ marginRight: 6 }} /> Start Encounter
-            </button>
-            {(encounter.lastEncounterNPCs || []).length > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.4rem' }}>
-                {encounter.lastEncounterNPCs.length} NPC{encounter.lastEncounterNPCs.length > 1 ? 's' : ''} present will carry into the new encounter
-              </div>
-            )}
-          </div>
-        )}
-        {!session && isGM && !isPCView && (
-          <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
-        )}
-
-        {/* Granted action roll panel — show for player if they have granted actions */}
-        {(() => {
-          const myGranted = grantedActions[myCharId] || 0;
-          const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
-          if (!myGranted || !myChar) return null;
-          // Fake combatant for PCTurnPanel
-          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: 'Attack', drawnWeapon: null, dr: '3k2', current_void: myChar.current_void };
-          return (
-            <PCTurnPanel
-              combatant={fakeCombatant}
-              character={myChar}
-              enemies={[]}
-              onRoll={ctx => setModal({ ...ctx, character: myChar })}
-              onStanceChange={() => {}}
-              onDrawWeapon={() => {}}
-              onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
-            />
-          );
-        })()}
       </div>
+
+      {/* ── Prepared encounters for this session — shown below as cards ── */}
+      {isGM && !isPCView && preparedEncounters.length > 0 && (
+        <div style={{ maxWidth: 900, margin: '1rem auto 0' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.5rem', fontWeight: 600 }}>
+            <i className="ti ti-list" style={{ marginRight: 4 }} />Session Prep
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+            {preparedEncounters.map(p => (
+              <div key={p.id} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '.5rem .6rem', minWidth: 150 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{p.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.35rem' }}>{p.setting} · {p.type}{p.npcs?.length ? ` · ${p.npcs.length} NPCs` : ''}</div>
+                <button className="btn btn-sm btn-p" style={{ width: '100%', fontSize: 10 }} onClick={() => upEnc({
+                  state: 'setup',
+                  setup: { type: p.type || null, setting: p.setting || null, desc: p.notes || '', name: p.name || '', selectedNPCs: p.npcs || [], participantIds: null }
+                })}>
+                  Load & Start →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
     );
   }
 
   // ── Setup state ──────────────────────────────────────────────────────────
   if (state === 'setup') {
-    const s = setup;
-    const upS = patch => upEnc({ setup: { ...s, ...patch } });
-    const defaultName = `Session ${session?.session_number || '?'} — ${s.setting || '?'} — ${s.type || '?'}`;
-    const diff = calcDifficulty(s.selectedNPCs || []);
-    const diffPct = { Easy: 25, Moderate: 50, Hard: 75, Deadly: 100 }[diff] || 0;
-
     return (
-      <div style={{ maxWidth: 660 }}>
-        <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-          <button className="btn btn-sm" onClick={() => upEnc({ state: 'idle' })}>← Back</button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>New Encounter</span>
-        </div>
-        <div className="card">
-          {/* Name */}
-          <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Encounter Name</span>
-            <input value={s.name || defaultName} onChange={e => upS({ name: e.target.value })} style={{ width: '100%', fontSize: 15 }} placeholder={defaultName} />
-          </div>
-          {/* Type */}
-          <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Type</span>
-            <div>{['Action','Intrigue','Travel','Downtime'].map(t => (
-              <button key={t} className={`opt-btn ${s.type === t ? 'sel' : ''}`} onClick={() => upS({ type: t, name: '' })}>{t}</button>
-            ))}</div>
-            {s.type && (() => {
-              const custom = customRoundLimits[s.type];
-              const limit = (custom !== undefined && custom !== '') ? (+custom || null) : ROUND_LIMITS[s.type];
-              return limit ? <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem' }}>{limit} round limit</div> : null;
-            })()}
-          </div>
-          {/* Setting */}
-          <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Setting</span>
-            <div>
-              {['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"].map(t => (
-                <button key={t} className={`opt-btn ${s.setting === t && !s.settingIsCustom ? 'sel' : ''}`} onClick={() => upS({ setting: t, settingIsCustom: false, name: '' })}>{t}</button>
-              ))}
-              <button className={`opt-btn ${s.settingIsCustom ? 'sel' : ''}`} onClick={() => upS({ setting: '', settingIsCustom: true, name: '' })}>Custom...</button>
-            </div>
-            {s.settingIsCustom && (
-              <input type="text" value={s.setting || ''} onChange={e => upS({ setting: e.target.value })}
-                placeholder="Type a setting name..." autoFocus style={{ marginTop: '.5rem', width: '100%' }} />
-            )}
-          </div>
-          {/* Scene description */}
-          <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Scene Description</span>
-            <textarea rows={2} value={s.desc || ''} onChange={e => upS({ desc: e.target.value })} placeholder="Describe the scene for players..." style={{ width: '100%', resize: 'vertical' }} />
-          </div>
-          {/* NPCs */}
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>NPCs</span>
-              {s.setting && (
-                <button className="btn btn-sm" onClick={() => {
-                  const d = ['Easy','Moderate','Hard','Deadly'][Math.floor(Math.random() * 4)];
-                  upS({ selectedNPCs: generateGroup(s.setting, d) });
-                }}>⚄ Generate Group</button>
-              )}
-            </div>
-            <NPCPicker npcsFromLog={npcsFromLog} onAdd={npc => upS({ selectedNPCs: [...(s.selectedNPCs || []), npc] })} />
-            {(s.selectedNPCs || []).length > 0 && (
-              <div style={{ marginTop: '.5rem' }}>
-                {s.selectedNPCs.map((n, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', fontSize: 13, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                    <span style={{ flex: 1 }}>{n.name}</span>
-                    {n.fromLog && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>log</span>}
-                    {!n.fromLog && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{n.personality}</span>}
-                    <button className="btn btn-sm btn-d" style={{ fontSize: 11, padding: '1px 5px' }} onClick={() => upS({ selectedNPCs: s.selectedNPCs.filter((_, j) => j !== i) })}>×</button>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.5rem' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 60 }}>Difficulty:</span>
-                  <div className="diff-bar"><div className="diff-fill" style={{ width: `${diffPct}%`, background: diffColor(diff) }} /></div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: diffColor(diff), width: 70 }}>{diff}</span>
-                </div>
-              </div>
-            )}
-          </div>
-          {/* Party — pick who's participating */}
-          <div style={{ marginBottom: '1rem' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Participants</span>
-            {characters.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No characters created yet.</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-                {characters.map(c => {
-                  const participantIds = s.participantIds || characters.map(ch => ch.id);
-                  const included = participantIds.includes(c.id);
-                  return (
-                    <label key={c.id} className="chk-row" style={{ border: '1px solid var(--border)', borderRadius: 5, padding: '.3rem .6rem', margin: 0, cursor: 'pointer', opacity: included ? 1 : .5 }}>
-                      <input type="checkbox" checked={included} onChange={() => {
-                        const current = s.participantIds || characters.map(ch => ch.id);
-                        const next = included ? current.filter(id => id !== c.id) : [...current, c.id];
-                        upS({ participantIds: next });
-                      }} />
-                      {c.name}
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <button className="btn btn-p" style={{ width: '100%' }} disabled={!s.type || !s.setting}
-            onClick={() => beginEncounter({ ...s, name: s.name || defaultName })}>
-            Begin Encounter →
-          </button>
-        </div>
-      </div>
+      <EncounterBuilder
+        mode="live"
+        initialSetup={setup}
+        npcsFromLog={npcsFromLog}
+        characters={characters}
+        sessionNumber={session?.session_number}
+        preparedEncounters={preparedEncounters}
+        customRoundLimits={customRoundLimits}
+        onCancel={() => upEnc({ state: 'idle' })}
+        onCommit={(s) => beginEncounter(s)}
+      />
     );
   }
 
@@ -961,7 +983,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         {/* View toggle — mutually exclusive */}
         <div className="layer-tog">
           <button className={`layer-btn ${view === 'columns' ? 'active' : ''}`} onClick={() => setView('columns')}>Columns</button>
-          <button className={`layer-btn ${view === 'initiative' ? 'active' : ''}`} onClick={() => setView('initiative')}>Initiative</button>
+          <button className={`layer-btn ${view === 'initiative' ? 'active' : ''}`} onClick={() => setView('initiative')}>List</button>
         </div>
         {/* Independent display toggles — visually separated to show they're not part of the view-mode group */}
         <div className="layer-tog" style={{ marginLeft: 10 }}>
@@ -1035,6 +1057,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 targeting={null}
                 onSetTarget={null}
                 compact={compact}
+                onVoidDefense={handleVoidDefense}
               />
             ))}
           </div>
@@ -1047,7 +1070,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               pcsMap={pcsMap}
               gridSize={GRID_SIZE}
               isGM={isGM && !isPCView}
-              settingBg={settingUrls[setup.setting] || null}
+              myCharId={myCharId}
+              isMyTurn={isMyTurn}
+              settingBg={setup.bgUrl || settingUrls[setup.setting] || null}
               onMove={(id, x, y) => {
                 upEnc({ combatants: combatants.map(c => {
                   if (c.id !== id) return c;
@@ -1162,10 +1187,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           character={pcsMap[active.id]}
           enemies={enemies}
           allies={party.filter(c => c.id !== active.id)}
+          actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id] })}
           onStanceChange={(stance) => handleStanceChange(active.id, stance)}
-          onDrawWeapon={(weapon) => handleDrawWeapon(active.id, weapon)}
+          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
+          onSpendAction={spendAction}
         />
       )}
       {active && active.type === 'npc' && isGM && !isPCView && (
@@ -1174,10 +1201,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           character={null}
           enemies={party}
           isNPCTurn
+          actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
           onRoll={(ctx) => setModal(ctx)}
           onStanceChange={(stance) => handleStanceChange(active.id, stance)}
-          onDrawWeapon={(weapon) => handleDrawWeapon(active.id, weapon)}
+          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
+          onSpendAction={spendAction}
         />
       )}
     </div>

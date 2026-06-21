@@ -14,11 +14,97 @@ import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
+import { BOOK_TOC, DRIVE_FOLDER_URL } from './data/constants';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
   useGroupInventory, useSessionLog,
 } from './hooks/useSupabase';
+
+// ── Book Reference Dropdown ────────────────────────────────────────────────────
+function BookDropdown() {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const openPage = (chapter) => {
+    const url = chapter.fileId
+      ? `https://drive.google.com/file/d/${chapter.fileId}/view`
+      : DRIVE_FOLDER_URL;
+    window.open(url, '_blank');
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} title="LBS Rulebook" style={{
+        background: 'none', border: '1px solid var(--border)', borderRadius: 5,
+        color: open ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer',
+        padding: '3px 8px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4,
+      }}>
+        <i className="ti ti-book-2" style={{ fontSize: 14 }} />
+        <span style={{ fontSize: 11 }}>Rulebook</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', right: 0, top: '110%', zIndex: 500,
+          background: 'var(--bg-panel)', border: '1px solid var(--border)',
+          borderRadius: 7, boxShadow: '0 8px 32px rgba(0,0,0,.7)',
+          width: 320, maxHeight: '80vh', overflowY: 'auto',
+        }}>
+          <div style={{ padding: '.6rem .75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-book-2" style={{ color: 'var(--gold)', fontSize: 15 }} />
+            <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: 13 }}>Legend of the Burning Sands</span>
+            <a href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer"
+              style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'none' }}>
+              Open Folder ↗
+            </a>
+          </div>
+
+          {BOOK_TOC.map((chapter, ci) => (
+            <div key={ci} style={{ borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+              {/* Chapter row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '.4rem .75rem', cursor: 'pointer',
+                background: expanded === ci ? 'rgba(200,150,42,.07)' : 'transparent' }}
+                onClick={() => setExpanded(expanded === ci ? null : ci)}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 30 }}>p.{chapter.page}</span>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{chapter.chapter}</span>
+                <button onClick={e => { e.stopPropagation(); openPage(chapter); }}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--gold-dim)', cursor: 'pointer', fontSize: 10, padding: '1px 5px' }}>
+                  {chapter.fileId ? 'Open PDF ↗' : 'Folder ↗'}
+                </button>
+                <i className={`ti ${expanded === ci ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 11, color: 'var(--text-muted)' }} />
+              </div>
+              {/* Subsections */}
+              {expanded === ci && (
+                <div style={{ paddingBottom: '.25rem' }}>
+                  {chapter.sections.map((s, si) => (
+                    <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '.2rem .75rem .2rem 1.5rem', cursor: 'pointer' }}
+                      onClick={() => openPage(chapter)}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 30 }}>p.{s.page}</span>
+                      <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{s.title}</span>
+                      <i className="ti ti-external-link" style={{ fontSize: 10, color: 'var(--text-muted)' }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div style={{ padding: '.5rem .75rem', fontSize: 10, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+            To link specific PDFs: add fileId values to BOOK_TOC in constants.js
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [authMode, setAuthMode] = useState(() => localStorage.getItem('sandy_auth_mode') || null);
@@ -26,10 +112,10 @@ export default function App() {
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
 
-  const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter } = useCharacters();
-  const { session, loading: sessLoading, startSession, endSession, saveEncounter, saveEventLog } = useActiveSession();
-  const { npcs, createNPC, updateNPC } = useNPCs();
-  const { quests, createQuest, updateQuest } = useQuests(session?.id);
+  const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters } = useActiveSession();
+  const { npcs, createNPC, updateNPC, refetch: refetchNpcs } = useNPCs();
+  const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
   const { reps, updateRep } = useFactionReputation();
   const { log: encounterLog, addEntry: addEncounterEntry } = useEncounterLog();
@@ -73,9 +159,15 @@ export default function App() {
   };
 
   const [ticker, setTicker] = useState([]);
+  const [fullEventLog, setFullEventLog] = useState([]);
+
   const push = (icon, text, opts = {}) => {
-    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date(), highlight: !!opts.highlight };
+    const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date().toISOString(), highlight: !!opts.highlight };
     setTicker(prev => [entry, ...prev].slice(0, 20));
+    setFullEventLog(prev => {
+      const next = [entry, ...prev];
+      return next;
+    });
   };
 
   const [tab, setTab] = useState('character');
@@ -269,6 +361,7 @@ export default function App() {
             <input type="checkbox" checked={isPCView} onChange={e => setIsPCView(e.target.checked)} /> PC View
           </label>
         )}
+        <BookDropdown />
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
@@ -280,7 +373,7 @@ export default function App() {
       {isGM && !isPCView && (
         <div className="sess-bar">
           <i className={`ti ${session ? 'ti-circle-filled' : 'ti-circle'}`} style={{ fontSize: 12, color: session ? 'var(--green)' : 'var(--text-muted)' }} />
-          <span>Session {sessionNum}</span>
+          <span>Session {session?.session_number || allSessions.filter(s => !s.is_active).length + 1}</span>
           <span className={session ? 'sess-active' : ''}>{session ? 'Active' : 'Not started'}</span>
           {/* GM time controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
@@ -297,8 +390,8 @@ export default function App() {
           </div>
           <div style={{ flex: 1 }} />
           {!session
-            ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession(sessionNum)}>
-                <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session {sessionNum}
+            ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1)}>
+                <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session
               </button>
             : <button className="btn btn-sm btn-d" onClick={() => setShowSessionEnd(true)}>
                 <i className="ti ti-player-stop" style={{ fontSize: 12 }} /> End Session → Archive
@@ -347,6 +440,8 @@ export default function App() {
             onAddEncounterEntry={addEncounterEntry}
             onLogSkill={logSkillUse}
             onLogEvent={push}
+            preparedEncounters={session?.prepared_encounters || []}
+            onSavePreparedEncounters={enc => savePreparedEncounters(session?.id, enc)}
           />
         )}
         {tab === 'map' && (
@@ -362,6 +457,8 @@ export default function App() {
           <NPCTab
             isGM={isGM} isPCView={isPCView}
             npcs={npcs}
+            fullNpcs={safeChars.filter(c => c.is_npc)}
+            onUpdateFullNpc={handleUpdateChar}
             reps={reps}
             onUpdateNPC={handleUpdateNPC}
             onUpdateRep={handleUpdateRep}
@@ -392,13 +489,112 @@ export default function App() {
         )}
         {tab === 'log' && (
           <LogTab
+            isGM={isGM && !isPCView}
             encounterLog={encounterLog}
             sessionLog={parsedSessionLog}
+            allSessions={allSessions}
+            activeSession={session}
+            onActivateSession={activateSession}
+            onCreatePrepSession={createPrepSession}
+            onSavePreparedEncounters={savePreparedEncounters}
+            npcsFromLog={npcs}
             skillLog={skillLog}
+            eventLog={fullEventLog}
           />
         )}
-        {tab === 'settings' && gmView && <SettingsTab />}
+        {tab === 'settings' && gmView && <SettingsTab
+          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars }}
+        />}
       </div>
+
+      {/* Global Roll Result Banner */}
+      {encounter.rollBanner && (() => {
+        const b = encounter.rollBanner;
+        if (Date.now() - (b.ts || 0) > 5000) return null;
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 400,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: b.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
+            pointerEvents: 'none',
+            animation: 'resultFade 5s forwards',
+          }}>
+            {(b.charName || b.skillName) && (
+              <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: b.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
+                {[b.charName, b.skillName].filter(Boolean).join(' — ')}
+              </div>
+            )}
+            <div style={{
+              fontSize: 'clamp(72px, 14vw, 130px)',
+              fontWeight: 900, lineHeight: 1,
+              color: b.success ? '#6aba60' : '#e06050',
+              textShadow: b.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
+              letterSpacing: '-0.02em',
+            }}>
+              {b.success ? 'SUCCESS' : 'FAILURE'}
+            </div>
+            {b.total !== undefined && b.tn !== undefined && (
+              <div style={{ fontSize: 24, color: b.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
+                {b.total} vs TN {b.tn}
+              </div>
+            )}
+            {/* Damage + wound change for NPC attacks */}
+            {b.success && b.damage !== undefined && (
+              <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
+                  {b.damage} damage → {b.targetName}
+                </div>
+                {b.newWoundLabel && (
+                  <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
+                    {b.oldWoundLabel} → <span style={{ color: '#e03030' }}>{b.newWoundLabel}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Global Status / Wound Banner — shows portrait + condition/wound rank change */}
+      {encounter.statusBanner && !encounter.rollBanner && (() => {
+        const b = encounter.statusBanner;
+        if (Date.now() - (b.ts || 0) > 4000) return null;
+        const isDown = b.label === 'DOWN' || b.label === 'OUT';
+        const bgColor = isDown ? 'rgba(60,5,5,.95)' : `${b.color}22`;
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 399,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: bgColor,
+            pointerEvents: 'none',
+            animation: 'resultFade 4s forwards',
+          }}>
+            {/* Portrait */}
+            {b.avatarUrl && (
+              <div style={{ width: 120, height: 150, borderRadius: 8, overflow: 'hidden', border: `3px solid ${b.color}`, marginBottom: '1rem', boxShadow: `0 0 40px ${b.color}88` }}>
+                <img src={b.avatarUrl} alt={b.charName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <div style={{ fontSize: 14, letterSpacing: '.2em', textTransform: 'uppercase', color: b.color, marginBottom: '.4rem', opacity: 0.9 }}>
+              {b.charName}
+            </div>
+            <div style={{
+              fontSize: b.type === 'condition' ? 'clamp(50px,10vw,90px)' : 'clamp(60px,12vw,110px)',
+              fontWeight: 900, lineHeight: 1,
+              color: b.color,
+              textShadow: `0 0 60px ${b.color}66, 0 0 20px ${b.color}88`,
+              letterSpacing: '-0.02em',
+            }}>
+              {b.label}
+            </div>
+            {b.sublabel && (
+              <div style={{ fontSize: 18, color: b.color, marginTop: '.5rem', opacity: 0.65, fontWeight: 600 }}>
+                {b.sublabel}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Global Dice Modal — accessible from any tab */}
       {globalModal && (
@@ -407,13 +603,24 @@ export default function App() {
           onClose={() => setGlobalModal(null)}
           onLogEvent={push}
           onResult={(result, damage) => {
+            const banner = {
+              success: result >= (globalModal.tn || 15),
+              total: result,
+              tn: globalModal.tn || 15,
+              skillName: globalModal.skill || '',
+              charName: globalModal.character?.name || '',
+              ts: Date.now(),
+            };
             // Apply damage to target if attack
             if (damage !== null && damage !== undefined && globalModal?.targetId) {
               handleSetEncounter(e => ({
                 ...e,
                 combatants: e.combatants.map(c => c.id === globalModal.targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(damage / 5)) } : c),
                 dmgBanner: { attackerName: encounter.combatants.find(c => c.id === myCharId)?.name || 'Party', targetId: globalModal.targetId, damage, result },
+                rollBanner: banner,
               }));
+            } else {
+              handleSetEncounter(e => ({ ...e, rollBanner: banner }));
             }
             setGlobalModal(null);
           }}
@@ -443,7 +650,7 @@ export default function App() {
       {/* Event Ticker */}
       {ticker.length > 0 && (
         <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90,
           background: 'rgba(24,16,6,.97)', borderTop: '1px solid var(--border)',
           padding: '0 1rem', height: '2.25rem',
           display: 'flex', alignItems: 'center', gap: '1.5rem',

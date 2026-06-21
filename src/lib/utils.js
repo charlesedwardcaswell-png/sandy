@@ -155,3 +155,42 @@ export function formatDate(ts) {
   if (!ts) return '';
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+// ── Insight & XP ─────────────────────────────────────────────────────────────
+// Insight = (sum of all ring values) × 10 + total skill ranks
+export function calcInsight(char) {
+  const rings = (char.air||2) + (char.earth||2) + (char.fire||2) + (char.water||2) + (char.void||2);
+  const skills = (char.skills||[]).reduce((s, sk) => s + (sk.rank||0), 0);
+  return rings * 10 + skills;
+}
+
+export function insightRankFor(insight) {
+  if (insight >= 225) return 5;
+  if (insight >= 200) return 4;
+  if (insight >= 175) return 3;
+  if (insight >= 150) return 2;
+  return 1;
+}
+
+// XP to raise to the next rank (L5R 4th Ed standard costs)
+export function traitXpCost(currentRank) { return (currentRank + 1) * 4; }
+export function skillXpCost(currentRank)  { return (currentRank + 1) * 2; }
+
+// Rank threshold to cross for the NEXT rank (null if already max)
+export const RANK_THRESHOLDS = [0, 150, 175, 200, 225, Infinity];
+export function nextRankThreshold(schoolRank) {
+  return RANK_THRESHOLDS[schoolRank] ?? Infinity;
+}
+
+// Trait name → which ring it affects and which trait is paired with it
+export const TRAIT_RING_MAP = {
+  reflexes:     { ring: 'air',   paired: 'awareness' },
+  awareness:    { ring: 'air',   paired: 'reflexes'  },
+  stamina:      { ring: 'earth', paired: 'willpower' },
+  willpower:    { ring: 'earth', paired: 'stamina'   },
+  agility:      { ring: 'fire',  paired: 'intelligence' },
+  intelligence: { ring: 'fire',  paired: 'agility'   },
+  strength:     { ring: 'water', paired: 'perception' },
+  perception:   { ring: 'water', paired: 'strength'  },
+};
+

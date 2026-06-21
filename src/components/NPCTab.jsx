@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
-import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS } from '../data/constants';
+import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS, CREATURES_LIBRARY } from '../data/constants';
 import { repColor, repLabel, getArchetype, getSchoolMaxRank } from '../lib/utils';
 
 // ── Faction lore blurbs ───────────────────────────────────────────────────────
@@ -292,11 +292,13 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpdateRep, encounter, setEncounter, onViewCharacter }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onUpdateRep, reps, encounter, setEncounter, onViewCharacter }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
   const [editingNPCName, setEditingNPCName] = useState('');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  const [hideEmpty, setHideEmpty] = useState(true);
   const encActive = encounter?.state === 'active';
   const gmView = isGM && !isPCView;
   const safeNPCs = (npcs || []).filter(Boolean);
@@ -335,14 +337,62 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
         />
       )}
 
-      <div style={{ marginBottom: '.75rem' }}>
+      <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>NPC Log</span>
-        {gmView && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: '.75rem' }}>Add NPCs from the Character tab</span>}
+        {gmView && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Add NPCs from the Character tab</span>}
+        <label className="chk-row" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 0, cursor: 'pointer' }}>
+          <input type="checkbox" checked={hideEmpty} onChange={e => setHideEmpty(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
+          Hide empty factions
+        </label>
+        <div style={{ marginLeft: 'auto', display: 'flex' }} className="layer-tog">
+          <button className={`layer-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>
+            <i className="ti ti-list" style={{ fontSize: 13 }} />
+          </button>
+          <button className={`layer-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>
+            <i className="ti ti-layout-grid" style={{ fontSize: 13 }} />
+          </button>
+        </div>
       </div>
 
-      {FACTIONS_DATA.map(fDef => {
+      {/* ── Grid view — player-friendly cards, name/icon/faction/school/notes ── */}
+      {viewMode === 'grid' && (() => {
+        const visibleNPCs = safeNPCs.filter(n => gmView || n.is_visible_to_players);
+        if (visibleNPCs.length === 0) return <Empty icon="ti-users" message="No NPCs visible yet." />;
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
+            {visibleNPCs.map(n => (
+              <div key={n.id} style={{ width: 170, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.3rem', cursor: gmView ? 'pointer' : 'default' }}
+                onClick={() => gmView && setDetailNPC(n)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.15rem' }}>
+                  <Silhouette type={getArchetype(n.school)} size={28} color="var(--gold)" />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{n.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{n.faction}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</div>
+                {/* Player notes — editable by everyone, saves to Supabase */}
+                <textarea
+                  value={n.player_notes || ''}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => onUpdateNPC(n.id, { player_notes: e.target.value })}
+                  placeholder="Party notes…"
+                  style={{ fontSize: 11, resize: 'none', minHeight: 48, background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 4, padding: '.25rem .3rem', color: 'var(--text-secondary)', fontFamily: 'inherit' }}
+                  rows={3}
+                />
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {viewMode === 'list' && FACTIONS_DATA.map(fDef => {
         const facNPCs = safeNPCs.filter(n => n.faction === fDef.name);
-        const visibleNPCs = gmView ? facNPCs : facNPCs.filter(n => n.is_visible_to_players);
+        // Full-sheet NPCs (from characters table) in this faction
+        const facFullNpcs = fullNpcs.filter(n => n.faction === fDef.name).map(n => ({ ...n, _isFull: true, is_visible_to_players: true }));
+        const allFacNPCs = [...facNPCs, ...facFullNpcs];
+        const visibleNPCs = gmView ? allFacNPCs : allFacNPCs.filter(n => n.is_visible_to_players);
+        if (hideEmpty && visibleNPCs.length === 0) return null;
         const rep = reps[fDef.name]?.reputation ?? 0;
         const isOpen = openFactions[fDef.name];
 
@@ -392,22 +442,24 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                 {visibleNPCs.length === 0
                   ? <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.2rem 0' }}>No NPCs logged.</div>
                   : visibleNPCs.map(n => (
-                    <div key={n.id} className="npc-row" style={{ cursor: 'pointer' }} onClick={() => setDetailNPC(n)}>
-                      {gmView && (
+                    <div key={n.id} className="npc-row" style={{ cursor: n._isFull ? 'default' : 'pointer' }}
+                      onClick={() => !n._isFull && setDetailNPC(n)}>
+                      {gmView && !n._isFull && (
                         <input type="checkbox" checked={!!n.is_visible_to_players}
                           onClick={e => e.stopPropagation()}
                           onChange={e => onUpdateNPC(n.id, { is_visible_to_players: e.target.checked })}
                           style={{ accentColor: 'var(--gold)', flexShrink: 0 }} title="Show to players"
                         />
                       )}
+                      {n._isFull && gmView && <span style={{ fontSize: 9, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 2, padding: '0 2px', flexShrink: 0 }}>FULL</span>}
                       <Silhouette type={getArchetype(n.school)} size={16} />
                       {gmView && editingNPCId === n.id ? (
                         <input
                           autoFocus
                           value={editingNPCName}
                           onChange={e => setEditingNPCName(e.target.value)}
-                          onBlur={() => { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); }}
-                          onKeyDown={e => { if (e.key === 'Enter') { onUpdateNPC(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); } if (e.key === 'Escape') setEditingNPCId(null); }}
+                          onBlur={() => { (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter') { (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); } if (e.key === 'Escape') setEditingNPCId(null); }}
                           onClick={e => e.stopPropagation()}
                           style={{ flex: 1, fontSize: 13, background: 'transparent', border: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
                         />
@@ -418,17 +470,24 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
                           title={gmView ? 'Double-click to rename' : ''}
                         >{n.name}</span>
                       )}
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{n.school}{n.rank ? ` R${n.rank}` : ''}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{n.school}{n.rank || n.school_rank ? ` R${n.rank || n.school_rank}` : ''}</span>
                       {n.player_notes && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}
-                      {gmView && <span style={{ fontSize: 11, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}
-                      {n.character_id && onViewCharacter && (
+                      {gmView && !n._isFull && <span style={{ fontSize: 11, color: n.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{n.is_visible_to_players ? '●' : '○'}</span>}
+                      {n._isFull && onViewCharacter && (
+                        <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
+                          onClick={e => { e.stopPropagation(); onViewCharacter(n.id); }}
+                          title="View full character sheet">
+                          <i className="ti ti-user" style={{ fontSize: 11 }} />
+                        </button>
+                      )}
+                      {!n._isFull && n.character_id && onViewCharacter && (
                         <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); onViewCharacter(n.character_id); }}
                           title="View full character sheet">
                           <i className="ti ti-user" style={{ fontSize: 11 }} />
                         </button>
                       )}
-                      {encActive && (
+                      {encActive && gmView && (
                         <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); handleAddToEncounter(n); }}>+Enc</button>
                       )}
@@ -440,6 +499,76 @@ export default function NPCTab({ isGM, isPCView, npcs, reps, onUpdateNPC, onUpda
           </div>
         );
       })}
+
+      {/* ── Bestiary — always-available creature reference ── */}
+      {viewMode === 'list' && (() => {
+        const categories = [...new Set(CREATURES_LIBRARY.map(c => c.category))];
+        return (
+          <div style={{ marginTop: '.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .6rem', background: 'rgba(107,78,40,.08)', borderRadius: '5px 5px 0 0', border: '1px solid var(--border)', borderBottom: 'none', cursor: 'pointer' }}
+              onClick={() => setOpenFactions(o => ({ ...o, _bestiary: !o._bestiary }))}>
+              <FacIcon name="Monsters" size={14} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Bestiary</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>{CREATURES_LIBRARY.length} creatures</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{openFactions._bestiary ? '▲' : '▼'}</span>
+            </div>
+            {openFactions._bestiary && (
+              <div style={{ border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 5px 5px', padding: '.5rem .6rem' }}>
+                {categories.map(cat => (
+                  <div key={cat} style={{ marginBottom: '.75rem' }}>
+                    <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem', fontWeight: 600 }}>{cat}</div>
+                    {CREATURES_LIBRARY.filter(c => c.category === cat).map(creature => (
+                      <div key={creature.id} style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 5, padding: '.5rem .65rem', marginBottom: '.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.2rem' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{creature.name}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>ATK {creature.attack} | DMG {creature.damage} | TN {creature.tn} | {creature.wpl} W/lvl</span>
+                          {encActive && gmView && (
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0 }}
+                              onClick={() => {
+                                const nc = {
+                                  id: 'npc_' + creature.id + '_' + Date.now(),
+                                  name: creature.name,
+                                  school: creature.category, rank: 1, faction: 'Monsters',
+                                  dr: creature.damage, drawnWeapon: `${creature.name} (${creature.attack})`,
+                                  reflexes: creature.traits?.Reflexes || creature.air || 2,
+                                  agility: creature.traits?.Agility || creature.fire || 2,
+                                  air: creature.air || 2, fire: creature.fire || 2,
+                                  wound: 0, stance: 'Attack', statusEffects: [], type: 'npc',
+                                };
+                                setEncounter && setEncounter(prev => ({ ...prev, combatants: [...(prev.combatants || []), nc] }));
+                              }}>+Enc</button>
+                          )}
+                        </div>
+                        {/* Rings */}
+                        <div style={{ display: 'flex', gap: '.75rem', fontSize: 11, color: 'var(--text-muted)', marginBottom: creature.specials.length ? '.3rem' : 0 }}>
+                          <span>Air {creature.air}</span><span>Earth {creature.earth}</span><span>Fire {creature.fire}</span><span>Water {creature.water}</span>
+                          {creature.void && <span>Void {creature.void}</span>}
+                          {Object.entries(creature.traits || {}).map(([t, v]) => (
+                            <span key={t} style={{ color: 'var(--gold-dim)' }}>{t} {v}</span>
+                          ))}
+                        </div>
+                        {/* Specials */}
+                        {creature.specials.length > 0 && (
+                          <div style={{ marginTop: '.2rem' }}>
+                            {creature.specials.map((s, i) => (
+                              <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', paddingLeft: 6, borderLeft: '2px solid var(--gold-dim)', marginBottom: 2 }}>
+                                <strong>Special:</strong> {s}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {creature.gm_notes && gmView && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '.2rem' }}>{creature.gm_notes}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <LorePanel />
     </div>

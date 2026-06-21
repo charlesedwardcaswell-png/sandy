@@ -184,6 +184,20 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
   const [notesChanged, setNotesChanged] = useState(false);
   const gmView = isGM && !isPCView;
 
+  // Smart positioning — keep popup inside map, clear of the pin itself
+  const showBelow = (pin.y_position || 50) < 35;   // flip below when pin is in top third
+  const shiftRight = (pin.x_position || 50) < 15;  // shift right if near left edge
+  const shiftLeft  = (pin.x_position || 50) > 85;  // shift left if near right edge
+
+  const vertStyle = showBelow
+    ? { top: 32, bottom: 'auto' }
+    : { bottom: 32, top: 'auto' };
+  const horizStyle = shiftRight
+    ? { left: 0, transform: 'none' }
+    : shiftLeft
+      ? { left: 'auto', right: 0, transform: 'none' }
+      : { left: '50%', transform: 'translateX(-50%)' };
+
   const visibleTiers = [
     { key: 'info_tn5', label: 'TN 5', val: pin.info_tn5, threshold: 5 },
     { key: 'info_tn10', label: 'TN 10', val: pin.info_tn10, threshold: 10 },
@@ -193,7 +207,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
 
   return (
     <div style={{
-      position: 'absolute', bottom: 36, left: '50%', transform: 'translateX(-50%)',
+      position: 'absolute', ...vertStyle, ...horizStyle,
       background: 'rgba(24,16,6,.97)', border: `1px solid ${pt.color}`,
       borderRadius: 7, padding: '10px 12px', minWidth: 190, maxWidth: 270,
       zIndex: 30, boxShadow: '0 4px 24px rgba(0,0,0,.85)',
@@ -263,6 +277,10 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const [imgAspect, setImgAspect] = useState(null);
   const [mapImage, setMapImage] = useState(DEFAULT_MAP);
   const mapRef = useRef(null);
+  // Drag state
+  const dragRef = useRef(null); // { pinId, startX, startY }
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragPos, setDragPos] = useState(null); // { x%, y% } live position during drag
   const gmView = isGM && !isPCView;
 
   // Load custom map URL from games settings
@@ -299,8 +317,47 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const handlePinClick = (e, pinId) => {
     e.stopPropagation();
     if (placing) return;
+    if (draggingId) return; // suppress click after drag
     setSelected(selected === pinId ? null : pinId);
     setNewPinPos(null);
+  };
+
+  const getPct = (e) => {
+    const rect = mapRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: +((e.clientX - rect.left) / rect.width * 100).toFixed(2),
+      y: +((e.clientY - rect.top) / rect.height * 100).toFixed(2),
+    };
+  };
+
+  const handlePinPointerDown = (e, pinId) => {
+    if (!gmView || placing) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { pinId, moved: false };
+    setDraggingId(pinId);
+    setSelected(null);
+  };
+
+  const handlePinPointerMove = (e) => {
+    if (!dragRef.current) return;
+    dragRef.current.moved = true;
+    const pos = getPct(e);
+    if (pos) setDragPos(pos);
+  };
+
+  const handlePinPointerUp = (e, pinId) => {
+    if (!dragRef.current) return;
+    if (dragRef.current.moved && dragPos) {
+      onUpdatePin(pinId, { x_position: dragPos.x, y_position: dragPos.y });
+    } else {
+      // Treat as click — open popup
+      setSelected(selected === pinId ? null : pinId);
+    }
+    dragRef.current = null;
+    setDraggingId(null);
+    setDragPos(null);
   };
 
   const handleCreate = async (form) => {
@@ -419,19 +476,34 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         {/* Placed pins */}
         {visiblePins.map(p => {
           const isSelected = selected === p.id;
+          const isDragging = draggingId === p.id;
+          const displayX = isDragging && dragPos ? dragPos.x : p.x_position;
+          const displayY = isDragging && dragPos ? dragPos.y : p.y_position;
           return (
-            <div key={p.id} onClick={e => handlePinClick(e, p.id)}
-              style={{ position: 'absolute', left: `${p.x_position}%`, top: `${p.y_position}%`, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: isSelected ? 20 : 10 }}>
-              <PinIcon type={p.pin_type} size={isSelected ? 32 : 26} selected={isSelected} hidden={gmView && !p.is_visible_to_players} />
-              {/* Label */}
-              <div style={{
+            <div key={p.id}
+              onClick={e => handlePinClick(e, p.id)}
+              onPointerDown={gmView ? e => handlePinPointerDown(e, p.id) : undefined}
+              onPointerMove={gmView && isDragging ? e => handlePinPointerMove(e) : undefined}
+              onPointerUp={gmView && isDragging ? e => handlePinPointerUp(e, p.id) : undefined}
+              style={{
+                position: 'absolute', left: `${displayX}%`, top: `${displayY}%`,
+                transform: 'translate(-50%,-50%)',
+                cursor: gmView ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+                zIndex: isDragging ? 30 : isSelected ? 20 : 10,
+                opacity: isDragging ? 0.85 : 1,
+                transition: isDragging ? 'none' : 'left .1s, top .1s',
+                userSelect: 'none',
+              }}>
+              <PinIcon type={p.pin_type} size={isSelected || isDragging ? 24 : 18} selected={isSelected || isDragging} hidden={gmView && !p.is_visible_to_players} />
+              {/* Label — hide while dragging */}
+              {!isDragging && <div style={{
                 position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
                 background: 'rgba(20,12,4,.88)', borderRadius: 3, padding: '1px 5px',
                 fontSize: 11, color: getPinType(p.pin_type).color, whiteSpace: 'nowrap', marginTop: 2,
                 border: `1px solid ${getPinType(p.pin_type).color}33`, pointerEvents: 'none',
-              }}>{p.name}</div>
+              }}>{p.name}</div>}
               {/* Popup */}
-              {isSelected && (
+              {isSelected && !isDragging && (
                 <PinPopup
                   pin={p} isGM={isGM} isPCView={isPCView}
                   onEdit={pin => { setEditingPin(pin); setSelected(null); }}
@@ -449,13 +521,48 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         {newPinPos && (
           <div style={{ position: 'absolute', left: `${newPinPos.x}%`, top: `${newPinPos.y}%`, transform: 'translate(-50%,-50%)', zIndex: 40 }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--gold)', border: '2px solid #fff', boxShadow: '0 0 12px var(--gold)', marginBottom: 6 }} />
-            <div style={{ position: 'absolute', top: 32, left: '50%', transform: 'translateX(-50%)' }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--gold)', border: '2px solid #fff', boxShadow: '0 0 12px var(--gold)', marginBottom: 6 }} />
+            <div style={{ position: 'absolute', top: 28, left: '50%', transform: 'translateX(-50%)' }}>
               <QuickPinForm onSave={handleCreate} onCancel={() => { setNewPinPos(null); setPlacing(false); }} />
             </div>
           </div>
         )}
       </div>
+
+      {/* Pin Legend — right of map, sorted by type */}
+      {visiblePins.length > 0 && (
+        <div style={{ marginTop: '.75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '.5rem .75rem', maxHeight: 260, overflowY: 'auto' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem', fontWeight: 600 }}>
+            Pins — click to locate
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {[...visiblePins].sort((a, b) => {
+              const ta = getPinType(a.pin_type).label || '';
+              const tb = getPinType(b.pin_type).label || '';
+              return ta.localeCompare(tb) || a.name.localeCompare(b.name);
+            }).map(p => {
+              const pt = getPinType(p.pin_type);
+              const isHighlighted = selected === p.id;
+              return (
+                <button key={p.id} onClick={() => setSelected(isHighlighted ? null : p.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '3px 7px',
+                    background: isHighlighted ? `${pt.color}22` : 'var(--bg-deep)',
+                    border: `1px solid ${isHighlighted ? pt.color : pt.color + '44'}`,
+                    borderRadius: 12, cursor: 'pointer', fontSize: 12,
+                    color: isHighlighted ? pt.color : 'var(--text-secondary)',
+                    fontWeight: isHighlighted ? 600 : 400,
+                    transition: 'all .15s',
+                  }}>
+                  <i className={`ti ${pt.icon}`} style={{ fontSize: 11, color: pt.color }} />
+                  {p.name}
+                  {gmView && !p.is_visible_to_players && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>○</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

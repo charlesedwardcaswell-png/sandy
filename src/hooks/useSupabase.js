@@ -33,6 +33,7 @@ export function useGame() {
 // ── Session ───────────────────────────────────────────────────────────────────
 export function useActiveSession() {
   const [session, setSession] = useState(null);
+  const [allSessions, setAllSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetch = useCallback(async () => {
@@ -41,9 +42,10 @@ export function useActiveSession() {
       .from('sessions')
       .select('*')
       .eq('game_id', GAME_ID)
-      .eq('is_active', true)
-      .maybeSingle();
-    setSession(data);
+      .order('session_number', { ascending: true });
+    const all = data || [];
+    setAllSessions(all);
+    setSession(all.find(s => s.is_active) || null);
     setLoading(false);
   }, []);
 
@@ -54,32 +56,64 @@ export function useActiveSession() {
     const channel = supabase
       .channel('session_sync_' + GAME_ID)
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'sessions',
         filter: `game_id=eq.${GAME_ID}`,
       }, payload => {
-        if (payload.new?.is_active) {
-          // Parse encounter_data if it came back as a string
-          const newSession = { ...payload.new };
-          if (typeof newSession.encounter_data === 'string') {
-            try { newSession.encounter_data = JSON.parse(newSession.encounter_data); } catch {}
-          }
-          setSession(newSession);
+        if (payload.eventType === 'DELETE') {
+          setAllSessions(prev => prev.filter(s => s.id !== payload.old?.id));
+          setSession(prev => prev?.id === payload.old?.id ? null : prev);
+          return;
         }
+        const incoming = { ...payload.new };
+        if (typeof incoming.encounter_data === 'string') {
+          try { incoming.encounter_data = JSON.parse(incoming.encounter_data); } catch {}
+        }
+        setAllSessions(prev => {
+          const exists = prev.find(s => s.id === incoming.id);
+          return exists ? prev.map(s => s.id === incoming.id ? incoming : s) : [...prev, incoming].sort((a,b) => a.session_number - b.session_number);
+        });
+        if (incoming.is_active) setSession(incoming);
+        else setSession(prev => prev?.id === incoming.id ? null : prev);
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
   const startSession = async (sessionNumber) => {
+    // Close any currently active session first
+    const active = allSessions.find(s => s.is_active);
+    if (active) await supabase.from('sessions').update({ is_active: false, closed_at: new Date().toISOString() }).eq('id', active.id);
     const { data, error } = await supabase
       .from('sessions')
       .insert({ game_id: GAME_ID, session_number: sessionNumber, is_active: true })
       .select()
       .single();
-    if (error) { console.error('startSession failed:', error.message, error.code, error.details, error.hint); return null; }
+    if (error) { console.error('startSession failed:', error.message); return null; }
     setSession(data);
+    setAllSessions(prev => [...prev.map(s => ({ ...s, is_active: false })), data].sort((a,b) => a.session_number - b.session_number));
+    return data;
+  };
+
+  const activateSession = async (sessionId) => {
+    // Mark a different existing session as active (for pre-prepared sessions)
+    const active = allSessions.find(s => s.is_active);
+    if (active) await supabase.from('sessions').update({ is_active: false }).eq('id', active.id);
+    const { data, error } = await supabase.from('sessions').update({ is_active: true }).eq('id', sessionId).select().single();
+    if (error) { console.error('activateSession failed:', error.message); return; }
+    setAllSessions(prev => prev.map(s => ({ ...s, is_active: s.id === sessionId })));
+    setSession(data);
+  };
+
+  const createPrepSession = async (sessionNumber, title = '') => {
+    const { data, error } = await supabase
+      .from('sessions')
+      .insert({ game_id: GAME_ID, session_number: sessionNumber, is_active: false, title: title || `Session ${sessionNumber}`, prepared_encounters: [] })
+      .select()
+      .single();
+    if (error) { console.error('createPrepSession failed:', error.message); return null; }
+    setAllSessions(prev => [...prev, data].sort((a,b) => a.session_number - b.session_number));
     return data;
   };
 
@@ -89,25 +123,28 @@ export function useActiveSession() {
       .update({ is_active: false, closed_at: new Date().toISOString(), recap, encounter_data: null })
       .eq('id', sessionId);
     setSession(null);
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, is_active: false, closed_at: new Date().toISOString() } : s));
   };
 
   const saveEncounter = async (sessionId, encounterState) => {
     if (!sessionId) return;
-    await supabase
-      .from('sessions')
-      .update({ encounter_data: encounterState })
-      .eq('id', sessionId);
+    await supabase.from('sessions').update({ encounter_data: encounterState }).eq('id', sessionId);
   };
 
   const saveEventLog = async (sessionId, events) => {
     if (!sessionId) return;
-    await supabase
-      .from('sessions')
-      .update({ event_log: events })
-      .eq('id', sessionId);
+    await supabase.from('sessions').update({ event_log: events }).eq('id', sessionId);
   };
 
-  return { session, loading, startSession, endSession, saveEncounter, saveEventLog, refetch: fetch };
+  const savePreparedEncounters = async (sessionId, prepEncounters) => {
+    if (!sessionId) return;
+    const { error } = await supabase.from('sessions').update({ prepared_encounters: prepEncounters }).eq('id', sessionId);
+    if (error) { console.error('savePreparedEncounters failed:', error.message); return; }
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, prepared_encounters: prepEncounters } : s));
+    if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_encounters: prepEncounters }));
+  };
+
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
