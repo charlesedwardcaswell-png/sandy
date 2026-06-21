@@ -394,9 +394,9 @@ export default function App() {
       )}
 
       <div className="hdr">
-        <span className="hdr-title">LBS</span>
+        <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Heart of the Jewel</span>
+        <span className="hdr-game">The Tool — v62</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
