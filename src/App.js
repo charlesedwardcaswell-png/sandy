@@ -131,30 +131,33 @@ export default function App() {
     combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1,
   });
 
-  // Load encounter state from session — only for non-GM clients
-  // Use JSON stringify as dependency to detect actual content changes
+  // Sync encounter state from Supabase realtime — applies to ALL clients
+  // GM writes are authoritative; player writes (combatants, activeTurn) propagate to GM
   const encounterDataJson = session?.encounter_data ? JSON.stringify(session.encounter_data) : null;
+  const lastSavedRef = useRef(null); // prevent applying our own just-saved state
   useEffect(() => {
-    if (isGM) return;
-    if (session?.encounter_data) {
-      const incoming = session.encounter_data;
-      setEncounter(prev => {
-        // Fire turn notification if activeTurn advanced and it's now this player's turn
-        if (incoming.activeTurn !== prev.activeTurn && incoming.combatants?.length) {
-          const active = incoming.combatants[incoming.activeTurn % Math.max(1, incoming.combatants.length)];
-          if (active?.type === 'pc') {
-            const isMine = active.id === myCharId;
-            if (isMine) playYourTurn();
-            setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
-          }
-        }
-        return incoming;
-      });
-    } else if (session && !session.encounter_data) {
+    if (!session?.encounter_data) {
       setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
+      return;
     }
+    const incoming = session.encounter_data;
+    const incomingStr = JSON.stringify(incoming);
+    // Skip if this is state we just saved ourselves (avoid loop)
+    if (lastSavedRef.current === incomingStr) return;
+    setEncounter(prev => {
+      // Fire turn notification when activeTurn advances
+      if (incoming.activeTurn !== prev.activeTurn && incoming.combatants?.length) {
+        const active = incoming.combatants[incoming.activeTurn % Math.max(1, incoming.combatants.length)];
+        if (active?.type === 'pc') {
+          const isMine = active.id === myCharId;
+          if (isMine) playYourTurn();
+          setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
+        }
+      }
+      return incoming;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.id, encounterDataJson, isGM]);
+  }, [session?.id, encounterDataJson]);
 
   // Debounced save — write to Supabase 800ms after last change
   const saveTimer = useRef(null);
@@ -162,6 +165,7 @@ export default function App() {
     if (!session?.id) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      lastSavedRef.current = JSON.stringify(state);
       saveEncounter(session.id, state);
     }, 800);
   }, [session?.id, saveEncounter]);
@@ -264,7 +268,7 @@ export default function App() {
     return (
       <AuthScreen
         onGMLogin={() => { localStorage.setItem('sandy_auth_mode', 'gm'); setAuthMode('gm'); }}
-        onPlayerLogin={(username) => { localStorage.setItem('sandy_auth_mode', 'player'); localStorage.setItem('sandy_player_username', username || 'Player'); setAuthMode('player'); setPlayerUsername(username || 'Player'); }}
+        onPlayerLogin={(username) => { localStorage.setItem('sandy_auth_mode', 'player'); localStorage.setItem('sandy_player_username', username || 'Player'); setAuthMode('player'); setPlayerUsername(username || 'Player'); setTimeout(() => push('ti-user', `${username || 'A player'} has joined the session`, { gmOnly: true }), 500); }}
         onObserver={() => { localStorage.setItem('sandy_auth_mode', 'observer'); setAuthMode('observer'); }}
       />
     );
@@ -474,7 +478,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v78</span>
+        <span className="hdr-game">The Tool — v82</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}

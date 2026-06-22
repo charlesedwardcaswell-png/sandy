@@ -196,7 +196,7 @@ export function useCharacters() {
   // Real-time subscription
   useEffect(() => {
     const sub = supabase
-      .channel('characters')
+      .channel('characters_' + GAME_ID)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'characters', filter: `game_id=eq.${GAME_ID}` },
         payload => {
           if (payload.eventType === 'UPDATE') {
@@ -263,7 +263,7 @@ export function useNPCs() {
   // Real-time
   useEffect(() => {
     const sub = supabase
-      .channel('npcs')
+      .channel('npcs_' + GAME_ID)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'npcs', filter: `game_id=eq.${GAME_ID}` },
         payload => {
           if (payload.eventType === 'UPDATE') setNpcs(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));

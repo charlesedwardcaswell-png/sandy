@@ -102,36 +102,52 @@ function QuickPinForm({ onSave, onCancel }) {
 // ── Pin detail editor (full tiered info) ──────────────────────────────────────
 function PinEditor({ pin, onSave, onClose }) {
   const [form, setForm] = useState({
-    name: pin.name || '',
-    pin_type: pin.pin_type || 'pin',
-    is_visible_to_players: pin.is_visible_to_players || false,
-    info_tn5: pin.info_tn5 || '',
-    info_tn10: pin.info_tn10 || '',
-    info_tn15: pin.info_tn15 || '',
-    info_tn20: pin.info_tn20 || '',
-    visibility_threshold: pin.visibility_threshold || 5,
+    name:                  pin.name || '',
+    pin_type:              pin.pin_type || 'pin',
+    is_visible_to_players: !!pin.is_visible_to_players,
+    info_tn5:              pin.info_tn5  || '', // player-visible description
+    info_tn20:             pin.info_tn20 || '', // GM-only notes
   });
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 420 }}>
-        <div className="modal-title"><i className="ti ti-map-pin" style={{ marginRight: 6 }} />Edit Pin</div>
+  const saveField = (k, v) => {
+    const updated = { ...form, [k]: v };
+    setForm(updated);
+    onSave(updated);
+  };
 
-        <div className="modal-section">
-          <span className="modal-label">Name</span>
-          <input value={form.name} onChange={e => set('name', e.target.value)} style={{ width: '100%' }} />
+  const handleClose = () => { onSave(form); onClose(); };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
+      <div className="modal" style={{ maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div className="modal-title" style={{ margin: 0 }}>
+            <i className="ti ti-map-pin" style={{ marginRight: 6 }} />Edit Pin
+          </div>
+          <button className="btn btn-sm" onClick={handleClose}>✕ Done</button>
         </div>
 
+        {/* Name */}
+        <div className="modal-section">
+          <span className="modal-label">Name</span>
+          <input value={form.name} onChange={e => set('name', e.target.value)}
+            onBlur={e => saveField('name', e.target.value)}
+            style={{ width: '100%' }} autoFocus />
+        </div>
+
+        {/* Icon */}
         <div className="modal-section">
           <span className="modal-label">Icon</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PIN_TYPES.map(pt => (
-              <div key={pt.id} title={pt.label} onClick={() => set('pin_type', pt.id)} style={{
-                width: 32, height: 32, borderRadius: '50%', background: pt.color,
-                border: `2px solid ${form.pin_type === pt.id ? '#fff' : 'transparent'}`,
+              <div key={pt.id} title={pt.label} onClick={() => saveField('pin_type', pt.id)} style={{
+                width: 34, height: 34, borderRadius: '50%', background: pt.color,
+                border: `3px solid ${form.pin_type === pt.id ? '#fff' : 'transparent'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', boxShadow: form.pin_type === pt.id ? `0 0 10px ${pt.color}` : 'none',
+                cursor: 'pointer', boxShadow: form.pin_type === pt.id ? `0 0 12px ${pt.color}` : 'none',
+                transition: 'all .1s',
               }}>
                 <i className={`ti ${pt.icon}`} style={{ fontSize: 16, color: '#fff' }} />
               </div>
@@ -139,38 +155,34 @@ function PinEditor({ pin, onSave, onClose }) {
           </div>
         </div>
 
+        {/* Visibility toggle */}
         <div className="modal-section">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-            <input type="checkbox" checked={form.is_visible_to_players} onChange={e => set('is_visible_to_players', e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
+            <input type="checkbox" checked={form.is_visible_to_players}
+              onChange={e => saveField('is_visible_to_players', e.target.checked)}
+              style={{ accentColor: 'var(--gold)' }} />
             <span style={{ color: 'var(--text-secondary)' }}>Visible to players</span>
           </label>
         </div>
 
+        {/* Player-visible description */}
         <div className="modal-section">
-          <span className="modal-label">Tiered Information</span>
-          {[['info_tn5','TN 5 — Common knowledge'],['info_tn10','TN 10 — Local knowledge'],['info_tn15','TN 15 — Insider access'],['info_tn20','TN 20+ — Secrets']].map(([key, label]) => (
-            <div key={key} style={{ marginBottom: '.4rem' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
-              <textarea rows={2} value={form[key]} onChange={e => set(key, e.target.value)}
-                placeholder={label.split(' — ')[1]} style={{ width: '100%', resize: 'vertical', fontSize: 12 }} />
-            </div>
-          ))}
+          <span className="modal-label">Description <span style={{ color: 'var(--green)', fontSize: 10, fontWeight: 400 }}>(shown to players)</span></span>
+          <textarea rows={3} value={form.info_tn5}
+            onChange={e => set('info_tn5', e.target.value)}
+            onBlur={e => saveField('info_tn5', e.target.value)}
+            placeholder="What players can see or learn about this location…"
+            style={{ width: '100%', resize: 'vertical', fontSize: 12, boxSizing: 'border-box' }} />
         </div>
 
+        {/* GM notes */}
         <div className="modal-section">
-          <span className="modal-label">Players can see up to</span>
-          <select value={form.visibility_threshold} onChange={e => set('visibility_threshold', +e.target.value)}>
-            <option value={0}>Nothing</option>
-            <option value={5}>TN 5</option>
-            <option value={10}>TN 10</option>
-            <option value={15}>TN 15</option>
-            <option value={20}>TN 20+</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', gap: '.5rem' }}>
-          <button className="btn btn-p" disabled={!form.name} onClick={() => { onSave(form); onClose(); }}>Save</button>
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <span className="modal-label">GM Notes <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 400 }}>(private)</span></span>
+          <textarea rows={3} value={form.info_tn20}
+            onChange={e => set('info_tn20', e.target.value)}
+            onBlur={e => saveField('info_tn20', e.target.value)}
+            placeholder="Hidden context, secrets, encounter hooks…"
+            style={{ width: '100%', resize: 'vertical', fontSize: 12, boxSizing: 'border-box' }} />
         </div>
       </div>
     </div>
@@ -198,12 +210,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
       ? { left: 'auto', right: 0, transform: 'none' }
       : { left: '50%', transform: 'translateX(-50%)' };
 
-  const visibleTiers = [
-    { key: 'info_tn5', label: 'TN 5', val: pin.info_tn5, threshold: 5 },
-    { key: 'info_tn10', label: 'TN 10', val: pin.info_tn10, threshold: 10 },
-    { key: 'info_tn15', label: 'TN 15', val: pin.info_tn15, threshold: 15 },
-    { key: 'info_tn20', label: 'TN 20+', val: pin.info_tn20, threshold: 20 },
-  ].filter(t => gmView ? t.val : t.val && t.threshold <= (pin.visibility_threshold || 5));
+  // Description shown to players; GM notes shown only to GM
 
   return (
     <div style={{
@@ -220,27 +227,18 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
       </div>
       <div style={{ fontSize: 11, color: pt.color, marginBottom: 6 }}>{pt.label}</div>
 
-      {/* Tiered info */}
-      {visibleTiers.map(t => (
-        <div key={t.key} style={{ marginBottom: 5 }}>
-          {gmView && <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 1 }}>
-            {t.label}{t.threshold > (pin.visibility_threshold || 5) ? ' 🔒' : ''}
-          </div>}
-          <div style={{ fontSize: 12, color: t.threshold > (pin.visibility_threshold || 5) && gmView ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: 'italic' }}>{t.val}</div>
-        </div>
-      ))}
-      {visibleTiers.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 5 }}>No information yet.</div>}
-
-      {/* GM reveal control */}
-      {gmView && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0', borderTop: '1px solid rgba(107,78,40,.3)', borderBottom: '1px solid rgba(107,78,40,.3)', margin: '4px 0', fontSize: 11 }}>
-          <span style={{ color: 'var(--text-muted)' }}>Show up to:</span>
-          <select value={pin.visibility_threshold || 5} onChange={e => onUpdatePin(pin.id, { visibility_threshold: +e.target.value })} style={{ fontSize: 11, padding: '1px 3px', flex: 1 }}>
-            <option value={0}>Nothing</option><option value={5}>TN 5</option><option value={10}>TN 10</option><option value={15}>TN 15</option><option value={20}>TN 20+</option>
-          </select>
-          <span style={{ color: pin.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)' }}>{pin.is_visible_to_players ? '● shown' : '○ hidden'}</span>
+      {/* Description + GM notes */}
+      {pin.info_tn5 && (
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: 5, lineHeight: 1.4 }}>{pin.info_tn5}</div>
+      )}
+      {gmView && pin.info_tn20 && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5, lineHeight: 1.4, padding: '3px 6px', background: 'rgba(107,78,40,.1)', borderRadius: 3, borderLeft: '2px solid var(--gold-dim)' }}>
+          {pin.info_tn20}
         </div>
       )}
+      {!pin.info_tn5 && !pin.info_tn20 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 5 }}>No description yet.</div>}
+
+
 
       {/* Party notes */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Party notes:</div>
@@ -388,6 +386,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
     <div>
       {editingPin && (
         <PinEditor
+          key={editingPin.id}
           pin={editingPin}
           onSave={form => onUpdatePin(editingPin.id, form)}
           onClose={() => setEditingPin(null)}
