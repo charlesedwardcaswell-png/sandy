@@ -264,9 +264,23 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
         </div>
       </div>
 
-      {/* Learned count */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#666', flexWrap: 'wrap' }}>
-        <span style={{ color: disc.color }}>{learnedSpells.length} spells learned</span>
+      {/* Learned count — shows current/max with rank-up nudge */}
+      <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#666', flexWrap: 'wrap', alignItems: 'center' }}>
+        {(() => {
+          const maxSpells = 3 + ((schoolRank || 1) - 1) * 3;
+          const count = learnedSpells.length;
+          const needsSpells = canEdit && count < maxSpells;
+          return (
+            <span style={{ color: needsSpells ? '#c8a040' : disc.color, fontWeight: needsSpells ? 700 : 400 }}>
+              {count}/{maxSpells} spells learned
+              {needsSpells && (
+                <span style={{ marginLeft: 6, fontSize: 11, color: '#c8a040', animation: 'blink 1.5s infinite' }}>
+                  ✦ {maxSpells - count} spell{maxSpells - count > 1 ? 's' : ''} available to learn
+                </span>
+              )}
+            </span>
+          );
+        })()}
         {disciplineBonus && <span>Discipline bonus: <span style={{ color: SAHIR_DISCIPLINES.find(d => d.id === disciplineBonus)?.color }}>{SAHIR_DISCIPLINES.find(d => d.id === disciplineBonus)?.name}</span> (+1k1)</span>}
         {spellTypeEmphases?.length > 0 && <span>Emphases (free raise): {spellTypeEmphases.join(', ')}</span>}
       </div>
@@ -363,12 +377,15 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
 }
 
 // ── Creation mode — clear spell list ─────────────────────────────────────────
-function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, setSpellEmphasis, spellDisciplineBonus, setSpellDisciplineBonus }) {
+function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, setSpellEmphasis, spellDisciplineBonus, setSpellDisciplineBonus, isGM }) {
   const [activeDiscipline, setActiveDiscipline] = useState(0);
+  const [hoveredSpell, setHoveredSpell] = useState(null);
   const disc = SAHIR_DISCIPLINES[activeDiscipline];
 
   const isLearned = (name) => learnedSpells.includes(name);
   const canLearn = (typeIdx, level) => {
+    // Non-GM players can only select level 1 spells at character creation
+    if (!isGM && level > 1) return false;
     if (level === 1) return true;
     const type = disc.types[typeIdx];
     const prevSpell = type.spells.find(s => s.level === level - 1);
@@ -402,8 +419,10 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
         ))}
       </div>
 
-      {/* Spell types and spells */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+      {/* Spell types + description side panel */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.5rem' }}>
         {disc.types.map((type, ti) => (
           <div key={type.id}>
             <div style={{ fontSize: 12, fontWeight: 600, color: disc.color, marginBottom: '.3rem', paddingBottom: '.2rem', borderBottom: `1px solid ${disc.color}44` }}>
@@ -416,9 +435,11 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
               return (
                 <div key={spell.name}
                   onClick={() => available || learned ? onToggle(spell.name) : null}
+                  onMouseEnter={() => setHoveredSpell(spell)}
+                  onMouseLeave={() => setHoveredSpell(s => s?.name === spell.name ? null : s)}
                   style={{
                     padding: '.4rem .5rem', marginBottom: '.25rem', borderRadius: 4,
-                    background: learned ? disc.color + '22' : 'var(--bg-panel)',
+                    background: learned ? disc.color + '22' : hoveredSpell?.name === spell.name ? disc.color + '11' : 'var(--bg-panel)',
                     border: `1px solid ${learned ? disc.color : available ? disc.color + '55' : 'var(--border)'}`,
                     cursor: locked ? 'not-allowed' : 'pointer',
                     opacity: locked ? 0.4 : 1,
@@ -436,6 +457,29 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
             })}
           </div>
         ))}
+        </div>
+        </div>
+        {/* Spell description side panel */}
+        <div style={{ width: 200, flexShrink: 0 }}>
+          {hoveredSpell ? (
+            <div style={{ position: 'sticky', top: 0, padding: '.6rem .75rem', background: 'var(--bg-panel)', border: `1px solid ${disc.color}55`, borderRadius: 6, borderLeft: `3px solid ${disc.color}` }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: disc.color, marginBottom: '.2rem' }}>{hoveredSpell.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Level {hoveredSpell.level} · TN {hoveredSpell.tn}</div>
+              {hoveredSpell.desc && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{hoveredSpell.desc}</div>
+              )}
+              {!isGM && hoveredSpell.level > 1 && (
+                <div style={{ fontSize: 11, color: '#c84030', marginTop: '.4rem', fontStyle: 'italic' }}>
+                  Level 2+ spells are learned after character creation.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ padding: '.6rem .75rem', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
+              Hover a spell to see its description
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Specialisation pickers */}
@@ -517,7 +561,7 @@ function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
     </div>
   );
 }
-export default function SpellConstellation({ character, mode = 'sheet', onUpdate, onCastSpell, spellEmphasis, setSpellEmphasis, spellDisciplineBonus, setSpellDisciplineBonus }) {
+export default function SpellConstellation({ character, mode = 'sheet', onUpdate, onCastSpell, spellEmphasis, setSpellEmphasis, spellDisciplineBonus, setSpellDisciplineBonus, isGM }) {
   const school = character?.school || '';
   const isCokaloi = IS_COKALOI_SCHOOL(school);
   const learnedSpells = character?.spells || [];
@@ -559,6 +603,7 @@ export default function SpellConstellation({ character, mode = 'sheet', onUpdate
           setSpellEmphasis={setSpellEmphasis}
           spellDisciplineBonus={spellDisciplineBonus || ''}
           setSpellDisciplineBonus={setSpellDisciplineBonus}
+          isGM={isGM}
         />;
   }
 

@@ -98,7 +98,7 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 .sdot.f { background: var(--gold); border-color: var(--gold); }
 .skill-nm { flex: 0 1 150px; color: var(--text-secondary); font-size: 13px; }
 .skill-nm.sc { color: var(--gold-light); }
-.skill-row { display: flex; align-items: center; padding: 3px 0; border-bottom: 1px solid rgba(107,78,40,.3); }
+.skill-row { display: flex; align-items: center; padding: 3px 0; border-bottom: 1px solid rgba(107,78,40,.3); flex-wrap: wrap; gap: 2px; }
 
 /* ── Ring boxes ── */
 .ring-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 5px; padding: .5rem; text-align: center; }
@@ -252,4 +252,29 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
   0%   { opacity: 1; transform: scale(1.1); }
   60%  { opacity: 1; transform: scale(1); }
   100% { opacity: 0.3; transform: scale(0.95); }
+}
+@keyframes jinnFlash {
+  0%   { opacity: 0; transform: scale(1.08); }
+  8%   { opacity: 1; }
+  30%  { opacity: 1; transform: scale(1); }
+  45%  { opacity: 0; }
+  55%  { opacity: 0.9; }
+  70%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.97); }
+}
+@keyframes jinnGlow {
+  0%, 100% { text-shadow: 0 0 40px #c0a0e0aa, 0 0 10px #c0a0e088; }
+  50%       { text-shadow: 0 0 80px #c0a0e0ff, 0 0 30px #c0a0e0cc; }
+}
+@keyframes purchaseFlash {
+  0%   { opacity: 0; transform: scale(1.1); }
+  10%  { opacity: 1; transform: scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+@keyframes coinSpin {
+  0%   { transform: rotateY(0deg) scale(1); }
+  50%  { transform: rotateY(180deg) scale(1.2); }
+  100% { transform: rotateY(360deg) scale(1); }
 }

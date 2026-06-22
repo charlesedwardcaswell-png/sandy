@@ -20,7 +20,7 @@ export function WoundBadge({ rank }) {
 }
 
 // ── Skill Dots ────────────────────────────────────────────────────────────────
-export function SkillDots({ rank, max = 5 }) {
+export function SkillDots({ rank, max = 10 }) {
   return (
     <span>
       {Array.from({ length: max }, (_, i) => (

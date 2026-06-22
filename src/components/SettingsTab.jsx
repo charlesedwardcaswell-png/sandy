@@ -164,6 +164,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const [mapUrlNight, setMapUrlNight] = useState('');
   const [musicUrl, setMusicUrl] = useState('');
   const [settingUrls, setSettingUrls] = useState({});
+  const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
 
@@ -174,6 +175,7 @@ export default function SettingsTab({ onWipe = {} }) {
         if (data.settings.map_url_night) setMapUrlNight(data.settings.map_url_night);
         if (data.settings.music_url) setMusicUrl(data.settings.music_url);
         if (data.settings.setting_urls) setSettingUrls(data.settings.setting_urls);
+        if (data.settings.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
         if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2', ...data.settings.round_limits });
       }
     });
@@ -182,7 +184,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -329,6 +331,22 @@ export default function SettingsTab({ onWipe = {} }) {
           <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)}
             placeholder="https://... (direct .mp3 or .ogg link)"
             style={{ width: '100%', fontSize: 12 }} />
+        </div>
+
+        <div style={{ marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>
+            Jinn Summoning Art URL <span style={{ fontWeight: 400 }}>(shown to all players when a Jinn is summoned)</span>
+          </div>
+          <input value={jinnArtUrl} onChange={e => setJinnArtUrl(e.target.value)}
+            placeholder="https://i.imgur.com/AwZ72Fq.jpeg"
+            style={{ width: '100%', fontSize: 12 }} />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+            Default: <span style={{ color: 'var(--gold-dim)' }}>https://i.imgur.com/AwZ72Fq.jpeg</span>
+            {jinnArtUrl && jinnArtUrl !== 'https://i.imgur.com/AwZ72Fq.jpeg' && (
+              <button className="btn btn-sm" style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px' }}
+                onClick={() => setJinnArtUrl('https://i.imgur.com/AwZ72Fq.jpeg')}>Reset</button>
+            )}
+          </div>
         </div>
 
         {/* Per-setting backgrounds */}

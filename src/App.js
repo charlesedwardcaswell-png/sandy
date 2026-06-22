@@ -10,6 +10,7 @@ import MapTab from './components/MapTab';
 import NPCTab from './components/NPCTab';
 import QuestTab from './components/QuestTab';
 import PartyTab from './components/PartyTab';
+import ShopTab from './components/ShopTab';
 import LogTab from './components/LogTab';
 import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
@@ -166,11 +167,13 @@ export default function App() {
   const audioRef = useRef(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicUrl, setMusicUrlState] = useState('');
+  const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
 
-  // Load music URL from games settings on mount
+  // Load music URL and jinn art URL from games settings on mount
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.music_url) setMusicUrlState(data.settings.music_url);
+      if (data?.settings?.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
     });
   }, []);
 
@@ -184,7 +187,7 @@ export default function App() {
   const [tab, setTab] = useState(() => {
     try {
       const saved = localStorage.getItem('sandy_tab');
-      return saved && ['character','encounter','map','npc','quest','party','log','settings'].includes(saved) ? saved : 'character';
+      return saved && ['character','encounter','map','npc','quest','party','log','shop','settings'].includes(saved) ? saved : 'character';
     } catch { return 'character'; }
   });
   const [isPCView, setIsPCView] = useState(false);
@@ -213,7 +216,10 @@ export default function App() {
           setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
         }
       }
-      if (isGM) saveEncounterDebounced(next);
+      // Save to Supabase: GM always saves; players save only when updating duel state
+      // (so duel rolls propagate to all screens via realtime)
+      const touchesDuel = next.duelState !== prev.duelState;
+      if (isGM || touchesDuel) saveEncounterDebounced(next);
       return next;
     });
   }, [saveEncounterDebounced, isGM, myCharId]);
@@ -225,6 +231,8 @@ export default function App() {
   const [timeOfDay, setTimeOfDay] = useState('Morning');
   const [campaignDay, setCampaignDay] = useState(1);
   const [campaignWeek, setCampaignWeek] = useState(1);
+
+  const shopOpen = !!encounter?.shopOpen; // persists to all clients via encounter state
 
   useEffect(() => {
     if (encounter?.timeOfDay) setTimeOfDay(encounter.timeOfDay);
@@ -254,9 +262,52 @@ export default function App() {
     const char = characters.find(c => c.id === id);
     if (char) {
       push('ti-user-check', `Playing as ${char.name}`, { gmOnly: true });
-      // Write player_name to Supabase so it shows on the character sheet for everyone
       if (playerUsername) updateCharacter(id, { player_name: playerUsername });
     }
+  };
+
+  // Coin jingle via Web Audio API (no external file)
+  const playCoinJingle = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.1;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.start(t); osc.stop(t + 0.25);
+      });
+    } catch (e) {}
+  };
+
+  const handlePurchase = ({ itemName, price, copperAmt, destination, destName }) => {
+    // Deduct copper
+    if (copperAmt > 0) {
+      if (destination === 'party') {
+        updateInventory({ copper: Math.max(0, (inventory.copper || 0) - copperAmt) });
+      } else {
+        const char = characters.find(c => c.id === destination);
+        if (char) updateCharacter(destination, { copper: Math.max(0, (char.copper || 0) - copperAmt) });
+      }
+    }
+    // Flash banner to all players
+    handleSetEncounter(e => ({ ...e, purchaseBanner: { itemName, price, destName, ts: Date.now() } }));
+    playCoinJingle();
+    push('ti-shopping-cart', `Purchased: ${itemName}${price ? ' — ' + price : ''} → ${destName}`);
+  };
+
+  const unclaimCharacter = (id) => {
+    localStorage.removeItem('sandy_my_char_id');
+    setMyCharId(null);
+    // Clear player_name from the character
+    updateCharacter(id, { player_name: null });
+    push('ti-user-off', 'Character unclaimed', { gmOnly: true });
   };
 
   const handleUpdateChar = async (id, updates) => { await updateCharacter(id, updates); };
@@ -365,6 +416,13 @@ export default function App() {
     setTimeOfDay(t);
     handleSetEncounter(e => ({ ...e, timeOfDay: t, campaignDay }));
   };
+  const handleIncrementTime = () => {
+    const idx = TIMES.indexOf(timeOfDay);
+    const nextIdx = (idx + 1) % TIMES.length;
+    const nextTime = TIMES[nextIdx];
+    if (nextIdx === 0) handleSetDay(campaignDay + 1); // Night → Dawn rolls the day
+    handleSetTime(nextTime);
+  };
   const handleSetDay = (d) => {
     let day = d;
     let week = campaignWeek;
@@ -375,7 +433,7 @@ export default function App() {
     handleSetEncounter(e => ({ ...e, timeOfDay, campaignDay: day, campaignWeek: week }));
   };
 
-  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...(gmView ? ['settings'] : [])];
+  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', ...(gmView ? ['settings'] : [])];
   const handleTabChange = (id) => {
     setTab(id);
     try { localStorage.setItem('sandy_tab', id); } catch {}
@@ -396,7 +454,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v65</span>
+        <span className="hdr-game">The Tool — v74</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -443,6 +501,8 @@ export default function App() {
               style={{ fontSize: 12, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
               {TIMES.map(t => <option key={t} value={t}>{TIME_ICONS[t]} {t}</option>)}
             </select>
+            <button className="rep-btn" onClick={handleIncrementTime} title="Advance to next time period (Night → Dawn rolls the day)"
+              style={{ color: 'var(--gold-dim)', borderColor: 'var(--gold-dim)' }}>→</button>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Wk</span>
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 14, textAlign: 'center' }}>{campaignWeek}</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day</span>
@@ -485,8 +545,15 @@ export default function App() {
             onCreateNPC={handleCreateNPC}
             myCharId={myCharId}
             onClaimCharacter={claimCharacter}
+            onUnclaimCharacter={unclaimCharacter}
             jumpToCharId={viewCharId}
             onClearJump={() => setViewCharId(null)}
+            jinnArtUrl={jinnArtUrl}
+            onJinnSummoned={(jinnName) => {
+              handleSetEncounter(e => ({ ...e, jinnBanner: { name: jinnName, artUrl: jinnArtUrl, ts: Date.now() } }));
+            }}
+            onUpdateInventory={updateInventory}
+            partyInventoryItems={inventory?.items || []}
           />
         )}
         {tab === 'encounter' && (
@@ -548,6 +615,7 @@ export default function App() {
             inventory={inventory}
             onUpdateInventory={updateInventory}
             encounterLog={encounterLog}
+            onUpdateCharacter={handleUpdateChar}
           />
         )}
         {tab === 'log' && (
@@ -565,10 +633,93 @@ export default function App() {
             eventLog={fullEventLog}
           />
         )}
+        {tab === 'shop' && (shopOpen || gmView) && (
+          <ShopTab
+            isGM={isGM} isPCView={isPCView}
+            inventory={inventory}
+            onUpdateInventory={updateInventory}
+            characters={safeChars}
+            onUpdateCharacter={handleUpdateChar}
+            onLogEvent={push}
+            shopOpen={shopOpen}
+            onPurchase={handlePurchase}
+            onToggleShopOpen={gmView ? () => {
+              const opening = !encounter?.shopOpen;
+              handleSetEncounter(e => ({ ...e, shopOpen: opening }));
+              push('ti-shopping-cart', opening ? 'The Bazaar is open — browse the Shop tab.' : 'The Bazaar has closed.', { highlight: opening });
+            } : undefined}
+          />
+        )}
         {tab === 'settings' && gmView && <SettingsTab
           onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession }}
         />}
       </div>
+
+      {/* Jinn Summoning Flash Banner — shown to all players when a Jinn is summoned */}
+      {encounter.jinnBanner && (() => {
+        const b = encounter.jinnBanner;
+        if (Date.now() - (b.ts || 0) > 7000) return null;
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 450,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(8,4,18,.96)',
+            pointerEvents: 'none',
+            animation: 'jinnFlash 7s forwards',
+          }}>
+            {b.artUrl && (
+              <div style={{
+                width: 'min(380px, 80vw)', height: 'min(480px, 60vh)',
+                borderRadius: 12, overflow: 'hidden',
+                border: '2px solid rgba(160,100,220,.6)',
+                boxShadow: '0 0 80px rgba(160,100,220,.5), 0 0 200px rgba(160,100,220,.2)',
+                marginBottom: '1.5rem',
+              }}>
+                <img src={b.artUrl} alt="Jinn" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <div style={{
+              fontSize: 11, letterSpacing: '.35em', textTransform: 'uppercase',
+              color: 'rgba(160,100,220,.7)', marginBottom: '.5rem',
+            }}>
+              From the Smokeless Fire
+            </div>
+            <div style={{
+              fontSize: 'clamp(28px, 6vw, 52px)', fontWeight: 900, color: '#c0a0e0',
+              animation: 'jinnGlow 1.5s ease-in-out infinite',
+              letterSpacing: '.04em', textAlign: 'center', padding: '0 1rem',
+            }}>
+              {b.name || 'The Jinn Appears'}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Purchase Flash Banner */}
+      {encounter.purchaseBanner && (() => {
+        const b = encounter.purchaseBanner;
+        if (Date.now() - (b.ts || 0) > 3500) return null;
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 448,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(20,15,0,.92)',
+            pointerEvents: 'none',
+            animation: 'purchaseFlash 3.5s forwards',
+          }}>
+            <div style={{ fontSize: 72, lineHeight: 1, marginBottom: '.5rem', animation: 'coinSpin 0.6s ease-in-out' }}>🪙</div>
+            <div style={{ fontSize: 11, letterSpacing: '.3em', textTransform: 'uppercase', color: '#a07820', marginBottom: '.4rem' }}>Purchased</div>
+            <div style={{ fontSize: 'clamp(24px, 5vw, 44px)', fontWeight: 900, color: '#f0c040', textAlign: 'center', padding: '0 1rem',
+              textShadow: '0 0 40px #f0c04066, 0 0 15px #f0c04088' }}>
+              {b.itemName}
+            </div>
+            {b.price && (
+              <div style={{ fontSize: 20, color: '#c0a030', marginTop: '.4rem', fontWeight: 600 }}>{b.price}</div>
+            )}
+            <div style={{ fontSize: 13, color: '#806010', marginTop: '.3rem' }}>→ {b.destName}</div>
+          </div>
+        );
+      })()}
 
       {/* Global Roll Result Banner */}
       {encounter.rollBanner && (() => {

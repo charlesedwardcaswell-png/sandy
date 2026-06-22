@@ -119,6 +119,251 @@ export const SUBFACTION_BONUSES = {
 
 export const SAHIR_SCHOOLS = ['Dahabi Bargainer','Qabal Summoner','Children of Midnight',"Ra'Shari Diviner",'Senpet Sahir','Necromancer','Heartless Khadi'];
 
+// ── Item Quality Tiers ───────────────────────────────────────────────────────
+export const ITEM_QUALITIES = {
+  poor:       { label: 'Poor',       mult: 0.5, rollBonus: 0,  keepBonus: 0,  desc: 'Shoddy. May break or misfire at GM discretion.' },
+  standard:   { label: 'Standard',   mult: 1,   rollBonus: 0,  keepBonus: 0,  desc: 'Well-made. No special modifier.' },
+  fine:       { label: 'Fine',       mult: 2,   rollBonus: 1,  keepBonus: 0,  desc: 'Excellent craft. +1 rolled die on attacks with this weapon.' },
+  masterwork: { label: 'Masterwork', mult: 4,   rollBonus: 1,  keepBonus: 1,  desc: 'The finest available. +1k1 on attacks with this weapon.' },
+};
+
+// ── Poisons & Powders (LBS p.72-76) ─────────────────────────────────────────
+export const POISONS_LIST = [
+  {
+    name: 'Generic Poison',
+    method: 'Ingested',
+    onset: '60 minutes',
+    effect: '-1 to one Trait (GM choice)',
+    resist: 'Raw Stamina after 60 min. Exceeds TN by 10+: ends immediately',
+    resistTN: 10,
+    healTN: 10,
+    craftTN: 10,
+    craftNotes: '3 Raises: increase Trait loss to -2 or lower additional Trait. Void cannot be reduced.',
+    disease: 'Causes same Trait loss again on day 2.',
+    color: '#6a6a30',
+  },
+  {
+    name: 'Dripping Poison (Lassitude)',
+    method: 'Ingested (sleeping victim)',
+    onset: 'Immediate',
+    effect: '-2 Strength',
+    resist: 'Raw Stamina hourly. TN increases +5 per failed roll',
+    resistTN: 15,
+    healTN: 15,
+    craftTN: 20,
+    craftNotes: 'Administered via thread dripped into a sleeping victim. TN rises +5 per hour.',
+    disease: 'Incubates 1 day; manifests overnight. Loss of energy and motivation.',
+    color: '#6a4a20',
+  },
+  {
+    name: 'Fauntei Shi',
+    method: 'Any',
+    onset: 'Immediate',
+    effect: 'Must resist every 10 minutes or die',
+    resist: 'Raw Stamina every 10 minutes',
+    resistTN: 35,
+    healTN: 50,
+    craftTN: 55,
+    craftNotes: 'TN 50 to identify only. No known cure in the Burning Sands.',
+    disease: 'No natural disease kills as effectively.',
+    color: '#8a1a1a',
+  },
+  {
+    name: 'Fire Biter (Water Imbalance)',
+    method: 'Bloodstream (applied to bladed weapons)',
+    onset: '10 seconds',
+    effect: '-2 Agility + 2k2 Wounds',
+    resist: 'Raw Stamina TN 30 halves penalties on success',
+    resistTN: 30,
+    healTN: 25,
+    craftTN: 25,
+    craftNotes: '2 Raises: +1k1 damage OR +1 Agility penalty. Agility penalty lasts full day.',
+    disease: 'Contact or ingested. Effects every morning. Agility penalty reduced to -1.',
+    color: '#8a3a10',
+  },
+  {
+    name: 'Hot Madness (Boiled Mind)',
+    method: 'Ingested',
+    onset: 'Immediate',
+    effect: '-2 Intelligence and -2 Willpower',
+    resist: 'Stamina TN 30 reduces penalties to -1 on success',
+    resistTN: 30,
+    healTN: 20,
+    craftTN: 30,
+    craftNotes: '2 Raises: extends duration by 1 day. Cannot kill via Trait loss alone.',
+    disease: 'Effects reapplied daily. 0 Int or Will triggers coma; death after 3 days untreated.',
+    color: '#7a4a6a',
+  },
+  {
+    name: 'Kirei-ko',
+    method: 'Contact (long-term) or Ingested',
+    onset: 'Weeks',
+    effect: 'Contact: -1 Stamina per 2 weeks. Ingested: -2 Stamina per week',
+    resist: 'No avoidance possible',
+    resistTN: null,
+    healTN: 40,
+    craftTN: 35,
+    craftNotes: 'Heal TN reduced by 5 per Stamina point lost. Recovery: +1 Stamina per 2 weeks of rest after exposure ends.',
+    disease: 'Effects continue 1 week after exposure ends.',
+    color: '#4a6a4a',
+  },
+  {
+    name: 'Night Milk (Night Rot)',
+    method: 'Bloodstream',
+    onset: 'Immediate',
+    effect: '2k1 Wounds per minute for 5 rolls. Losing 2 Wound Ranks treated as Down.',
+    resist: 'Raw Stamina every minute. 5 consecutive rolls required.',
+    resistTN: 25,
+    healTN: 20,
+    craftTN: 25,
+    craftNotes: '2 Raises: extends damage by 1 round. Wounds cannot heal normally until treated or after 1 full day rest.',
+    disease: 'Effects measured in days. Appetite loss, stomach cramps, dizziness.',
+    color: '#3a5a3a',
+  },
+  {
+    name: 'Snake / Scorpion Venom',
+    method: 'Bite, blood, or ingested',
+    onset: 'Immediate',
+    effect: '-1 Agility and -1 Reflexes per hour untreated',
+    resist: 'Raw Stamina hourly, TN increases +5 per failed roll',
+    resistTN: 10,
+    healTN: 15,
+    craftTN: 10,
+    craftNotes: 'TN 30 to synthesize without actual venom. 2 Raises: adds blindness after 2 failed rolls.',
+    disease: 'Rolls measured in days. Joint aches and spasms.',
+    color: '#5a6a20',
+  },
+  {
+    name: 'Spider Venom (Red Lung)',
+    method: 'Blood or ingested',
+    onset: 'Immediate',
+    effect: '-1 Stamina per hour',
+    resist: 'Raw Stamina hourly TN 10, TN+5 per fail. Exceed by 10+: ignored entirely.',
+    resistTN: 10,
+    healTN: 10,
+    craftTN: 15,
+    craftNotes: 'After 6 hours rest victim continues rolls but poison fades.',
+    disease: 'Rolls measured in days. Shortness of breath, blood when coughing.',
+    color: '#4a4a7a',
+  },
+  {
+    name: 'Stolen Breath (Desert Throat)',
+    method: 'Ingested (ineffective in blood)',
+    onset: '1 hour tingle; voice gone after 1 day',
+    effect: 'Voice reduced to whisper. After 6 hours voiceless: Stamina TN 30 or permanent.',
+    resist: 'Stamina TN 30 after 6 hours voiceless, then every 2 hours',
+    resistTN: 30,
+    healTN: 15,
+    craftTN: 30,
+    craftNotes: 'TN 40 to diagnose as poison (requires Antidote emphasis). Closely resembles disease.',
+    disease: 'Mechanically identical to Isora Anger disease.',
+    color: '#4a5a6a',
+  },
+  {
+    name: 'Wish You Dead (Air Imbalance)',
+    method: 'Bloodstream',
+    onset: 'Immediate',
+    effect: '-1 Stamina + nausea (-1 rolled die on all Skill rolls)',
+    resist: 'Stamina TN 20 negates nausea only. Lasts 8 hours (4 if initial roll succeeds).',
+    resistTN: 20,
+    healTN: 20,
+    craftTN: 25,
+    craftNotes: '1 Raise: extends duration by 8 hours.',
+    disease: '+1 Stamina loss per day, fatigue added to nausea.',
+    color: '#6a3a5a',
+  },
+];
+
+export const POWDERS_LIST = [
+  {
+    name: 'Poison Powder',
+    delivery: 'Reflexes / Assassin Ranged Weapons attack roll',
+    duration: '10 minus victim Stamina rounds (minimum 1)',
+    craft: 'Intelligence / Poison TN 25 per dose (1 copper ingredients). +2 Raises per extra effect. +1 Raise: safe to spit from own mouth.',
+    effects: ['Blindness', 'Choking (Stamina TN 15 per action or lose it)', 'Itching (-10 Initiative)', 'Nausea (-1 rolled die on Stamina/Agility)'],
+    note: 'Flushing with water reduces duration by 3 rounds per round spent. No unskilled penalty on attack.',
+    color: '#7a3a3a',
+  },
+  {
+    name: 'Mundane Powder (Blinding Dust)',
+    delivery: 'Reflexes / Assassin Ranged Weapons or blowgun',
+    duration: '10 minus victim Stamina rounds (minimum 1)',
+    craft: 'Craft (Powders) TN 10 per dose. Free materials (dirt/refuse). +2 Raises per extra effect.',
+    effects: ['Blindness', 'Choking (Stamina TN 15 per action or lose it)', 'Itching (-10 Initiative)'],
+    note: 'Easier to craft and explain. Masks grant +10 TN to be hit by any powder attack.',
+    color: '#6a5a30',
+  },
+];
+
+
+// Maps technique names to which skills/areas they modify — used to show glow badges on skill rows
+export const TECHNIQUE_SKILL_LINKS = {
+  // City Guard
+  'Trained For War':         ['Athletics', 'Battle', 'Defense', 'Initiative'],
+  'Strike With Fury':        ['Initiative', 'Attack'],
+  'Implacable Foe':          ['Swordsmanship', 'Spears', 'Knives', 'Polearms', 'Staves', 'Attack'],
+  'Instrument of the Caliph': ['Defense', 'Initiative'],
+  'The Sublime Warrior':     ['Defense', 'Initiative', 'Armor TN'],
+  // Dahabi Enforcer
+  'Moonless Night':          ['Attack', 'Damage'],
+  'Dangerous Maneuvers':     ['Brawling', 'Damage'],
+  'Show of Force':           ['Attack', 'Brawling'],
+  'Bitter Shadows':          ['Brawling', 'Damage'],
+  'Final Strike':            ['Damage', 'Center Stance'],
+  // Dahabi Bargainer
+  'Penetrating Words':       ['Spellcraft', 'Commerce'],
+  // Dahabi Merchant
+  'Master of the Subtle Flow': ['Commerce', 'Sincerity', 'Temptation'],
+  'Upstanding Citizen':      ['Commerce', 'Sincerity', 'Temptation'],
+  'An Eye for a Deal':       ['Commerce', 'Sincerity', 'Temptation'],
+  'Silver Tongued Devil':    ['Sincerity', 'Commerce'],
+  'Merchant King':           ['Commerce'],
+  // Qabal Agent
+  'No One of Import':        ['Sincerity', 'Stealth'],
+  'A Good Excuse':           ['Sincerity'],
+  'Unassailable Reputation': ['Courtier', 'Etiquette'],
+  'The Ordered Bolthole':    ['Stealth', 'Investigation'],
+  'Pillar of the Community': ['Stealth', 'Spellcraft'],
+  // Qabal Summoner
+  'The Crucible of Knowledge': ['Spellcraft'],
+  // Ashalan Blood-Sworn
+  'Blessed by the Crystal':  ['Battle', 'Defense'],
+  'Your Blood is My Blood':  ['Medicine'],
+  'Fortification in Form':   ['Defense', 'Armor TN'],
+  'To Fight for the Future': ['Attack'],
+  'One is Never Truly Alone': ['Damage'],
+  // Ashalan Children of Midnight
+  'Wisdom of the Stars':     ['Spellcraft'],
+  // Ashalan Heart-Seekers
+  'Truth is My Ally':        ['Investigation'],
+  'Diligence is the Best Teacher': ['Investigation', 'Awareness'],
+  'One Mind, One Action':    ['Defense', 'Armor TN', 'Spellcraft'],
+  'Bane of the Heartless':   ['Attack'],
+  "My Will is My Fortress":  ['Defense'],
+  // Assassin Slayer
+  'All Shadows Walk in the Light': ['Sincerity', 'Etiquette', 'Stealth', 'Damage'],
+  'Rite of Assassination':   ['Armor TN', 'Stealth', 'Tahaddi'],
+  'Let Him Bleed':           ['Attack'],
+  'Blood Calls for Blood':   ['Attack', 'Knives'],
+  'Swifter Than Life Itself': ['Initiative'],
+  // Assassin Keeper
+  "The Keeper's Courage":    ['Investigation', 'Damage'],
+  "The Keeper's Judgment":   ['Attack'],
+  "The Keeper's Justice":    ['Attack', 'Brawling'],
+  "The Keeper's Art":        ['Attack'],
+  'By the Force of Will Alone': ['Defense', 'Armor TN'],
+  // Assassin Duelist
+  'The Tiger Claw Cut':      ['Tahaddi', 'Center Stance'],
+  'No Escape':               ['Knives', 'Attack'],
+  'The Final Strike':        ['Tahaddi', 'Damage'],
+  // Ra'Shari Knife-Fighter
+  'The Endless Dance':       ['Armor TN', 'Initiative'],
+  'Flashing Talons':         ['Knives', 'Damage'],
+  // Senpet (placeholder — add as schools are built out)
+  // Yodotai, Ebonites, Jackals — to be added when those school techniques are confirmed
+};
+
+
 export const SCHOOL_DATA = {
   'Soldier of the City Guard': { faction:'City Guard', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Lore: Law','Investigation','Spears','Swordsmanship','Intimidation'], techniques:{1:'Trained For War',2:'Strike With Fury',3:'Implacable Foe',4:'Instrument of the Caliph',5:'The Sublime Warrior'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Traveling Pack'], starting_copper:3 },
   'Dahabi Enforcer': { faction:'Dahab', type:'Warrior', integrity:2.5, bonus_trait:'Strength', skills:['Athletics','Defense','Knives','Lore: Underworld','Staves','Swordsmanship','Intimidation'], techniques:{1:'Moonless Night',2:'Dangerous Maneuvers',3:'Show of Force',4:'Bitter Shadows',5:'Final Strike'}, equipment:['Longsword','Knife','Light Armor','Traveling Pack'], starting_copper:5 },
@@ -178,6 +423,9 @@ export const GEAR_LIST = [
   'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
   'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
   'Musical Instrument','Book / Scroll','Writing Paper','Whetstone',
+  'Generic Poison (dose)','Fire Biter (dose)','Night Milk (dose)','Snake Venom (dose)',
+  'Spider Venom (dose)','Wish You Dead (dose)','Stolen Breath (dose)','Hot Madness (dose)',
+  'Poison Powder (dose)','Blinding Dust (dose)',
 ];
 
 export const NPC_BY_FACTION = {

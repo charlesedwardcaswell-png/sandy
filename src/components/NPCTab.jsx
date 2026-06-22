@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
+import PoisonReferenceModal from './PoisonReferenceModal';
 import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS, CREATURES_LIBRARY } from '../data/constants';
 import { repColor, repLabel, getArchetype, getSchoolMaxRank } from '../lib/utils';
 
@@ -452,10 +453,17 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
   const [name, setName] = useState(npc.name || '');
   const [gmNotes, setGmNotes] = useState(npc.gm_notes || '');
   const [playerNotes, setPlayerNotes] = useState(npc.player_notes || '');
+  const [disposition, setDisposition] = useState(npc.disposition || 'neutral');
   const sd = SCHOOL_DATA[npc.school] || null;
 
+  const DISPOSITIONS = [
+    { key: 'friendly', label: 'Friendly', color: '#4a8a40', icon: '◆' },
+    { key: 'neutral',  label: 'Neutral',  color: '#8a7a30', icon: '◇' },
+    { key: 'hostile',  label: 'Hostile',  color: '#8a2a2a', icon: '✦' },
+  ];
+
   const save = () => {
-    onSave({ name: name.trim() || npc.name, gm_notes: gmNotes, player_notes: playerNotes });
+    onSave({ name: name.trim() || npc.name, gm_notes: gmNotes, player_notes: playerNotes, disposition });
     onClose();
   };
 
@@ -544,6 +552,7 @@ function LorePanel() {
   const [open, setOpen] = useState(false);
   const [sectionOpen, setSectionOpen] = useState({});
   const [entryOpen, setEntryOpen] = useState({});
+  const [showPoisonRef, setShowPoisonRef] = useState(false);
 
   if (!open) {
     return (
@@ -560,10 +569,17 @@ function LorePanel() {
 
   return (
     <div style={{ marginTop: '1.5rem', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem', background: 'var(--bg-panel)', cursor: 'pointer' }} onClick={() => setOpen(false)}>
-        <i className="ti ti-book-2" style={{ fontSize: 16, color: 'var(--gold-dim)' }} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>▲ Collapse</span>
+      {showPoisonRef && <PoisonReferenceModal onClose={() => setShowPoisonRef(false)} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem', background: 'var(--bg-panel)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flex: 1, cursor: 'pointer' }} onClick={() => setOpen(false)}>
+          <i className="ti ti-book-2" style={{ fontSize: 16, color: 'var(--gold-dim)' }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Lore Reference</span>
+        </div>
+        <button className="btn btn-sm" style={{ fontSize: 11, borderColor: '#6a3a3a', color: '#c08040' }}
+          onClick={e => { e.stopPropagation(); setShowPoisonRef(true); }}>
+          ⚗ Poisons
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => setOpen(false)}>▲ Collapse</span>
       </div>
       <div style={{ padding: '.75rem', background: 'var(--bg-dark)' }}>
         {LORE_SECTIONS.map(section => (
@@ -679,7 +695,11 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.15rem' }}>
                   <Silhouette type={getArchetype(n.school)} size={28} color="var(--gold)" />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{n.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: n.disposition === 'friendly' ? '#4a8a40' : n.disposition === 'hostile' ? '#c84030' : 'var(--text-primary)' }}>{n.name}</span>
+                    {n.disposition === 'friendly' && <span style={{ fontSize: 9, color: '#4a8a40' }} title="Friendly">◆</span>}
+                    {n.disposition === 'hostile' && <span style={{ fontSize: 9, color: '#c84030' }} title="Hostile">✦</span>}
+                  </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{n.faction}</div>
                   </div>
                 </div>
@@ -778,10 +798,14 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                         />
                       ) : (
                         <span
-                          style={{ flex: 1, color: 'var(--text-primary)' }}
+                          style={{ flex: 1, color: n.disposition === 'friendly' ? '#4a8a40' : n.disposition === 'hostile' ? '#c84030' : 'var(--text-primary)' }}
                           onDoubleClick={e => { if (gmView) { e.stopPropagation(); setEditingNPCId(n.id); setEditingNPCName(n.name); } }}
                           title={gmView ? 'Double-click to rename' : ''}
-                        >{n.name}</span>
+                        >
+                          {n.disposition === 'friendly' && <span style={{ fontSize: 9, marginRight: 3 }}>◆</span>}
+                          {n.disposition === 'hostile' && <span style={{ fontSize: 9, marginRight: 3 }}>✦</span>}
+                          {n.name}
+                        </span>
                       )}
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{n.school}{n.rank || n.school_rank ? ` R${n.rank || n.school_rank}` : ''}</span>
                       {n.player_notes && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }} title="Has party notes">📝</span>}

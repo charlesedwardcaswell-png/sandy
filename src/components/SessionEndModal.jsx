@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import SocialReferenceModal from './SocialReferenceModal';
 
 const COPPER_DEFAULTS = { Action: 15, Intrigue: 8, Travel: 5, Downtime: 3 };
 
@@ -24,6 +25,7 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
   const sessionEncounters = (encounterLog || []).filter(e => e.session_number === session?.session_number);
   const suggestedCopper = sessionEncounters.reduce((sum, e) => sum + (COPPER_DEFAULTS[e.encounter_type] || 5), 0) || 10;
   const [copperAward, setCopperAward] = useState(suggestedCopper);
+  const [showRef, setShowRef] = useState(null);
   const sessionNum = session?.session_number || '?';
 
   const handleConfirm = () => {
@@ -90,10 +92,17 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
           </div>
         </>)}
 
+        {showRef && <SocialReferenceModal initialTab={showRef} onClose={() => setShowRef(null)} />}
+
         {tab === 'awards' && (<>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.75rem', lineHeight: 1.5 }}>
             <strong style={{ color: 'var(--gold)' }}>Integrity:</strong> enter a GM value — new integrity = average of current + your value.<br />
             <strong style={{ color: 'var(--gold)' }}>Reputation:</strong> set directly as a whole number. Leave blank to leave unchanged.
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: '.75rem' }}>
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowRef('integrity')}>📖 Integrity Table</button>
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowRef('reputation')}>📖 Reputation Table</button>
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowRef('status')}>📖 Status Table</button>
           </div>
 
           {presentChars.length === 0 && (

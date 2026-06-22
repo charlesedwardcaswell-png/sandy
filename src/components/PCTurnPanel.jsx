@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
@@ -43,7 +43,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             <button key={action.id}
               onClick={() => {
                 if (action.id === 'defend') {
-                  // Full Defense is a Complex Action requiring a roll (Agility + Defense, TN 5)
+                  // Full Defense: Complex Action. Roll Agility+Defense TN5.
+                  // Per rulebook p.63: roll REPLACES Reflexes×5 for TN to Be Hit.
+                  // So TN = 5 + armor + Defense roll (not added to Reflexes×5).
                   const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
                   const agl = combatant.agility || character?.agility || 2;
                   const defRank = defenseSkill?.rank || 0;
@@ -53,7 +55,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     baseRoll: agl + defRank,
                     baseKeep: agl,
                     character,
-                    onComplete: () => { onStanceChange('Full Defense'); onSpendAction && onSpendAction('full'); },
+                    resultLabel: 'Result is added to your Armor TN until your next action',
+                    onComplete: (result) => {
+                      onStanceChange('Full Defense', result ?? 10);
+                      onSpendAction && onSpendAction('full');
+                    },
                   });
                   setSelectedAction('defend');
                 }
@@ -187,17 +193,28 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
     const stanceBonus = isAttack ? stanceRollBonus : 0;
     const hasMasteryFreeRaise = (MASTERY_FREE_RAISE[selectedSkill.name] || {})[selectedSkill.rank];
+
+    // Quality bonus from drawn weapon
+    const drawnName = combatant.drawnWeapon?.split(' (')[0];
+    const drawnEq = isAttack ? (character?.equipment || []).find(e => e.name === drawnName) : null;
+    const qualityKey = drawnEq?.quality || 'standard';
+    const qualityData = ITEM_QUALITIES[qualityKey] || ITEM_QUALITIES.standard;
+    const qualityRollBonus = isAttack ? (qualityData.rollBonus || 0) : 0;
+    const qualityKeepBonus = isAttack ? (qualityData.keepBonus || 0) : 0;
+
     const bonusNotes = [];
     if (stanceBonus > 0) bonusNotes.push(`Full Attack: +${stanceBonus} rolled die`);
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
     if (hasMasteryFreeRaise) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
+    if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
     onRoll({
       skill: selectedSkill.name,
       ring: pool.ringKey,
       ringVal: pool.ringVal,
-      baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0),
+      baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0) + qualityRollBonus,
+      baseKeep: pool.keep + qualityKeepBonus,
       baseKeep: pool.keep,
       tn,
       isAttack,
@@ -327,7 +344,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         {combatant.stance && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>
             {combatant.stance === 'Full Attack' && '+1k0 attack rolls'}
-            {combatant.stance === 'Full Defense' && '+10 Armor TN — cannot attack'}
+            {combatant.stance === 'Full Defense' && 'Full Defense: Defense roll replaces Reflexes×5 for your TN to Be Hit — cannot attack'}
             {combatant.stance === 'Center' && `+${character.school_rank || 1} flat bonus to first action (School Rank)`}
             {combatant.stance === 'Water' && 'Move up to Water Ring as a free action'}
           </div>

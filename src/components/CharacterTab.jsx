@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
+import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
+import SocialReferenceModal from './SocialReferenceModal';
 import { supabase } from '../lib/supabase';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -43,6 +45,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         <div>
           <button className="btn btn-sm" style={{ marginBottom: '1rem' }} onClick={() => setView('sheet')}>← Back</button>
           <CharacterCreation
+            isGM={false}
             onComplete={async (charData) => { await onCreateCharacter(charData); setView('sheet'); }}
             onCancel={() => setView('sheet')}
           />
@@ -103,14 +106,20 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onUpdate={onUpdateCharacter}
             myCharId={myCharId}
             onClaimCharacter={onClaimCharacter}
+            onUnclaimCharacter={onUnclaimCharacter}
+            onUpdateInventory={onUpdateInventory}
+            partyInventoryItems={partyInventoryItems}
           />
         )}
-        {jinnOpen && onCreateNPC && (
+        {jinnOpen && (
           <JinnRandomizer
             onClose={() => setJinnOpen(false)}
+            onCreateCharacter={onCreateCharacter}
             onCreateNPC={onCreateNPC}
             isGM={false}
             summonsInsightRank={myInsightRank}
+            jinnArtUrl={jinnArtUrl}
+            onJinnSummoned={onJinnSummoned}
           />
         )}
       </div>
@@ -133,7 +142,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           </button>
           {onCreateNPC && (
             <button className={`btn btn-sm ${view === 'npc' ? 'btn-p' : ''}`} onClick={() => setView('npc')}>
-              <i className="ti ti-user-bolt" style={{ fontSize: 12 }} /> Library NPC
+              <i className="ti ti-user-bolt" style={{ fontSize: 12 }} /> Quick NPC
             </button>
           )}
           {onCreateNPC && (
@@ -173,7 +182,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             {/* 3 — Library (quick) NPCs */}
             {(npcs?.length || 0) > 0 && (
               <select className="pc-sel" value={selNpcId || ''} onChange={e => { setSelNpcId(e.target.value || null); setShowDel(0); }} style={{ borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}>
-                <option value="">Library NPCs</option>
+                <option value="">Quick NPCs</option>
                 {npcs.map(n => <option key={n.id} value={n.id}>{n.name} — {n.faction}</option>)}
               </select>
             )}
@@ -295,12 +304,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       })()}
       {view === 'sheet' && !selNpcId && (
         char
-          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} />
+          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
       )}
 
       {view === 'create' && (
-        <CharacterCreation onComplete={async (charData) => {
+        <CharacterCreation isGM={true} onComplete={async (charData) => {
           const newChar = await onCreateCharacter(charData);
           if (newChar?.id) setSelId(newChar.id);
           setView('sheet');
@@ -314,12 +323,15 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           return result;
         }} onCancel={() => setView('sheet')} />
       )}
-      {jinnOpen && onCreateNPC && (
+      {jinnOpen && (
         <JinnRandomizer
           onClose={() => setJinnOpen(false)}
+          onCreateCharacter={onCreateCharacter}
           onCreateNPC={onCreateNPC}
           isGM={true}
           summonsInsightRank={5}
+          jinnArtUrl={jinnArtUrl}
+          onJinnSummoned={onJinnSummoned}
         />
       )}
     </div>
@@ -642,11 +654,13 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 }
 
 // ── Character Sheet ───────────────────────────────────────────────────────────
-function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter }) {
+function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
   const xpAvail = (char.xp_total || 0) - (char.xp_spent || 0);
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [pendingRankUp, setPendingRankUp] = useState(false);
+  const [showMagicItemCreator, setShowMagicItemCreator] = useState(false);
+  const [showSocialRef, setShowSocialRef] = useState(null); // 'integrity' | 'reputation' | 'status'
 
   const insight = calcInsight(char);
   const insightRank = insightRankFor(insight);
@@ -735,6 +749,25 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   return (
     <div>
       {/* ── Overlays ── */}
+      {showSocialRef && (
+        <SocialReferenceModal
+          initialTab={showSocialRef}
+          char={char}
+          onClose={() => setShowSocialRef(null)}
+        />
+      )}
+      {showMagicItemCreator && (
+        <MagicItemCreator
+          onClose={() => setShowMagicItemCreator(false)}
+          characters={[char]}
+          onCreateForCharacter={(charId, item) => {
+            update('equipment', [...(char.equipment || []), { ...item, equipped: true }]);
+          }}
+          onCreateForParty={(item) => {
+            if (onUpdateInventory) onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic' }] });
+          }}
+        />
+      )}
       {showXpPanel && (
         <XPSpendPanel char={char} onBatchUpdate={batchUpdate} onClose={() => setShowXpPanel(false)} />
       )}
@@ -756,14 +789,23 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         const isMine = myCharId === char.id;
         const playerName = char.player_name;
         if (playerName) {
+          // Character is claimed — show who has it, and an unclaim button if it's mine
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: isMine ? 'rgba(74,138,64,.15)' : 'var(--bg-dark)', borderRadius: 5, border: `1px solid ${isMine ? 'rgba(74,138,64,.4)' : 'var(--border)'}` }}>
               <i className="ti ti-user-check" style={{ fontSize: 16, color: isMine ? 'var(--green)' : 'var(--gold-dim)' }} />
               <span style={{ fontSize: 20, fontWeight: 800, color: isMine ? 'var(--green)' : 'var(--text-primary)', letterSpacing: '.02em' }}>{playerName}</span>
               {isMine && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 2, fontStyle: 'italic' }}>— your character</span>}
+              {isMine && onUnclaimCharacter && (
+                <button className="btn btn-sm" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', borderColor: 'var(--border)' }}
+                  onClick={() => onUnclaimCharacter(char.id)}
+                  title="Release this character so another player can claim it">
+                  <i className="ti ti-user-off" style={{ fontSize: 11, marginRight: 3 }} />Unclaim
+                </button>
+              )}
             </div>
           );
         } else if (onClaimCharacter && !isGM) {
+          // Unclaimed — show claim button
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: 'rgba(200,150,42,.08)', borderRadius: 5, border: '1px solid rgba(200,150,42,.35)' }}>
               <i className="ti ti-user-question" style={{ fontSize: 18, color: 'var(--gold-dim)' }} />
@@ -1004,10 +1046,14 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
             ].map(({ label, value, color, borderColor, key, isDecimal }) => (
               <div key={key} style={{ textAlign: 'center', background: 'var(--bg-panel)', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '4px 12px', width: '100%' }}>
-                <div style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1 }}>
+                <div
+                  style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1, cursor: 'pointer' }}
+                  title={`Click to view ${label} reference table`}
+                  onClick={() => setShowSocialRef(key)}
+                >
                   {isDecimal ? (Number(value) || 0).toFixed(1) : (value || 0)}
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: 1 }}>{label}</div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: 1 }}>{label} <span style={{ color: borderColor, opacity: 0.6 }}>?</span></div>
                 {canEdit && isGM && (
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
                     <button className="rep-btn" onClick={() => update(key, Math.max(0, +(value || 0) - (isDecimal ? 0.5 : 1)))}>−</button>
@@ -1051,29 +1097,51 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             );
           })()}
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {(char.skills || []).map(s => {
-              const masteries = SKILL_MASTERIES[s.name] || {};
-              const unlockedMasteries = Object.entries(masteries).filter(([rank]) => s.rank >= +rank);
-              return (
-                <div key={s.name}>
-                  <div className="skill-row">
-                    <span className={`skill-nm ${s.school ? 'sc' : ''}`}>{s.name}</span>
-                    <SkillDots rank={s.rank} />
-                    {(canEdit && isGM) && (
-                      <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
-                        <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
-                        <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
-                      </div>
-                    )}
-                  </div>
-                  {unlockedMasteries.map(([rank, desc]) => (
-                    <div key={rank} style={{ fontSize: 11, color: 'var(--gold-dim)', paddingLeft: 16, paddingBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <i className="ti ti-star" style={{ fontSize: 10 }} />R{rank}: {desc}
+            {/* Build set of active technique names for this character */}
+            {(() => {
+              const activeTechs = Object.values(char.techniques || {}).filter(Boolean);
+              return (char.skills || []).map(s => {
+                const masteries = SKILL_MASTERIES[s.name] || {};
+                const unlockedMasteries = Object.entries(masteries).filter(([rank]) => s.rank >= +rank);
+                // Which active techniques affect this skill?
+                const techBadges = activeTechs.filter(techName =>
+                  (TECHNIQUE_SKILL_LINKS[techName] || []).includes(s.name)
+                );
+                return (
+                  <div key={s.name}>
+                    <div className="skill-row">
+                      <span className={`skill-nm ${s.school ? 'sc' : ''}`}>{s.name}</span>
+                      <SkillDots rank={s.rank} />
+                      {/* Technique glow badges */}
+                      {techBadges.map(techName => (
+                        <span key={techName} title={`Modified by technique: ${techName}`} style={{
+                          fontSize: 9, padding: '1px 5px', borderRadius: 8,
+                          background: 'rgba(160,100,220,.18)',
+                          border: '1px solid rgba(160,100,220,.5)',
+                          color: '#c0a0e8',
+                          boxShadow: '0 0 6px rgba(160,100,220,.4)',
+                          cursor: 'default', whiteSpace: 'nowrap',
+                          marginLeft: 3,
+                        }}>
+                          ✦ {techName.length > 14 ? techName.slice(0, 13) + '…' : techName}
+                        </span>
+                      ))}
+                      {(canEdit && isGM) && (
+                        <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
+                          <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
+                          <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              );
-            })}
+                    {unlockedMasteries.map(([rank, desc]) => (
+                      <div key={rank} style={{ fontSize: 11, color: 'var(--gold-dim)', paddingLeft: 16, paddingBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-star" style={{ fontSize: 10 }} />R{rank}: {desc}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -1154,6 +1222,31 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           {(char.equipment || []).map((e, i) => {
             const weapon = WEAPONS_LIST.find(w => w.name === e.name);
             const loreText = weapon ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}\n${weapon.special ? `Special: ${weapon.special}` : ''}` : e.name;
+            if (e.is_magic) {
+              return (
+                <div key={i} style={{ marginBottom: '.4rem' }}>
+                  <MagicItemBadge item={e} />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
+                      <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
+                      <span style={{ color: 'var(--text-muted)' }}>In use</span>
+                    </label>
+                    {canEdit && onUpdateInventory && (
+                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--gold-dim)', borderColor: 'var(--gold-dim)' }}
+                        title="Send to Party Inventory"
+                        onClick={() => {
+                          const item = char.equipment[i];
+                          const eq = (char.equipment || []).filter((_, idx) => idx !== i);
+                          update('equipment', eq);
+                          onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic' }] });
+                        }}>→ Party</button>
+                    )}
+                    {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
+                  </div>
+                </div>
+              );
+            }
+            const qualData = ITEM_QUALITIES[e.quality || 'standard'] || ITEM_QUALITIES.standard;
             return (
               <div key={i} className="eq-row">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer' }} title="Mark as currently equipped/wielded">
@@ -1161,14 +1254,43 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>In use</span>
                 </label>
                 <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}>{e.name}</span>
+                {e.quality && e.quality !== 'standard' && (
+                  <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: qualData.label === 'Poor' ? '#2a1a0a' : '#1a2a0a', color: qualData.label === 'Poor' ? '#8a5a30' : '#5a8a30', border: `1px solid ${qualData.label === 'Poor' ? '#4a2a1a' : '#3a6a1a'}` }} title={qualData.desc}>
+                    {qualData.label}
+                  </span>
+                )}
                 {e.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr}</span>}
+                {canEdit && isGM && e.dr && (
+                  <select value={e.quality || 'standard'} onChange={ev => {
+                    const eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, quality: ev.target.value } : x);
+                    update('equipment', eq);
+                  }} style={{ fontSize: 10, padding: '0 2px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
+                    {Object.entries(ITEM_QUALITIES).map(([k, q]) => <option key={k} value={k}>{q.label}</option>)}
+                  </select>
+                )}
                 <ScrollLore title={e.name} text={loreText} size={10} />
+                {canEdit && onUpdateInventory && (
+                  <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--text-muted)' }}
+                    title="Send to Party Inventory"
+                    onClick={() => {
+                      const item = char.equipment[i];
+                      const eq = (char.equipment || []).filter((_, idx) => idx !== i);
+                      update('equipment', eq);
+                      onUpdateInventory({ items: [...(partyInventoryItems || []), { name: item.name, qty: 1, category: 'Gear' }] });
+                    }}>→ Party</button>
+                )}
                 {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
               </div>
             );
           })}
+          {isGM && (
+            <button className="btn btn-sm" style={{ fontSize: 11, marginTop: '.4rem', borderColor: 'rgba(160,100,220,.5)', color: '#c0a0e0' }}
+              onClick={() => setShowMagicItemCreator(true)}>
+              ✦ Create Magic Item
+            </button>
+          )}
           {canEdit && (
-            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem', flexWrap: 'wrap' }}>
               <select value={addEq || ''} onChange={e => setAddEq && setAddEq(e.target.value)} style={{ flex: 1 }}>
                 <option value="">Add equipment...</option>
                 {WEAPONS_LIST.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dr})</option>)}
@@ -1178,6 +1300,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             </div>
           )}
         </div>
+
 
         {/* Techniques */}
         <div className="card">
@@ -1271,11 +1394,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               </button>
             </div>
           )}
-          {canEdit && !isGM && (
-            <div style={{ marginTop: '.5rem', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              School Rank is set by your GM when you rank up.
-            </div>
-          )}
         </div>
 
         {/* Spells (Sahir/Cokaloi) */}
@@ -1334,7 +1452,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     </div>
   );
 }
-function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false }) {
+function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = false }) {
   const [step, setStep] = useState(1);
   const [isNpc, setIsNpc] = useState(defaultIsNpc);
   const [faction, setFaction] = useState('');
@@ -1682,6 +1800,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false }) {
               spell_discipline_bonus: spellDisciplineBonus,
             }}
             mode="create"
+            isGM={isGM}
             onUpdate={(_, updates) => {
               if (updates.spells) setSelectedSpells(updates.spells);
             }}

@@ -250,7 +250,7 @@ function describeNegotiation(sahirRoll, jinnRoll) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function JinnRandomizer({ onClose, onCreateNPC, isGM, summonsInsightRank = 1 }) {
+export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter, isGM, summonsInsightRank = 1, jinnArtUrl, onJinnSummoned }) {
   const [step, setStep] = useState(1); // 1=tier, 2=type, 3=build, 4=negotiate, 5=finish
   const [tier, setTier] = useState(null);
   const [type, setType] = useState(null);
@@ -320,34 +320,88 @@ export default function JinnRandomizer({ onClose, onCreateNPC, isGM, summonsInsi
     const protList = rolled.protections.join('; ');
 
     const mechSummary = [
-      `TIER: ${tier} | TYPE: ${type}`,
-      `BASE: Attack ${tierData.base.attack}, Damage ${tierData.base.damage}, TN ${tierData.base.tn}, Wounds/level ${tierData.base.wounds}`,
-      `TRAITS: ${traitSummary || 'None'}`,
+      `TIER: ${tier} | TYPE: ${type} Jinn`,
+      `BASE: Attack ${tierData.base.attack}, Damage ${tierData.base.damage}, TN to Be Hit ${tierData.base.tn}, Wounds/level ${tierData.base.wounds}`,
+      `TRAIT BONUSES: ${traitSummary || 'None'}`,
       `PROTECTIONS: ${protList || 'None'}`,
-      `ABILITIES: ${abilityList || 'None'}`,
+      `MAGICAL ABILITIES: ${abilityList || 'None'}`,
       `COMBAT BONUSES: ${combatList || 'None'}`,
-      `SKILL CP TO SPEND: ${rolled.cp}`,
-      `BASE SKILLS: ${Object.entries(tierData.skills).map(([k,v]) => `${k.charAt(0).toUpperCase()+k.slice(1)} ${v}`).join(', ')}`,
-    ].join('\n');
+      `SKILL CP TO SPEND: ${rolled.cp} (base skills: ${Object.entries(tierData.skills).map(([k,v]) => k+' '+v).join(', ')})`,
+      negotiationResult ? `NEGOTIATION DEMAND: ${negotiationResult.demand}` : '',
+    ].filter(Boolean).join('\n');
 
-    const negotiationNote = negotiationResult
-      ? `\nNEGOTIATION DEMAND: ${negotiationResult.demand}`
-      : '';
+    // Build base trait values from tier, then apply rolled bonuses
+    const baseTraits = {
+      air: tierData.base.air || 2,
+      earth: tierData.base.earth || 2,
+      fire: tierData.base.fire || 2,
+      water: tierData.base.water || 2,
+      void: tierData.base.void || 2,
+    };
+    // Map trait bonus names to trait fields
+    const traitMap = {
+      'Awareness': 'awareness', 'Reflexes': 'reflexes',
+      'Willpower': 'willpower', 'Stamina': 'stamina',
+      'Intelligence': 'intelligence', 'Agility': 'agility',
+      'Strength': 'strength', 'Perception': 'perception',
+    };
+    const traitVals = {
+      reflexes: baseTraits.air, awareness: baseTraits.air,
+      stamina: baseTraits.earth, willpower: baseTraits.earth,
+      agility: baseTraits.fire, intelligence: baseTraits.fire,
+      strength: baseTraits.water, perception: baseTraits.water,
+    };
+    Object.entries(rolled.traits).forEach(([trait, bonus]) => {
+      const key = traitMap[trait];
+      if (key) traitVals[key] = (traitVals[key] || 2) + bonus;
+    });
 
-    const npcData = {
+    // Build skills from tier base + blank XP pool
+    const baseSkills = Object.entries(tierData.skills).map(([name, rank]) => ({ name: name.charAt(0).toUpperCase()+name.slice(1), rank, school: true }));
+    // Add ability-related skills
+    rolled.abilities.forEach((a, i) => {
+      baseSkills.push({ name: `Ability: ${a}`, rank: 1, school: true });
+    });
+
+    const charData = {
       name: name || `${type} ${tier} Jinn`,
+      player: 'GM (Summoned)',
       faction: 'Jinn',
-      school: `${type} Jinn`,
-      rank: tierIdx + 1,
-      is_visible_to_players: false,
-      gm_notes: `${mechSummary}${negotiationNote}\n\n${gmNotes}`.trim(),
-      player_notes: personality,
+      family: type,
+      school: `${type} Jinn (${tier})`,
+      school_rank: tierIdx + 1,
+      insight_rank: tierIdx + 1,
+      integrity: 4.0,
+      reputation: 0,
+      status: 0,
+      air: baseTraits.air, earth: baseTraits.earth,
+      fire: baseTraits.fire, water: baseTraits.water, void: baseTraits.void,
+      reflexes: traitVals.reflexes, awareness: traitVals.awareness,
+      stamina: traitVals.stamina, willpower: traitVals.willpower,
+      agility: traitVals.agility, intelligence: traitVals.intelligence,
+      strength: traitVals.strength, perception: traitVals.perception,
+      current_wounds: 0,
+      max_wounds: (traitVals.stamina || 2) * tierData.base.wounds,
+      current_void: baseTraits.void,
+      current_stance: 'Attack',
+      current_weapon: 'Unarmed (1k1)',
+      skills: baseSkills,
       spells: rolled.abilities.map((a, i) => ({ name: a, level: i + 1 })),
+      advantages: [],
+      disadvantages: [],
+      equipment: [],
+      techniques: { 1: `${type} Jinn abilities: ${abilityList || 'none'}` },
+      gm_notes: mechSummary + (gmNotes ? '\n\n' + gmNotes : ''),
+      player_notes: personality,
+      is_npc: false, // full character sheet so GM can spend XP
     };
 
-    await onCreateNPC(npcData);
+    const creator = onCreateCharacter || onCreateNPC;
+    await creator(charData);
     setSaving(false);
     setSaved(true);
+    // Fire summoning flash for all players
+    if (onJinnSummoned) onJinnSummoned(charData.name);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -641,7 +695,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, isGM, summonsInsi
         {step === 5 && (
           <div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Review the Jinn and summon it — this creates a Library NPC in the Character tab.
+              Review the Jinn and summon it — this creates a Quick NPC in the Character tab.
             </div>
 
             {/* Summary */}
@@ -689,7 +743,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, isGM, summonsInsi
               <button className="btn btn-sm" onClick={() => setStep(4)}>← Back</button>
               {saved
                 ? <div style={{ fontSize: 13, color: 'var(--green)', alignSelf: 'center' }}>
-                    ✓ Jinn summoned — find it in Library NPCs
+                    ✓ Jinn summoned — find it in Quick NPCs
                   </div>
                 : <button className="btn btn-p" onClick={handleSave} disabled={saving || !rolled}>
                     {saving ? 'Summoning…' : '✦ Summon the Jinn'}

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Silhouette, WoundBadge, FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
 import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA } from '../data/constants';
+import { MagicItemBadge } from './MagicItemCreator';
+import MagicItemCreator from './MagicItemCreator';
 
 const CATEGORY_ICONS = {
   'Quest Item': 'ti-map-search',
@@ -10,18 +12,22 @@ const CATEGORY_ICONS = {
   'Gear':       'ti-backpack',
   'Loot':       'ti-coin',
   'Consumable': 'ti-flask',
+  'Magic':      'ti-sparkles',
 };
 
 function ItemIcon({ category }) {
   const icon = CATEGORY_ICONS[category] || 'ti-package';
   return <i className={`ti ${icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
 }
-export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog }) {
+
+export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog, onUpdateCharacter }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
   const [newItemCat, setNewItemCat] = useState('Gear');
   const [copperDelta, setCopperDelta] = useState('');
+  const [sendToChar, setSendToChar] = useState({}); // itemIdx → charId
+  const [showMagicCreator, setShowMagicCreator] = useState(false);
 
   const applyCopper = () => {
     const delta = parseInt(copperDelta) || 0;
@@ -41,25 +47,59 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
     onUpdateInventory({ items: (inventory.items || []).filter((_, i) => i !== idx) });
   };
 
+  const sendItemToCharacter = (idx, charId) => {
+    if (!charId) return;
+    const item = (inventory.items || [])[idx];
+    const char = characters.find(c => c.id === charId);
+    if (!item || !char) return;
+    // Remove from party
+    onUpdateInventory({ items: (inventory.items || []).filter((_, i) => i !== idx) });
+    // Add to character equipment
+    const newEq = [...(char.equipment || []), item.is_magic
+      ? { ...item, equipped: true, inUse: false }
+      : { name: item.name, equipped: false, inUse: false }
+    ];
+    onUpdateCharacter(charId, { equipment: newEq });
+    setSendToChar(s => { const n = { ...s }; delete n[idx]; return n; });
+  };
+
+  const pcChars = (characters || []).filter(c => !c.is_npc);
+  const items = inventory.items || [];
+  const magicItems = items.filter(i => i.is_magic);
+  const normalItems = items.filter(i => !i.is_magic);
+
   return (
     <div>
-      {/* Party members + Faction standing — side by side, wraps to stacked on narrow screens */}
+      {showMagicCreator && (
+        <MagicItemCreator
+          onClose={() => setShowMagicCreator(false)}
+          characters={pcChars}
+          onCreateForParty={(item) => {
+            onUpdateInventory({ items: [...items, { ...item, qty: 1, category: 'Magic' }] });
+          }}
+          onCreateForCharacter={(charId, item) => {
+            const char = characters.find(c => c.id === charId);
+            if (!char) return;
+            onUpdateCharacter(charId, { equipment: [...(char.equipment || []), { ...item, equipped: true, inUse: false }] });
+          }}
+        />
+      )}
+
+      {/* Party members + Faction standing */}
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         {/* Party members */}
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
             <i className="ti ti-users" style={{ marginRight: 6 }} />Party Overview
           </div>
-
           {characters.length === 0 ? (
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
-              No characters created yet.
-            </div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>No characters created yet.</div>
           ) : (
             <div>
               {characters.map(c => {
                 const woundRank = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
                 const wColor = WOUND_COLORS[woundRank];
+                const magicEq = (c.equipment || []).filter(e => e.is_magic);
                 return (
                   <div key={c.id} className="party-card">
                     <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
@@ -75,6 +115,13 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                         {c.current_weapon && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>⚔ {typeof c.current_weapon === 'string' ? c.current_weapon.split(' ')[0] : (c.current_weapon?.name || 'Weapon')}</span>}
                         {gmView && <span className="party-stat" style={{ color: 'var(--gold-dim)' }}>{(c.xp_total || 0) - (c.xp_spent || 0)} XP</span>}
                       </div>
+                      {magicEq.length > 0 && (
+                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
+                          {magicEq.map((item, mi) => (
+                            <MagicItemBadge key={mi} item={item} compact />
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{c.copper || 0}</div>
@@ -112,13 +159,22 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
         </div>
       </div>
 
-      {/* Group inventory — full editable */}
-      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
-        <i className="ti ti-backpack" style={{ marginRight: 6 }} />Group Inventory
+      {/* Group inventory */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+          <i className="ti ti-backpack" style={{ marginRight: 6 }} />Group Inventory
+        </div>
+        {gmView && (
+          <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'rgba(160,100,220,.5)', color: '#c0a0e0' }}
+            onClick={() => setShowMagicCreator(true)}>
+            ✦ Create Magic Item
+          </button>
+        )}
       </div>
-      <div style={{ maxWidth: 480 }}>
+
+      <div style={{ maxWidth: 520 }}>
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          {/* Copper row */}
+          {/* Copper */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', padding: '.5rem', background: 'var(--bg-panel)', borderRadius: 4 }}>
             <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 18 }} />
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
@@ -132,18 +188,68 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
             )}
           </div>
 
-          {/* Items */}
-          {(inventory.items || []).map((item, i) => (
-            <div key={i} className="inv-row">
-              <ItemIcon category={item.category} />
-              <span className="inv-cat">{item.category}</span>
-              <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>×{item.qty}</span>
-              {gmView && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeItem(i)}>×</button>}
+          {/* Magic items — shown first with full badge */}
+          {magicItems.length > 0 && (
+            <div style={{ marginBottom: '.75rem' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>✦ Magic Items</div>
+              {magicItems.map((item, rawIdx) => {
+                const actualIdx = items.indexOf(item);
+                return (
+                  <div key={actualIdx} style={{ marginBottom: '.5rem' }}>
+                    <MagicItemBadge item={item} />
+                    {gmView && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+                        <select
+                          value={sendToChar[actualIdx] || ''}
+                          onChange={e => setSendToChar(s => ({ ...s, [actualIdx]: e.target.value }))}
+                          style={{ flex: 1, fontSize: 11 }}>
+                          <option value="">→ Send to character…</option>
+                          {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <button className="btn btn-sm" disabled={!sendToChar[actualIdx]}
+                          onClick={() => sendItemToCharacter(actualIdx, sendToChar[actualIdx])}
+                          style={{ fontSize: 11 }}>Send</button>
+                        <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }}
+                          onClick={() => removeItem(actualIdx)}>×</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-          {(inventory.items || []).length === 0 && (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items.</div>
+          )}
+
+          {/* Normal items */}
+          {normalItems.map((item, rawIdx) => {
+            const actualIdx = items.indexOf(item);
+            return (
+              <div key={actualIdx} className="inv-row">
+                <ItemIcon category={item.category} />
+                <span className="inv-cat">{item.category}</span>
+                <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>×{item.qty}</span>
+                {gmView && (
+                  <>
+                    <select
+                      value={sendToChar[actualIdx] || ''}
+                      onChange={e => setSendToChar(s => ({ ...s, [actualIdx]: e.target.value }))}
+                      style={{ fontSize: 11, maxWidth: 110 }}>
+                      <option value="">→ Char</option>
+                      {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {sendToChar[actualIdx] && (
+                      <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
+                        onClick={() => sendItemToCharacter(actualIdx, sendToChar[actualIdx])}>✓</button>
+                    )}
+                    <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeItem(actualIdx)}>×</button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          {items.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items in party inventory.</div>
           )}
 
           {/* Add item — GM only */}

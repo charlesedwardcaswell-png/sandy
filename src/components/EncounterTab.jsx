@@ -16,7 +16,14 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
   const voidTnBoost = c.voidArmor ? 10 : 0;
-  const armorTN = 5 + (c.reflexes || 2) * 5 + (c.stance === 'Full Defense' ? 10 : 0) + voidTnBoost;
+  const armorBonus = pc?.armorBonus || c.armorBonus || 0;
+  // Full Defense: Agility/Defense roll REPLACES Reflexes×5 (per rulebook p.63)
+  // Normal TN = 5 + Reflexes×5 + armor
+  // Full Defense TN = 5 + armor + defenseRoll (roll replaces the Reflexes×5 component)
+  const fullDefBonus = c.stance === 'Full Defense' ? (c.fullDefenseBonus ?? 10) : 0;
+  const armorTN = c.stance === 'Full Defense'
+    ? 5 + armorBonus + fullDefBonus + voidTnBoost
+    : 5 + (c.reflexes || 2) * 5 + armorBonus + voidTnBoost;
   const currentVoid = c.current_void ?? pc?.current_void ?? 0;
   const maxVoid = c.void || pc?.void || 2;
 
@@ -101,8 +108,10 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         <i className="ti ti-sword" style={{ fontSize: 13 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.drawnWeapon || 'Unarmed'}</span>
         {/* Armor TN — shows boost if void spent */}
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}
+          title={c.stance === 'Full Defense' ? `Full Defense: 5 + ${armorBonus} armor + ${c.fullDefenseBonus ?? 10} Defense roll (replaces Reflexes×5)` : `TN to Be Hit: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor`}>
           TN <span style={{ color: c.voidArmor ? '#6aba60' : (c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)') }}>{armorTN}</span>
+          {c.stance === 'Full Defense' && <span style={{ fontSize: 10, color: '#4a8a40', marginLeft: 2 }}>🛡</span>}
           {c.voidArmor && <span style={{ fontSize: 10, color: '#6aba60', marginLeft: 2 }}>⬡</span>}
         </span>
         {!isNPC && pc && (
@@ -937,11 +946,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     }
 
     // Fire onComplete callback if present (e.g. Full Defense stance change after roll)
-    if (modal?.onComplete) modal.onComplete(result);
+    if (modal?.onComplete) modal.onComplete(result?.total ?? result);
   };
 
-  const handleStanceChange = (id, stance) => {
-    upEnc({ combatants: combatants.map(c => c.id === id ? { ...c, stance } : c) });
+  const handleStanceChange = (id, stance, fullDefenseBonus) => {
+    upEnc({ combatants: combatants.map(c => c.id === id
+      ? { ...c, stance, fullDefenseBonus: stance === 'Full Defense' ? (fullDefenseBonus ?? 10) : undefined }
+      : c
+    ) });
   };
 
   const handleDrawWeapon = (id, weapon) => {
@@ -1441,7 +1453,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           allies={party.filter(c => c.id !== active.id)}
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id] })}
-          onStanceChange={(stance) => handleStanceChange(active.id, stance)}
+          onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
           onSpendAction={spendAction}
@@ -1455,7 +1467,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           isNPCTurn
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
           onRoll={(ctx) => setModal(ctx)}
-          onStanceChange={(stance) => handleStanceChange(active.id, stance)}
+          onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
           onSpendAction={spendAction}
