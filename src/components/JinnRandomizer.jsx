@@ -250,6 +250,30 @@ function describeNegotiation(sahirRoll, jinnRoll) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
+// ── Jinn Name Lists ────────────────────────────────────────────────────────────
+const JINN_NAME_LISTS = {
+  'Fire & Wrath': ['Zaraq','Thurak','Vasheem','Khalbar','Nurraq','Sethaq','Farriq','Jalheem','Qahreem','Urrak','Datheel','Yabrus','Safirq','Hulmaan','Vazrak','Tambur','Kahzeel','Surrath','Fehnaq','Durraq','Zalbur','Makhzeel','Tharreq','Qubreem','Sanfeel','Vashtaq','Ruhraq','Dhaleem','Khalbur','Zarraq'],
+  'Wind & Void': ['Sifara','Huleem','Zahareel','Mawzeen','Thuheel','Kasiraq','Vatheem','Nurhaleem','Salahraq','Quweem','Fathiral','Mabzeen','Ulheem','Zaratheel','Kashiraq','Wahreem','Sabzeen','Dahreel','Khaheel','Rumahraq','Setheel','Maziraq','Fuheel','Talzeem','Qahareem','Warubzeel','Salbreen','Nuzharaq','Kutheel','Fahreem'],
+  'Ancient & Primordial': ['Qalanbuq','Thazuraal','Makhtureen','Dalbazeen','Surukaal','Fethaqur','Halbareen','Zaruthaal','Kanfureen','Malbuzeen','Tharukaal','Qasfureen','Valbazeen','Nuruthaal','Dabzureen','Kalbuteen','Fasmuraal','Huzrutheen','Yathuraal','Zarbuteen','Maqsuraal','Kathbureen','Dalzutheen','Surqureen','Fathbureen','Hazuthaal','Marbuzeen','Zarquteen','Haluthaal','Sabzureen'],
+  'Serpentine & Subtle': ['Sazzireem','Vasleem','Zassuraq','Massireen','Hassiraq','Nassureem','Fassiraq','Kazsileem','Vassureen','Sazzirak','Hassuleem','Rassiraq','Massureen','Kassiraq','Nassuleem','Zassireem','Fassuleem','Hassireem','Kassuraq','Vassileem','Razzireen','Sazsurak','Massuleem','Zassuren','Hassibzeel','Nassibrak','Kassibzeen','Vassibrak','Fassibzeel','Sazzibreen'],
+  'Cold & Moonlit': ['Luhazeem','Nalbreen','Kuhazeen','Dalbreen','Malhazeem','Ralbreen','Zulhazeen','Falbreen','Kulhazeem','Yalbreen','Mulhazeem','Halbreen','Tulhazeem','Walbreen','Bulhazeen','Galbreen','Julhazeem','Valbreen','Xulhazeen','Qalbreen','Sulhazeem','Palbreen','Culhazeen','Nalbreen','Rulhazeem','Talbreen','Mulhazeen','Falbreen','Dulhazeen','Zalbreen'],
+  'Named with Titles': ['Vahruleem','Qazmuraal','Tharbureen','Nazzuraal','Sethbureen','Mazuraal','Fethruleen','Kalzuraal','Harbureen','Yazzuraal','Dethruleen','Mabzuraal','Rathbureen','Fazzuraal','Nethruleen','Salbzuraal','Gathruleen','Hazzuraal','Vethbureen','Qalbzuraal','Bathruleen','Razzuraal','Kethbureen','Falbzuraal','Nathruleen','Sazzuraal','Dethbureen','Halbzuraal','Matherleen','Zarrzuraal'],
+  'Feminine/Flowing': ['Sarihala','Vazhireel','Muthirala','Fazhireel','Kazirala','Nuthireel','Dazirala','Ruthireel','Sazirala','Futhireel','Mazirala','Kuthireel','Hazirala','Nuzireel','Tazirala','Vuthireel','Razirala','Suthireel','Fazirala','Muthirala','Kazireel','Nathirala','Duthireel','Rathirala','Suthireel','Fathirala','Muthireel','Kazirala','Nuthirala','Vathireel'],
+};
+
+const ALL_JINN_NAMES = Object.values(JINN_NAME_LISTS).flat();
+
+function randomJinnName() {
+  return ALL_JINN_NAMES[Math.floor(Math.random() * ALL_JINN_NAMES.length)];
+}
+
+function randomJinnNameFromCategory(category) {
+  const list = JINN_NAME_LISTS[category];
+  if (!list) return randomJinnName();
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+
 export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter, isGM, summonsInsightRank = 1, jinnArtUrl, onJinnSummoned }) {
   const [step, setStep] = useState(1); // 1=tier, 2=type, 3=build, 4=negotiate, 5=finish
   const [tier, setTier] = useState(null);
@@ -261,6 +285,8 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   const [duration, setDuration] = useState(0); // index into DURATION_BONUSES
   const [sahirRoll, setSahirRoll] = useState('');
   const [jinnRoll, setJinnRoll] = useState('');
+  const [chosenResults, setChosenResults] = useState(0); // each +5 to summon TN
+  const [summonRollResult, setSummonRollResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -400,8 +426,10 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
     await creator(charData);
     setSaving(false);
     setSaved(true);
-    // Fire summoning flash for all players
+    // Fire summoning flash for all players, then close the modal
     if (onJinnSummoned) onJinnSummoned(charData.name);
+    // Close after a short delay so the flash starts before the modal disappears
+    setTimeout(() => { if (onClose) onClose(); }, 400);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -580,6 +608,19 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             {/* Personality / name */}
             <div style={{ marginBottom: '0.5rem' }}>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Jinn Name</label>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                <select defaultValue="" onChange={e => { if (e.target.value) setName(randomJinnNameFromCategory(e.target.value)); e.target.value = ''; }}
+                  style={{ flex: 1, fontSize: 11, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
+                  <option value="">Roll by category…</option>
+                  {Object.keys(JINN_NAME_LISTS).map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }}
+                  onClick={() => setName(randomJinnName())} title="Random name from any category">
+                  🎲 Any
+                </button>
+              </div>
               <input value={name} onChange={e => setName(e.target.value)} placeholder={`${type} ${tier} Jinn`}
                 style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
@@ -694,8 +735,46 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
         {/* ── STEP 5: Summon ── */}
         {step === 5 && (
           <div>
+            {/* Summoning Roll */}
+            <div style={{ background: 'rgba(160,100,220,.08)', border: '1px solid rgba(160,100,220,.3)', borderRadius: 6, padding: '.75rem', marginBottom: '1rem' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#c0a0e0', marginBottom: '.5rem' }}>
+                ✦ Summoning Roll — Air / Sahir Rank
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem', lineHeight: 1.5 }}>
+                Cast Jinn Summoning 1 (Spellcasting roll). Base TN: <strong style={{ color: 'var(--gold)' }}>10</strong>.
+                Each table result the summoner <em>chose</em> instead of rolling adds <strong style={{ color: '#c0a0e0' }}>+5 TN</strong>.
+              </div>
+              <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Chosen results:</span>
+                  <button className="rep-btn" onClick={() => setChosenResults(r => Math.max(0, r-1))}>−</button>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#c0a0e0', minWidth: 20, textAlign: 'center' }}>{chosenResults}</span>
+                  <button className="rep-btn" onClick={() => setChosenResults(r => r+1)}>+</button>
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--gold)', fontWeight: 700 }}>
+                  TN {10 + chosenResults * 5}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Roll result:</span>
+                  <input type="number" min={1} value={summonRollResult ?? ''} onChange={e => setSummonRollResult(e.target.value ? +e.target.value : null)}
+                    style={{ width: 60, fontSize: 13, textAlign: 'center' }} placeholder="—" />
+                </div>
+                {summonRollResult != null && (
+                  <div style={{ fontSize: 13, fontWeight: 700,
+                    color: summonRollResult >= (10 + chosenResults * 5) ? 'var(--green)' : '#c84030' }}>
+                    {summonRollResult >= (10 + chosenResults * 5) ? '✓ Success' : '✗ Failed'}
+                    {summonRollResult >= (10 + chosenResults * 5) &&
+                      Math.floor((summonRollResult - (10 + chosenResults * 5)) / 5) > 0 &&
+                      <span style={{ color: 'var(--gold-dim)', fontSize: 11, marginLeft: 4 }}>
+                        +{Math.floor((summonRollResult - (10 + chosenResults * 5)) / 5)} Raise{Math.floor((summonRollResult - (10 + chosenResults * 5)) / 5) > 1 ? 's' : ''}
+                      </span>
+                    }
+                  </div>
+                )}
+              </div>
+            </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Review the Jinn and summon it — this creates a Quick NPC in the Character tab.
+              Review the Jinn below and summon it — creates a Quick NPC in the Character tab.
             </div>
 
             {/* Summary */}

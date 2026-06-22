@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA } from '../data/constants';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA , FACTION_COLORS } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';

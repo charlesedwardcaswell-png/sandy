@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
-import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
+import { MagicItemBadge } from './MagicItemCreator';
 import SocialReferenceModal from './SocialReferenceModal';
 import { supabase } from '../lib/supabase';
 import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS } from '../lib/utils';
@@ -659,7 +659,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const xpAvail = (char.xp_total || 0) - (char.xp_spent || 0);
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [pendingRankUp, setPendingRankUp] = useState(false);
-  const [showMagicItemCreator, setShowMagicItemCreator] = useState(false);
   const [showSocialRef, setShowSocialRef] = useState(null); // 'integrity' | 'reputation' | 'status'
 
   const insight = calcInsight(char);
@@ -702,7 +701,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
 
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const avatarType = char.avatar_type || 'warrior';
-  const avatarColor = char.avatar_color || '#c8962a';
+  const avatarColor = char.avatar_color || FACTION_COLORS[char.faction] || '#c8962a';
   const avatarUrl = (char.avatar_url || '').trim();
   const [imgError, setImgError] = useState(false);
   useEffect(() => { setImgError(false); }, [avatarUrl]);
@@ -754,18 +753,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           initialTab={showSocialRef}
           char={char}
           onClose={() => setShowSocialRef(null)}
-        />
-      )}
-      {showMagicItemCreator && (
-        <MagicItemCreator
-          onClose={() => setShowMagicItemCreator(false)}
-          characters={[char]}
-          onCreateForCharacter={(charId, item) => {
-            update('equipment', [...(char.equipment || []), { ...item, equipped: true }]);
-          }}
-          onCreateForParty={(item) => {
-            if (onUpdateInventory) onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic' }] });
-          }}
         />
       )}
       {showXpPanel && (
@@ -903,12 +890,30 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
+                  {/* Faction default swatch — click to reset to faction colour */}
+                  {(() => {
+                    const factionCol = FACTION_COLORS[char.faction];
+                    if (!factionCol) return null;
+                    const isDefault = !char.avatar_color;
+                    return (
+                      <div onClick={() => update('avatar_color', null)} title={`Reset to faction default (${char.faction})`}
+                        style={{ width: 18, height: 18, borderRadius: '50%', background: factionCol,
+                          border: `2px solid ${isDefault ? '#fff' : 'rgba(255,255,255,.15)'}`,
+                          cursor: 'pointer', outline: isDefault ? `2px solid ${factionCol}88` : 'none',
+                          outlineOffset: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {isDefault && <span style={{ fontSize: 9, color: '#fff', fontWeight: 900, lineHeight: 1 }}>★</span>}
+                      </div>
+                    );
+                  })()}
                   {AVATAR_COLORS.map(ac => (
                     <div key={ac.id} onClick={() => update('avatar_color', ac.id)} title={ac.label}
-                      style={{ width: 18, height: 18, borderRadius: '50%', background: ac.id, border: `2px solid ${avatarColor === ac.id ? '#fff' : 'transparent'}`, cursor: 'pointer' }} />
+                      style={{ width: 18, height: 18, borderRadius: '50%', background: ac.id,
+                        border: `2px solid ${char.avatar_color === ac.id ? '#fff' : 'transparent'}`,
+                        cursor: 'pointer' }} />
                   ))}
                 </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>★ = faction default · click to reset</div>
                 <button className="btn btn-sm" style={{ marginTop: '.4rem', fontSize: 11 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
               </div>
             )}
@@ -1283,12 +1288,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               </div>
             );
           })}
-          {isGM && (
-            <button className="btn btn-sm" style={{ fontSize: 11, marginTop: '.4rem', borderColor: 'rgba(160,100,220,.5)', color: '#c0a0e0' }}
-              onClick={() => setShowMagicItemCreator(true)}>
-              ✦ Create Magic Item
-            </button>
-          )}
           {canEdit && (
             <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem', flexWrap: 'wrap' }}>
               <select value={addEq || ''} onChange={e => setAddEq && setAddEq(e.target.value)} style={{ flex: 1 }}>

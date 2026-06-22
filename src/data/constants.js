@@ -85,6 +85,25 @@ export const FACTIONS_LIST = [
 const PATHS = ['Alley Thug','Scholar','Street Rat'];
 const CITY_GUARD_SCHOOL = ['Soldier of the City Guard'];
 
+// ── Faction default avatar colors ────────────────────────────────────────────
+export const FACTION_COLORS = {
+  'City Guard':         '#4a7ac8', // Cobalt — civic authority
+  'Dahab':              '#c8962a', // Gold — merchant wealth
+  'Qabal':              '#8050c8', // Violet — arcane summoners
+  'Assassins':          '#404858', // Shadow — Children of the Mountain
+  'Ashalan':            '#2a9a8a', // Teal — ancient crystalline immortals
+  "Ra'Shari":           '#c87030', // Amber — wagon-folk, firelight
+  'Senpet':             '#c8a030', // Desert gold — Senpet empire
+  'Yodotai':            '#a0a0b0', // Silver — iron legion
+  'Ebonites':           '#3060a8', // Sapphire — Ebon Stone guardians
+  'Jackals':            '#c84030', // Crimson — lawless and dangerous
+  'Merchants':          '#c8962a', // Gold — commerce
+  'Rogues / Foreigners':'#7a5030', // Bronze — outsiders
+  'Independent':        '#4a8a40', // Jade — free agents
+  'Creatures':          '#c85080', // Rose — non-human
+};
+
+
 export const FACTION_SCHOOLS = {
   'City Guard':          ['Soldier of the City Guard', ...PATHS],
   'Dahab':               ['Dahabi Enforcer','Dahabi Bargainer','Dahabi Merchant', ...CITY_GUARD_SCHOOL, ...PATHS],

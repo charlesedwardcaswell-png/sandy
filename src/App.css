@@ -254,14 +254,10 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
   100% { opacity: 0.3; transform: scale(0.95); }
 }
 @keyframes jinnFlash {
-  0%   { opacity: 0; transform: scale(1.08); }
-  8%   { opacity: 1; }
-  30%  { opacity: 1; transform: scale(1); }
-  45%  { opacity: 0; }
-  55%  { opacity: 0.9; }
-  70%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; transform: scale(0.97); }
+  0%   { opacity: 0; transform: scale(1.05); }
+  8%   { opacity: 1; transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 @keyframes jinnGlow {
   0%, 100% { text-shadow: 0 0 40px #c0a0e0aa, 0 0 10px #c0a0e088; }

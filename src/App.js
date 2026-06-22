@@ -137,7 +137,19 @@ export default function App() {
   useEffect(() => {
     if (isGM) return;
     if (session?.encounter_data) {
-      setEncounter(session.encounter_data);
+      const incoming = session.encounter_data;
+      setEncounter(prev => {
+        // Fire turn notification if activeTurn advanced and it's now this player's turn
+        if (incoming.activeTurn !== prev.activeTurn && incoming.combatants?.length) {
+          const active = incoming.combatants[incoming.activeTurn % Math.max(1, incoming.combatants.length)];
+          if (active?.type === 'pc') {
+            const isMine = active.id === myCharId;
+            if (isMine) playYourTurn();
+            setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
+          }
+        }
+        return incoming;
+      });
     } else if (session && !session.encounter_data) {
       setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
     }
@@ -216,10 +228,18 @@ export default function App() {
           setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
         }
       }
-      // Save to Supabase: GM always saves; players save only when updating duel state
-      // (so duel rolls propagate to all screens via realtime)
+      // Save to Supabase:
+      // - GM always saves everything
+      // - Players save when their turn action changes combatants or advances the turn
+      //   (stance, wounds, void, drawn weapon, activeTurn) so other screens update
+      // - Players also save duel state so duel rolls propagate
       const touchesDuel = next.duelState !== prev.duelState;
-      if (isGM || touchesDuel) saveEncounterDebounced(next);
+      const touchesTurn = next.activeTurn !== prev.activeTurn
+        || next.combatants !== prev.combatants;
+      const touchesBanner = next.jinnBanner !== prev.jinnBanner
+        || next.purchaseBanner !== prev.purchaseBanner
+        || next.rollBanner !== prev.rollBanner;
+      if (isGM || touchesDuel || touchesTurn || touchesBanner) saveEncounterDebounced(next);
       return next;
     });
   }, [saveEncounterDebounced, isGM, myCharId]);
@@ -454,7 +474,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v74</span>
+        <span className="hdr-game">The Tool — v78</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}

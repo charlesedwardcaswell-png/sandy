@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Silhouette, WoundBadge, FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
-import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA } from '../data/constants';
+import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA, FACTION_COLORS } from '../data/constants';
 import { MagicItemBadge } from './MagicItemCreator';
 import MagicItemCreator from './MagicItemCreator';
 

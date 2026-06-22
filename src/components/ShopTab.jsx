@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WEAPONS_LIST, GEAR_LIST, GAME_ID } from '../data/constants';
+import { WEAPONS_LIST, GEAR_LIST, GAME_ID, POISONS_LIST } from '../data/constants';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
 import { supabase } from '../lib/supabase';
@@ -44,6 +44,188 @@ function parseCopperAmount(priceStr, qualityKey) {
   return Math.round(parseFloat(match[1]) * tier.mult);
 }
 
+// ── Full item catalogue for shop creation ────────────────────────────────────
+
+const CATALOGUE = [
+  {
+    category: 'Weapons',
+    items: WEAPONS_LIST.map(w => ({ name: w.name, price: w.price || '5 copper', dr: w.dr || '', defaultQuality: 'standard' })),
+  },
+  {
+    category: 'Armor & Shields',
+    items: [
+      { name: 'Partial Armor (+3 TN)',  price: '10 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Light Armor (+5 TN)',    price: '20 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Heavy Armor (+10 TN)',   price: '40 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Riding Armor (+8 TN)',   price: '30 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Shield',                 price: '5 copper',  dr: '', defaultQuality: 'standard' },
+    ],
+  },
+  {
+    category: 'Gear & Supplies',
+    items: [
+      'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil',
+      'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
+      'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
+      'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
+      'Musical Instrument','Book / Scroll','Writing Paper','Whetstone',
+    ].map(n => ({ name: n, price: '2 copper', dr: '', defaultQuality: 'standard' })),
+  },
+  {
+    category: 'Poisons & Powders',
+    items: [
+      ...POISONS_LIST.map(p => ({ name: p.name + ' (dose)', price: '15 copper', dr: '', defaultQuality: 'standard' })),
+      { name: 'Poison Powder (dose)',  price: '10 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Blinding Dust (dose)', price: '5 copper',  dr: '', defaultQuality: 'standard' },
+    ],
+  },
+];
+
+function ShopCatalogue({ onAdd, onClose }) {
+  // checked items: name → { checked, quality, price }
+  const [checked, setChecked] = React.useState({});
+  const [catOpen, setCatOpen] = React.useState(() => Object.fromEntries(CATALOGUE.map(c => [c.category, true])));
+  const [defaultVisible, setDefaultVisible] = React.useState(true);
+
+  const toggle = (item) => {
+    setChecked(prev => {
+      const n = { ...prev };
+      if (n[item.name]) {
+        delete n[item.name];
+      } else {
+        n[item.name] = { quality: item.defaultQuality || 'standard', price: item.price || '?', dr: item.dr || '' };
+      }
+      return n;
+    });
+  };
+
+  const toggleAll = (category, items) => {
+    const allChecked = items.every(i => checked[i.name]);
+    setChecked(prev => {
+      const n = { ...prev };
+      if (allChecked) {
+        items.forEach(i => delete n[i.name]);
+      } else {
+        items.forEach(i => { if (!n[i.name]) n[i.name] = { quality: i.defaultQuality || 'standard', price: i.price || '?', dr: i.dr || '' }; });
+      }
+      return n;
+    });
+  };
+
+  const checkedCount = Object.keys(checked).length;
+
+  const handleAdd = () => {
+    const items = Object.entries(checked).map(([name, cfg]) => ({
+      name,
+      price: cfg.price,
+      dr: cfg.dr,
+      quality: cfg.quality,
+      visible: defaultVisible,
+      is_magic: false,
+    }));
+    onAdd(items);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', zIndex: 9200,
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+        padding: '1.25rem', width: '100%', maxWidth: 620 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--gold)' }}>
+            <i className="ti ti-layout-list" style={{ marginRight: 8 }} />Stock the Shop
+          </div>
+          <button className="btn btn-sm" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Default visibility toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem',
+          padding: '.5rem .75rem', background: 'var(--bg-panel)', borderRadius: 5 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Added items are:</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12 }}>
+            <input type="radio" name="vis" checked={defaultVisible} onChange={() => setDefaultVisible(true)} style={{ accentColor: 'var(--green)' }} />
+            <span style={{ color: 'var(--green)' }}>Visible to players</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12 }}>
+            <input type="radio" name="vis" checked={!defaultVisible} onChange={() => setDefaultVisible(false)} />
+            <span style={{ color: 'var(--text-muted)' }}>Hidden (GM only)</span>
+          </label>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
+            {checkedCount} selected
+          </span>
+        </div>
+
+        {/* Catalogue */}
+        <div style={{ maxHeight: '55vh', overflowY: 'auto', marginBottom: '1rem' }}>
+          {CATALOGUE.map(cat => {
+            const allChecked = cat.items.every(i => checked[i.name]);
+            const someChecked = cat.items.some(i => checked[i.name]);
+            const isOpen = catOpen[cat.category];
+            return (
+              <div key={cat.category} style={{ marginBottom: '.5rem', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
+                {/* Category header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.45rem .65rem',
+                  background: 'var(--bg-panel)', cursor: 'pointer' }}
+                  onClick={() => setCatOpen(o => ({ ...o, [cat.category]: !o[cat.category] }))}>
+                  <input type="checkbox" checked={allChecked} ref={el => { if (el) el.indeterminate = !allChecked && someChecked; }}
+                    onChange={() => toggleAll(cat.category, cat.items)}
+                    onClick={e => e.stopPropagation()} style={{ accentColor: 'var(--gold)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{cat.category}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {cat.items.filter(i => checked[i.name]).length}/{cat.items.length}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
+                </div>
+                {/* Items */}
+                {isOpen && (
+                  <div style={{ padding: '.35rem .65rem' }}>
+                    {cat.items.map(item => {
+                      const cfg = checked[item.name];
+                      const isChecked = !!cfg;
+                      const qTier = QUALITY_TIERS.find(t => t.key === (cfg?.quality || 'standard')) || QUALITY_TIERS[1];
+                      return (
+                        <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '.4rem',
+                          padding: '.2rem 0', borderBottom: '1px solid rgba(107,78,40,.1)', flexWrap: 'wrap' }}>
+                          <input type="checkbox" checked={isChecked} onChange={() => toggle(item)}
+                            style={{ accentColor: 'var(--gold)', flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: 12, color: isChecked ? 'var(--text-primary)' : 'var(--text-muted)', minWidth: 100 }}>
+                            {item.name}
+                            {item.dr && <span style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
+                          </span>
+                          {isChecked && (
+                            <>
+                              <select value={cfg.quality} onChange={e => setChecked(p => ({ ...p, [item.name]: { ...p[item.name], quality: e.target.value } }))}
+                                style={{ fontSize: 10, padding: '1px 2px', background: 'var(--bg-panel)', border: `1px solid ${qTier.color}`, color: qTier.color, borderRadius: 3, maxWidth: 80 }}>
+                                {QUALITY_TIERS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                              </select>
+                              <input value={cfg.price} onChange={e => setChecked(p => ({ ...p, [item.name]: { ...p[item.name], price: e.target.value } }))}
+                                style={{ width: 75, fontSize: 10, padding: '1px 4px' }} placeholder="price" />
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-p" disabled={checkedCount === 0} onClick={handleAdd}>
+            Add {checkedCount} item{checkedCount !== 1 ? 's' : ''} to Shop
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase }) {
   const gmView = isGM && !isPCView;
 
@@ -58,6 +240,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [showMagicCreator, setShowMagicCreator] = useState(false);
   const [newShopName, setNewShopName] = useState('');
   const [showNewShop, setShowNewShop] = useState(false);
+  const [showCatalogue, setShowCatalogue] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customDr, setCustomDr] = useState('');
@@ -265,6 +448,15 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   return (
     <div>
       {showPoisonRef && <PoisonReferenceModal onClose={() => setShowPoisonRef(false)} />}
+      {showCatalogue && activeShop && (
+        <ShopCatalogue
+          onClose={() => setShowCatalogue(false)}
+          onAdd={(items) => {
+            updateActiveItems([...(activeShop.items || []), ...items]);
+            setShowCatalogue(false);
+          }}
+        />
+      )}
       {showMagicCreator && (
         <MagicItemCreator
           onClose={() => setShowMagicCreator(false)}
@@ -377,9 +569,12 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             )}
 
             {/* Load bundle */}
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowCatalogue(true)}>
+              <i className="ti ti-layout-list" style={{ marginRight: 4, fontSize: 11 }} />Stock from Catalogue
+            </button>
             <select defaultValue="" onChange={e => { if (e.target.value) loadBundle(e.target.value); e.target.value = ''; }}
               style={{ fontSize: 11, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, padding: '2px 4px' }}>
-              <option value="">Load bundle preset…</option>
+              <option value="">Quick bundle preset…</option>
               {Object.entries(BUNDLE_PRESETS).map(([name, b]) => (
                 <option key={name} value={name}>{name}</option>
               ))}
@@ -407,7 +602,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
             {(activeShop.items || []).length === 0 && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.3rem 0' }}>
-                No items. Load a bundle, add custom items, or create a magic item above.
+                No items — use <strong>Stock from Catalogue</strong> above to pick what this shop carries, or add custom items below.
               </div>
             )}
 

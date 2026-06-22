@@ -36,34 +36,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
           {[
             { id: 'attack', icon: 'ti-sword', label: 'Attack', color: '#c84030' },
-            { id: 'defend', icon: 'ti-shield', label: 'Full Defense', color: '#4a8a40' },
             { id: 'move',   icon: 'ti-run', label: 'Move', color: 'var(--text-secondary)' },
             { id: 'pass',   icon: 'ti-player-skip-forward', label: 'Pass', color: 'var(--text-muted)' },
           ].map(action => (
             <button key={action.id}
               onClick={() => {
-                if (action.id === 'defend') {
-                  // Full Defense: Complex Action. Roll Agility+Defense TN5.
-                  // Per rulebook p.63: roll REPLACES Reflexes×5 for TN to Be Hit.
-                  // So TN = 5 + armor + Defense roll (not added to Reflexes×5).
-                  const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
-                  const agl = combatant.agility || character?.agility || 2;
-                  const defRank = defenseSkill?.rank || 0;
-                  onRoll({
-                    skill: 'Defense (Full Defense)',
-                    tn: 5,
-                    baseRoll: agl + defRank,
-                    baseKeep: agl,
-                    character,
-                    resultLabel: 'Result is added to your Armor TN until your next action',
-                    onComplete: (result) => {
-                      onStanceChange('Full Defense', result ?? 10);
-                      onSpendAction && onSpendAction('full');
-                    },
-                  });
-                  setSelectedAction('defend');
-                }
-                else if (action.id === 'pass') { onPass(); }
+                if (action.id === 'pass') { onPass(); }
                 else setSelectedAction(action.id);
               }}
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem', background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)', border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
@@ -367,8 +345,31 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    color: 'var(--text-muted)' },
         ].map(action => (
           <button key={action.id}
+            disabled={action.id === 'defend' && combatant.stance !== 'Full Defense'}
+            title={action.id === 'defend' && combatant.stance !== 'Full Defense' ? 'Switch to Full Defense stance first' : action.label}
             onClick={() => {
-              if (action.id === 'defend') { setSelectedAction('defend'); onStanceChange('Full Defense'); onSpendAction && onSpendAction('simple'); }
+              if (action.id === 'defend' && combatant.stance !== 'Full Defense') return;
+              if (action.id === 'defend') {
+                // Full Defense — Complex Action. Must be in Full Defense stance.
+                // Roll Agility/Defense (TN 5). Result REPLACES Reflexes×5 as the TN to be hit.
+                // Final Armor TN = 5 + armor bonus + Defense roll result.
+                const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
+                const agl = character?.agility || 2;
+                const defRank = defenseSkill?.rank || 0;
+                onRoll({
+                  skill: 'Defense (Full Defense)',
+                  tn: 5,
+                  baseRoll: agl + defRank,
+                  baseKeep: agl,
+                  character,
+                  resultLabel: 'Defense roll result replaces your Reflexes×5 — new Armor TN = 5 + armor + this roll',
+                  onComplete: (result) => {
+                    onStanceChange('Full Defense', result ?? 10);
+                    onSpendAction && onSpendAction('full');
+                  },
+                });
+                setSelectedAction('defend');
+              }
               else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
               else {
