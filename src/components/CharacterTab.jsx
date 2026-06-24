@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
@@ -117,7 +117,8 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onCreateCharacter={onCreateCharacter}
             onCreateNPC={onCreateNPC}
             isGM={false}
-            summonsInsightRank={myInsightRank}
+            characters={characters}
+            myCharId={myCharId}
             jinnArtUrl={jinnArtUrl}
             onJinnSummoned={onJinnSummoned}
           />
@@ -329,7 +330,8 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           onCreateCharacter={onCreateCharacter}
           onCreateNPC={onCreateNPC}
           isGM={true}
-          summonsInsightRank={5}
+          characters={characters}
+          myCharId={myCharId}
           jinnArtUrl={jinnArtUrl}
           onJinnSummoned={onJinnSummoned}
         />
@@ -791,17 +793,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               )}
             </div>
           );
-        } else if (onClaimCharacter && !isGM) {
-          // Unclaimed — show claim button
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: 'rgba(200,150,42,.08)', borderRadius: 5, border: '1px solid rgba(200,150,42,.35)' }}>
-              <i className="ti ti-user-question" style={{ fontSize: 18, color: 'var(--gold-dim)' }} />
-              <span style={{ fontSize: 14, color: 'var(--text-muted)', flex: 1 }}>No player has claimed this character</span>
-              <button className="btn btn-p" style={{ fontSize: 13, padding: '.35rem .75rem' }} onClick={() => onClaimCharacter(char.id)}>
-                <i className="ti ti-user-check" style={{ fontSize: 13, marginRight: 4 }} />Claim as Mine
-              </button>
-            </div>
-          );
         }
         return null;
       })()}
@@ -1226,12 +1217,22 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           <div className="card-title">Equipment</div>
           {(char.equipment || []).map((e, i) => {
             const weapon = WEAPONS_LIST.find(w => w.name === e.name);
-            const loreText = weapon ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}\n${weapon.special ? `Special: ${weapon.special}` : ''}` : e.name;
+            const gearDesc = GEAR_DESCRIPTIONS[e.name];
+            const loreText = weapon
+              ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}${weapon.special ? `\nSpecial: ${weapon.special}` : ''}`
+              : gearDesc || e.name;
             if (e.is_magic) {
               return (
                 <div key={i} style={{ marginBottom: '.4rem' }}>
                   <MagicItemBadge item={e} />
-                  <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
+                      <input type="checkbox" checked={e.equipped || false} onChange={() => {
+                        const eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, equipped: !x.equipped } : x);
+                        update('equipment', eq);
+                      }} style={{ accentColor: 'var(--gold)' }} />
+                      <span style={{ color: 'var(--text-muted)' }}>Equipped</span>
+                    </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
                       <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
                       <span style={{ color: 'var(--text-muted)' }}>In use</span>
@@ -1550,7 +1551,42 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
 
   return (
     <div style={{ maxWidth: 700 }}>
-      {onCancel && <button className="btn btn-sm" style={{ marginBottom: '1rem' }} onClick={onCancel}>← Back</button>}
+
+      {/* Top navigation bar */}
+      {(() => {
+        const backAction = step === 1 ? onCancel : () => setStep(step - 1);
+        // Compute next disabled state per step
+        const nextDisabled =
+          step === 1 ? !faction :
+          step === 2 ? !subfaction :
+          step === 3 ? !school :
+          step === 4 ? cpRemaining < 0 :
+          step === spellStep ? (selectedSpells.length < startingSpells || (!IS_COKALOI_SCHOOL(school) && (!spellEmphasis || !spellDisciplineBonus))) :
+          step === advStep ? false :
+          step === identityStep ? !name :
+          false;
+        const nextAction = () => {
+          if (step === 1) setStep(2);
+          else if (step === 2) setStep(3);
+          else if (step === 3) setStep(4);
+          else if (step === 4) setStep(spellStep || advStep);
+          else if (step === spellStep) setStep(advStep);
+          else if (step === advStep) setStep(identityStep);
+          else if (step === identityStep) handleComplete();
+        };
+        const isLastStep = step === identityStep;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '1rem' }}>
+            {(step > 1 || onCancel) && (
+              <button className="btn btn-sm" onClick={backAction}>← Back</button>
+            )}
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-p btn-sm" disabled={nextDisabled} onClick={nextAction}>
+              {isLastStep ? 'Create Character' : 'Next →'}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* PC / NPC toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '1rem', padding: '.5rem .75rem', background: isNpc ? 'rgba(200,64,48,.08)' : 'rgba(74,138,64,.08)', border: `1px solid ${isNpc ? 'rgba(200,64,48,.3)' : 'rgba(74,138,64,.3)'}`, borderRadius: 5 }}>
@@ -1630,9 +1666,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
               </div>
             );
           })}
-          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-p" disabled={!faction} onClick={() => setStep(2)}>Next →</button>
-          </div>
+
         </div>
       )}
 
@@ -1656,10 +1690,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
               )}
             </div>
           ))}
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
-            <button className="btn" onClick={() => setStep(1)}>← Back</button>
-            <button className="btn btn-p" disabled={!subfaction} onClick={() => setStep(3)}>Next →</button>
-          </div>
+
         </div>
       )}
 
@@ -1689,10 +1720,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
               </div>
             );
           })}
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
-            <button className="btn" onClick={() => setStep(2)}>← Back</button>
-            <button className="btn btn-p" disabled={!school} onClick={() => setStep(4)}>Next →</button>
-          </div>
+
         </div>
       )}
 
@@ -1780,8 +1808,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
-            <button className="btn" onClick={() => setStep(3)}>← Back</button>
-            <button className="btn btn-p" disabled={cpRemaining < 0} onClick={() => setStep(spellStep || advStep)}>Next →</button>
+
           </div>
         </div>
       )}
@@ -1810,7 +1837,6 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
           />
 
           <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button className="btn" onClick={() => setStep(4)}>← Back</button>
             <div style={{ fontSize: 13, color: selectedSpells.length >= startingSpells ? 'var(--green)' : 'var(--text-muted)' }}>
               {selectedSpells.length}/{startingSpells} spells selected
             </div>
@@ -1875,8 +1901,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
-            <button className="btn" onClick={() => setStep(spellStep || 4)}>← Back</button>
-            <button className="btn btn-p" onClick={() => setStep(identityStep)}>Next →</button>
+
           </div>
         </div>
       )}
@@ -1904,7 +1929,6 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
-            <button className="btn" onClick={() => setStep(advStep)}>← Back</button>
             <button className="btn btn-p btn-lg" disabled={!name} onClick={handleComplete}><i className="ti ti-check" /> Create Character</button>
           </div>
         </div>

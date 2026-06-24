@@ -47,14 +47,14 @@ export function MagicItemBadge({ item, compact = false }) {
   );
 }
 
-export default function MagicItemCreator({ onClose, onCreateForCharacter, onCreateForParty, onCreateForShop, characters }) {
+export default function MagicItemCreator({ onClose, onCreateForCharacter, onCreateForParty, onCreateForShop, characters, shops = [] }) {
   const [name, setName] = useState('');
   const [rarity, setRarity] = useState('rare');
   const [itemType, setItemType] = useState('Weapon');
   const [dr, setDr] = useState('');
   const [effect, setEffect] = useState('');
   const [description, setDescription] = useState('');
-  const [destination, setDestination] = useState(onCreateForShop ? 'shop' : 'party');
+  const [destination, setDestination] = useState(onCreateForShop && shops.length > 0 ? shops[0].id : 'party');
   const [saving, setSaving] = useState(false);
 
   const rarityData = RARITIES.find(r => r.key === rarity) || RARITIES[0];
@@ -74,8 +74,8 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
       inUse: false,
     };
 
-    if (destination === 'shop') {
-      if (onCreateForShop) await onCreateForShop(item);
+    if (onCreateForShop && shops.some(s => s.id === destination)) {
+      await onCreateForShop(destination, item);
     } else if (destination === 'party') {
       await onCreateForParty(item);
     } else {
@@ -158,7 +158,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Send to</label>
           <select value={destination} onChange={e => setDestination(e.target.value)} style={{ width: '100%' }}>
-            {onCreateForShop && <option value="shop">🏪 Add to Current Shop</option>}
+            {shops.map(s => <option key={s.id} value={s.id}>🏪 {s.name}</option>)}
             <option value="party">Party Inventory (Loot)</option>
             {(characters || []).filter(c => !c.is_npc).map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>

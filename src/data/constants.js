@@ -435,7 +435,7 @@ export const WEAPONS_LIST = [
   { name:'Unarmed',    dr:'1k1', skill:'Brawling',      price:'—',   special:'Default when no weapon drawn' },
 ];
 
-export const GEAR_LIST = [
+export const GEAR_LIST_NAMES = [
   'Partial Armor (+3 TN)','Light Armor (+5 TN)','Heavy Armor (+10 TN)','Riding Armor (+8 TN)',
   'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil',
   'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
@@ -446,6 +446,54 @@ export const GEAR_LIST = [
   'Spider Venom (dose)','Wish You Dead (dose)','Stolen Breath (dose)','Hot Madness (dose)',
   'Poison Powder (dose)','Blinding Dust (dose)',
 ];
+
+// Gear descriptions for tooltips — keyed by name
+export const GEAR_DESCRIPTIONS = {
+  'Partial Armor (+3 TN)':  '+3 Armor TN. Protects key areas without full encumbrance. No penalty to movement.',
+  'Light Armor (+5 TN)':    '+5 Armor TN. Standard leather or padded armor worn by guards and soldiers.',
+  'Heavy Armor (+10 TN)':   '+10 Armor TN. Full plate or chain. Reduces Water Ring for movement purposes.',
+  'Riding Armor (+8 TN)':   '+8 Armor TN. Designed for mounted combat; less effective on foot.',
+  'Medicine Kit':            'Required for Medicine skill rolls. Contains bandages, poultices, herbs. Can treat Wounds in the field.',
+  'Traveling Rations':       'Preserved food for 1 week of travel. Required for survival rolls in the desert.',
+  'Water Skin':              'Holds enough water for 1-2 days in the desert. Essential for desert travel.',
+  'Rope (50 ft)':            '50 feet of sturdy hemp rope. Used for climbing, binding, and improvised traps.',
+  'Lantern':                 'Provides light in a 30-foot radius. Requires oil to operate.',
+  'Lantern Oil':             'Fuel for a lantern. One flask lasts approximately 6 hours.',
+  'Grapple Hook':            'Iron hook with rope. Used with Athletics for climbing walls or crossing gaps.',
+  'Flint and Steel':         'Used to start fires. Required for making camp in the desert without magic.',
+  'Lockpicks':               'A set of fine tools for opening locks. Required for Sleight of Hand (Lockpicking) rolls.',
+  'Calligraphy Kit':         'Ink, brushes, and paper. Required for Calligraphy skill rolls and scribing documents.',
+  'Apothecary Kit':          'Vials, mortars, and reagents for preparing medicines and poisons. Required for Craft: Poison.',
+  'Backpack':                'Carries up to 30 lbs of gear without encumbrance penalties.',
+  'Tent (small)':            'Shelter for 1-2 people. Provides protection from desert heat and sandstorms.',
+  'Traveling Cloak':         'Provides modest protection from weather. +1k0 to rolls to resist environmental effects.',
+  'Suit of Clothes':         'Standard everyday clothing appropriate to your station.',
+  'Fine Clothes':            'Quality clothing that grants +1k0 to Social rolls in formal settings.',
+  'Sandals':                 'Basic footwear. Standard for most inhabitants of Medinaat al-Salaam.',
+  'Shoes':                   'Closed-toe footwear offering more protection than sandals.',
+  'Blanket':                 'Warmth for desert nights. Required for comfortable rest without shelter.',
+  'Coin Purse':              'A sturdy pouch for carrying copper. Holds up to 100 coins securely.',
+  'Personal Seal':           'A carved seal used to authenticate documents. Grants +1k0 to Calligraphy rolls for official documents.',
+  'Quiver (60 arrows)':      '60 arrows for a bow. Standard load for an archer.',
+  'Musical Instrument':      'A specific instrument (specify type). Required for Perform skill rolls.',
+  'Book / Scroll':           'A written text. May grant a Free Raise on a relevant Lore roll if studied.',
+  'Writing Paper':           'Paper and basic writing implements. Required for written communication.',
+  'Whetstone':               'Used to sharpen blades. Spend 10 minutes: +1k0 to first Attack roll in next skirmish.',
+  // Poisons
+  'Generic Poison (dose)':   'TN 15 to resist (Stamina). Causes 1 Wound Level per round for 3 rounds if unresisted.',
+  'Fire Biter (dose)':       'TN 20 to resist. Deals 2k2 damage ignoring armor. Burning sensation for 1 hour.',
+  'Night Milk (dose)':       'TN 15 to resist. Target falls unconscious for 1 hour. No damage.',
+  'Snake Venom (dose)':      'TN 20 to resist. 1k1 damage per round for a number of rounds equal to failure margin.',
+  'Spider Venom (dose)':     'TN 15 to resist. Target is Fatigued for 4 hours. Muscle cramping.',
+  'Wish You Dead (dose)':    'TN 25 to resist. 3k3 damage. Rare and expensive. Highly illegal.',
+  'Stolen Breath (dose)':    'TN 20 to resist. Target cannot speak or cast spells for 1 hour.',
+  'Hot Madness (dose)':      'TN 20 to resist. Target suffers hallucinations; all TNs +10 for 1 hour.',
+  'Poison Powder (dose)':    'Inhaled contact poison, TN 15. Generic effects as Generic Poison but faster acting.',
+  'Blinding Dust (dose)':    'TN 15 to resist (Reflexes). Target is blinded for 3 rounds.',
+};
+
+// Keep backward compatibility — GEAR_LIST is the name array
+export const GEAR_LIST = GEAR_LIST_NAMES;
 
 export const NPC_BY_FACTION = {
   'City Guard':  { schools:['Soldier of the City Guard'] },
@@ -1211,3 +1259,266 @@ export const BOOK_TOC = [
     ],
   },
 ];
+
+// ── Technique & Advantage Roll Bonuses ─────────────────────────────────────────
+// Each entry: { skills: [...], rolled: N, kept: K, flat: N, freeRaises: N,
+//              stances: [...optional — only in these stances],
+//              conditional: 'description of condition',
+//              voidOnly: true — only activates when spending Void,
+//              note: 'shown in bonus panel' }
+// skills: list of skill names OR 'ALL' OR 'ATTACK' OR 'DAMAGE' OR 'SOCIAL' OR 'SPELLCASTING' OR 'LORE' OR 'INITIATIVE'
+// Multiple entries per technique for techniques with multiple effects.
+
+export const TECHNIQUE_ROLL_BONUSES = {
+
+  // ── City Guard ────────────────────────────────────────────────────────────────
+  'Trained For War': [
+    { skills: ['Athletics','Battle','Defense','Initiative'], rolled: 1, kept: 1, voidOnly: true, note: '+2k1 (not +1k1) when spending Void on class skills' },
+  ],
+  'Strike With Fury': [
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative always' },
+    { skills: ['ATTACK'], rolled: 1, kept: 0, stances: ['Full Attack'], note: '+1k0 Attack in Full Attack stance' },
+  ],
+  'The Sublime Warrior': [
+    { skills: ['INITIATIVE'], flat: 5, voidOnly: true, note: '+5 to Initiative when spending Void' },
+  ],
+
+  // ── Dahabi Enforcer ────────────────────────────────────────────────────────────
+  'Moonless Night': [
+    { skills: ['ATTACK'], rolled: 1, kept: 0, stances: ['Full Attack'], note: '+1k0 Attack in Full Attack stance' },
+    { skills: ['DAMAGE'], rolled: 1, kept: 0, stances: ['Full Attack'], note: '+1k0 Damage in Full Attack stance' },
+  ],
+  'Dangerous Maneuvers': [
+    { skills: ['Brawling'], rolled: 1, kept: 1, conditional: 'Grapple', note: '+1k1 Contested Strength / Brawling in grapple' },
+    { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Grapple', note: '+1k0 Damage in grapple' },
+  ],
+  'Bitter Shadows': [
+    { skills: ['Brawling'], rolled: 2, kept: 2, conditional: 'Grapple', note: '+2k2 Contested Strength in grapple (replaces R2)' },
+    { skills: ['DAMAGE'], rolled: 2, kept: 0, conditional: 'Grapple', note: '+2k0 Damage in grapple (replaces R2)' },
+  ],
+  'Final Strike': [
+    { skills: ['DAMAGE'], rolled: 0, kept: 2, stances: ['Center'], note: '+0k2 Damage in Center stance' },
+  ],
+
+  // ── Dahabi Bargainer ──────────────────────────────────────────────────────────
+  'Penetrating Words': [
+    { skills: ['Commerce'], rolled: 1, kept: 1, conditional: 'Bargaining with Jinn', note: '+1k1 Contested Commerce when bargaining with Jinn' },
+  ],
+
+  // ── Dahabi Merchant ────────────────────────────────────────────────────────────
+  'Master of the Subtle Flow': [
+    { skills: ['Commerce'], rolled: 2, kept: 0, note: '+2k0 Commerce always' },
+    { skills: ['Sincerity','Temptation'], rolled: 1, kept: 0, note: '+1k0 Sincerity/Temptation always' },
+  ],
+  'Upstanding Citizen': [
+    { skills: ['Commerce','Sincerity','Temptation'], rolled: 2, kept: 0, conditional: 'Opponent declared Raises', note: '+2k0 if opponent declared Raises on contested Commerce/Sincerity/Temptation' },
+  ],
+  'An Eye for a Deal': [
+    { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], flat: null, voidOnly: true, conditional: 'Non-weapon skill Void spend', note: 'Add School Rank to total when spending Void on non-weapon skills' },
+  ],
+  'Merchant King': [
+    { skills: ['SOCIAL'], rolled: 5, kept: 0, conditional: 'Uncontested, no Raises declared', note: '+5k0 uncontested Social with no Raises' },
+  ],
+
+  // ── Qabal Agent ───────────────────────────────────────────────────────────────
+  'A Good Excuse': [
+    { skills: ['Sincerity'], rolled: 2, kept: 0, note: '+2k0 Sincerity (Deceit)' },
+  ],
+  'Unassailable Reputation': [
+    { skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'Contested roll you did not initiate', note: '+1k0 Contested Social rolls you did not initiate' },
+  ],
+  'The Ordered Bolthole': [
+    { skills: ['Stealth'], rolled: 2, kept: 0, note: '+2k0 Stealth' },
+  ],
+
+  // ── Ashalan Blood-Sworn ────────────────────────────────────────────────────────
+  'Fortification in Form': [
+    { skills: ['REDUCTION'], note: 'Reduction = Earth Ring (stacks with armor)' },
+  ],
+
+  // ── Ashalan Heart-Seekers ──────────────────────────────────────────────────────
+  'Truth is My Ally': [
+    { skills: ['Investigation'], rolled: 2, kept: 0, note: '+2k0 Investigation (finding hidden things)' },
+  ],
+  'Diligence is the Best Teacher': [
+    { skills: ['Investigation','Awareness','Perception'], freeRaises: 1, note: 'Free Raise on Perception/Awareness rolls' },
+  ],
+  'One Mind, One Action': [
+    { skills: ['SPELLCASTING','Spellcraft'], conditional: 'Countering a spell (Intelligence/Spellcraft vs Spellcasting roll)', note: 'May counter spells with Intelligence/Spellcraft; +2×Rank Armor TN' },
+  ],
+
+  // ── Assassin Slayer ────────────────────────────────────────────────────────────
+  'All Shadows Walk in the Light': [
+    { skills: ['Acting','Sincerity','Etiquette','Stealth'], rolled: 1, kept: 0, note: '+1k0 Acting/Sincerity/Etiquette/Stealth' },
+    { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Target unaware of your presence', note: '+1k0 Damage vs unaware targets' },
+  ],
+  'Blood Calls for Blood': [
+    { skills: ['ATTACK'], conditional: 'vs lone opponent or Rite target — add Stealth skill rank as bonus dice', note: '+Stealth rank rolled dice to Attack vs lone/Rite target' },
+  ],
+
+  // ── Assassin Keeper ────────────────────────────────────────────────────────────
+  "The Keeper's Courage": [
+    { skills: ['Investigation','Hunting','Perception'], rolled: 1, kept: 0, note: '+1k0 Perception-based rolls' },
+  ],
+
+  // ── Ra\'Shari Knife-Fighter ─────────────────────────────────────────────────────
+  'The Endless Dance': [
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative' },
+  ],
+  'Flashing Talons': [
+    { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Bladed weapon (knife, sword, khadja, etc.)', note: '+1k0 Damage with bladed weapons' },
+  ],
+  'Through the Cracks': [
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative (total +2k0 with R1)' },
+  ],
+  'Strike to Slay': [
+    { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, conditional: 'Knife or unarmed', note: '+1k1 Damage with knife/unarmed when spending Void' },
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative (total +3k0)' },
+  ],
+
+  // ── Ra\'Shari Trader ────────────────────────────────────────────────────────────
+  'Opening Offer': [
+    { skills: ['Sincerity','Temptation','Commerce'], rolled: 1, kept: 0, note: '+1k0 Sincerity/Temptation/Commerce' },
+  ],
+  'Acquiring the Goods': [
+    { skills: ['Courtier','Etiquette','Lore: Underworld'], rolled: 1, kept: 0, note: '+1k0 Courtier/Etiquette/Lore: Underworld' },
+  ],
+  'Making the Deal': [
+    { skills: ['Sincerity','Temptation','Commerce'], rolled: 2, kept: 0, note: '+2k0 Sincerity/Temptation/Commerce (total)' },
+  ],
+  'Expediency is Important': [
+    { skills: ['Courtier','Etiquette','Lore: Underworld'], rolled: 2, kept: 0, note: '+2k0 Courtier/Etiquette/Lore: Underworld (total)' },
+  ],
+  'The Perfect Supplier': [
+    { skills: ['Sincerity','Temptation','Commerce'], rolled: 3, kept: 0, note: '+3k0 Sincerity/Temptation/Commerce (total)' },
+  ],
+
+  // ── Ra\'Shari Diviner ───────────────────────────────────────────────────────────
+  'The Whispers of the Song': [
+    { skills: ['LORE'], conditional: 'Add Divination skill rank as flat bonus to Lore rolls', note: '+Divination rank to all Lore rolls' },
+  ],
+
+  // ── Senpet Legionnaire ─────────────────────────────────────────────────────────
+  'Divine Strength': [
+    { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, note: '+1k1 Damage when spending Void' },
+  ],
+  'The Gods Guide my Hand': [
+    { skills: ['ATTACK'], rolled: 4, kept: 1, voidOnly: true, conditional: 'Once per skirmish', note: '+4k1 Attack once per skirmish (Void)' },
+  ],
+
+  // ── Senpet Charioteer ─────────────────────────────────────────────────────────
+  'Ruthless Advance': [
+    { skills: ['ATTACK'], rolled: 3, kept: 0, voidOnly: true, stances: ['Full Attack'], conditional: 'Mounted on chariot OR Full Attack stance', note: '+3k0 Attack until Reactions Stage (Void, mounted/Full Attack)' },
+  ],
+
+  // ── Ebonite Templar ────────────────────────────────────────────────────────────
+  'Tapping the Inner Strength': [
+    { skills: ['ATTACK','DAMAGE','SOCIAL'], rolled: 1, kept: 0, conditional: 'Opponent has lower Integrity', note: '+1k0 Attack/Damage/Social vs lower-Integrity opponents' },
+  ],
+  'By Word Or By Sword': [
+    { skills: ['SOCIAL'], voidOnly: true, conditional: 'Add half Integrity (round down) as rolled dice', note: '+½ Integrity dice to Social roll (Void spend)' },
+  ],
+
+  // ── Jani ────────────────────────────────────────────────────────────────────
+  'Quicker Than the Eye': [
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative' },
+    { skills: ['Stealth'], rolled: 1, kept: 0, note: '+1k0 Stealth' },
+  ],
+  'What the Eye Sees, What the Ear Hears': [
+    { skills: ['Investigation','Hunting','Perception'], rolled: 1, kept: 0, note: '+1k0 Perception-based rolls' },
+    { skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'Feint maneuver with Knives/Staves/Assassin Ranged Weapons', note: '+1k0 Attack/Damage on Feint with Knives/Staves/ARW' },
+  ],
+  'Strike Quickly, Strike True': [
+    { skills: ['INITIATIVE'], rolled: 2, kept: 0, note: '+2k0 Initiative (total)' },
+    { skills: ['Stealth'], rolled: 2, kept: 0, note: '+2k0 Stealth (total)' },
+    { skills: ['Investigation','Hunting','Perception'], rolled: 2, kept: 0, note: '+2k0 Perception-based (total)' },
+  ],
+
+  // ── Necromancer ────────────────────────────────────────────────────────────────
+  'Leader of Undead': [
+    { skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'Undead allies only (not self)', note: 'Undead under your control get +1k0 Attack/Damage' },
+  ],
+
+  // ── Kabir ─────────────────────────────────────────────────────────────────────
+  'Rotting the Foundation': [
+    { skills: ['Acting','Forgery','Gambling','Stealth','Lore: Underworld','Knives','Brawling','Sleight of Hand'], rolled: 2, kept: 2, voidOnly: true, note: '+2k2 (not +1k1) when spending Void on Low skills' },
+  ],
+  'A Honeyed Tongue': [
+    { skills: ['Etiquette','Storytelling','Courtier','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Etiquette/Storytelling/Courtier/Sincerity (Deceit)' },
+  ],
+  'Killing with Subtlety': [
+    { skills: ['Craft: Poison','Sleight of Hand'], rolled: 2, kept: 0, note: '+2k0 Craft: Poison/Sleight of Hand' },
+  ],
+  'Tearing Out the Foundation': [
+    { skills: ['Stealth','Forgery'], rolled: 2, kept: 0, note: '+2k0 Stealth/Forgery' },
+    { skills: ['Craft: Weaponsmith','Craft: Armorsmith','Craft: Poison'], freeRaises: 1, conditional: 'Destroying/disguising/altering objects', note: 'Free Raise to destroy, disguise, or alter physical objects' },
+  ],
+  'Jackal Ambassador': [
+    { skills: ['Etiquette','Storytelling','Courtier','Sincerity'], rolled: 2, kept: 0, note: '+2k0 Etiquette/Storytelling/Courtier/Sincerity (total)' },
+  ],
+
+  // ── Paths of the Free ────────────────────────────────────────────────────────
+  'Predator of the Alleys': [
+    { skills: ['Brawling','Athletics'], rolled: 1, kept: 0, conditional: 'Knockdown maneuver', note: '+1k0 Brawling Attack on Knockdown' },
+  ],
+  'A Man of Knowledge': [
+    { skills: ['LORE'], freeRaises: 1, note: 'Free Raise on all Lore skill rolls' },
+    { skills: ['Etiquette','Storytelling'], conditional: 'Add number of Lore skills possessed as flat bonus', note: '+Lore skill count to Etiquette/Storytelling' },
+  ],
+  'Master of the Streets': [
+    { skills: ['Sleight of Hand','Athletics'], rolled: 1, kept: 0, note: '+1k0 Sleight of Hand/Athletics' },
+  ],
+
+  // ── Qabal Summoner ────────────────────────────────────────────────────────────
+  'The Crucible of Knowledge': [
+    { skills: ['SPELLCASTING','Spellcraft'], rolled: 1, kept: 1, conditional: 'Chosen discipline only', note: '+1k1 Spellcasting for your chosen discipline' },
+  ],
+
+  // ── Children of Midnight ──────────────────────────────────────────────────────
+  'Wisdom of the Stars': [
+    { skills: ['SPELLCASTING','Spellcraft'], freeRaises: 1, conditional: 'Celestial discipline spells only', note: 'Free Raise on Celestial spells' },
+  ],
+
+  // ── Free Sahir ────────────────────────────────────────────────────────────────
+  'Self-Taught Sorcerer': [
+    { skills: ['INITIATIVE'], conditional: 'Add School Rank as bonus rolled dice', note: '+1k0 per School Rank to Initiative' },
+  ],
+
+  // ── Senpet Sahir ────────────────────────────────────────────────────────────
+  'By the Grace of the Gods': [
+    { skills: ['SPELLCASTING','Spellcraft'], freeRaises: 1, note: 'Free Raise on all Spellcasting rolls' },
+    { skills: ['SOCIAL','Commerce','Sincerity','Temptation','Courtier','Etiquette'], conditional: 'Religious/theological context', note: '+Lore: Theology rank to Social rolls (religious matters)' },
+  ],
+
+  // ── Assassin Duelist ────────────────────────────────────────────────────────
+  'The Tiger Claw Cut': [
+    { skills: ['ALL'], rolled: 2, kept: 1, stances: ['Center'], note: '+2k1 ALL rolls in Center stance' },
+  ],
+  'The Final Strike': [
+    { skills: ['DAMAGE'], voidOnly: true, conditional: 'Tahaddi Duel only — spend any amount of Void', note: 'Add any number of Void Points to Tahaddi Duel Damage' },
+  ],
+
+  // ── Yodotai Legionnaire ──────────────────────────────────────────────────────
+  'In Close Quarters': [
+    { skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'Round you switch from Full Defense → Full Attack', note: '+1k0 Attack on the round you switch stances (Full Defense → Full Attack)' },
+  ],
+
+  // ── Yodotai Mercenary ────────────────────────────────────────────────────────
+  'Stranger in a Foreign Land': [
+    { skills: ['Battle','Intimidation','Courtier'], rolled: 1, kept: 0, note: '+1k0 Battle/Intimidation/Courtier' },
+  ],
+
+  // ── Yodotai Berserker ─────────────────────────────────────────────────────────
+  'Killing Blow': [
+    { skills: ['DAMAGE'], flat: 5, kept: 0, rolled: 0, voidOnly: true, stances: ['Full Attack'], note: '+5k0 Damage in Full Attack (Void spend)' },
+  ],
+};
+
+// ── Advantage Roll Bonuses ───────────────────────────────────────────────────────
+export const ADVANTAGE_ROLL_BONUSES = {
+  "Benten's Blessing":  [{ skills: ['SOCIAL','Commerce','Sincerity','Temptation','Courtier','Etiquette'], rolled: 1, kept: 0, note: "+1k0 all Social rolls (Benten's Blessing)" }],
+  'Dangerous Beauty':   [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'vs those attracted to you', note: '+1k0 Social vs attracted targets (Dangerous Beauty)' }],
+  'Hands of Stone':     [{ skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Brawling only', note: '+1k0 Brawling Damage (Hands of Stone)' }],
+  'Irreproachable':     [{ skills: ['Sincerity'], rolled: 1, kept: 0, note: '+1k0 Sincerity (Irreproachable)' }],
+  'Quick':              [{ skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative (Quick)' }],
+};

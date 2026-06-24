@@ -118,7 +118,7 @@ export default function App() {
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
   const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: refetchSession } = useActiveSession();
-  const { npcs, createNPC, updateNPC, refetch: refetchNpcs } = useNPCs();
+  const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
   const { reps, updateRep } = useFactionReputation();
@@ -444,8 +444,20 @@ export default function App() {
     const idx = TIMES.indexOf(timeOfDay);
     const nextIdx = (idx + 1) % TIMES.length;
     const nextTime = TIMES[nextIdx];
-    if (nextIdx === 0) handleSetDay(campaignDay + 1); // Night → Dawn rolls the day
-    handleSetTime(nextTime);
+    const rollingOverDay = nextIdx === 0; // Night → Dawn
+    if (rollingOverDay) {
+      // Compute new day/week inline and save everything in one shot
+      let newDay = campaignDay + 1;
+      let newWeek = campaignWeek;
+      if (newDay > 7) { newDay = 1; newWeek = campaignWeek + 1; setCampaignWeek(newWeek); }
+      setCampaignDay(newDay);
+      setTimeOfDay(nextTime);
+      handleSetEncounter(e => ({ ...e, timeOfDay: nextTime, campaignDay: newDay, campaignWeek: newWeek }));
+      push('ti-sun', `Dawn — Day ${newDay}, Week ${newWeek}`);
+    } else {
+      setTimeOfDay(nextTime);
+      handleSetEncounter(e => ({ ...e, timeOfDay: nextTime, campaignDay }));
+    }
   };
   const handleSetDay = (d) => {
     let day = d;
@@ -478,7 +490,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v82</span>
+        <span className="hdr-game">The Tool — v91</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -615,6 +627,7 @@ export default function App() {
             onUpdateFullNpc={handleUpdateChar}
             reps={reps}
             onUpdateNPC={handleUpdateNPC}
+            onDeleteNPC={deleteNPC}
             onUpdateRep={handleUpdateRep}
             encounter={encounter}
             setEncounter={handleSetEncounter}
@@ -640,6 +653,7 @@ export default function App() {
             onUpdateInventory={updateInventory}
             encounterLog={encounterLog}
             onUpdateCharacter={handleUpdateChar}
+            myCharId={myCharId}
           />
         )}
         {tab === 'log' && (
@@ -657,7 +671,7 @@ export default function App() {
             eventLog={fullEventLog}
           />
         )}
-        {tab === 'shop' && (shopOpen || gmView) && (
+        {tab === 'shop' && (
           <ShopTab
             isGM={isGM} isPCView={isPCView}
             inventory={inventory}
@@ -769,7 +783,7 @@ export default function App() {
               textShadow: b.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
               letterSpacing: '-0.02em',
             }}>
-              {b.success ? 'SUCCESS' : 'FAILURE'}
+              {b.success ? 'SUCCESS' : '✗'}
             </div>
             {b.total !== undefined && b.tn !== undefined && (
               <div style={{ fontSize: 24, color: b.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
@@ -807,14 +821,17 @@ export default function App() {
             pointerEvents: 'none',
             animation: 'resultFade 4s forwards',
           }}>
-            {/* Portrait */}
-            {b.avatarUrl && (
-              <div style={{ width: 120, height: 150, borderRadius: 8, overflow: 'hidden', border: `3px solid ${b.color}`, marginBottom: '1rem', boxShadow: `0 0 40px ${b.color}88` }}>
-                <img src={b.avatarUrl} alt={b.charName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {/* Portrait + name always shown */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '.75rem' }}>
+              <div style={{ width: 100, height: 130, borderRadius: 8, overflow: 'hidden', border: `3px solid ${b.color}`, marginBottom: '.5rem', boxShadow: `0 0 40px ${b.color}88`, background: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {b.avatarUrl
+                  ? <img src={b.avatarUrl} alt={b.charName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ fontSize: 48, lineHeight: 1 }}>⚔</div>
+                }
               </div>
-            )}
-            <div style={{ fontSize: 14, letterSpacing: '.2em', textTransform: 'uppercase', color: b.color, marginBottom: '.4rem', opacity: 0.9 }}>
-              {b.charName}
+              <div style={{ fontSize: 16, letterSpacing: '.15em', textTransform: 'uppercase', color: b.color, fontWeight: 700, opacity: 0.9 }}>
+                {b.charName}
+              </div>
             </div>
             <div style={{
               fontSize: b.type === 'condition' ? 'clamp(50px,10vw,90px)' : 'clamp(60px,12vw,110px)',
@@ -903,13 +920,15 @@ export default function App() {
         );
       })()}
 
-      {/* Event Ticker — gmOnly events hidden from players */}
+      {/* Event Ticker — always rendered, gmOnly events hidden from players */}
       {(() => {
         const visibleTicker = gmView ? ticker : ticker.filter(e => !e.gmOnly);
-        if (visibleTicker.length === 0) return null;
         return (
           <div style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90,
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 110,
+            transition: 'opacity .3s',
+            opacity: visibleTicker.length > 0 ? 1 : 0,
+            pointerEvents: visibleTicker.length > 0 ? 'auto' : 'none',
             background: 'rgba(24,16,6,.97)', borderTop: '1px solid var(--border)',
             padding: '0 1rem', height: '2.25rem',
             display: 'flex', alignItems: 'center', gap: '1.5rem',

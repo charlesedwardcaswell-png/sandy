@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WEAPONS_LIST, GEAR_LIST, GAME_ID, POISONS_LIST } from '../data/constants';
+import { WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, GAME_ID, POISONS_LIST } from '../data/constants';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
 import { supabase } from '../lib/supabase';
@@ -332,6 +332,26 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     updateActiveItems(items);
   };
 
+  const setItemDescription = (idx, description) => {
+    const items = activeShop.items.map((item, i) => i === idx ? { ...item, description } : item);
+    updateActiveItems(items);
+  };
+
+  const randomizeShop = () => {
+    if (!activeShop) return;
+    const shopType = activeShop.name;
+    const preset = BUNDLE_PRESETS[shopType] || Object.values(BUNDLE_PRESETS).find(p => shopType.toLowerCase().includes(p !== undefined ? Object.keys(BUNDLE_PRESETS).find(k => BUNDLE_PRESETS[k] === p)?.split(' ')[0].toLowerCase() : '')) || Object.values(BUNDLE_PRESETS)[0];
+    // Give all items standard quality, then upgrade one to fine
+    const baseItems = preset.items.map(item => ({ ...item, visible: true }));
+    const upgradeIdx = Math.floor(Math.random() * baseItems.length);
+    baseItems[upgradeIdx] = {
+      ...baseItems[upgradeIdx],
+      quality: 'fine',
+      description: 'An exceptionally well-crafted piece — noticeably superior to common goods.',
+    };
+    updateActiveShop({ items: baseItems });
+  };
+
   const removeItem = (idx) => {
     updateActiveItems(activeShop.items.filter((_, i) => i !== idx));
   };
@@ -343,17 +363,21 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     setCustomName(''); setCustomPrice(''); setCustomDr(''); setCustomQuality('standard');
   };
 
+  const rarityPrices = { uncommon: '20 copper', rare: '50 copper', legendary: '150 copper', artifact: '500 copper' };
+
   const addMagicItemToShop = (item) => {
     if (!activeShop) return;
-    // Magic items get a price field derived from rarity
-    const rarityPrices = { uncommon: '20 copper', rare: '50 copper', legendary: '150 copper', artifact: '500 copper' };
-    const shopItem = {
-      ...item,
-      price: rarityPrices[item.rarity] || '50 copper',
-      quality: 'fine',
-      visible: true,
-    };
+    const shopItem = { ...item, price: rarityPrices[item.rarity] || '50 copper', quality: 'fine', visible: true };
     updateActiveItems([...(activeShop.items || []), shopItem]);
+  };
+
+  const addMagicItemToShopById = (shopId, item) => {
+    const shop = shops.find(s => s.id === shopId);
+    if (!shop) return;
+    const shopItem = { ...item, price: rarityPrices[item.rarity] || '50 copper', quality: 'fine', visible: true };
+    const updated = shops.map(s => s.id === shopId ? { ...s, items: [...(s.items || []), shopItem] } : s);
+    setShops(updated);
+    persistShops(updated);
   };
 
   const handlePurchase = (item) => {
@@ -422,13 +446,19 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                         <div style={{ flex: 1 }}><MagicItemBadge item={item} compact /></div>
                       ) : (
                         <>
-                          <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>
-                            {item.name}
-                            {item.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
-                          </span>
-                          {item.quality && item.quality !== 'standard' && (
-                            <span style={{ fontSize: 10, padding: '1px 4px', border: `1px solid ${qTier.color}55`, borderRadius: 3, color: qTier.color }}>{qTier.label}</span>
-                          )}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                                {item.quality && item.quality !== 'standard' ? <span style={{ color: qTier.color }}>{qTier.label} </span> : ''}{item.name}
+                                {item.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
+                              </span>
+                            </div>
+                            {(item.description || GEAR_DESCRIPTIONS[item.name] || WEAPONS_LIST.find(w=>w.name===item.name)?.special) && (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.4 }}>
+                                {item.description || GEAR_DESCRIPTIONS[item.name] || `Special: ${WEAPONS_LIST.find(w=>w.name===item.name)?.special}`}
+                              </div>
+                            )}
+                          </div>
                         </>
                       )}
                       <span style={{ fontSize: 12, color: qTier.color, fontWeight: 600, minWidth: 65, textAlign: 'right' }}>{price}</span>
@@ -461,7 +491,8 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         <MagicItemCreator
           onClose={() => setShowMagicCreator(false)}
           characters={pcChars}
-          onCreateForShop={activeShop ? addMagicItemToShop : undefined}
+          shops={shops}
+          onCreateForShop={shops.length > 0 ? addMagicItemToShopById : undefined}
           onCreateForParty={(item) => {
             onUpdateInventory({ items: [...(inventory.items || []), { ...item, qty: 1, category: 'Magic' }] });
           }}
@@ -632,9 +663,25 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                     <button className="btn btn-sm" style={{ fontSize: 11, padding: '2px 7px' }} onClick={() => handlePurchase(item)}>Buy</button>
                     <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeItem(idx)}>×</button>
                   </div>
+                  {!item.is_magic && (
+                    <input
+                      value={item.description || ''}
+                      onChange={e => setItemDescription(idx, e.target.value)}
+                      placeholder="Item description (optional)…"
+                      style={{ width: '100%', fontSize: 11, marginTop: 3, boxSizing: 'border-box', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 6px', color: 'var(--text-muted)' }}
+                    />
+                  )}
                 </div>
               );
             })}
+
+            {/* Randomize shop */}
+            <div style={{ marginBottom: '.5rem' }}>
+              <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}
+                onClick={randomizeShop} title="Stock shop with preset items, one upgraded to Fine quality">
+                🎲 Randomize Shop Stock
+              </button>
+            </div>
 
             {/* Add custom item */}
             <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)' }}>

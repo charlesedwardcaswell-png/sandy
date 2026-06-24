@@ -136,7 +136,7 @@ export function buildCharacterFromForm(form) {
     current_stance: 'Attack',
     current_weapon: firstWeapon ? `${firstWeapon} (${firstWeaponData?.dr || '1k1'})` : 'Unarmed (1k1)',
     skills: Object.entries(skills).map(([name, rank]) => ({ name, rank, school: (sd.skills || []).includes(name) })),
-    techniques: sd.techniques || {},
+    techniques: sd.techniques?.[1] ? { 1: sd.techniques[1] } : {},
     advantages: form.advantages || [],
     disadvantages: form.disadvantages || [],
     equipment,

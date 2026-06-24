@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   // NPC turn — simplified panel for GM
   if (isNPCTurn) {
     return (
-      <div style={{ background: 'var(--bg-dark)', borderTop: '2px solid var(--red)', padding: '1rem', position: 'sticky', bottom: 0, zIndex: 20 }}>
+      <div style={{ background: 'var(--bg-deep)', backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,64,48,.06) 0%, transparent 70%)', borderTop: '2px solid var(--red)', boxShadow: '0 -4px 24px rgba(0,0,0,.5)', padding: '1rem', position: 'sticky', bottom: 0, zIndex: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>
             <i className="ti ti-skull" style={{ marginRight: 5 }} />{combatant.name} — NPC Turn
@@ -41,7 +41,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           ].map(action => (
             <button key={action.id}
               onClick={() => {
-                if (action.id === 'pass') { onPass(); }
+                if (action.id === 'pass') { if (onPass) onPass(); }
                 else setSelectedAction(action.id);
               }}
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem', background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)', border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
@@ -216,7 +216,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   return (
     <div style={{
-      background: 'var(--bg-dark)', borderTop: '2px solid var(--gold)', padding: '1rem',
+      background: 'var(--bg-deep)',
+      backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,150,42,.07) 0%, transparent 70%), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(200,150,42,.04) 39px, rgba(200,150,42,.04) 40px)',
+      borderTop: '2px solid var(--gold)',
+      boxShadow: '0 -4px 24px rgba(0,0,0,.5)',
+      padding: '1rem',
       position: 'sticky', bottom: 0, zIndex: 100,
     }}>
       {/* Full-screen skill picker overlay */}
@@ -245,14 +249,22 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     const sk = character ? (character.skills || []).find(s => (s.name || s) === sName) : null;
                     const rank = sk?.rank || sk || 0;
                     const hasSkill = typeof rank === 'number' ? rank > 0 : false;
+                    const techBadges = character
+                      ? Object.values(character.techniques || {}).filter(Boolean).filter(t => (TECHNIQUE_SKILL_LINKS[t] || []).includes(sName))
+                      : [];
                     return (
                       <button key={sName} onClick={() => {
                         setShowSkillPicker(false);
                         setSelectedSkill({ name: sName, rank: typeof rank === 'number' ? rank : 0 });
                         setSelectedAction('skill');
                       }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: hasSkill ? 'rgba(107,78,40,.15)' : 'transparent', border: `1px solid ${hasSkill ? 'var(--gold-dim)' : 'var(--border)'}`, borderRadius: 4, padding: '.3rem .5rem', marginBottom: '.25rem', cursor: 'pointer', color: hasSkill ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: hasSkill ? 'rgba(107,78,40,.15)' : 'transparent', border: `1px solid ${hasSkill ? 'var(--gold-dim)' : 'var(--border)'}`, borderRadius: 4, padding: '.3rem .5rem', marginBottom: '.25rem', cursor: 'pointer', color: hasSkill ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'inherit', fontSize: 13, textAlign: 'left', flexWrap: 'wrap' }}>
                         <span style={{ flex: 1 }}>{sName}</span>
+                        {techBadges.map(t => (
+                          <span key={t} title={t} style={{ fontSize: 9, padding: '1px 4px', borderRadius: 6, background: 'rgba(160,100,220,.2)', border: '1px solid rgba(160,100,220,.5)', color: '#c0a0e8' }}>
+                            ✦ {t.length > 12 ? t.slice(0,12)+'…' : t}
+                          </span>
+                        ))}
                         {hasSkill && <span style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700 }}>R{rank}</span>}
                       </button>
                     );
@@ -370,7 +382,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 });
                 setSelectedAction('defend');
               }
-              else if (action.id === 'pass') { setSelectedAction(null); onPass(); }
+              else if (action.id === 'pass') { setSelectedAction(null); if (onPass) onPass(); }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
               else {
                 setSelectedAction(action.id);

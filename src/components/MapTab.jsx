@@ -5,21 +5,10 @@ import { GAME_ID } from '../data/constants';
 const DEFAULT_MAP = 'https://i.imgur.com/6fuMHqq.jpeg';
 
 // ── Pin types — icon-based ────────────────────────────────────────────────────
-const PIN_TYPES = [
-  { id: 'pin',       label: 'Pin',       icon: 'ti-map-pin',      color: '#c8962a' },
-  { id: 'event',     label: 'Event',     icon: 'ti-star',         color: '#e8b840' },
-  { id: 'base',      label: 'Base',      icon: 'ti-home',         color: '#4a7a8a' },
-  { id: 'friendly',  label: 'Friendly',  icon: 'ti-shield-check', color: '#4a8a40' },
-  { id: 'enemy',     label: 'Enemy',     icon: 'ti-skull',        color: '#c84030' },
-  { id: 'danger',    label: 'Danger',    icon: 'ti-alert-triangle',color: '#c87030' },
-  { id: 'question',  label: 'Unknown',   icon: 'ti-question-mark',color: '#8a70c8' },
-  { id: 'x',         label: 'Blocked',   icon: 'ti-x',            color: '#802020' },
-  { id: 'info',      label: 'Info',      icon: 'ti-info-circle',  color: '#4a8aaa' },
-  { id: 'loot',      label: 'Loot',      icon: 'ti-coin',         color: '#a8942a' },
-];
+const PIN_STYLE = { icon: 'ti-map-pin', color: '#c8962a' };
 
 function getPinType(id) {
-  return PIN_TYPES.find(p => p.id === id) || PIN_TYPES[0];
+  return PIN_STYLE;
 }
 
 // ── Pin icon rendered on map ──────────────────────────────────────────────────
@@ -51,7 +40,6 @@ function PinIcon({ type, size = 28, selected, hidden }) {
 // ── Quick pin creation form (inline, minimal) ─────────────────────────────────
 function QuickPinForm({ onSave, onCancel }) {
   const [name, setName] = useState('');
-  const [type, setType] = useState('pin');
   const [visible, setVisible] = useState(true);
 
   return (
@@ -65,45 +53,24 @@ function QuickPinForm({ onSave, onCancel }) {
         placeholder="Pin name *"
         value={name}
         onChange={e => setName(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onSave({ name: name.trim(), pin_type: type, is_visible_to_players: visible }); if (e.key === 'Escape') onCancel(); }}
+        onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onSave({ name: name.trim(), pin_type: 'pin', is_visible_to_players: visible }); if (e.key === 'Escape') onCancel(); }}
         style={{ width: '100%', marginBottom: '.5rem' }}
       />
-      {/* Icon type picker */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: '.5rem' }}>
-        {PIN_TYPES.map(pt => (
-          <div
-            key={pt.id}
-            title={pt.label}
-            onClick={() => setType(pt.id)}
-            style={{
-              width: 28, height: 28, borderRadius: '50%', background: pt.color,
-              border: `2px solid ${type === pt.id ? '#fff' : 'transparent'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', boxShadow: type === pt.id ? `0 0 8px ${pt.color}` : 'none',
-              transition: 'all .1s',
-            }}
-          >
-            <i className={`ti ${pt.icon}`} style={{ fontSize: 14, color: '#fff' }} />
-          </div>
-        ))}
-      </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem', cursor: 'pointer' }}>
         <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
         Visible to players
       </label>
       <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn btn-p btn-sm" disabled={!name.trim()} onClick={() => onSave({ name: name.trim(), pin_type: type, is_visible_to_players: visible })}>Place</button>
+        <button className="btn btn-p btn-sm" disabled={!name.trim()} onClick={() => onSave({ name: name.trim(), pin_type: 'pin', is_visible_to_players: visible })}>Place</button>
         <button className="btn btn-sm" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );
 }
 
-// ── Pin detail editor (full tiered info) ──────────────────────────────────────
 function PinEditor({ pin, onSave, onClose }) {
   const [form, setForm] = useState({
     name:                  pin.name || '',
-    pin_type:              pin.pin_type || 'pin',
     is_visible_to_players: !!pin.is_visible_to_players,
     info_tn5:              pin.info_tn5  || '', // player-visible description
     info_tn20:             pin.info_tn20 || '', // GM-only notes
@@ -137,23 +104,7 @@ function PinEditor({ pin, onSave, onClose }) {
             style={{ width: '100%' }} autoFocus />
         </div>
 
-        {/* Icon */}
-        <div className="modal-section">
-          <span className="modal-label">Icon</span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {PIN_TYPES.map(pt => (
-              <div key={pt.id} title={pt.label} onClick={() => saveField('pin_type', pt.id)} style={{
-                width: 34, height: 34, borderRadius: '50%', background: pt.color,
-                border: `3px solid ${form.pin_type === pt.id ? '#fff' : 'transparent'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', boxShadow: form.pin_type === pt.id ? `0 0 12px ${pt.color}` : 'none',
-                transition: 'all .1s',
-              }}>
-                <i className={`ti ${pt.icon}`} style={{ fontSize: 16, color: '#fff' }} />
-              </div>
-            ))}
-          </div>
-        </div>
+
 
         {/* Visibility toggle */}
         <div className="modal-section">
@@ -218,7 +169,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
       background: 'rgba(24,16,6,.97)', border: `1px solid ${pt.color}`,
       borderRadius: 7, padding: '10px 12px', minWidth: 190, maxWidth: 270,
       zIndex: 30, boxShadow: '0 4px 24px rgba(0,0,0,.85)',
-    }} onClick={e => e.stopPropagation()}>
+    }} onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <i className={`ti ${pt.icon}`} style={{ fontSize: 15, color: pt.color }} />
@@ -338,9 +289,9 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
     if (!gmView || placing) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { pinId, moved: false };
+    dragRef.current = { pinId, startSelected: selected, moved: false };
     setDraggingId(pinId);
-    setSelected(null);
+    // Don't clear selection yet — wait until we know it's actually a drag
   };
 
   const handlePinPointerMove = (e) => {
@@ -353,10 +304,12 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const handlePinPointerUp = (e, pinId) => {
     if (!dragRef.current) return;
     if (dragRef.current.moved && dragPos) {
+      // Real drag — save position, close popup
       onUpdatePin(pinId, { x_position: dragPos.x, y_position: dragPos.y });
+      setSelected(null);
     } else {
-      // Treat as click — open popup
-      setSelected(selected === pinId ? null : pinId);
+      // Tap/click — toggle popup
+      setSelected(prev => prev === pinId ? null : pinId);
     }
     dragRef.current = null;
     setDraggingId(null);
@@ -446,9 +399,11 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           className="map-con"
           ref={mapRef}
           onClick={handleMapClick}
+          onPointerMove={gmView ? e => handlePinPointerMove(e) : undefined}
+          onPointerUp={gmView ? e => { if (dragRef.current) handlePinPointerUp(e, dragRef.current.pinId); } : undefined}
           style={{
             position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : 'default',
+            cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : draggingId ? 'grabbing' : 'default',
           }}
         >
         {/* Image — objectFit:contain so no cropping, pins always match their placed position */}
@@ -502,10 +457,8 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           const displayY = isDragging && dragPos ? dragPos.y : p.y_position;
           return (
             <div key={p.id}
-              onClick={e => handlePinClick(e, p.id)}
+              onClick={gmView ? undefined : e => handlePinClick(e, p.id)}
               onPointerDown={gmView ? e => handlePinPointerDown(e, p.id) : undefined}
-              onPointerMove={gmView && isDragging ? e => handlePinPointerMove(e) : undefined}
-              onPointerUp={gmView && isDragging ? e => handlePinPointerUp(e, p.id) : undefined}
               style={{
                 position: 'absolute', left: `${displayX}%`, top: `${displayY}%`,
                 transform: 'translate(-50%,-50%)',
@@ -559,8 +512,8 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {[...visiblePins].sort((a, b) => {
-              const ta = getPinType(a.pin_type).label || '';
-              const tb = getPinType(b.pin_type).label || '';
+              const ta = a.name || '';
+              const tb = b.name || '';
               return ta.localeCompare(tb) || a.name.localeCompare(b.name);
             }).map(p => {
               const pt = getPinType(p.pin_type);

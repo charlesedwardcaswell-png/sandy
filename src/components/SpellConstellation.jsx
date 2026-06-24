@@ -384,12 +384,10 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
 
   const isLearned = (name) => learnedSpells.includes(name);
   const canLearn = (typeIdx, level) => {
-    // Non-GM players can only select level 1 spells at character creation
-    if (!isGM && level > 1) return false;
-    if (level === 1) return true;
-    const type = disc.types[typeIdx];
-    const prevSpell = type.spells.find(s => s.level === level - 1);
-    return prevSpell && isLearned(prevSpell.name);
+    // Character creation: level 1 only — rank 1 characters know ML1 spells only.
+    // GMs can add higher spells via XP spend on the sheet after creation.
+    if (level > 1) return false;
+    return true;
   };
 
   return (
@@ -468,9 +466,9 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
               {hoveredSpell.desc && (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{hoveredSpell.desc}</div>
               )}
-              {!isGM && hoveredSpell.level > 1 && (
+              {hoveredSpell.level > 1 && (
                 <div style={{ fontSize: 11, color: '#c84030', marginTop: '.4rem', fontStyle: 'italic' }}>
-                  Level 2+ spells are learned after character creation.
+                  Level 2+ spells are learned after character creation via XP spend.
                 </div>
               )}
             </div>

@@ -163,9 +163,15 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                       <div style={{ marginBottom: '.6rem' }}>
                         <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>Encounters Fought</div>
                         {sessionEncounters.map((e, i) => (
-                          <div key={e.id || i} style={{ display: 'flex', gap: '.5rem', fontSize: 12, color: 'var(--text-muted)', padding: '.2rem 0' }}>
-                            <i className="ti ti-swords" style={{ fontSize: 12, marginTop: 1 }} />
-                            <span>{e.setting} — {e.encounter_type} ({e.rounds} rounds)</span>
+                          <div key={e.id || i} style={{ padding: '.3rem 0', borderBottom: '1px solid rgba(107,78,40,.15)' }}>
+                            <div style={{ display: 'flex', gap: '.5rem', fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
+                              <i className="ti ti-swords" style={{ fontSize: 12, flexShrink: 0 }} />
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{e.encounter_name || e.setting || 'Encounter'}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· {e.encounter_type} · {e.rounds} rounds</span>
+                            </div>
+                            {e.description && (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, marginLeft: 20, fontStyle: 'italic', lineHeight: 1.4 }}>{e.description}</div>
+                            )}
                           </div>
                         ))}
                       </div>

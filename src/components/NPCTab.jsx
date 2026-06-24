@@ -449,7 +449,7 @@ function AddNPCModal({ onAdd, onClose }) {
 }
 
 // ── NPC Detail Modal ──────────────────────────────────────────────────────────
-function NPCDetailModal({ npc, isGM, onSave, onClose }) {
+function NPCDetailModal({ npc, isGM, onSave, onDelete, onClose }) {
   const [name, setName] = useState(npc.name || '');
   const [gmNotes, setGmNotes] = useState(npc.gm_notes || '');
   const [playerNotes, setPlayerNotes] = useState(npc.player_notes || '');
@@ -538,9 +538,15 @@ function NPCDetailModal({ npc, isGM, onSave, onClose }) {
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '.5rem' }}>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
           <button className="btn btn-p" onClick={save}>Save</button>
           <button className="btn" onClick={onClose}>Close</button>
+          {isGM && onDelete && (
+            <button className="btn btn-d btn-sm" style={{ marginLeft: 'auto', fontSize: 12 }}
+              onClick={() => { if (window.confirm('Delete this NPC permanently?')) onDelete(); }}>
+              <i className="ti ti-trash" style={{ fontSize: 11, marginRight: 3 }} />Delete
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -621,7 +627,7 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onUpdateRep, reps, encounter, setEncounter, onViewCharacter }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -662,6 +668,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
           npc={detailNPC}
           isGM={gmView}
           onSave={updates => onUpdateNPC(detailNPC.id, updates)}
+          onDelete={onDeleteNPC ? () => { onDeleteNPC(detailNPC.id); setDetailNPC(null); } : null}
           onClose={() => setDetailNPC(null)}
         />
       )}
@@ -720,7 +727,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
       })()}
 
       {viewMode === 'list' && FACTIONS_DATA.map(fDef => {
-        const facNPCs = safeNPCs.filter(n => n.faction === fDef.name);
+        const facNPCs = safeNPCs.filter(n => n.faction === fDef.name && !n.character_id);
         // Full-sheet NPCs (from characters table) in this faction
         const facFullNpcs = fullNpcs.filter(n => n.faction === fDef.name).map(n => ({ ...n, _isFull: true, is_visible_to_players: true }));
         const allFacNPCs = [...facNPCs, ...facFullNpcs];

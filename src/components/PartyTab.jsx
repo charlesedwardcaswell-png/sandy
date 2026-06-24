@@ -20,7 +20,7 @@ function ItemIcon({ category }) {
   return <i className={`ti ${icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
 }
 
-export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog, onUpdateCharacter }) {
+export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -197,20 +197,24 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                 return (
                   <div key={actualIdx} style={{ marginBottom: '.5rem' }}>
                     <MagicItemBadge item={item} />
-                    {gmView && (
+                    {(gmView || (!gmView && myCharId)) && (
                       <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
-                        <select
-                          value={sendToChar[actualIdx] || ''}
-                          onChange={e => setSendToChar(s => ({ ...s, [actualIdx]: e.target.value }))}
-                          style={{ flex: 1, fontSize: 11 }}>
-                          <option value="">→ Send to character…</option>
-                          {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <button className="btn btn-sm" disabled={!sendToChar[actualIdx]}
-                          onClick={() => sendItemToCharacter(actualIdx, sendToChar[actualIdx])}
-                          style={{ fontSize: 11 }}>Send</button>
-                        <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }}
-                          onClick={() => removeItem(actualIdx)}>×</button>
+                        {gmView
+                          ? <select
+                              value={sendToChar[actualIdx] || ''}
+                              onChange={e => setSendToChar(s => ({ ...s, [actualIdx]: e.target.value }))}
+                              style={{ flex: 1, fontSize: 11 }}>
+                              <option value="">→ Send to character…</option>
+                              {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          : <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}>→ Take for yourself</span>
+                        }
+                        <button className="btn btn-sm"
+                          disabled={gmView ? !sendToChar[actualIdx] : false}
+                          onClick={() => sendItemToCharacter(actualIdx, gmView ? sendToChar[actualIdx] : myCharId)}
+                          style={{ fontSize: 11 }}>Take</button>
+                        {gmView && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }}
+                          onClick={() => removeItem(actualIdx)}>×</button>}
                       </div>
                     )}
                   </div>

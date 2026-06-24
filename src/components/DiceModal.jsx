@@ -1,25 +1,83 @@
 import React, { useState } from 'react';
-import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA } from '../data/constants';
+import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES } from '../data/constants';
 import { rollN } from '../lib/utils';
 import { playSuccess, playFailure, playClick } from '../lib/sounds';
 
-// ── Find relevant school techniques for a skill ───────────────────────────────
-function getRelevantTechniques(character, skillName) {
-  if (!character?.school || !character?.school_rank) return [];
-  const sd = SCHOOL_DATA[character.school];
-  if (!sd?.techniques) return [];
-  const hints = [];
-  const rank = character.school_rank || 1;
-  for (let r = 1; r <= rank; r++) {
-    const t = sd.techniques[r];
-    if (!t) continue;
-    // Check if technique text mentions the skill
-    const skillWords = skillName.toLowerCase().split(' ');
-    if (skillWords.some(w => w.length > 3 && t.toLowerCase().includes(w))) {
-      hints.push({ rank: r, text: t });
+// ── Compute technique + advantage roll bonuses for a roll context ─────────────
+// Returns { extraRolled, extraKept, extraFlat, freeRaises, notes, conditionals }
+// 'conditionals' = bonuses that need player confirmation (stance-dependent, etc.)
+function skillMatches(bonus, skillName, isAttack, isDamage, isSpellcasting, isInitiative, isSocial, isLore) {
+  const s = bonus.skills || [];
+  if (s.includes('ALL')) return true;
+  if (s.includes('ATTACK') && isAttack) return true;
+  if (s.includes('DAMAGE') && isDamage) return true;
+  if (s.includes('SPELLCASTING') && isSpellcasting) return true;
+  if (s.includes('INITIATIVE') && isInitiative) return true;
+  if (s.includes('SOCIAL') && isSocial) return true;
+  if (s.includes('LORE') && isLore) return true;
+  if (s.includes('REDUCTION')) return false; // informational only
+  return s.some(sk => sk === skillName);
+}
+
+const SOCIAL_SKILLS = ['Commerce','Sincerity','Temptation','Courtier','Etiquette','Storytelling','Intimidation','Acting','Perform: Dancing','Perform: Singing'];
+const LORE_SKILLS = ['Lore: Underworld','Lore: Law','Lore: History','Lore: Theology','Lore: Burning Sands','Lore: Ebonites','Lore: Khadi','Lore: Jackal','Lore: Undead','Lore: Yodotai History'];
+const SPELLCASTING_SKILLS = ['Spellcraft'];
+
+function computeBonuses(character, skillName, isAttack, isDamage, currentStance) {
+  if (!character) return { extraRolled: 0, extraKept: 0, extraFlat: 0, freeRaises: 0, auto: [], conditional: [] };
+
+  const isInitiative = skillName === 'Initiative' || skillName === 'INITIATIVE';
+  const isSocial = SOCIAL_SKILLS.includes(skillName);
+  const isLore = LORE_SKILLS.some(l => skillName.startsWith('Lore'));
+  const isSpellcasting = SPELLCASTING_SKILLS.includes(skillName);
+  const isDmg = isDamage || skillName === 'DAMAGE';
+  const isAtk = isAttack || skillName === 'ATTACK';
+
+  const earnedTechs = Object.values(character.techniques || {}).filter(Boolean);
+  const charAdvantages = (character.advantages || []).map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
+
+  let extraRolled = 0, extraKept = 0, extraFlat = 0, freeRaisesTotal = 0;
+  const autoNotes = [];
+  const conditionalItems = [];
+
+  const processBonus = (bonus, sourceName) => {
+    if (!skillMatches(bonus, skillName, isAtk, isDmg, isSpellcasting, isInitiative, isSocial, isLore)) return;
+    // Check stance filter
+    if (bonus.stances && currentStance && !bonus.stances.some(s => currentStance.includes(s))) {
+      conditionalItems.push({ note: bonus.note, condition: `Only in: ${bonus.stances.join('/')} stance`, source: sourceName });
+      return;
     }
-  }
-  return hints;
+    // voidOnly bonuses are conditional
+    if (bonus.voidOnly) {
+      conditionalItems.push({ note: bonus.note, condition: 'Only when spending Void', source: sourceName });
+      return;
+    }
+    // Other conditional bonuses shown separately
+    if (bonus.conditional) {
+      conditionalItems.push({ note: bonus.note, condition: bonus.conditional, source: sourceName });
+      return;
+    }
+    // Auto-apply
+    extraRolled += (bonus.rolled || 0);
+    extraKept   += (bonus.kept || 0);
+    extraFlat   += (bonus.flat || 0);
+    freeRaisesTotal += (bonus.freeRaises || 0);
+    if (bonus.note) autoNotes.push(bonus.note);
+  };
+
+  // Process earned techniques
+  earnedTechs.forEach(techName => {
+    const bonuses = TECHNIQUE_ROLL_BONUSES[techName] || [];
+    bonuses.forEach(b => processBonus(b, techName));
+  });
+
+  // Process advantages
+  charAdvantages.forEach(advName => {
+    const bonuses = ADVANTAGE_ROLL_BONUSES[advName] || [];
+    bonuses.forEach(b => processBonus(b, advName));
+  });
+
+  return { extraRolled, extraKept, extraFlat, freeRaises: freeRaisesTotal, auto: autoNotes, conditional: conditionalItems };
 }
 
 // ── Dice Modal ────────────────────────────────────────────────────────────────
@@ -39,19 +97,44 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const [finalDamage, setFinalDamage] = useState(null);
   const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
 
-  const voidBonus = useVoid ? 1 : 0;
-  const rollCount = (context?.baseRoll || 2) + voidBonus + extraRoll;
-  const keepCount = Math.min((context?.baseKeep || 2) + voidBonus + extraKeep, rollCount);
-  const freeRaiseReduction = ((context?.freeRaises || 0) + manualFreeRaises) * 5;
-  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raises.length * 5);
   const isAttack = context?.isAttack || false;
   const dmgDR = context?.dr || '3k2';
   const [dmgRoll, dmgKeep] = dmgDR.match(/\d+/g)?.map(Number) || [3, 2];
 
-  // School technique hints
-  const techniques = context?.character && context?.skill
-    ? getRelevantTechniques(context.character, context.skill)
-    : [];
+  // Hooks MUST come before any derived consts that use them
+  const [activeConditionals, setActiveConditionals] = React.useState([]);
+  const toggleConditional = (idx) => {
+    setActiveConditionals(prev =>
+      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+    );
+  };
+
+  // Compute technique + advantage bonuses (after hook)
+  const bonuses = (context?.character && context?.skill)
+    ? computeBonuses(
+        context.character,
+        context.skill,
+        context.isAttack,
+        context.isDamage,
+        context.character?.current_stance || 'Attack'
+      )
+    : { extraRolled: 0, extraKept: 0, extraFlat: 0, freeRaises: 0, auto: [], conditional: [] };
+
+  // Compute totals including active conditionals (after bonuses)
+  const activatedConds = bonuses.conditional.filter((_, i) => activeConditionals.includes(i));
+  const condExtraRolled = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.rolled || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.rolled || 0), 0);
+  const condExtraKept   = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.kept || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.kept || 0), 0);
+  const condFreeRaises  = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.freeRaises || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.freeRaises || 0), 0);
+
+  // Derived roll counts — after all bonuses computed
+  const voidBonus = useVoid ? 1 : 0;
+  const techRolled = bonuses.extraRolled + condExtraRolled;
+  const techKept   = bonuses.extraKept   + condExtraKept;
+  const techFreeRaises = bonuses.freeRaises + condFreeRaises;
+  const rollCount = (context?.baseRoll || 2) + voidBonus + extraRoll + techRolled;
+  const keepCount = Math.min((context?.baseKeep || 2) + voidBonus + extraKeep + techKept, rollCount);
+  const freeRaiseReduction = ((context?.freeRaises || 0) + techFreeRaises + manualFreeRaises) * 5;
+  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raises.length * 5);
 
   const toggleRaise = (r) => setRaises(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
@@ -220,21 +303,53 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             {modApplied && <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 3, fontStyle: 'italic' }}>Applied from: {modApplied}</div>}
           </div>
 
-          {/* School technique reminders */}
-          {techniques.length > 0 && (
+          {/* Technique + Advantage Bonuses Panel */}
+          {(bonuses.auto.length > 0 || bonuses.conditional.length > 0) && (
             <div className="modal-section">
-              <span className="modal-label">School Techniques <span style={{ fontSize: 11, fontWeight: 400 }}>(may apply — click to set modifier)</span></span>
-              {techniques.map(t => (
-                <div key={t.rank} style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '.4rem .5rem', background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, marginBottom: '.3rem', cursor: 'pointer' }}
-                  onClick={() => { /* player decides manually */ }}>
-                  <i className="ti ti-star" style={{ fontSize: 13, color: 'var(--gold-dim)', marginTop: 1, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: 1 }}>Rank {t.rank} Technique</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{t.text}</div>
-                  </div>
+              <span className="modal-label">Technique & Advantage Bonuses</span>
+
+              {/* Auto-applied bonuses */}
+              {bonuses.auto.length > 0 && (
+                <div style={{ marginBottom: bonuses.conditional.length > 0 ? '.5rem' : 0 }}>
+                  {bonuses.auto.map((note, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '3px 6px', background: 'rgba(160,100,220,.1)', border: '1px solid rgba(160,100,220,.3)', borderRadius: 3, marginBottom: 3, color: '#c0a0e8' }}>
+                      <i className="ti ti-sparkles" style={{ fontSize: 11, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{note}</span>
+                      <span style={{ fontSize: 10, color: 'rgba(160,100,220,.6)' }}>auto</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.25rem' }}>Adjust the modifier above if any apply.</div>
+              )}
+
+              {/* Conditional bonuses — player toggles */}
+              {bonuses.conditional.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Click to activate if condition applies:</div>
+                  {bonuses.conditional.map((c, i) => {
+                    const active = activeConditionals.includes(i);
+                    return (
+                      <div key={i} onClick={() => toggleConditional(i)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, padding: '4px 7px',
+                          background: active ? 'rgba(160,100,220,.15)' : 'rgba(107,78,40,.08)',
+                          border: `1px solid ${active ? 'rgba(160,100,220,.5)' : 'var(--border)'}`,
+                          borderRadius: 4, marginBottom: 3, cursor: 'pointer', userSelect: 'none',
+                        }}>
+                        <span style={{ fontSize: 14, lineHeight: 1.1, color: active ? '#c0a0e8' : 'var(--text-muted)' }}>{active ? '☑' : '☐'}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: active ? '#c0a0e8' : 'var(--text-secondary)' }}>{c.note}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 1 }}>{c.condition}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {(techRolled !== 0 || techKept !== 0 || techFreeRaises !== 0) && (
+                <div style={{ fontSize: 11, color: '#c0a0e8', marginTop: '.35rem' }}>
+                  Total from techniques: {techRolled > 0 ? `+${techRolled} rolled` : ''}{techKept > 0 ? ` +${techKept} kept` : ''}{techFreeRaises > 0 ? ` +${techFreeRaises} Free Raise${techFreeRaises > 1 ? 's' : ''}` : ''}
+                </div>
+              )}
             </div>
           )}
 

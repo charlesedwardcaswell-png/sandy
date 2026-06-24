@@ -59,9 +59,20 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
             <span className={`qstat ${STATUS_STYLE[q.status] || 'q-active'}`}>
               {q.status === 'carried_over' ? 'carried' : q.status}
             </span>
-            <span style={{ flex: 1, fontSize: indent ? 13 : 14, fontWeight: indent ? 400 : 500, color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: q.status === 'complete' ? 'line-through' : 'none' }}>
-              {q.title}
-            </span>
+            {gmView
+              ? <input
+                  value={q.title}
+                  onChange={e => onUpdateQuest(q.id, { title: e.target.value })}
+                  style={{ flex: 1, fontSize: indent ? 13 : 14, fontWeight: indent ? 400 : 500,
+                    background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)',
+                    color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)',
+                    textDecoration: q.status === 'complete' ? 'line-through' : 'none',
+                    outline: 'none', padding: '0 2px', fontFamily: 'inherit' }}
+                />
+              : <span style={{ flex: 1, fontSize: indent ? 13 : 14, fontWeight: indent ? 400 : 500, color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: q.status === 'complete' ? 'line-through' : 'none' }}>
+                  {q.title}
+                </span>
+            }
             {q.status === 'active' && (gmView || q.quest_type === 'player') && (
               <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
                 onClick={() => onUpdateQuest(q.id, { status: 'complete' })}>✓</button>
@@ -106,10 +117,21 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
             )}
           </div>
 
-          {q.description && (
-            <div style={{ padding: '.4rem .75rem', fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', lineHeight: 1.5 }}>
-              {q.description}
-            </div>
+          {(q.description || gmView) && (
+            gmView
+              ? <textarea
+                  value={q.description || ''}
+                  onChange={e => onUpdateQuest(q.id, { description: e.target.value })}
+                  placeholder="Quest description…"
+                  rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                    background: 'var(--bg-dark)', border: 'none', borderTop: '1px solid var(--border)',
+                    color: 'var(--text-secondary)', fontSize: 12, padding: '.4rem .75rem',
+                    fontFamily: 'inherit', lineHeight: 1.5, outline: 'none' }}
+                />
+              : <div style={{ padding: '.4rem .75rem', fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', lineHeight: 1.5 }}>
+                  {q.description}
+                </div>
           )}
 
           <QuestNotes q={q} onUpdateQuest={onUpdateQuest} />

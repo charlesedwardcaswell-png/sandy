@@ -126,8 +126,37 @@ function Portrait({ side, duel, showResult }) {
 
 // ── Main DuelPane ─────────────────────────────────────────────────────────────
 
+// ── RollBlock — must be top-level to prevent dice resetting on re-render ────────
+function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct }) {
+  const hasRolled = rolledValue != null;
+  const [isRolling, setIsRolling] = React.useState(false);
+  // Reset isRolling when someone else rolls (their result appears)
+  React.useEffect(() => { if (hasRolled) setIsRolling(false); }, [hasRolled]);
+  return (
+    <div style={{ textAlign: 'center', opacity: canAct ? 1 : 0.45, minWidth: 180 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.15rem' }}>{name}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: pool.tn ? '.15rem' : '.4rem' }}>{pool.label}</div>
+      {pool.tn && <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginBottom: '.4rem' }}>TN {pool.tn}</div>}
+      {pool.bonus1k1 > 0 && <div style={{ fontSize: 10, color: '#c0a0e0', marginBottom: '.3rem' }}>+1k1 (assessment bonus)</div>}
+      {hasRolled ? (
+        <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{rolledValue}</div>
+      ) : isRolling && canAct ? (
+        <DicePicker pool={pool} onConfirm={total => { onRoll(total); setIsRolling(false); }} />
+      ) : canAct ? (
+        <button className="btn btn-p" style={{ marginTop: '.25rem' }} onClick={() => setIsRolling(true)}>
+          Roll {pool.rolled}k{pool.kept}
+        </button>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '.4rem' }}>Awaiting…</div>
+      )}
+    </div>
+  );
+}
+
+
 export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClose }) {
   const [rolling, setRolling] = useState({});
+  const [revealedIntel, setRevealedIntel] = useState([]); // list of revealed INTEL_LIST keys
   const [strikeRaises, setStrikeRaises] = useState({ challenger: 0, defender: 0 });
 
   const { phase } = duel;
@@ -253,31 +282,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
-  const RollBlock = ({ side, pool, rollKey, storedRolls, onRoll }) => {
-    const rolled = storedRolls?.[side];
-    const hasRolled = rolled != null;
-    const isRolling = rolling[rollKey + '_' + side];
-    const can = canAct(side);
-    return (
-      <div style={{ textAlign: 'center', opacity: can ? 1 : 0.45, minWidth: 180 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.15rem' }}>{duel[side].name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: pool.tn ? '.15rem' : '.4rem' }}>{pool.label}</div>
-        {pool.tn && <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginBottom: '.4rem' }}>TN {pool.tn}</div>}
-        {pool.bonus1k1 > 0 && <div style={{ fontSize: 10, color: '#c0a0e0', marginBottom: '.3rem' }}>+1k1 (assessment bonus)</div>}
-        {hasRolled ? (
-          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{rolled}</div>
-        ) : isRolling && can ? (
-          <DicePicker pool={pool} onConfirm={total => { onRoll(side, total); setRolling(r => ({ ...r, [rollKey + '_' + side]: false })); }} />
-        ) : can ? (
-          <button className="btn btn-p" style={{ marginTop: '.25rem' }} onClick={() => setRolling(r => ({ ...r, [rollKey + '_' + side]: true }))}>
-            Roll {pool.rolled}k{pool.kept}
-          </button>
-        ) : (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '.4rem' }}>Awaiting…</div>
-        )}
-      </div>
-    );
-  };
+  // RollBlock moved to top-level component to prevent remount on re-render
 
   // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -325,9 +330,10 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
 
           <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             {['challenger','defender'].map(side => (
-              <RollBlock key={side} side={side} pool={getAssessPool(side)} rollKey="assess"
-                storedRolls={duel.assessmentRolls}
-                onRoll={(s, total) => onUpdate({ assessmentRolls: { ...duel.assessmentRolls, [s]: total } })} />
+              <RollBlock key={side} name={duel[side].name} pool={getAssessPool(side)}
+                rolledValue={duel.assessmentRolls?.[side]}
+                canAct={canAct(side)}
+                onRoll={(total) => onUpdate({ assessmentRolls: { ...duel.assessmentRolls, [side]: total } })} />
             ))}
           </div>
 
@@ -342,18 +348,32 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
                   </div>
                   {assessmentResult.intelCount > 0 ? (
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-                        Learns <strong style={{ color: 'var(--gold)' }}>{assessmentResult.intelCount}</strong> piece{assessmentResult.intelCount > 1 ? 's' : ''} of intel (GM reveals):
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
+                        Choose <strong style={{ color: 'var(--gold)' }}>{Math.min(assessmentResult.intelCount, INTEL_LIST.length)}</strong> piece{assessmentResult.intelCount > 1 ? 's' : ''} of intel to reveal:
+                        <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>{revealedIntel.length}/{assessmentResult.intelCount} revealed</span>
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {INTEL_LIST.slice(0, assessmentResult.intelCount).map(item => {
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {INTEL_LIST.map(item => {
                           const oppSide = assessmentResult.winner === 'challenger' ? 'defender' : 'challenger';
+                          const isRevealed = revealedIntel.includes(item.key);
+                          const canReveal = !isRevealed && revealedIntel.length < assessmentResult.intelCount && isGM;
                           const val = getIntelValue(pc(oppSide), item.key);
                           return (
-                            <div key={item.key} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3,
-                              background: 'rgba(200,150,42,.12)', border: '1px solid rgba(200,150,42,.3)',
-                              color: 'var(--text-secondary)' }}>
-                              {item.label}: <strong style={{ color: 'var(--gold)' }}>{val}</strong>
+                            <div key={item.key} onClick={() => canReveal && setRevealedIntel(r => [...r, item.key])}
+                              style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4,
+                                background: isRevealed ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)',
+                                border: `1px solid ${isRevealed ? 'rgba(200,150,42,.5)' : 'var(--border)'}`,
+                                color: isRevealed ? 'var(--text-primary)' : 'var(--text-muted)',
+                                cursor: canReveal ? 'pointer' : 'default',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              }}>
+                              <span>{item.label}</span>
+                              {isRevealed
+                                ? <strong style={{ color: 'var(--gold)' }}>{val}</strong>
+                                : canReveal
+                                  ? <span style={{ fontSize: 10, color: 'var(--gold-dim)' }}>click to reveal</span>
+                                  : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>hidden</span>
+                              }
                             </div>
                           );
                         })}
@@ -401,9 +421,10 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
 
           <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             {['challenger','defender'].map(side => (
-              <RollBlock key={side} side={side} pool={getFocusPool(side)} rollKey="focus"
-                storedRolls={duel.focusRolls}
-                onRoll={(s, total) => onUpdate({ focusRolls: { ...duel.focusRolls, [s]: total } })} />
+              <RollBlock key={side} name={duel[side].name} pool={getFocusPool(side)}
+                rolledValue={duel.focusRolls?.[side]}
+                canAct={canAct(side)}
+                onRoll={(total) => onUpdate({ focusRolls: { ...duel.focusRolls, [side]: total } })} />
             ))}
           </div>
 

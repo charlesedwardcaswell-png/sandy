@@ -92,9 +92,17 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
                 {pc.current_wounds ?? 0} / {pc.max_wounds ?? 20} hp
               </span>
             )}
-            {(c.statusEffects || []).map(e => (
-              <span key={e} className="effect-badge" onClick={() => onRemoveStatus && onRemoveStatus(c.id, e)}>{e} ×</span>
-            ))}
+            {(c.statusEffects || []).map(e => {
+              const isRollStatus = e.startsWith('Stealth:') || e.startsWith('Perception:');
+              return (
+                <span key={e} className="effect-badge"
+                  style={isRollStatus ? { background: 'rgba(74,138,170,.25)', border: '1px solid #4a8aaa', color: '#4ab0d0', fontWeight: 700 } : {}}
+                  onClick={() => onRemoveStatus && onRemoveStatus(c.id, e)}
+                  title={isRollStatus ? 'Click to remove' : undefined}>
+                  {e} ×
+                </span>
+              );
+            })}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -486,6 +494,95 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
 }
 
 
+
+// ── Battlefield Conditions Panel ───────────────────────────────────────────────
+const VISIBILITY_CONDITIONS = [
+  { key: 'clear',      label: 'Clear',        desc: 'Normal visibility — no penalty.',                    tnMod: 0,  rangeMod: 0 },
+  { key: 'dim',        label: 'Dim Light',    desc: 'Torchlight or dusk. +5 TN to ranged attacks.',       tnMod: 0,  rangeMod: 5 },
+  { key: 'darkness',   label: 'Darkness',     desc: '+10 TN to all attacks. May not target by sight.',    tnMod: 5,  rangeMod: 10 },
+  { key: 'sandstorm',  label: 'Sandstorm',    desc: '+15 TN all attacks. Ranged impossible beyond 5ft.',  tnMod: 10, rangeMod: 99 },
+  { key: 'fog',        label: 'Thick Fog',    desc: '+10 TN all attacks. Ranged max 10ft.',               tnMod: 5,  rangeMod: 15 },
+  { key: 'smoke',      label: 'Smoke',        desc: '+5 TN melee. +15 TN ranged. Choke risk.',            tnMod: 5,  rangeMod: 15 },
+];
+
+const TERRAIN_CONDITIONS = [
+  { key: 'clear',      label: 'Open Ground',  desc: 'No terrain penalty.' },
+  { key: 'difficult',  label: 'Difficult',    desc: 'Rubble, mud, crowd. +5 TN Athletics/movement.' },
+  { key: 'hazardous',  label: 'Hazardous',    desc: 'Unstable floor, ledges. Knockdown = fall.' },
+  { key: 'elevated',   label: 'Elevated',     desc: 'High ground. Attacker gets +1k0 to ranged.' },
+  { key: 'confined',   label: 'Confined',     desc: 'Alley or indoor. No charge. Large weapons -1k0.' },
+  { key: 'flooded',    label: 'Flooded',      desc: 'Ankle-deep water. +10 TN Athletics. No Knockdown.' },
+  { key: 'fire',       label: 'On Fire',      desc: 'Burning area. 1 Wound/round in zone unless armored.' },
+];
+
+const COVER_CONDITIONS = [
+  { key: 'none',    label: 'No Cover',       desc: 'Fully exposed.',                         tnBonus: 0 },
+  { key: 'light',   label: 'Light Cover',    desc: 'Corners, market stalls. +5 TN to hit.',  tnBonus: 5 },
+  { key: 'heavy',   label: 'Heavy Cover',    desc: 'Walls, pillars. +10 TN to hit.',         tnBonus: 10 },
+  { key: 'prone',   label: 'Prone / Hiding', desc: 'Melee attackers ignore. Ranged +10 TN.', tnBonus: 10 },
+];
+
+function BattlefieldConditionsPanel({ conditions = {}, onSet, isGM }) {
+  const [open, setOpen] = useState(false);
+  const vis = conditions.visibility || 'clear';
+  const ter = conditions.terrain || 'clear';
+  const cov = conditions.cover || 'none';
+  const hasConditions = vis !== 'clear' || ter !== 'clear' || cov !== 'none';
+
+  const visData  = VISIBILITY_CONDITIONS.find(v => v.key === vis) || VISIBILITY_CONDITIONS[0];
+  const terData  = TERRAIN_CONDITIONS.find(t => t.key === ter) || TERRAIN_CONDITIONS[0];
+  const covData  = COVER_CONDITIONS.find(c => c.key === cov) || COVER_CONDITIONS[0];
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn btn-sm"
+        style={{ borderColor: hasConditions ? '#4a8aaa' : 'rgba(200,150,42,.4)', color: hasConditions ? '#4ab0d0' : 'var(--gold-dim)', fontSize: 12 }}
+        onClick={() => setOpen(o => !o)}>
+        <i className="ti ti-map-2" style={{ fontSize: 12, marginRight: 3 }} />
+        {hasConditions ? 'Conditions' : 'Battlefield'}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid #4a8aaa', borderRadius: 6, padding: '.75rem', width: 300, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#4ab0d0', marginBottom: '.75rem', display: 'flex', justifyContent: 'space-between' }}>
+            Battlefield Conditions
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+          </div>
+
+          {[
+            { label: 'Visibility', options: VISIBILITY_CONDITIONS, current: vis, key: 'visibility' },
+            { label: 'Terrain',    options: TERRAIN_CONDITIONS,   current: ter, key: 'terrain' },
+            { label: 'Cover',      options: COVER_CONDITIONS,     current: cov, key: 'cover' },
+          ].map(({ label, options, current, key }) => (
+            <div key={key} style={{ marginBottom: '.6rem' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {options.map(opt => (
+                  <button key={opt.key} title={opt.desc}
+                    onClick={() => isGM && onSet({ ...conditions, [key]: opt.key })}
+                    style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, cursor: isGM ? 'pointer' : 'default',
+                      background: current === opt.key ? 'rgba(74,138,170,.2)' : 'var(--bg-panel)',
+                      border: `1px solid ${current === opt.key ? '#4a8aaa' : 'var(--border)'}`,
+                      color: current === opt.key ? '#4ab0d0' : 'var(--text-muted)', fontFamily: 'inherit' }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                {options.find(o => o.key === current)?.desc}
+              </div>
+            </div>
+          ))}
+          {isGM && hasConditions && (
+            <button className="btn btn-sm" style={{ marginTop: '.25rem', fontSize: 11 }}
+              onClick={() => { onSet({}); }}>Clear All Conditions</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Complication Button ───────────────────────────────────────────────────────
 function ComplicationButton({ envQuirk, onSet }) {
   const [open, setOpen] = useState(false);
@@ -689,6 +786,7 @@ function AddEnemy({ npcsFromLog, onAdd }) {
 
 export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, preparedEncounters = [], onSavePreparedEncounters }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
+  const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [view, setView] = useState('columns');
@@ -945,6 +1043,24 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       if (pc) onUpdateCharacter(active.id, { current_void: Math.max(0, (pc.current_void || 0) - 1) });
     }
 
+    // Auto-track Stealth and Perception rolls as persistent status conditions
+    const skillName = modal?.skill || '';
+    const rollTotal = result?.total ?? (typeof result === 'number' ? result : null);
+    if (rollTotal !== null && (skillName === 'Stealth' || skillName.startsWith('Perception'))) {
+      const label = `${skillName}: ${rollTotal}`;
+      const targetId = modal?.combatantId || active?.id;
+      if (targetId) {
+        upEnc({
+          combatants: combatants.map(c => {
+            if (c.id !== targetId) return c;
+            // Remove any previous Stealth/Perception status, replace with new
+            const filtered = (c.statusEffects || []).filter(e => !e.startsWith(skillName + ':'));
+            return { ...c, statusEffects: [...filtered, label] };
+          }),
+        });
+      }
+    }
+
     // Fire onComplete callback if present (e.g. Full Defense stance change after roll)
     if (modal?.onComplete) modal.onComplete(result?.total ?? result);
   };
@@ -991,6 +1107,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const entry = {
       session_id: session?.id || null,
       name: setup.name || `Session ${session?.session_number || '?'} — ${setup.setting} — ${setup.type}`,
+      encounter_name: setup.name || '',
+      description: setup.desc || '',
       setting: setup.setting,
       encounter_type: setup.type,
       party_members: characters.map(c => ({ id: c.id, name: c.name })),
@@ -1119,7 +1237,26 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
         )}
 
-        {/* Granted action roll panel */}
+        {/* Player action panel — always available between encounters */}
+        {!isGM && myCharId && (() => {
+          const myChar = characters.find(c => c.id === myCharId);
+          if (!myChar) return null;
+          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: myChar.current_stance || 'Attack', drawnWeapon: myChar.current_weapon || null, dr: '3k2', current_void: myChar.current_void };
+          return (
+            <PCTurnPanel
+              combatant={fakeCombatant}
+              character={myChar}
+              enemies={[]}
+              allies={[]}
+              onRoll={ctx => setModal({ ...ctx, character: myChar })}
+              onStanceChange={() => {}}
+              onDrawWeapon={() => {}}
+              onPass={null}
+            />
+          );
+        })()}
+
+        {/* Granted action roll panel — GM-granted extra actions */}
         {(() => {
           const myGranted = grantedActions[myCharId] || 0;
           const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
@@ -1243,6 +1380,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         </div>
         {(isGM && !isPCView) && (
           <>
+            <BattlefieldConditionsPanel
+              conditions={battlefieldConditions}
+              onSet={(conds) => { upEnc({ battlefieldConditions: conds }); onLogEvent && onLogEvent('ti-map-2', `Battlefield: ${Object.entries(conds).filter(([,v])=>v&&v!=='clear'&&v!=='none').map(([k,v])=>`${k}: ${v}`).join(', ') || 'conditions cleared'}`); }}
+              isGM={isGM && !isPCView}
+            />
             <ComplicationButton envQuirk={envQuirk} onSet={(text) => { upEnc({ envQuirk: text || null }); if (text) onLogEvent && onLogEvent('ti-alert-triangle', `Complication: ${text}`); }} />
             <DuelInitiator combatants={combatants} pcsMap={pcsMap} onStart={(challenger, defender) => {
               const makeSide = (c) => ({
@@ -1276,6 +1418,26 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             : `Round ${round} of ${roundLimit} — final round approaching.`}
         </div>
       )}
+
+      {/* Battlefield conditions banner */}
+      {(() => {
+        const bc = encounter.battlefieldConditions || {};
+        const active = Object.entries(bc).filter(([,v]) => v && v !== 'clear' && v !== 'none');
+        if (active.length === 0) return null;
+        const vis = VISIBILITY_CONDITIONS.find(v => v.key === bc.visibility);
+        const ter = TERRAIN_CONDITIONS.find(t => t.key === bc.terrain);
+        const cov = COVER_CONDITIONS.find(c => c.key === bc.cover);
+        return (
+          <div className="env-banner" style={{ borderColor: '#4a8aaa', background: 'rgba(74,138,170,.08)' }}>
+            <i className="ti ti-map-2" style={{ color: '#4ab0d0', fontSize: 15 }} />
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+              {vis && bc.visibility !== 'clear' && <span style={{ fontSize: 12 }}><strong style={{ color: '#4ab0d0' }}>Visibility:</strong> {vis.label} — {vis.desc}</span>}
+              {ter && bc.terrain !== 'clear' && <span style={{ fontSize: 12 }}><strong style={{ color: '#4ab0d0' }}>Terrain:</strong> {ter.label} — {ter.desc}</span>}
+              {cov && bc.cover !== 'none' && <span style={{ fontSize: 12 }}><strong style={{ color: '#4ab0d0' }}>Cover:</strong> {cov.label} — {cov.desc}</span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Env quirk */}
       {envQuirk && (
@@ -1452,7 +1614,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           enemies={enemies}
           allies={party.filter(c => c.id !== active.id)}
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
-          onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id] })}
+          onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
@@ -1466,7 +1628,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           enemies={party}
           isNPCTurn
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
-          onRoll={(ctx) => setModal(ctx)}
+          onRoll={(ctx) => setModal({ ...ctx, combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
           onPass={advanceTurn}
