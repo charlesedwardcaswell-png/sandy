@@ -225,16 +225,45 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         const promoteNpc = async () => {
           const techs = {};
           npcTechniques.forEach(t => { techs[t.rank] = t.text; });
-          const ringVal = (npc.rank || 1) + 1;
+          const rank = npc.rank || 1;
+          const sd = SCHOOL_DATA[npc.school];
+
+          // Start with school base traits, then apply rank bonuses
+          const baseTraits = { ...(sd?.base_traits || {}) };
+          // Default ring values: school base or rank+1 approximation
+          const defaultRing = rank + 1;
+          const air   = baseTraits.Air   || defaultRing;
+          const earth = baseTraits.Earth || defaultRing;
+          const fire  = baseTraits.Fire  || defaultRing;
+          const water = baseTraits.Water || defaultRing;
+          const voidR = baseTraits.Void  || 2;
+
+          // Trait bonuses from subfaction/school
+          const startRef = baseTraits.Reflexes   || air;
+          const startAwa = baseTraits.Awareness  || air;
+          const startSta = baseTraits.Stamina    || earth;
+          const startWil = baseTraits.Willpower  || earth;
+          const startAgi = baseTraits.Agility    || fire;
+          const startInt = baseTraits.Intelligence || fire;
+          const startStr = baseTraits.Strength   || water;
+          const startPer = baseTraits.Perception || water;
+
+          // Build school skills at rank
+          const schoolSkills = (sd?.skills || []).map(s => ({
+            name: s, rank: rank, school: true
+          }));
+
           const newChar = await onCreateCharacter({
-            name: npc.name, faction: npc.faction || '', school: npc.school || '', school_rank: npc.rank || 1,
+            name: npc.name, faction: npc.faction || '', school: npc.school || '',
+            school_rank: rank, insight_rank: rank,
             is_npc: true,
-            air: ringVal, earth: ringVal, fire: ringVal, water: ringVal, void: 2,
-            reflexes: ringVal, awareness: ringVal, stamina: ringVal, willpower: ringVal,
-            agility: ringVal, intelligence: ringVal, strength: ringVal, perception: ringVal,
-            current_wounds: 0, max_wounds: ringVal * 10, current_void: 2,
-            integrity: 0, reputation: 0, status: 0, copper: 0,
-            skills: [], equipment: [], advantages: [], disadvantages: [],
+            air, earth, fire, water, void: voidR,
+            reflexes: startRef, awareness: startAwa, stamina: startSta, willpower: startWil,
+            agility: startAgi, intelligence: startInt, strength: startStr, perception: startPer,
+            current_wounds: 0, max_wounds: startSta * 10, current_void: voidR,
+            integrity: npc.integrity || 4, reputation: npc.reputation || 0, status: npc.status || 0,
+            copper: 0, player_notes: npc.player_notes || '', gm_notes: npc.gm_notes || '',
+            skills: schoolSkills, equipment: [], advantages: [], disadvantages: [],
             techniques: techs, spells: npc.spells || [],
           });
           if (newChar) {
@@ -618,6 +647,33 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                     )}
                     {pending && <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removeFromCart(cartKey)}>✕</button>}
                   </div>
+                  {/* Emphases */}
+                  <div style={{ paddingLeft: '.5rem', paddingBottom: 2 }}>
+                    {(s.emphases || []).map(e => (
+                      <span key={e} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: 'rgba(200,150,42,.12)', border: '1px solid rgba(200,150,42,.3)', color: 'var(--gold-dim)', marginRight: 3, cursor: 'pointer' }}
+                        title="Click to remove"
+                        onClick={() => {
+                          const updated = (char.skills || []).map(x => x.name === s.name ? { ...x, emphases: (x.emphases || []).filter(em => em !== e) } : x);
+                          onBatchUpdate({ skills: updated });
+                        }}>
+                        {e} ×
+                      </span>
+                    ))}
+                    <input
+                      placeholder="+ add emphasis (Enter)"
+                      style={{ fontSize: 10, width: 120, padding: '1px 4px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-muted)', fontFamily: 'inherit', outline: 'none' }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && e.target.value.trim()) {
+                          const val = e.target.value.trim();
+                          const updated = (char.skills || []).map(x => x.name === s.name
+                            ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
+                            : x);
+                          onBatchUpdate({ skills: updated });
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -760,7 +816,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
       {showXpPanel && (
         <XPSpendPanel char={char} onBatchUpdate={batchUpdate} onClose={() => setShowXpPanel(false)} />
       )}
-      {(needsRankUp || pendingRankUp) && !showXpPanel && (
+      {(needsRankUp || pendingRankUp) && !showXpPanel && (canEdit && (isGM || char.id === myCharId)) && (
         <RankUpOverlay
           char={char}
           newRank={(char.school_rank || 1) + 1}
@@ -1095,7 +1151,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             {/* Build set of active technique names for this character */}
             {(() => {
-              const activeTechs = Object.values(char.techniques || {}).filter(Boolean);
+              const charRank = char.school_rank || 1;
+              const activeTechs = Object.entries(char.techniques || {})
+                .filter(([rank]) => +rank <= charRank)
+                .map(([, name]) => name)
+                .filter(Boolean);
               return (char.skills || []).map(s => {
                 const masteries = SKILL_MASTERIES[s.name] || {};
                 const unlockedMasteries = Object.entries(masteries).filter(([rank]) => s.rank >= +rank);
@@ -1106,7 +1166,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 return (
                   <div key={s.name}>
                     <div className="skill-row">
-                      <span className={`skill-nm ${s.school ? 'sc' : ''}`}>{s.name}</span>
+                      <span className={`skill-nm ${s.school ? 'sc' : ''}`}>
+                        {s.name}
+                        {(s.emphases || []).map(e => (
+                          <span key={e} style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 4 }}>({e})</span>
+                        ))}
+                      </span>
                       <SkillDots rank={s.rank} />
                       {/* Technique glow badges */}
                       {techBadges.map(techName => (
@@ -1126,6 +1191,20 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
                           <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
                           <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
+                          <input
+                            placeholder="Add emphasis…"
+                            style={{ fontSize: 10, width: 90, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit' }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && e.target.value.trim()) {
+                                const val = e.target.value.trim();
+                                const skills = (char.skills || []).map(x => x.name === s.name
+                                  ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
+                                  : x);
+                                update('skills', skills);
+                                e.target.value = '';
+                              }
+                            }}
+                          />
                         </div>
                       )}
                     </div>
@@ -1414,15 +1493,33 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             {(char.advantages || []).length > 0 && (
               <>
                 <div className="card-title">Advantages</div>
-                {char.advantages.map(a => {
+                {char.advantages.map((a, ai) => {
                   const adv = ADVANTAGES.find(x => x.name === a.name);
+                  const updateAdv = (patch) => {
+                    const updated = (char.advantages || []).map((x, xi) => xi === ai ? { ...x, ...patch } : x);
+                    update('advantages', updated);
+                  };
                   return (
-                    <div key={a.name} style={{ padding: '4px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                    <div key={a.name + ai} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.name}</span>
+                        {canEdit
+                          ? <input value={a.customName || a.name} onChange={e => updateAdv({ customName: e.target.value })}
+                              onBlur={e => !e.target.value && updateAdv({ customName: undefined })}
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                          : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.customName || a.name}</span>
+                        }
                         <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
                       </div>
-                      {adv?.desc && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.4 }}>{adv.desc}</div>}
+                      {adv?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{adv.desc}</div>}
+                      {canEdit
+                        ? <textarea value={a.notes || ''} onChange={e => updateAdv({ notes: e.target.value })}
+                            placeholder="Personal notes on this advantage…"
+                            rows={1}
+                            style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
+                        : a.notes
+                          ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>{a.notes}</div>
+                          : null
+                      }
                     </div>
                   );
                 })}
@@ -1431,15 +1528,33 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             {(char.disadvantages || []).length > 0 && (
               <>
                 <div className="card-title" style={{ marginTop: '.5rem' }}>Disadvantages</div>
-                {char.disadvantages.map(d => {
+                {char.disadvantages.map((d, di) => {
                   const dis = DISADVANTAGES.find(x => x.name === d.name);
+                  const updateDis = (patch) => {
+                    const updated = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, ...patch } : x);
+                    update('disadvantages', updated);
+                  };
                   return (
-                    <div key={d.name} style={{ padding: '4px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                    <div key={d.name + di} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.name}</span>
+                        {canEdit
+                          ? <input value={d.customName || d.name} onChange={e => updateDis({ customName: e.target.value })}
+                              onBlur={e => !e.target.value && updateDis({ customName: undefined })}
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                          : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.customName || d.name}</span>
+                        }
                         <span style={{ color: 'var(--red)', fontSize: 11 }}>(+{d.value} CP)</span>
                       </div>
-                      {dis?.desc && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.4 }}>{dis.desc}</div>}
+                      {dis?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{dis.desc}</div>}
+                      {canEdit
+                        ? <textarea value={d.notes || ''} onChange={e => updateDis({ notes: e.target.value })}
+                            placeholder="Personal notes on this disadvantage…"
+                            rows={1}
+                            style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
+                        : d.notes
+                          ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>{d.notes}</div>
+                          : null
+                      }
                     </div>
                   );
                 })}
@@ -1475,7 +1590,10 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
   const schoolIsSahir = isSahirSchool(school);
   const startingSpells = school === "Ra'Shari Diviner" ? 6 : 3;
   const subfactions = faction ? Object.keys(SUBFACTION_BONUSES[faction] || {}) : [];
+  const [showAllSchools, setShowAllSchools] = useState(false);
   const schools = faction ? FACTION_SCHOOLS[faction] || [] : [];
+  const allSchoolNames = Object.keys(SCHOOL_DATA);
+  const displayedSchools = showAllSchools ? allSchoolNames : schools;
 
   function getBaseTraitValue(trait) {
     let base = 2;
@@ -1697,7 +1815,14 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
       {/* Step 3: School */}
       {step === 3 && (
         <div>
-          {schools.map(s => {
+          <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: showAllSchools ? 'var(--gold)' : 'var(--text-muted)' }}>
+              <input type="checkbox" checked={showAllSchools} onChange={e => setShowAllSchools(e.target.checked)}
+                style={{ accentColor: 'var(--gold)' }} />
+              Show all schools (GM permission / Different School advantage)
+            </label>
+          </div>
+          {displayedSchools.map(s => {
             const sd = SCHOOL_DATA[s]; if (!sd) return null;
             return (
               <div key={s} className={`school-card ${school === s ? 'sel' : ''}`} onClick={() => { setSchool(s); initTraits(s, subfaction); }}>

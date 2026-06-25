@@ -147,6 +147,7 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
   const isLearned = (spellName) => learnedSpells.includes(spellName);
 
   const canLearn = (typeIdx, level) => {
+    if (mode === 'sheet' && !canEdit) return false; // players can't toggle on sheet
     if (mode === 'sheet') return true; // GM can always toggle
     if (level === 1) return true;
     const type = disc.types[typeIdx];

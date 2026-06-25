@@ -13,6 +13,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [skillCategory, setSkillCategory] = useState('combat');
   const [allowFriendly, setAllowFriendly] = useState(false);
   const [showSkillPicker, setShowSkillPicker] = useState(false); // full-screen skill overlay
+  const [showSpellPicker, setShowSpellPicker] = useState(false); // full-screen spell overlay
+  const [selectedSpell, setSelectedSpell] = useState(null);
 
   if (!isNPCTurn && !character) return null;
 
@@ -33,18 +35,40 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             ))}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
           {[
-            { id: 'attack', icon: 'ti-sword', label: 'Attack', color: '#c84030' },
-            { id: 'move',   icon: 'ti-run', label: 'Move', color: 'var(--text-secondary)' },
-            { id: 'pass',   icon: 'ti-player-skip-forward', label: 'Pass', color: 'var(--text-muted)' },
+            { id: 'attack', icon: 'ti-sword',              label: 'Attack',       color: '#c84030',
+              disabled: combatant.stance === 'Full Defense' || combatant.stance === 'Defense' },
+            { id: 'skill',  icon: 'ti-list-check',          label: 'Use Skill',    color: 'var(--gold)' },
+            { id: 'defend', icon: 'ti-shield',              label: 'Full Defense', color: '#4a8a40' },
+            { id: 'move',   icon: 'ti-run',                 label: 'Move',         color: 'var(--text-secondary)' },
+            { id: 'pass',   icon: 'ti-player-skip-forward', label: 'Pass',         color: 'var(--text-muted)' },
           ].map(action => (
             <button key={action.id}
+              disabled={!!action.disabled}
               onClick={() => {
+                if (action.disabled) return;
                 if (action.id === 'pass') { if (onPass) onPass(); }
+                else if (action.id === 'defend') {
+                  onStanceChange('Full Defense');
+                  onRoll({
+                    skill: 'Defense (Full Defense)', tn: 5,
+                    baseRoll: (combatant.agility || 2) + 1,
+                    baseKeep: combatant.agility || 2,
+                    resultLabel: 'Result replaces Reflexes×5 as Armor TN',
+                  });
+                  if (onSpendAction) onSpendAction('full');
+                  setSelectedAction('defend');
+                }
+                else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
                 else setSelectedAction(action.id);
               }}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem', background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)', border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem',
+                background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
+                border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
+                borderRadius: 6, cursor: action.disabled ? 'not-allowed' : 'pointer',
+                opacity: action.disabled ? 0.4 : 1,
+                fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
               <i className={`ti ${action.icon}`} style={{ fontSize: 20, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
               <span style={{ fontSize: 12, fontWeight: 500 }}>{action.label}</span>
             </button>
@@ -223,6 +247,50 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       padding: '1rem',
       position: 'sticky', bottom: 0, zIndex: 100,
     }}>
+
+      {/* Full-screen spell picker overlay */}
+      {showSpellPicker && (() => {
+        const knownSpells = character?.spells || [];
+        const intRing = character?.intelligence || 2;
+        const spellcraftRank = (character?.skills || []).find(s => s.name === 'Spellcraft')?.rank || 0;
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.92)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: '2rem', overflowY: 'auto' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#c0a0e0', marginBottom: '.5rem' }}>Cast a Spell</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Spellcasting roll: Intelligence + Spellcraft ({intRing + spellcraftRank}k{intRing}) vs spell TN
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', flex: 1 }}>
+              {knownSpells.length === 0
+                ? <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No spells learned yet.</div>
+                : knownSpells.map(spellName => {
+                    // Look up spell TN from SAHIR_DISCIPLINES (passed as character context)
+                    return (
+                      <button key={spellName}
+                        onClick={() => {
+                          setShowSpellPicker(false);
+                          onRoll({
+                            skill: spellName,
+                            tn: 15, // GM sets actual TN — this is a placeholder
+                            baseRoll: intRing + spellcraftRank,
+                            baseKeep: intRing,
+                            isSpellcasting: true,
+                            character,
+                            resultLabel: `Spellcasting roll for ${spellName}`,
+                          });
+                          if (onSpendAction) onSpendAction('full');
+                        }}
+                        style={{ padding: '.5rem .75rem', background: 'rgba(160,100,220,.15)', border: '1px solid rgba(160,100,220,.4)', borderRadius: 6, color: '#c0a0e0', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'left' }}>
+                        <i className="ti ti-sparkles" style={{ fontSize: 12, marginRight: 5 }} />{spellName}
+                      </button>
+                    );
+                  })
+              }
+            </div>
+            <button className="btn btn-sm" style={{ marginTop: '1rem', alignSelf: 'flex-start' }} onClick={() => setShowSpellPicker(false)}>← Back</button>
+          </div>
+        );
+      })()}
+
       {/* Full-screen skill picker overlay */}
       {showSkillPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.92)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: '2rem' }}>
@@ -250,7 +318,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     const rank = sk?.rank || sk || 0;
                     const hasSkill = typeof rank === 'number' ? rank > 0 : false;
                     const techBadges = character
-                      ? Object.values(character.techniques || {}).filter(Boolean).filter(t => (TECHNIQUE_SKILL_LINKS[t] || []).includes(sName))
+                      ? Object.entries(character.techniques || {}).filter(([r]) => +r <= (character.school_rank || 1)).map(([,t]) => t).filter(Boolean).filter(t => (TECHNIQUE_SKILL_LINKS[t] || []).includes(sName))
                       : [];
                     return (
                       <button key={sName} onClick={() => {
@@ -348,20 +416,26 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </div>
       ) : (
       <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
-          { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       color: '#c84030' },
+          { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       color: '#c84030',
+            disabled: combatant.stance === 'Full Defense' || combatant.stance === 'Defense',
+            title: (combatant.stance === 'Full Defense' || combatant.stance === 'Defense') ? 'Cannot attack in ' + combatant.stance + ' stance' : 'Attack' },
           { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    color: 'var(--gold)' },
           { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  color: 'var(--text-secondary)' },
-          { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', color: '#4a8a40' },
+          { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', color: '#4a8a40',
+            title: 'Declare Full Defense — rolls Agility/Defense, result replaces your Armor TN' },
           { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    color: 'var(--text-muted)' },
-        ].map(action => (
+          { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   color: '#c0a0e0', hidden: !(character?.spells?.length > 0) },
+        ].filter(action => !action.hidden).map(action => (
           <button key={action.id}
-            disabled={action.id === 'defend' && combatant.stance !== 'Full Defense'}
-            title={action.id === 'defend' && combatant.stance !== 'Full Defense' ? 'Switch to Full Defense stance first' : action.label}
+            disabled={!!action.disabled}
+            title={action.title || action.label}
             onClick={() => {
-              if (action.id === 'defend' && combatant.stance !== 'Full Defense') return;
+              if (action.disabled) return;
               if (action.id === 'defend') {
+                // Clicking Full Defense: switch to stance AND immediately roll
+                onStanceChange('Full Defense');
                 // Full Defense — Complex Action. Must be in Full Defense stance.
                 // Roll Agility/Defense (TN 5). Result REPLACES Reflexes×5 as the TN to be hit.
                 // Final Armor TN = 5 + armor bonus + Defense roll result.
@@ -384,6 +458,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               }
               else if (action.id === 'pass') { setSelectedAction(null); if (onPass) onPass(); }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
+              else if (action.id === 'spell') { setShowSpellPicker(true); setSelectedAction(null); }
               else {
                 setSelectedAction(action.id);
                 setSelectedSkill(null);

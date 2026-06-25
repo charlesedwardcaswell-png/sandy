@@ -263,12 +263,10 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   const rollPool_n = airRing + theologyRank;
   const rollPool_k = airRing;
 
-  // Raises from the summoning roll
+  // Raises declared by the player before rolling — each raise = 1 table choice
   const baseTN = 5;
-  const raises = summonRoll != null ? Math.max(0, Math.floor((summonRoll - baseTN) / 5)) : 0;
-
-  // Number of table choices the summoner earns (1 per raise above TN)
-  const maxChoices = raises;
+  const [declaredRaises, setDeclaredRaises] = useState(0); // set when roll confirms
+  const maxChoices = declaredRaises;
   const choicesUsed = choices.length;
   const choicesLeft = maxChoices - choicesUsed;
 
@@ -280,11 +278,26 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   };
   const pcChars = characters.filter(isSahirChar);
 
-  const buildJinn = useCallback(() => {
+  const buildJinn = useCallback((commits = {}) => {
     if (!tier || !type) return;
     const result = rollAll(tier, type, tier === 'Major');
-    setBuilt(result);
-    setChoices([]);
+    // Overlay precommitted choices onto random results
+    const merged = { ...result };
+    Object.entries(commits).forEach(([section, chosenVals]) => {
+      if (!chosenVals?.length) return;
+      // Replace the first N random results with chosen ones
+      merged[section] = [
+        ...chosenVals,
+        ...(result[section] || []).slice(chosenVals.length),
+      ];
+    });
+    setBuilt(merged);
+    // Track choices for display separation
+    const choicesList = [];
+    Object.entries(commits).forEach(([section, chosenVals]) => {
+      (chosenVals || []).forEach((val, idx) => choicesList.push({ section, idx, newVal: val }));
+    });
+    setChoices(choicesList);
     setName(randomJinnName());
   }, [tier, type]);
 
@@ -355,7 +368,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   };
 
   const resolveNegotiation = () => {
-    const pcTotal = Number(pcCommerce) + DURATION_BONUSES[duration].bonus;
+    const pcTotal = Number(pcCommerce); // duration bonus already added at roll time
     const diff = pcTotal - (jinnRoll || 0);
     let outcome;
     if (diff >= 0)        outcome = NEGOTIATION_OUTCOMES[0];
@@ -366,9 +379,9 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
     setNegResult({ pcTotal, jinnRoll, diff, outcome });
   };
 
-  const STEPS = ['roll','tier','type','build','summon','negotiate'];
+  const STEPS = ['roll','tier','type','choose','build','summon','negotiate'];
   const stepIdx = STEPS.indexOf(step);
-  const STEP_LABELS = { roll: 'Summoning Roll', tier: 'Jinn Tier', type: 'Jinn Type', build: 'Build', summon: 'Summon', negotiate: 'Negotiate' };
+  const STEP_LABELS = { roll: 'Summoning Roll', tier: 'Jinn Tier', type: 'Jinn Type', choose: 'Make Choices', build: 'Review Jinn', summon: 'Summon', negotiate: 'Negotiate' };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: '1rem' }}
@@ -433,6 +446,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                 currentVoid={summonerChar?.current_void || 0}
                 onConfirm={(total, raisesUsed, usedVoid) => {
                   setSummonRoll(total);
+                  setDeclaredRaises(raisesUsed || 0);
                   setRolling(false);
                 }} />
             )}
@@ -441,8 +455,8 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                 <div style={{ fontSize: 36, fontWeight: 900, color: summonRoll >= 10 ? 'var(--green)' : '#c84030' }}>{summonRoll}</div>
                 {summonRoll >= 10 ? (
                   <div style={{ fontSize: 14, color: 'var(--green)', fontWeight: 600 }}>
-                    ✓ Success — TN 10
-                    {raises > 0 && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>+{raises} raise{raises > 1 ? 's' : ''} → {raises} free table choice{raises > 1 ? 's' : ''}</span>}
+                    ✓ Success — TN {baseTN + chosenResults * 5}
+                    {declaredRaises > 0 && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>+{declaredRaises} raise{declaredRaises > 1 ? 's' : ''} → {declaredRaises} free table choice{declaredRaises > 1 ? 's' : ''}</span>}
                   </div>
                 ) : (
                   <div style={{ fontSize: 14, color: '#c84030' }}>
@@ -505,10 +519,80 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button className="btn btn-sm" onClick={() => setStep('tier')}>← Back</button>
-              <button className="btn btn-p" disabled={!type} onClick={() => { buildJinn(); setStep('build'); }}>Roll Tables →</button>
+              <button className="btn btn-p" disabled={!type} onClick={() => { setPreCommits({ traits: [], protections: [], abilities: [], combat: [] }); setStep('choose'); }}>Make Choices →</button>
             </div>
           </div>
         )}
+
+        {/* ── STEP: CHOOSE ── pre-commit selections before rolling */}
+        {step === 'choose' && (() => {
+          const typeData = TYPES[type];
+          const tierIdx = tier === 'Minor' ? 0 : tier === 'Medium' ? 1 : 2;
+          const counts = {
+            traits:      typeData.traitRolls[tierIdx],
+            protections: typeData.protRolls[tierIdx],
+            abilities:   typeData.abilRolls[tierIdx],
+            combat:      typeData.combatRolls[tierIdx],
+          };
+          const totalSlots = Object.values(counts).reduce((s, n) => s + n, 0);
+          const totalChosen = Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0);
+          const choicesRemaining = maxChoices - totalChosen;
+
+          const sections = [
+            { key: 'traits', label: 'Trait Bonuses', options: TRAIT_OPTIONS },
+            { key: 'protections', label: 'Protections', options: PROTECTION_OPTIONS },
+            { key: 'abilities', label: 'Magical Abilities', options: ABILITY_OPTIONS },
+            { key: 'combat', label: 'Combat Bonuses', options: COMBAT_OPTIONS },
+          ];
+
+          return (
+            <div>
+              <div style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'rgba(160,100,220,.08)', border: '1px solid rgba(160,100,220,.25)', borderRadius: 5, fontSize: 12 }}>
+                You called <strong style={{ color: 'var(--gold)' }}>{maxChoices}</strong> raise{maxChoices !== 1 ? 's' : ''} — you may choose <strong style={{ color: '#c0a0e0' }}>{choicesRemaining}</strong> result{choicesRemaining !== 1 ? 's' : ''} from the tables below.
+                The rest will be rolled randomly. Choose wisely — the random results won't be revealed until after you commit.
+              </div>
+
+              {sections.map(({ key, label, options }) => {
+                const count = counts[key];
+                if (!count) return null;
+                const committed = preCommits[key] || [];
+                return (
+                  <div key={key} style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                      {label} ({count} slot{count !== 1 ? 's' : ''}{committed.length ? ` — ${committed.length} chosen` : ' — all random'})
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                      {committed.map((val, i) => (
+                        <span key={i} onClick={() => setPreCommits(p => ({ ...p, [key]: (p[key] || []).filter((_, xi) => xi !== i) }))}
+                          style={{ fontSize: 12, padding: '2px 8px', background: 'rgba(160,100,220,.2)', border: '1px solid rgba(160,100,220,.5)', borderRadius: 4, color: '#c0a0e0', cursor: 'pointer' }}
+                          title="Click to remove">✦ {val} ×</span>
+                      ))}
+                      {committed.length < count && (choicesRemaining > 0 ? (
+                        <select style={{ fontSize: 11, padding: '2px 6px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit' }}
+                          defaultValue="" onChange={e => { if (e.target.value) { setPreCommits(p => ({ ...p, [key]: [...(p[key] || []), e.target.value] })); e.target.value = ''; }}}>
+                          <option value="">+ Choose a result…</option>
+                          {options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{count - committed.length} will be rolled randomly</span>
+                      ))}
+                    </div>
+                    {committed.length < count && committed.length === 0 && choicesRemaining <= 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>All {count} will be rolled randomly</div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+                <button className="btn btn-sm" onClick={() => setStep('type')}>← Back</button>
+                <button className="btn btn-p" onClick={() => { buildJinn(preCommits); setStep('build'); }}>
+                  🎲 Roll Remaining & Build →
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── STEP: BUILD ── */}
         {step === 'build' && built && (
@@ -677,21 +761,35 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               )}
             </div>
 
-            {/* PC roll */}
-            {jinnRoll !== null && (
-              <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  Sahir's Commerce/Awareness roll result (type it in)
+            {/* PC Commerce/Awareness roll — full DicePicker */}
+            {jinnRoll !== null && (() => {
+              // Commerce skill + Awareness ring
+              const commerceSkill = (summonerChar?.skills || []).find(s => s.name === 'Commerce')?.rank || 1;
+              const awarenessRing = summonerChar?.awareness || 2;
+              const comRolled = commerceSkill + awarenessRing;
+              const comKept = awarenessRing;
+              return (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Sahir's Commerce / Awareness roll — {comRolled}k{comKept}
+                    {DURATION_BONUSES[duration].bonus > 0 && <span style={{ color: '#c0a0e0', marginLeft: 6 }}>+{DURATION_BONUSES[duration].bonus} duration bonus added to total</span>}
+                  </div>
+                  {pcCommerce === ''
+                    ? <DicePicker
+                        rolled={comRolled}
+                        kept={comKept}
+                        allowVoid={true}
+                        currentVoid={summonerChar?.current_void || 0}
+                        onConfirm={(total) => { setPcCommerce(String(total + DURATION_BONUSES[duration].bonus)); setNegResult(null); }}
+                      />
+                    : <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)' }}>{pcCommerce}</span>
+                        <button className="btn btn-sm" onClick={() => { setPcCommerce(''); setNegResult(null); }}>Reroll</button>
+                      </div>
+                  }
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="number" min={1} value={pcCommerce} onChange={e => { setPcCommerce(e.target.value); setNegResult(null); }}
-                    placeholder="Your roll total" style={{ width: 100, fontSize: 16, textAlign: 'center' }} />
-                  {DURATION_BONUSES[duration].bonus > 0 && (
-                    <span style={{ fontSize: 13, color: '#c0a0e0' }}>+{DURATION_BONUSES[duration].bonus} duration bonus = {Number(pcCommerce || 0) + DURATION_BONUSES[duration].bonus} total</span>
-                  )}
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {jinnRoll !== null && pcCommerce && (
               <button className="btn btn-p" onClick={resolveNegotiation} style={{ marginBottom: '1rem' }}>

@@ -35,6 +35,7 @@ function QuestNotes({ q, onUpdateQuest }) {
 // A single quest card — used for both parents and children
 function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
   const qt = QUEST_TYPES[q.quest_type] || QUEST_TYPES.side;
+  const [collapsed, setCollapsed] = React.useState(q.status === 'complete');
 
   return (
     <div style={{ marginLeft: indent ? 24 : 0, marginBottom: indent ? 4 : 0, position: 'relative' }}>
@@ -55,7 +56,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="qhdr">
+          <div className="qhdr" style={{ cursor: 'pointer' }} onClick={e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; setCollapsed(c => !c); }}>
             <span className={`qstat ${STATUS_STYLE[q.status] || 'q-active'}`}>
               {q.status === 'carried_over' ? 'carried' : q.status}
             </span>
@@ -75,8 +76,11 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
             }
             {q.status === 'active' && (gmView || q.quest_type === 'player') && (
               <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
-                onClick={() => onUpdateQuest(q.id, { status: 'complete' })}>✓</button>
+                onClick={e => { e.stopPropagation(); onUpdateQuest(q.id, { status: 'complete' }); }}>✓</button>
             )}
+            <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 4, userSelect: 'none' }}>
+              {collapsed ? '▶' : '▼'}
+            </span>
             {gmView && (
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {/* Parent quest selector */}

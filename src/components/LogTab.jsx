@@ -211,23 +211,28 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
       {/* ── Skill Usage ────────────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-title"><i className="ti ti-chart-bar" style={{ marginRight: 4 }} />Skill Usage This Session</div>
+        <div className="card-title"><i className="ti ti-chart-bar" style={{ marginRight: 4 }} />Skill Usage <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>(high session count = over-used skill)</span></div>
         {skillRows.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No skill rolls recorded yet.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No skill rolls recorded yet this session.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>{['Skill','Session','Total',''].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '4px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', borderBottom: '1px solid var(--border)' }}>{h}</th>
+              <tr>{['Skill','Encounter','Session','All-Time',''].map(h => (
+                <th key={h} style={{ textAlign: h === 'Skill' ? 'left' : 'center', padding: '4px 6px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', borderBottom: '1px solid var(--border)' }}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {skillRows.map(([sk, v]) => (
-                <tr key={sk}>
-                  <td style={{ padding: '4px 6px', color: 'var(--text-primary)' }}>{sk}</td>
-                  <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{v.session || 0}</td>
-                  <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{v.total}</td>
-                  <td style={{ padding: '4px 6px' }}><div style={{ height: 3, borderRadius: 2, background: 'var(--gold)', width: `${(v.total / maxTotal) * 80}px` }} /></td>
+                <tr key={sk} style={{ borderBottom: '1px solid rgba(107,78,40,.1)' }}>
+                  <td style={{ padding: '4px 6px', color: v.session > 3 ? 'var(--gold)' : 'var(--text-primary)', fontWeight: v.session > 3 ? 600 : 400 }}>{sk}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: v.encounter > 0 ? 'var(--text-secondary)' : 'var(--text-muted)' }}>{v.encounter || 0}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>{v.session || 0}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-muted)' }}>{v.total}</td>
+                  <td style={{ padding: '4px 6px' }}>
+                    <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-panel)', width: 80 }}>
+                      <div style={{ height: '100%', borderRadius: 2, background: v.session > 5 ? 'var(--red)' : v.session > 2 ? 'var(--gold)' : 'var(--gold-dim)', width: `${Math.min((v.session / Math.max(...skillRows.map(([,x]) => x.session || 0), 1)) * 80, 80)}px` }} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

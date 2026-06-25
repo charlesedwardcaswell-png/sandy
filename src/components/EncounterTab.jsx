@@ -198,7 +198,7 @@ function VoidButton() {
     { icon: 'ti-bolt', label: '+10 Initiative', desc: 'Spend at the start of a round before rolling Initiative to add +10 to your Initiative roll.' },
     { icon: 'ti-star', label: '+2k1 (some techniques)', desc: 'Certain school techniques upgrade Void spend to +2k1 instead of +1k1.' },
     { icon: 'ti-eye', label: 'Negate one attack (Defense R5)', desc: 'Defense Rank 5 Mastery: spend Void as a Free Action to negate one attack per round.' },
-    { icon: 'ti-compass', label: 'Center Stance first action', desc: 'In Center Stance, spending Void on your first action gives School Rank bonus instead of +1k1.' },
+    { icon: 'ti-compass', label: 'Center Stance bonus', desc: 'Your first action in Center Stance adds a flat bonus equal to your School Rank to the roll result. This is separate from — and stacks with — Void Point spending.' },
   ];
   return (
     <div style={{ position: 'relative' }}>
@@ -784,7 +784,7 @@ function AddEnemy({ npcsFromLog, onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, preparedEncounters = [], onSavePreparedEncounters }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
   const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
@@ -922,10 +922,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     }
     const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next } : x);
     upEnc({ combatants: newCombatants });
-    // Auto-advance when all actions spent
-    if (next.full === 0 && next.simple === 0) {
-      setTimeout(() => advanceTurn(), 800);
-    }
+    // Player manually passes turn with the Pass Turn button — no auto-advance
   };
 
   const WOUND_LABELS  = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'];
@@ -989,6 +986,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   const handleRollResult = (result, damage) => {
     setModal(null);
+    // Track skill usage
+    if (modal?.skill && onLogSkill) onLogSkill(modal.skill);
 
     // Broadcast result to all players via encounter state
     const banner = {
@@ -1058,6 +1057,70 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             return { ...c, statusEffects: [...filtered, label] };
           }),
         });
+      }
+    }
+
+    // Apply maneuver effects from raises
+    if (result?.success && result?.raises?.length > 0 && modal?.targetId) {
+      const maneuvers = result.raises;
+      const RAISE_COST = { Knockdown: 1, Feint: 1, Disarm: 2, Stun: 2, 'Extra Attack': 5, 'Called Shot': 1 };
+
+      // Count how many raises were declared
+      const totalRaises = result.raises.length;
+
+      // Check which maneuvers are affordable given raises
+      let raisesSpent = 0;
+      const effects = [];
+
+      maneuvers.forEach(m => {
+        const cost = RAISE_COST[m] || 1;
+        if (raisesSpent + cost <= totalRaises) {
+          raisesSpent += cost;
+          effects.push(m);
+        }
+      });
+
+      if (effects.length > 0) {
+        let newCombatants = [...combatants];
+
+        effects.forEach(effect => {
+          if (effect === 'Knockdown') {
+            newCombatants = newCombatants.map(c => c.id === modal.targetId
+              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Prone'), 'Prone'] }
+              : c);
+            onLogEvent && onLogEvent('ti-arrow-down', `Knockdown — ${modal?.character?.name || 'Attacker'} knocks ${modal.targetName || 'target'} Prone`);
+          }
+          if (effect === 'Stun') {
+            newCombatants = newCombatants.map(c => c.id === modal.targetId
+              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Stunned'), 'Stunned'] }
+              : c);
+            onLogEvent && onLogEvent('ti-circle-x', `Stun — ${modal.targetName || 'target'} loses their next action`);
+          }
+          if (effect === 'Feint') {
+            newCombatants = newCombatants.map(c => c.id === modal.targetId
+              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Feinted'), 'Feinted'] }
+              : c);
+            onLogEvent && onLogEvent('ti-eye-off', `Feint — ${modal.targetName || 'target'} loses Reflexes bonus to Armor TN until next attack`);
+          }
+          if (effect === 'Disarm') {
+            newCombatants = newCombatants.map(c => c.id === modal.targetId
+              ? { ...c, drawnWeapon: null, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
+              : c);
+            onLogEvent && onLogEvent('ti-sword-off', `Disarm — ${modal.targetName || 'target'} is disarmed`);
+          }
+          if (effect === 'Extra Attack') {
+            // Grant attacker an extra full action
+            const attackerId = modal?.combatantId || active?.id;
+            if (attackerId) {
+              newCombatants = newCombatants.map((c, i) => i === activeTurn
+                ? { ...c, _actionsLeft: { ...(c._actionsLeft || { full: 0, simple: 0 }), full: (c._actionsLeft?.full || 0) + 1 } }
+                : c);
+              onLogEvent && onLogEvent('ti-sword', `Extra Attack — ${modal?.character?.name || 'Attacker'} may make an additional attack!`);
+            }
+          }
+        });
+
+        upEnc({ combatants: newCombatants });
       }
     }
 
@@ -1249,7 +1312,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               enemies={[]}
               allies={[]}
               onRoll={ctx => setModal({ ...ctx, character: myChar })}
-              onStanceChange={() => {}}
+              onStanceChange={(stance) => {
+                onUpdateCharacter(myChar.id, { current_stance: stance });
+              }}
               onDrawWeapon={() => {}}
               onPass={null}
             />
@@ -1606,8 +1671,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         </div>
       )}
 
-      {/* PC Turn Panel — shown for the active PC's turn, or for GM on NPC turns */}
-      {active && active.type === 'pc' && (
+      {/* PC Turn Panel — shown only for active player's own turn (or GM in any PC turn) */}
+      {active && active.type === 'pc' && (isGM || active.id === myCharId) && (
         <PCTurnPanel
           combatant={active}
           character={pcsMap[active.id]}
@@ -1635,6 +1700,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           onSpendAction={spendAction}
         />
       )}
+
     </div>
   );
 }

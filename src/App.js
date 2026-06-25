@@ -21,7 +21,7 @@ import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID } from './data/constants';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
-  useGroupInventory, useSessionLog,
+  useGroupInventory, useSessionLog, usePresence,
 } from './hooks/useSupabase';
 
 // ── Book Reference Dropdown ────────────────────────────────────────────────────
@@ -116,6 +116,14 @@ export default function App() {
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
 
+  // Presence — GM sees ticker notification when players join/leave
+  usePresence(
+    authMode ? (isGM ? 'GM' : (playerUsername || 'Player')) : null,
+    isGM,
+    (who) => { if (isGM) push('ti-user-check', `${who} connected`); },
+    (who) => { if (isGM) push('ti-user-x', `${who} disconnected`); }
+  );
+
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
   const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
@@ -174,8 +182,16 @@ export default function App() {
   const logSkillUse = (skillName) => {
     setSkillLog(prev => ({
       ...prev,
-      [skillName]: { session: (prev[skillName]?.session || 0) + 1, total: (prev[skillName]?.total || 0) + 1 },
+      [skillName]: {
+        encounter: (prev[skillName]?.encounter || 0) + 1,
+        session:   (prev[skillName]?.session   || 0) + 1,
+        total:     (prev[skillName]?.total     || 0) + 1,
+      },
     }));
+  };
+  // Reset encounter-level skill counts when an encounter ends
+  const resetEncounterSkillLog = () => {
+    setSkillLog(prev => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, { ...v, encounter: 0 }])));
   };
 
   const [ticker, setTicker] = useState([]);
@@ -490,7 +506,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v91</span>
+        <span className="hdr-game">The Tool — v92</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -640,7 +656,14 @@ export default function App() {
             session={session}
             quests={quests}
             onCreateQuest={handleCreateQuest}
-            onUpdateQuest={handleUpdateQuest}
+            onUpdateQuest={(id, updates) => {
+              // Fire ticker notification when quest becomes visible
+              if (updates.is_visible === true) {
+                const q = quests.find(x => x.id === id);
+                if (q) push('ti-flag', `Quest revealed: "${q.title}"`);
+              }
+              handleUpdateQuest(id, updates);
+            }}
           />
         )}
         {tab === 'party' && (

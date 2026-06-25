@@ -214,6 +214,32 @@ export function useCharacters() {
   return { characters, loading, createCharacter, updateCharacter, deleteCharacter, refetch: fetch };
 }
 
+// ── Presence tracking — broadcasts who is online ───────────────────────────────
+export function usePresence(username, isGM, onJoin, onLeave) {
+  useEffect(() => {
+    if (!username) return;
+    const channel = supabase.channel('presence_' + GAME_ID, {
+      config: { presence: { key: username } }
+    });
+
+    channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      if (key !== username && onJoin) onJoin(key, newPresences[0]);
+    });
+    channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      if (key !== username && onLeave) onLeave(key, leftPresences[0]);
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ username, role: isGM ? 'gm' : 'player', joinedAt: Date.now() });
+      }
+    });
+
+    return () => supabase.removeChannel(channel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username, isGM]);
+}
+
 // ── NPCs ──────────────────────────────────────────────────────────────────────
 export function useNPCs() {
   const [npcs, setNpcs] = useState([]);

@@ -33,7 +33,7 @@ function computeBonuses(character, skillName, isAttack, isDamage, currentStance)
   const isDmg = isDamage || skillName === 'DAMAGE';
   const isAtk = isAttack || skillName === 'ATTACK';
 
-  const earnedTechs = Object.values(character.techniques || {}).filter(Boolean);
+  const earnedTechs = Object.entries(character.techniques || {}).filter(([r]) => +r <= (character.school_rank || 1)).map(([,n]) => n).filter(Boolean);
   const charAdvantages = (character.advantages || []).map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
 
   let extraRolled = 0, extraKept = 0, extraFlat = 0, freeRaisesTotal = 0;
@@ -96,6 +96,11 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const [dmgKept, setDmgKept] = useState(new Set());
   const [finalDamage, setFinalDamage] = useState(null);
   const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
+  // Emphasis — character has an emphasis for this skill → may re-roll 1s
+  const skillEmphases = context?.character?.skills?.find(s => s.name === context?.skill)?.emphases || [];
+  const hasEmphasis = skillEmphases.length > 0;
+  const [useEmphasis, setUseEmphasis] = useState(hasEmphasis); // auto-checked if applicable
+  const [rerolledOnes, setRerolledOnes] = useState([]); // indices of dice that had 1s rerolled
 
   const isAttack = context?.isAttack || false;
   const dmgDR = context?.dr || '3k2';
@@ -168,6 +173,28 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   };
 
   const confirmRoll = () => {
+    // If emphasis applies, re-roll any kept 1s first
+    if (useEmphasis && hasEmphasis) {
+      const onesIdx = [...kept].filter(i => dice[i].total === 1);
+      if (onesIdx.length > 0) {
+        const newDice = [...dice];
+        onesIdx.forEach(i => { newDice[i] = rollOneDie(); });
+        setDice(newDice);
+        setRerolledOnes(onesIdx);
+        // Brief delay then finalize with new dice
+        setTimeout(() => {
+          const total = [...kept].reduce((s, i) => s + newDice[i].total, 0) + flatMod;
+          const success = total >= tn;
+          const result = { total, success, margin: total - tn, tn, raises, flatMod };
+          setRollResult(result);
+          setRerolledOnes([]);
+          if (success) playSuccess(); else playFailure();
+          if (result.success && context?.isAttack) { setPhase('damage'); setDmgDice(rollAllDice(dmgRoll)); }
+          else { setPhase('done'); if (onResult) onResult(result); }
+        }, 800);
+        return; // early return — result set in timeout
+      }
+    }
     const total = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
     const success = total >= tn;
     const result = { total, success, margin: total - tn, tn, raises, flatMod };
@@ -251,7 +278,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
               Base {context?.tn || 15}{raises.length > 0 ? ` + ${raises.length * 5} from raises` : ''}{manualFreeRaises > 0 ? ` − ${manualFreeRaises * 5} from manual free raise${manualFreeRaises > 1 ? 's' : ''}` : ''} = <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{tn}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '.4rem' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Free Raise (from an effect not auto-detected)</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Free Raise <span style={{ color: 'var(--green)', fontSize: 10 }}>(reduces TN by 5 — already earned from a technique/effect)</span></span>
               <button className="trait-btn" onClick={() => setManualFreeRaises(n => Math.max(0, n - 1))} disabled={manualFreeRaises === 0}>−</button>
               <span style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{manualFreeRaises}</span>
               <button className="trait-btn" onClick={() => setManualFreeRaises(n => n + 1)}>+</button>
@@ -355,7 +382,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
 
           {/* Raises */}
           <div className="modal-section">
-            <span className="modal-label">Raises <span style={{ fontSize: 11, fontWeight: 400 }}>(each +5 TN)</span></span>
+            <span className="modal-label">Raises Declared <span style={{ fontSize: 11, fontWeight: 400, color: '#c84030' }}>(each raise adds +5 TN — harder to succeed, but more effect on success)</span></span>
             <div style={{ display: 'flex', flexWrap: 'wrap' }}>
               {RAISE_OPTIONS.map(r => (
                 <button key={r} className={`raise-btn ${raises.includes(r) ? 'sel' : ''}`} onClick={() => toggleRaise(r)}>{r}</button>
@@ -374,7 +401,22 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
           </div>
 
           {/* Void */}
-          <div className="modal-section">
+                    {/* Emphasis — re-roll 1s if character has an emphasis for this skill */}
+          {hasEmphasis && (
+            <div className="modal-section">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={useEmphasis} onChange={e => setUseEmphasis(e.target.checked)}
+                  style={{ accentColor: 'var(--gold)', width: 16, height: 16 }} />
+                <span style={{ fontSize: 14 }}>
+                  <strong style={{ color: 'var(--gold)' }}>Emphasis applies</strong>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>
+                    ({skillEmphases.join(', ')}) — re-roll any kept 1s
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+<div className="modal-section">
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>
               <input type="checkbox" checked={useVoid} onChange={e => setUseVoid(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               Spend Void Point (+1k1)
@@ -399,9 +441,11 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dice.map((d, i) => (
                 <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleKeep(i)}
-                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : ''}>
+                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
+                  style={rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
                   {d.total}
                   {d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
+                  {rerolledOnes.includes(i) && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
                   {kept.has(i) && <span className="die-lbl">✓</span>}
                 </div>
               ))}

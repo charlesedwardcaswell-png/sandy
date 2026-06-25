@@ -263,7 +263,14 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
   0%, 100% { text-shadow: 0 0 40px #c0a0e0aa, 0 0 10px #c0a0e088; }
   50%       { text-shadow: 0 0 80px #c0a0e0ff, 0 0 30px #c0a0e0cc; }
 }
-@keyframes purchaseFlash {
+@keyframes emphasisReroll {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); filter: brightness(1); }
+  30%  { opacity: 0.3; transform: scale(0.8) rotate(-15deg); filter: brightness(2) saturate(0); }
+  60%  { opacity: 0; transform: scale(1.2) rotate(10deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); filter: brightness(1.5); }
+}
+
+
   0%   { opacity: 0; transform: scale(1.1); }
   10%  { opacity: 1; transform: scale(1); }
   70%  { opacity: 1; }
