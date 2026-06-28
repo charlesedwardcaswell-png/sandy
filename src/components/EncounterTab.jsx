@@ -312,9 +312,26 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
 }
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing }) {
   const [selected, setSelected] = useState(null);
-  const [hoverCell, setHoverCell] = useState(null); // {x, y} while a token is selected
+  const [hoverCell, setHoverCell] = useState(null);
+  const [localPing, setLocalPing] = useState(null); // { x, y, fromX, fromY, ts }
+
+  const handleDblClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / CELL);
+    const y = Math.floor((e.clientY - rect.top) / CELL);
+    if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) return;
+    // Find the pinging player's token
+    const myToken = combatants.find(c => c.id === myCharId);
+    const fromX = myToken?.gridX !== undefined ? myToken.gridX * CELL + CELL / 2 : null;
+    const fromY = myToken?.gridY !== undefined ? myToken.gridY * CELL + CELL / 2 : null;
+    const ping = { x, y, fromX, fromY, ts: Date.now(), pingerId: myCharId };
+    setLocalPing(ping);
+    if (onPing) onPing(ping);
+    // Fade out after 3s
+    setTimeout(() => setLocalPing(null), 3000);
+  }; // {x, y} while a token is selected
   const CELL = 36;
   const W = gridSize * CELL;
 
@@ -382,7 +399,8 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             const y = Math.floor((e.clientY - rect.top) / CELL);
             if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) setHoverCell({ x, y });
           }}
-          onMouseLeave={() => setHoverCell(null)}>
+          onMouseLeave={() => setHoverCell(null)}
+          onDoubleClick={handleDblClick}>
 
           {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
 
@@ -402,6 +420,23 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
           )}
 
           {/* Trail line — from selected token's current position to hovered cell */}
+          {/* Grid pings — dashed line from token + animated circle */}
+          {[activePing, localPing].filter(Boolean).map((ping, pi) => {
+            if (!ping) return null;
+            const cx = ping.x * CELL + CELL / 2;
+            const cy = ping.y * CELL + CELL / 2;
+            return (
+              <g key={pi} style={{ pointerEvents: 'none' }}>
+                {ping.fromX != null && ping.fromY != null && (
+                  <line x1={ping.fromX} y1={ping.fromY} x2={cx} y2={cy}
+                    stroke="rgba(180,210,255,.7)" strokeWidth="1.5" strokeDasharray="4 3" />
+                )}
+                <circle cx={cx} cy={cy} r={CELL * 0.45}
+                  fill="rgba(180,210,255,.12)" stroke="rgba(180,210,255,.9)" strokeWidth="1.5" />
+                <text x={cx} y={cy + 6} textAnchor="middle" fontSize={CELL * 0.6} dominantBaseline="middle">&#128065;</text>
+              </g>
+            );
+          })}
           {selected && hoverCell && (() => {
             const selC = combatants.find(c => c.id === selected);
             if (!selC || selC.gridX === undefined) return null;
@@ -1655,6 +1690,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   gridX: c.startX !== undefined ? c.startX : undefined,
                   gridY: c.startY !== undefined ? c.startY : undefined,
                 }))});
+              }}
+              activePing={encounter?.gridPing && Date.now() - (encounter.gridPing.ts || 0) < 3000 ? encounter.gridPing : null}
+              onPing={(ping) => {
+                upEnc({ gridPing: ping });
+                // Auto-clear after 3s
+                setTimeout(() => upEnc(prev => prev.gridPing?.ts === ping.ts ? { ...prev, gridPing: null } : prev), 3100);
               }}
               onShift={(dx, dy) => {
                 upEnc({

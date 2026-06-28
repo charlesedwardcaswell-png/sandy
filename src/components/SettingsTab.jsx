@@ -197,11 +197,38 @@ export default function SettingsTab({ onWipe = {} }) {
   };
 
   const wipeTable = async (table, filter = {}, afterRefetch) => {
-    let q = supabase.from(table).delete();
-    Object.entries({ game_id: GAME_ID, ...filter }).forEach(([k, v]) => { q = q.eq(k, v); });
+    // Supabase requires neq filter alongside eq to allow bulk deletes without RLS issues
+    let q = supabase.from(table).delete().eq('game_id', GAME_ID).neq('id', '00000000-0000-0000-0000-000000000000');
+    Object.entries(filter).forEach(([k, v]) => { q = q.eq(k, v); });
     const { error } = await q;
     if (error) { console.error(`Wipe ${table} failed:`, error.message); return; }
     if (afterRefetch) afterRefetch();
+  };
+
+  const wipeEverything = async () => {
+    // Wipe all campaign data — use before handing tool to another group
+    // Order matters: children before parents
+    await wipeTable('quests');
+    await wipeTable('encounter_log');
+    await wipeTable('map_pins');
+    await wipeTable('npcs');
+    await wipeTable('characters');
+    await wipeAllSessions();
+    await wipeAllShops();
+    // Reset group inventory
+    await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID);
+    // Reset faction reputation
+    await supabase.from('faction_reputation').update({ reputation: 0 }).eq('game_id', GAME_ID);
+    // Reset time/day/week in games.settings
+    const { data: gameRow } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const updated = { ...(gameRow?.settings || {}), shops_v2: [], timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 };
+    await supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
+    // Trigger all refetches
+    if (onWipe.characters) onWipe.characters();
+    if (onWipe.npcs) onWipe.npcs();
+    if (onWipe.quests) onWipe.quests();
+    if (onWipe.session) onWipe.session();
+    if (onWipe.shops) onWipe.shops();
   };
 
   const wipeAllShops = async () => {
@@ -301,9 +328,44 @@ export default function SettingsTab({ onWipe = {} }) {
           Paste direct image URLs (imgur, etc). Leave blank to use defaults. Changes take effect after saving.
         </div>
 
+        {/* Image hosting & size advice */}
+        <div style={{ background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 6, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+          <div style={{ fontWeight: 700, color: 'var(--gold)', marginBottom: '.4rem' }}>📐 Image Advice</div>
+
+          <div style={{ marginBottom: '.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>City Map (Map Tab)</span><br />
+            Recommended: <strong>5000–8000px wide</strong>, landscape orientation. Sandy renders the map inside a fixed-aspect container and scales it to fit. Bigger is better for pin precision. The map uses a <strong>33×23 grid</strong> (columns × rows) internally, so images with a roughly 3:2 ratio work best. SVG maps are ideal if you have them.
+          </div>
+
+          <div style={{ marginBottom: '.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Encounter Setting Backgrounds</span><br />
+            Any resolution works. They display at 25% opacity behind the battle grid. Landscape images (16:9 or wider) look best. Atmospheric over detailed. The battle grid is <strong>12×12 squares</strong>. To align your image to the grid, use your image to align to the grid, a source image divided into 12 columns and 12 rows of equal squares (e.g. 1200×1200px, 100px per square).
+          </div>
+
+          <div style={{ marginBottom: '.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Character / NPC Avatars</span><br />
+            Set per-character on the character sheet. Recommended: <strong>400–800px square</strong>, portrait orientation. Circular crop is applied automatically.
+          </div>
+
+          <div style={{ marginBottom: '.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Jinn Art</span><br />
+            Displayed full-screen to all players on summoning. Any size works, landscape or portrait. Go dramatic.
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(200,150,42,.15)', marginTop: '.5rem', paddingTop: '.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Where to host images</span><br />
+            <strong>Discord</strong>: upload to any channel and copy the image link. Works fine, but links can expire if the message is deleted.<br />
+            <strong>Imgur</strong> (imgur.com): free, no account needed. Direct links end in <code style={{ background: 'rgba(0,0,0,.2)', padding: '0 3px', borderRadius: 2 }}>.jpg/.png</code>. Right-click and copy the image address.<br />
+            <strong>Google Drive</strong>: share the file publicly, then convert the link:<br />
+            <code style={{ background: 'rgba(0,0,0,.2)', padding: '1px 4px', borderRadius: 2, fontSize: 11 }}>drive.google.com/file/d/FILE_ID/view</code> →
+            <code style={{ background: 'rgba(0,0,0,.2)', padding: '1px 4px', borderRadius: 2, fontSize: 11 }}>drive.google.com/uc?export=view&id=FILE_ID</code><br />
+            <strong>GitHub</strong>: upload to a public repo and use the raw.githubusercontent.com URL. Reliable and permanent.
+          </div>
+        </div>
+
         {/* Map background */}
         <div style={{ marginBottom: '.75rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>City Map — Day (Map Tab)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>City Map: Day (Map Tab)</div>
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <input value={mapUrl} onChange={e => setMapUrl(e.target.value)}
               placeholder="https://i.imgur.com/6fuMHqq.jpeg"
@@ -317,7 +379,7 @@ export default function SettingsTab({ onWipe = {} }) {
         {/* Night map background */}
         <div style={{ marginBottom: '.75rem' }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>
-            City Map — Night <span style={{ fontWeight: 400 }}>(auto-switches at Evening &amp; Night)</span>
+            City Map: Night <span style={{ fontWeight: 400 }}>(auto-switches at Evening &amp; Night)</span>
           </div>
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <input value={mapUrlNight} onChange={e => setMapUrlNight(e.target.value)}
@@ -334,7 +396,7 @@ export default function SettingsTab({ onWipe = {} }) {
         {/* Background music */}
         <div style={{ marginBottom: '.75rem' }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', fontWeight: 600 }}>
-            Background Music URL <span style={{ fontWeight: 400 }}>(mp3/ogg — toggle ♪ in top bar)</span>
+            Background Music URL <span style={{ fontWeight: 400 }}>(mp3/ogg, toggle ♪ in top bar)</span>
           </div>
           <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)}
             placeholder="https://... (direct .mp3 or .ogg link)"
@@ -481,6 +543,8 @@ export default function SettingsTab({ onWipe = {} }) {
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
           All wipes are permanent and cannot be undone. Each requires a confirmation click.
         </div>
+        <DangerAction label="⚠ WIPE EVERYTHING" description="Deletes ALL campaign data — characters, NPCs, sessions, quests, shops, map pins, inventory, reputation. Use after exporting a backup to hand the tool to a new group." onConfirm={wipeEverything} />
+        <div style={{ height: 1, background: 'var(--border)', margin: '.5rem 0' }} />
         <DangerAction label="Clear Active Session" description="Ends the current session without archiving it — wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
         <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
         <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory — cannot be undone" onConfirm={wipeAllShops} />

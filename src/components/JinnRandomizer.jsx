@@ -232,7 +232,7 @@ function DicePicker({ rolled, kept, bonus = 0, tn, onConfirm, allowVoid = false,
 
 // ── Main Component ──────────────────────────────────────────────────────────────
 
-export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter, isGM, jinnArtUrl, onJinnSummoned, characters = [], myCharId }) {
+export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter, isGM, jinnArtUrl, onJinnSummoned, characters = [], myCharId, summoningBonus = 0 }) {
   // Step: 'roll' → 'tier' → 'type' → 'build' → 'summon' → 'negotiate'
   const [step, setStep]     = useState('roll');
   const [summoner, setSummoner]   = useState(myCharId || null);
@@ -803,6 +803,12 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               <strong style={{ color: 'var(--green)' }}>✓ {savedJinn?.name || name} has been summoned.</strong><br />
               Now negotiate terms. Both roll <strong>Commerce / Awareness</strong>. The sahir may offer a shorter service period for a bonus to their roll.
             </div>
+            {summoningBonus > 0 && (
+              <div style={{ background: 'rgba(200,150,42,.1)', border: '1px solid rgba(200,150,42,.3)', borderRadius: 5, padding: '.4rem .75rem', marginBottom: '.75rem', fontSize: 12, color: 'var(--gold)' }}>
+                <i className="ti ti-star" style={{ marginRight: 6 }} />
+                Jinn Summoning 1 active — +{summoningBonus} rolled dice already added to your Commerce/Awareness roll below
+              </div>
+            )}
 
             {/* Duration bonus */}
             <div style={{ marginBottom: '1rem' }}>
@@ -837,12 +843,14 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               // Commerce skill + Awareness ring
               const commerceSkill = (summonerChar?.skills || []).find(s => s.name === 'Commerce')?.rank || 1;
               const awarenessRing = summonerChar?.awareness || 2;
-              const comRolled = commerceSkill + awarenessRing;
+              // Jinn Summoning 1 bonus: +Insight Rank unkept dice to Commerce/Awareness rolls
+              const comRolled = commerceSkill + awarenessRing + (summoningBonus || 0);
               const comKept = awarenessRing;
               return (
                 <div style={{ marginBottom: '1rem' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
                     Sahir's Commerce / Awareness roll — {comRolled}k{comKept}
+                    {summoningBonus > 0 && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>+{summoningBonus} rolled dice (Jinn Summoning 1)</span>}
                     {DURATION_BONUSES[duration].bonus > 0 && <span style={{ color: '#c0a0e0', marginLeft: 6 }}>+{DURATION_BONUSES[duration].bonus} duration bonus added to total</span>}
                   </div>
                   {pcCommerce === ''

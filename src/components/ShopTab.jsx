@@ -288,7 +288,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 }
 
 
-export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops }) {
+export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId }) {
   const gmView = isGM && !isPCView;
 
   // All shops — loaded from/saved to Supabase
@@ -498,8 +498,24 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     }
     return (
       <div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: '1.25rem' }}>
-          <i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span><i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar</span>
+          {onRoll && (() => {
+            const myChar = characters?.find(c => c.id === myCharId);
+            const appraisalSkill = myChar ? (myChar.skills || []).find(s => s.name === 'Appraisal') : null;
+            return (
+              <button className="btn btn-sm" style={{ fontSize: 12, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
+                title="Roll Appraisal to assess item value and quality"
+                onClick={() => onRoll({
+                  skill: 'Appraisal', tn: 15, character: myChar,
+                  label: `Appraisal — assess item value (TN 15+)`,
+                  notes: 'Success: GM reveals true value and quality of an item. Raises reveal additional details.',
+                })}>
+                <i className="ti ti-zoom-money" style={{ marginRight: 4 }} />
+                Appraise {appraisalSkill ? `(${appraisalSkill.rank})` : ''}
+              </button>
+            );
+          })()}
         </div>
         <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Purchases go to:</span>

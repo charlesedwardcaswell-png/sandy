@@ -23,7 +23,7 @@ export const SKILL_CATEGORIES = {
   ],
   'High (Social/Scholarly)': [
     'Calligraphy','Courtier','Divination','Etiquette','Games',
-    'Medicine','Meditation','Sincerity','Storytelling','Tea Ceremony',
+    'Medicine','Meditation','Sincerity','Storytelling',
   ],
   'Low (Common/Criminal)': [
     'Acting','Forgery','Gambling','Sleight of Hand','Stealth',

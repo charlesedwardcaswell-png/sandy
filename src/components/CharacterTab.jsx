@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -18,6 +18,17 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
   const [showDel, setShowDel] = useState(0);
   const [addEq, setAddEq] = useState('');
   const [jinnOpen, setJinnOpen] = useState(false);
+  const [jinnSummonBonusLocal, setJinnSummonBonusLocal] = useState(null);
+
+  // Allow parent to trigger Jinn Randomizer via ref (from spell cast)
+  React.useEffect(() => {
+    if (jinnSummonerRef) {
+      jinnSummonerRef.current = (bonus) => {
+        setJinnSummonBonusLocal(bonus);
+        setJinnOpen(true);
+      };
+    }
+  }, [jinnSummonerRef]);
 
   // Jump to a specific character (e.g. from NPC tab)
   useEffect(() => {
@@ -31,12 +42,15 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
 
   // Set initial selection — prefer myCharId (claimed character) over first non-NPC character
   useEffect(() => {
-    if (characters.length > 0 && !selId) {
-      const claimed = myCharId && characters.find(c => c.id === myCharId && !c.is_npc);
-      const firstPc = characters.find(c => !c.is_npc);
-      setSelId(claimed ? claimed.id : firstPc ? firstPc.id : null);
+    const playerCharsNow = characters.filter(c => !c.is_npc);
+    if (playerCharsNow.length > 0) {
+      const claimed = myCharId && playerCharsNow.find(c => c.id === myCharId);
+      const current = selId && playerCharsNow.find(c => c.id === selId);
+      if (!current) {
+        setSelId(claimed ? claimed.id : playerCharsNow[0].id);
+      }
     }
-  }, [characters, selId, myCharId]);
+  }, [characters, myCharId]);
 
   // Player view — see all characters, create own, edit any (honour system)
   if (!isGM && !isPCView) {
@@ -109,11 +123,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onUnclaimCharacter={onUnclaimCharacter}
             onUpdateInventory={onUpdateInventory}
             partyInventoryItems={partyInventoryItems}
+            onRoll={onRoll} allChars={characters}
           />
         )}
         {jinnOpen && (
           <JinnRandomizer
-            onClose={() => setJinnOpen(false)}
+            onClose={() => { setJinnOpen(false); setJinnSummonBonusLocal(null); if (onJinnSummonDone) onJinnSummonDone(); }}
             onCreateCharacter={onCreateCharacter}
             onCreateNPC={onCreateNPC}
             isGM={false}
@@ -121,6 +136,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             myCharId={myCharId}
             jinnArtUrl={jinnArtUrl}
             onJinnSummoned={onJinnSummoned}
+            summoningBonus={jinnSummonBonusLocal || jinnSummonBonus}
           />
         )}
       </div>
@@ -334,7 +350,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       })()}
       {view === 'sheet' && !selNpcId && (
         char
-          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} />
+          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} onRoll={onRoll} allChars={characters} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
       )}
 
@@ -355,7 +371,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       )}
       {jinnOpen && (
         <JinnRandomizer
-          onClose={() => setJinnOpen(false)}
+          onClose={() => { setJinnOpen(false); setJinnSummonBonusLocal(null); if (onJinnSummonDone) onJinnSummonDone(); }}
           onCreateCharacter={onCreateCharacter}
           onCreateNPC={onCreateNPC}
           isGM={true}
@@ -363,6 +379,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           myCharId={myCharId}
           jinnArtUrl={jinnArtUrl}
           onJinnSummoned={onJinnSummoned}
+          summoningBonus={jinnSummonBonusLocal || jinnSummonBonus}
         />
       )}
     </div>
@@ -714,7 +731,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 }
 
 // ── Character Sheet ───────────────────────────────────────────────────────────
-function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems }) {
+function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems, onRoll, allChars }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasSotESheet = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
@@ -1149,6 +1166,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       </>
                     )}
                   </div>
+
                 </div>
               );
             })()}
@@ -1862,8 +1880,8 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
   }
 
   const steps = schoolIsSahir
-    ? ['Faction','Sub-faction','School','Traits & Skills','Spells','Advantages','Identity']
-    : ['Faction','Sub-faction','School','Traits & Skills','Advantages','Identity'];
+    ? ['Faction','Sub-faction','School','Advantages','Traits & Skills','Spells','Identity']
+    : ['Faction','Sub-faction','School','Advantages','Traits & Skills','Identity'];
   const advStep = 4;
   const spellStep = schoolIsSahir ? 6 : null;
   const traitsStep = 5;

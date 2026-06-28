@@ -23,6 +23,69 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #1a1208; c
   --green-dim: #2a5a28;
 }
 
+/* ── Themes ── */
+body.theme-arcane {
+  --bg-deep: #120a1e;
+  --bg-dark: #1a1028;
+  --bg-mid: #221432;
+  --bg-panel: #2a183c;
+  --bg-card: #321c48;
+  --border: #6b3a8a;
+  --border-light: #9a5ab8;
+  --gold: #c8a0e0;
+  --gold-light: #e0c0f8;
+  --gold-dim: #7a4a9a;
+  --text-primary: #ecddf8;
+  --text-secondary: #b090c8;
+  --text-muted: #7a5a90;
+  --red: #e04080;
+  --red-dim: #8a1848;
+  --green: #40a870;
+  --green-dim: #1a5838;
+  background: #120a1e;
+}
+body.theme-marble {
+  --bg-deep: #0a0e18;
+  --bg-dark: #0e1422;
+  --bg-mid: #121a2e;
+  --bg-panel: #16203a;
+  --bg-card: #1a2846;
+  --border: #2a4878;
+  --border-light: #4a70b0;
+  --gold: #90b8e0;
+  --gold-light: #b8d8f8;
+  --gold-dim: #3a6090;
+  --text-primary: #d8e8f8;
+  --text-secondary: #8aaac8;
+  --text-muted: #4a6888;
+  --red: #e05060;
+  --red-dim: #7a1828;
+  --green: #40b8a0;
+  --green-dim: #1a6858;
+  background: #0a0e18;
+}
+body.theme-void {
+  --bg-deep: #000000;
+  --bg-dark: #0a0a0a;
+  --bg-mid: #141414;
+  --bg-panel: #1e1e1e;
+  --bg-card: #282828;
+  --border: #484848;
+  --border-light: #686868;
+  --gold: #e8e8e8;
+  --gold-light: #ffffff;
+  --gold-dim: #888888;
+  --text-primary: #f0f0f0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #686868;
+  --red: #d04040;
+  --red-dim: #702020;
+  --green: #40a040;
+  --green-dim: #205820;
+  background: #000000;
+}
+
+
 /* ── Layout ── */
 .app { display: flex; flex-direction: column; height: 100vh; }
 .content { flex: 1; overflow-y: auto; padding: 1.25rem; max-width: 1400px; width: 100%; margin: 0 auto; box-sizing: border-box; }

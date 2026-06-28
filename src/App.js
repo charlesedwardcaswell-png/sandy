@@ -143,10 +143,17 @@ export default function App() {
   // GM writes are authoritative; player writes (combatants, activeTurn) propagate to GM
   const encounterDataJson = session?.encounter_data ? JSON.stringify(session.encounter_data) : null;
   const lastSavedRef = useRef(null); // prevent applying our own just-saved state
+  const sessionTransitionRef = useRef(false); // prevent resetting encounter during session switchover
   useEffect(() => {
     if (!session?.encounter_data) {
-      setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
-      return;
+      // Don't reset to idle if we're in the middle of a session transition (startSession closes old, creates new)
+      // Only reset if we've been sessionless for a moment
+      const timer = setTimeout(() => {
+        if (!sessionTransitionRef.current) {
+          setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
     }
     const incoming = session.encounter_data;
     const incomingStr = JSON.stringify(incoming);
@@ -206,6 +213,23 @@ export default function App() {
   }, [session?.id]);
   const audioRef = useRef(null);
   const shopWipeRef = useRef(null);
+
+  // Theme
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('sandy_theme') || 'default'; } catch { return 'default'; }
+  });
+  useEffect(() => {
+    document.body.className = theme === 'default' ? '' : `theme-${theme}`;
+    try { localStorage.setItem('sandy_theme', theme); } catch {}
+  }, [theme]);
+  const THEMES = [
+    { id: 'default', label: 'Desert',  icon: '☀' },
+    { id: 'arcane',  label: 'Arcane',  icon: '✦' },
+    { id: 'marble',  label: 'Marble',  icon: '◈' },
+    { id: 'void',    label: 'Void',    icon: '◆' },
+  ];
+  const jinnSummonerRef = useRef(null); // called with bonus when Jinn Summoning spell succeeds
+  const [jinnSummonBonus, setJinnSummonBonus] = useState(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicUrl, setMusicUrlState] = useState('');
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
@@ -294,6 +318,15 @@ export default function App() {
   const [campaignDay, setCampaignDay] = useState(1);
   const [campaignWeek, setCampaignWeek] = useState(1);
 
+  // Load persisted time/day/week from games.settings on mount
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).maybeSingle().then(({ data }) => {
+      if (data?.settings?.timeOfDay) setTimeOfDay(data.settings.timeOfDay);
+      if (data?.settings?.campaignDay) setCampaignDay(data.settings.campaignDay);
+      if (data?.settings?.campaignWeek) setCampaignWeek(data.settings.campaignWeek);
+    });
+  }, []);
+
   const shopOpen = !!encounter?.shopOpen; // persists to all clients via encounter state
 
   useEffect(() => {
@@ -301,6 +334,17 @@ export default function App() {
     if (encounter?.campaignDay) setCampaignDay(encounter.campaignDay);
     if (encounter?.campaignWeek) setCampaignWeek(encounter.campaignWeek);
   }, [encounter?.timeOfDay, encounter?.campaignDay, encounter?.campaignWeek]);
+
+  // Persist time/day/week to games.settings so they survive between sessions
+  useEffect(() => {
+    const t = setTimeout(() => {
+      supabase.from('games').select('settings').eq('id', GAME_ID).maybeSingle().then(({ data }) => {
+        const updated = { ...(data?.settings || {}), timeOfDay, campaignDay, campaignWeek };
+        supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
+      });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [timeOfDay, campaignDay, campaignWeek]);
 
   if (!authMode) {
     return (
@@ -479,11 +523,39 @@ export default function App() {
     setTimeOfDay(t);
     handleSetEncounter(e => ({ ...e, timeOfDay: t, campaignDay }));
   };
+  const applyPassiveHealing = (chars, isDawn = false) => {
+    // Houserule: +1 wound healed per time unit (not Dead/Out)
+    // At Dawn: also heal Stamina + Insight Rank (natural morning recovery)
+    const WOUND_RANKS = [0, 3, 5, 10, 15, 20, 40, 999];
+    chars.forEach(char => {
+      const maxWounds = (char.earth || 2) * 17;
+      const woundRank = (wounds) => {
+        const earth = char.earth || 2;
+        const thresholds = [earth*5, earth*7, earth*9, earth*11, earth*13, earth*15, earth*17];
+        for (let i = 0; i < thresholds.length; i++) { if (wounds <= thresholds[i]) return i; }
+        return 7;
+      };
+      const rank = woundRank(char.current_wounds || 0);
+      if (rank >= 7) return; // Out — no passive healing
+      let heal = 1; // houserule: +1 per time unit
+      if (isDawn) {
+        // Natural morning recovery: Stamina + Insight Rank
+        heal += (char.stamina || 2) + (char.insight_rank || char.school_rank || 1);
+      }
+      const newWounds = Math.max(0, (char.current_wounds || 0) - heal);
+      if (newWounds !== char.current_wounds) {
+        handleUpdateChar(char.id, { current_wounds: newWounds });
+      }
+    });
+  };
+
   const handleIncrementTime = () => {
     const idx = TIMES.indexOf(timeOfDay);
     const nextIdx = (idx + 1) % TIMES.length;
     const nextTime = TIMES[nextIdx];
     const rollingOverDay = nextIdx === 0; // Night → Dawn
+    // Apply passive healing to all non-Out PCs
+    applyPassiveHealing(safeChars, rollingOverDay);
     if (rollingOverDay) {
       // Compute new day/week inline and save everything in one shot
       let newDay = campaignDay + 1;
@@ -492,7 +564,7 @@ export default function App() {
       setCampaignDay(newDay);
       setTimeOfDay(nextTime);
       handleSetEncounter(e => ({ ...e, timeOfDay: nextTime, campaignDay: newDay, campaignWeek: newWeek }));
-      push('ti-sun', `Dawn — Day ${newDay}, Week ${newWeek}`);
+      push('ti-sun', `Dawn — Day ${newDay}, Week ${newWeek} — party healed ${safeChars.filter(c => (c.current_wounds||0) > 0).length > 0 ? 'Stamina + Rank + 1 wounds' : '(all healthy)'}`);
     } else {
       setTimeOfDay(nextTime);
       handleSetEncounter(e => ({ ...e, timeOfDay: nextTime, campaignDay }));
@@ -503,9 +575,16 @@ export default function App() {
     let week = campaignWeek;
     if (d > 7) { day = 1; week = campaignWeek + 1; setCampaignWeek(week); }
     else if (d < 1 && campaignWeek > 1) { day = 7; week = campaignWeek - 1; setCampaignWeek(week); }
-    else if (d < 1) { day = 1; } // week 1, can't go back further
+    else if (d < 1) { day = 1; }
     setCampaignDay(day);
-    handleSetEncounter(e => ({ ...e, timeOfDay, campaignDay: day, campaignWeek: week }));
+    // Reset time to Morning on day advance
+    setTimeOfDay('Morning');
+    handleSetEncounter(e => ({ ...e, timeOfDay: 'Morning', campaignDay: day, campaignWeek: week }));
+    // Standard healing: Stamina + Insight Rank wounds recovered per day
+    if (d > campaignDay || (d === 1 && campaignDay === 7)) {
+      applyPassiveHealing(safeChars, true);
+      push('ti-sun', `Day ${day}, Week ${week} — morning healing applied`);
+    }
   };
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', ...(gmView ? ['settings'] : [])];
@@ -530,7 +609,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v103</span>
+        <span className="hdr-game">The Tool — v108</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -562,6 +641,15 @@ export default function App() {
             <i className={`ti ${musicPlaying ? 'ti-player-pause' : 'ti-player-play'}`} style={{ fontSize: 14 }} />
           </button>
         )}
+        {/* Theme picker */}
+        <div style={{ display: 'flex', gap: 1, border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
+          {THEMES.map(t => (
+            <button key={t.id} title={t.label} onClick={() => setTheme(t.id)}
+              style={{ padding: '3px 7px', fontSize: 13, background: theme === t.id ? 'var(--gold)' : 'transparent', color: theme === t.id ? 'var(--bg-deep)' : 'var(--text-muted)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', lineHeight: 1 }}>
+              {t.icon}
+            </button>
+          ))}
+        </div>
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
@@ -592,7 +680,11 @@ export default function App() {
           </div>
           <div style={{ flex: 1 }} />
           {!session
-            ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1)}>
+            ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => {
+                sessionTransitionRef.current = true;
+                startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1)
+                  .finally(() => { setTimeout(() => { sessionTransitionRef.current = false; }, 3000); });
+              }}>
                 <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session
               </button>
             : <button className="btn btn-sm btn-d" onClick={() => setShowSessionEnd(true)}>
@@ -634,6 +726,10 @@ export default function App() {
             }}
             onUpdateInventory={updateInventory}
             partyInventoryItems={inventory?.items || []}
+            onRoll={(ctx) => setGlobalModal({ ...ctx })}
+            jinnSummonerRef={jinnSummonerRef}
+            jinnSummonBonus={jinnSummonBonus}
+            onJinnSummonDone={() => setJinnSummonBonus(null)}
           />
         )}
         {tab === 'encounter' && (
@@ -714,7 +810,7 @@ export default function App() {
             sessionLog={parsedSessionLog}
             allSessions={allSessions}
             activeSession={session}
-            onActivateSession={activateSession}
+            onActivateSession={(id) => { sessionTransitionRef.current = true; activateSession(id).finally(() => setTimeout(() => { sessionTransitionRef.current = false; }, 3000)); }}
             onCreatePrepSession={createPrepSession}
             onDeleteSession={deleteSession}
             onRenumberSession={renumberSession}
@@ -735,6 +831,8 @@ export default function App() {
             onLogEvent={push}
             shopOpen={shopOpen}
             onPurchase={handlePurchase}
+            onRoll={(ctx) => setGlobalModal({ ...ctx })}
+            myCharId={myCharId}
             onToggleShopOpen={gmView ? () => {
               const opening = !encounter?.shopOpen;
               handleSetEncounter(e => ({ ...e, shopOpen: opening }));
@@ -939,6 +1037,106 @@ export default function App() {
               charName: globalModal.character?.name || '',
               ts: Date.now(),
             };
+            // ── Medicine (Wound Treatment) heal ──────────────────────────────
+            if (globalModal?.isMedicineHeal && globalModal?.healTargetId) {
+              const target = safeChars.find(c => c.id === globalModal.healTargetId);
+              if (target && result >= 15) {
+                // Success: roll healing dice (base 1kX, raises add more rolled dice, keep 1)
+                const raises = Math.max(0, Math.floor((result - 15) / 5));
+                const medicineSkill = (globalModal.character?.skills || []).find(s => s.name === 'Medicine');
+                const skillRank = medicineSkill?.rank || 1;
+                // Mastery bonuses: R3 +1k0, R5 +1k1
+                const masteryRoll = skillRank >= 3 ? 1 : 0;
+                const masteryKeep = skillRank >= 5 ? 1 : 0;
+                const healDiceRolled = 1 + raises + masteryRoll;
+                const healDiceKept = 1 + masteryKeep;
+                // Roll the healing dice
+                const healRolls = Array.from({ length: healDiceRolled }, () => Math.ceil(Math.random() * 10));
+                healRolls.sort((a, b) => b - a);
+                const woundsHealed = healRolls.slice(0, healDiceKept).reduce((s, v) => s + v, 0);
+                const newWounds = Math.max(0, target.current_wounds - woundsHealed);
+                handleUpdateChar(globalModal.healTargetId, { current_wounds: newWounds });
+                push('ti-heart', `${globalModal.character?.name || 'Healer'} treated ${target.name} — healed ${woundsHealed} wounds (${healDiceRolled}k${healDiceKept} = ${healRolls.slice(0, healDiceKept).join('+')})`);
+              } else if (target) {
+                push('ti-heart-broken', `${globalModal.character?.name || 'Healer'} failed to treat ${target.name} (rolled ${result} vs TN 15)`);
+              }
+              setGlobalModal(null);
+              return;
+            }
+            // ── Skill outcomes ────────────────────────────────────────────────
+            const od = globalModal?.skillOutcomeData;
+            const success = result >= (globalModal.tn || 15);
+            const raises = success ? Math.floor((result - (globalModal.tn || 15)) / 5) : 0;
+            if (od && success) {
+              // Medicine — roll healing dice and apply to patient
+              if (od.medicine && od.medicinePatientId) {
+                const patient = safeChars.find(c => c.id === od.medicinePatientId);
+                const healer = safeChars.find(c => c.id === od.characterId);
+                if (patient) {
+                  const masteryRoll = od.skillRank >= 3 ? 1 : 0;
+                  const masteryKeep = od.skillRank >= 5 ? 1 : 0;
+                  const healDiceRolled = 1 + raises + masteryRoll;
+                  const healDiceKept = 1 + masteryKeep;
+                  const healRolls = Array.from({ length: healDiceRolled }, () => Math.ceil(Math.random() * 10));
+                  healRolls.sort((a, b) => b - a);
+                  const woundsHealed = healRolls.slice(0, healDiceKept).reduce((s, v) => s + v, 0);
+                  const newWounds = Math.max(0, (patient.current_wounds || 0) - woundsHealed);
+                  handleUpdateChar(od.medicinePatientId, { current_wounds: newWounds });
+                  push('ti-heart', `${healer?.name || 'Healer'} treated ${patient.name} — healed ${woundsHealed} wounds`);
+                }
+              }
+              // Acting / Stealth — create condition with TN to see through
+              if (od.acting || od.stealth) {
+                const conditionName = od.stealth ? 'Hidden' : 'Disguised';
+                const seeThroughTN = result; // roll result IS the TN to see through
+                const char = safeChars.find(c => c.id === od.characterId);
+                if (char) {
+                  const conditions = [...(char.xp_log || []), { note: `${conditionName} — TN ${seeThroughTN} to see through`, ts: new Date().toISOString(), type: 'condition' }];
+                  handleUpdateChar(od.characterId, { xp_log: conditions });
+                  push('ti-mask', `${char.name} is ${conditionName} (TN ${seeThroughTN} to see through)`);
+                }
+              }
+              // Meditation — recover Void Points
+              if (od.meditation) {
+                const char = safeChars.find(c => c.id === od.characterId);
+                if (char) {
+                  const recovery = od.skillRank >= 5 ? 4 : 2;
+                  const newVoid = Math.min(od.voidRing, (char.current_void || 0) + recovery);
+                  handleUpdateChar(od.characterId, { current_void: newVoid });
+                  push('ti-sparkles', `${char.name} meditated — recovered ${newVoid - (char.current_void || 0)} Void Point${newVoid - (char.current_void || 0) !== 1 ? 's' : ''}`);
+                }
+              }
+              // Forgery — add document to player inventory
+              if (od.forgery) {
+                const tn = result; // the TN to detect the forgery
+                const docName = od.forgeryDocName || 'Forged Document';
+                const newItem = { name: `${docName} (Forgery — TN ${tn} to detect)`, qty: 1, category: 'Quest Item', added_at: new Date().toISOString() };
+                const char = safeChars.find(c => c.id === od.characterId);
+                if (char) {
+                  const eq = [...(char.equipment || []), { name: newItem.name, dr: '', skill: '', equipped: false, inUse: false }];
+                  handleUpdateChar(od.characterId, { equipment: eq });
+                  push('ti-file-text', `${char.name} forged: ${docName} (TN ${tn} to detect)`);
+                }
+              }
+              // Storytelling — boast increases target reputation
+              if (od.storytelling && od.boastTargetId) {
+                const target = safeChars.find(c => c.id === od.boastTargetId);
+                const char = safeChars.find(c => c.id === od.characterId);
+                if (target) {
+                  const repGain = (1 + raises) * 0.1;
+                  const newRep = Math.round(((target.reputation || 1) + repGain) * 10) / 10;
+                  handleUpdateChar(od.boastTargetId, { reputation: newRep });
+                  push('ti-star', `${char?.name || 'Party'} boasted — ${target.name}'s Reputation +${repGain.toFixed(1)} → ${newRep}`);
+                }
+              }
+            }
+            // ── Jinn Summoning → open Jinn Randomizer ────────────────────────
+            if (od?.isJinnSummoning && success) {
+              const summoning1Bonus = od.spellName === 'Jinn Summoning 1' ? od.insightRank : 0;
+              setJinnSummonBonus({ spellName: od.spellName, bonus: summoning1Bonus, characterId: od.characterId });
+              if (jinnSummonerRef.current) jinnSummonerRef.current(summoning1Bonus);
+              push('ti-star', `${globalModal.character?.name || 'Sahir'} cast ${od.spellName} — Jinn Summoner opened`);
+            }
             // Apply damage to target if attack
             if (damage !== null && damage !== undefined && globalModal?.targetId) {
               handleSetEncounter(e => ({
@@ -967,10 +1165,15 @@ export default function App() {
             combatant={activeCombatant}
             character={myChar}
             enemies={enemies}
+            allies={safeChars.filter(c => c.id !== myCharId)}
+            allCharacters={safeChars}
             onRoll={(ctx) => setGlobalModal({ ...ctx, character: myChar })}
             onStanceChange={(stance) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, stance } : c) }))}
             onDrawWeapon={(weapon) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, drawnWeapon: weapon } : c) }))}
             onPass={() => handleSetEncounter(e => ({ ...e, activeTurn: e.activeTurn + 1 }))}
+            onUpdateCharacter={handleUpdateChar}
+            onUpdateInventory={updateInventory}
+            partyInventoryItems={inventory?.items || []}
           />
         );
       })()}

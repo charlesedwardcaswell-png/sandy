@@ -186,7 +186,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
     const base = Math.floor(Math.random() * 10) + 1;
     if (base !== 10) return { total: base, exploded: false, bonus: 0 };
     let bonus = 0, last = 10, safety = 0;
-    while (last === 10 && safety < 20) {
+    while (last === 10 && safety < 10) {  // max 10 explosions per die
       last = Math.floor(Math.random() * 10) + 1;
       bonus += last;
       safety++;
@@ -240,10 +240,12 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
     if (success) playSuccess(); else playFailure();
     if (onLogEvent) {
       const skillName = context?.skill || 'Roll';
+      const charName = context?.character?.name;
       const icon = success ? 'ti-check' : 'ti-x';
+      const who = charName ? `${charName}: ` : '';
       const txt = success
-        ? `${skillName} — ${total} vs TN ${tn} ✓ (+${total - tn})`
-        : `${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
+        ? `${who}${skillName} — ${total} vs TN ${tn} ✓ (+${total - tn})`
+        : `${who}${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
       onLogEvent(icon, txt);
     }
     if (success && isAttack) {

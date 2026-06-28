@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
+import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [] }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -15,6 +16,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [showSkillPicker, setShowSkillPicker] = useState(false); // full-screen skill overlay
   const [showSpellPicker, setShowSpellPicker] = useState(false); // full-screen spell overlay
   const [selectedSpell, setSelectedSpell] = useState(null);
+  const [pendingSpell, setPendingSpell] = useState(null);
+  const [spellVoidSpent, setSpellVoidSpent] = useState(false);
+  const [spellRaises, setSpellRaises] = useState(0);
+  const [skillTarget, setSkillTarget] = useState(''); // for social skills
+  const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
+  const [forgeryDocName, setForgeryDocName] = useState('');
 
   if (!isNPCTurn && !character) return null;
 
@@ -243,7 +250,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       tn,
       isAttack,
       dr: combatant.dr || '3k2',
-      targetName: target?.name || null,
+      targetName: target?.name || skillTarget || null,
       targetId: selectedTarget,
       currentVoid: character?.current_void,
       woundPenalty,
@@ -251,6 +258,21 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       suggestedFlatMod: centerBonus,
       bonusNotes,
       freeRaises: hasMasteryFreeRaise ? 1 : 0,
+      // Skill outcome context
+      skillOutcome: selectedSkill.name,
+      skillOutcomeData: {
+        acting: selectedSkill.name === 'Acting' || selectedSkill.name === 'Stealth',
+        stealth: selectedSkill.name === 'Stealth',
+        meditation: selectedSkill.name === 'Meditation',
+        forgery: selectedSkill.name === 'Forgery',
+        forgeryDocName: forgeryDocName || 'Forged Document',
+        storytelling: selectedSkill.name === 'Storytelling',
+        boastTargetId: boastTarget || null,
+        socialTarget: skillTarget || null,
+        characterId: character?.id,
+        skillRank: selectedSkill.rank,
+        voidRing: character?.void || 2,
+      },
     });
     if (onSpendAction) onSpendAction('full');
   };
@@ -272,43 +294,91 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
       {/* Full-screen spell picker overlay */}
       {showSpellPicker && (() => {
-        const knownSpells = character?.spells || [];
+        const isCokaloi = IS_COKALOI_SCHOOL(character?.school || '');
+
+        // Build a TN lookup for sahir spells
+        const spellTNs = {};
+        SAHIR_DISCIPLINES.forEach(disc => disc.types.forEach(t => t.spells.forEach(s => { spellTNs[s.name] = s.tn; })));
+        COKALOI_CATEGORIES.forEach(cat => cat.spells.forEach(s => { spellTNs[s.name] = s.tn; }));
+
         const intRing = character?.intelligence || 2;
         const spellcraftRank = (character?.skills || []).find(s => s.name === 'Spellcraft')?.rank || 0;
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.92)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: '2rem', overflowY: 'auto' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#c0a0e0', marginBottom: '.5rem' }}>Cast a Spell</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Spellcasting roll: Intelligence + Spellcraft ({intRing + spellcraftRank}k{intRing}) vs spell TN
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', flex: 1 }}>
-              {knownSpells.length === 0
-                ? <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No spells learned yet.</div>
-                : knownSpells.map(spellName => {
-                    // Look up spell TN from SAHIR_DISCIPLINES (passed as character context)
-                    return (
-                      <button key={spellName}
-                        onClick={() => {
-                          setShowSpellPicker(false);
-                          onRoll({
-                            skill: spellName,
-                            tn: 15, // GM sets actual TN — this is a placeholder
-                            baseRoll: intRing + spellcraftRank,
-                            baseKeep: intRing,
-                            isSpellcasting: true,
-                            character,
-                            resultLabel: `Spellcasting roll for ${spellName}`,
-                          });
-                          if (onSpendAction) onSpendAction('full');
-                        }}
-                        style={{ padding: '.5rem .75rem', background: 'rgba(160,100,220,.15)', border: '1px solid rgba(160,100,220,.4)', borderRadius: 6, color: '#c0a0e0', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'left' }}>
-                        <i className="ti ti-sparkles" style={{ fontSize: 12, marginRight: 5 }} />{spellName}
-                      </button>
-                    );
-                  })
+        const discBonus = character?.spell_discipline_bonus || null;
+        const emphases = character?.spell_type_emphases || [];
+
+        const handleCast = (spellName) => {
+          // Find discipline/type for bonus calc
+          let bonusRoll = 0, bonusKeep = 0, bonusNotesList = [];
+          SAHIR_DISCIPLINES.forEach(disc => disc.types.forEach(t => {
+            t.spells.forEach(s => {
+              if (s.name === spellName) {
+                if (discBonus === disc.id) { bonusRoll += 1; bonusKeep += 1; bonusNotesList.push(`+1k1 Discipline (${disc.name})`); }
+                if (emphases.includes(t.id)) { bonusRoll += 1; bonusKeep += 1; bonusNotesList.push(`+1k1 Emphasis (${t.name})`); }
               }
+            });
+          }));
+          const voidBonus = spellVoidSpent ? 1 : 0;
+          const isJinnSummoning = spellName.startsWith('Jinn Summoning');
+          setShowSpellPicker(false);
+          onRoll({
+            skill: spellName,
+            tn: spellTNs[spellName] || 15,
+            baseRoll: intRing + spellcraftRank + bonusRoll,
+            baseKeep: intRing + bonusKeep + voidBonus,
+            isSpellcasting: true,
+            character,
+            bonusNotes: [...bonusNotesList, ...(spellVoidSpent ? ['+1k Void spent'] : [])],
+            freeRaises: spellRaises,
+            skillOutcome: 'spell',
+            skillOutcomeData: { isJinnSummoning, spellName, characterId: character?.id, insightRank: character?.insight_rank || character?.school_rank || 1 },
+          });
+          if (onSpendAction) onSpendAction('full');
+        };
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,7,4,.95)', zIndex: 200, display: 'flex', flexDirection: 'column', padding: '1rem', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '.75rem' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#c0a0e0' }}>Cast a Spell</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {intRing + spellcraftRank}k{intRing} base · click a spell then cast
+              </div>
+              <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowSpellPicker(false)}>✕ Close</button>
             </div>
-            <button className="btn btn-sm" style={{ marginTop: '1rem', alignSelf: 'flex-start' }} onClick={() => setShowSpellPicker(false)}>← Back</button>
+
+            {/* SpellConstellation in encounter mode */}
+            <div style={{ flex: 1, overflowY: 'auto', marginBottom: '.75rem' }}>
+              <SpellConstellation
+                character={character}
+                mode="encounter"
+                onCastSpell={(spellName) => setPendingSpell(spellName)}
+              />
+            </div>
+
+            {/* Cast controls — shown when a spell is selected */}
+            {pendingSpell && (
+              <div style={{ background: 'rgba(160,100,220,.1)', border: '1px solid rgba(160,100,220,.4)', borderRadius: 6, padding: '.75rem', flexShrink: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#c0a0e0', marginBottom: '.5rem' }}>
+                  Casting: {pendingSpell}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>TN {spellTNs[pendingSpell] || 15}</span>
+                  <button onClick={() => setPendingSpell(null)} style={{ marginLeft: 8, background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 14 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={spellVoidSpent} onChange={e => setSpellVoidSpent(e.target.checked)} />
+                    <span style={{ color: '#c0a0e0' }}>Spend Void (+1k)</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Free Raises:</span>
+                    <input type="number" min={0} max={5} value={spellRaises} onChange={e => setSpellRaises(Number(e.target.value))}
+                      style={{ width: 40, textAlign: 'center', fontSize: 12 }} />
+                  </div>
+                  <button className="btn btn-p" style={{ fontSize: 13 }} onClick={() => handleCast(pendingSpell)}>
+                    <i className="ti ti-sparkles" style={{ marginRight: 5 }} />
+                    Roll {intRing + spellcraftRank}k{intRing + (spellVoidSpent ? 1 : 0)} vs TN {(spellTNs[pendingSpell] || 15) - spellRaises * 5}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -643,10 +713,55 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               {/* Manual TN entry — GM tells the player what to type */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                 <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>TN (ask your GM):</label>
-                <input type="number" min={5} max={60} defaultValue={15}
+                <input type="number" min={5} max={60} defaultValue={
+                  selectedSkill.name === 'Meditation' ? 20 :
+                  selectedSkill.name === 'Storytelling' ? 15 : 15
+                }
                   id="manual-tn-input"
                   style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
               </div>
+              {/* Skill-specific options */}
+              {['Sincerity','Etiquette','Courtier','Temptation','Intimidation'].includes(selectedSkill.name) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Target:</label>
+                  <select value={skillTarget} onChange={e => setSkillTarget(e.target.value)}
+                    style={{ fontSize: 12, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}>
+                    <option value="">— pick target —</option>
+                    {[...enemies, ...allies].map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    {allCharacters.filter(c => c.id !== character?.id).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {selectedSkill.name === 'Storytelling' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Boast about:</label>
+                  <select value={boastTarget} onChange={e => setBoastTarget(e.target.value)}
+                    style={{ fontSize: 12, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}>
+                    <option value="">— no boast (just storytelling) —</option>
+                    {allCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {boastTarget && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Success: +0.1 Rep per raise (TN 15)</span>}
+                </div>
+              )}
+              {selectedSkill.name === 'Medicine' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Patient:</label>
+                  <select value={skillTarget} onChange={e => setSkillTarget(e.target.value)}
+                    style={{ fontSize: 12, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}>
+                    <option value={character?.id}>{character?.name} (self)</option>
+                    {allCharacters.filter(c => c.id !== character?.id && !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>TN 15 — success heals 1k1 wounds</span>
+                </div>
+              )}
+              {selectedSkill.name === 'Forgery' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Document name:</label>
+                  <input value={forgeryDocName} onChange={e => setForgeryDocName(e.target.value)}
+                    placeholder="e.g. Travel permit"
+                    style={{ fontSize: 12, width: 140, padding: '2px 5px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }} />
+                </div>
+              )}
               {isAtk && (
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Target:</div>

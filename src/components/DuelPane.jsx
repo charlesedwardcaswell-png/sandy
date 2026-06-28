@@ -44,7 +44,13 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
     if (n.has(i)) { n.delete(i); setKept(n); return; }
     if (n.size >= effectiveKept) return;
     if (d === 10 && !exploded.has(i)) {
-      const bonus = Math.ceil(Math.random() * 10);
+      // Chain explosions: each 10 explodes again, up to 10 times
+      let bonus = 0, last = 10, count = 0;
+      while (last === 10 && count < 10) {
+        last = Math.ceil(Math.random() * 10);
+        bonus += last;
+        count++;
+      }
       setDice(prev => { const nd = [...prev]; nd[i] = 10 + bonus; return nd; });
       setExploded(prev => new Set([...prev, i]));
     }

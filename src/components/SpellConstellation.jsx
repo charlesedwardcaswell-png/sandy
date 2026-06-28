@@ -289,93 +289,171 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
   );
 }
 
-// ── Cokaloi Constellation ─────────────────────────────────────────────────────
+// ── Star shape SVG path ───────────────────────────────────────────────────────
+function StarShape({ cx, cy, r, fill, stroke, opacity = 1 }) {
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : r * 0.4;
+    return `${cx + Math.cos(angle) * radius},${cy + Math.sin(angle) * radius}`;
+  }).join(' ');
+  return <polygon points={pts} fill={fill} stroke={stroke} strokeWidth="0.5" opacity={opacity} />;
+}
+
+// ── Cokaloi Constellation — new tabless design ────────────────────────────────
 function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, canEdit = true }) {
   const [activeSpell, setActiveSpell] = useState(null);
-  const [activeCategory, setActiveCategory] = useState(0);
-
-  const cat = COKALOI_CATEGORIES[activeCategory];
-  const positions = COKALOI_LAYOUTS[cat.id];
+  const rank = insightRank || 1;
 
   const isLearned = (name) => learnedSpells.includes(name);
-  const canLearn = (spell) => spell.level <= (insightRank || 1);
+  const canLearn = (spell) => spell.level <= rank;
+  const isOutOfReach = (spell) => spell.level > rank;
+
+  // Group Dusk and Night by mastery level
+  const byLevel = (cat) => {
+    const levels = {};
+    cat.spells.forEach(s => { if (!levels[s.level]) levels[s.level] = []; levels[s.level].push(s); });
+    return Object.entries(levels).sort(([a],[b]) => Number(a)-Number(b));
+  };
+
+  const renderSpellNode = (spell, cat, showLevel = false) => {
+    const learned = isLearned(spell.name);
+    const reachable = canLearn(spell);
+    const unreachable = isOutOfReach(spell);
+    const isActive = activeSpell?.name === spell.name;
+
+    let starFill, starStroke, starOpacity, dotOnly;
+    if (learned) {
+      starFill = cat.color; starStroke = cat.color; starOpacity = 1; dotOnly = false;
+    } else if (reachable) {
+      starFill = 'transparent'; starStroke = cat.color; starOpacity = 0.55; dotOnly = false;
+    } else {
+      dotOnly = true; // unreachable — dim glowing dot
+    }
+
+    return (
+      <div key={spell.name}
+        onClick={() => (canEdit || mode === 'encounter') ? setActiveSpell(isActive ? null : { ...spell, cat }) : null}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px',
+          borderRadius: 4, cursor: canEdit || mode === 'encounter' ? 'pointer' : 'default',
+          background: isActive ? cat.color + '18' : 'transparent',
+          transition: 'background .1s',
+        }}>
+        {/* Star / dot indicator */}
+        <svg width={16} height={16} style={{ flexShrink: 0 }}>
+          {dotOnly ? (
+            <circle cx={8} cy={8} r={2.5} fill={cat.color} opacity={0.28}
+              style={{ filter: `drop-shadow(0 0 2px ${cat.color})` }} />
+          ) : (
+            <>
+              {learned && <circle cx={8} cy={8} r={7} fill={cat.color} opacity={0.1} />}
+              <StarShape cx={8} cy={8} r={learned ? 6 : 5}
+                fill={starFill} stroke={starStroke} opacity={starOpacity} />
+            </>
+          )}
+        </svg>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 11, lineHeight: 1.2,
+            color: learned ? cat.color : reachable ? 'var(--text-secondary)' : 'var(--text-muted)',
+            fontWeight: learned ? 600 : 400,
+            opacity: unreachable ? 0.45 : 1,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {showLevel && <span style={{ fontSize: 10, opacity: 0.6, marginRight: 3 }}>ML{spell.level}</span>}
+            {spell.name}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', opacity: unreachable ? 0.3 : 0.7 }}>TN {spell.tn}</div>
+        </div>
+      </div>
+    );
+  };
+
+  const dawnCat = COKALOI_CATEGORIES[0];
+  const duskCat = COKALOI_CATEGORIES[1];
+  const nightCat = COKALOI_CATEGORIES[2];
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontStyle: 'italic' }}>Cokaloi — Ra'Shari Diviner magic. Dawn spells may be learned in any order.</div>
-
-      {/* Category tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-        {COKALOI_CATEGORIES.map((c, i) => (
-          <button key={c.id} onClick={() => { setActiveCategory(i); setActiveSpell(null); }}
-            style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer',
-              background: activeCategory === i ? c.color + '33' : 'transparent',
-              border: `1px solid ${activeCategory === i ? c.color : '#444'}`,
-              color: activeCategory === i ? c.color : '#888',
-            }}>
-            {c.name} · {c.element}
-          </button>
-        ))}
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 8, fontStyle: 'italic', display: 'flex', justifyContent: 'space-between' }}>
+        <span>Cokaloi — Ra'Shari Diviner. Insight Rank {rank} — can learn up to ML{rank}.</span>
+        <span style={{ color: '#666' }}>{learnedSpells.length} known</span>
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg, #0a0814 0%, #050810 100%)', borderRadius: 8, border: `1px solid ${cat.color}33`, overflow: 'visible', position: 'relative' }}>
-        <div style={{ padding: '4px 8px', borderBottom: `1px solid ${cat.color}22`, fontSize: 11, color: cat.color, fontStyle: 'italic' }}>
-          {cat.name} Cokaloi · {cat.desc}
+      {/* Active spell tooltip */}
+      {activeSpell && (() => {
+        const cat = activeSpell.cat;
+        return (
+          <div style={{ marginBottom: 8, padding: '.6rem .75rem', background: 'var(--bg-panel)', border: `1px solid ${cat.color}66`, borderRadius: 6, position: 'relative' }}>
+            <button onClick={() => setActiveSpell(null)} style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 16 }}>×</button>
+            <div style={{ fontSize: 13, fontWeight: 700, color: cat.color, marginBottom: 2 }}>{activeSpell.name}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Mastery {activeSpell.level} · TN {activeSpell.tn} · {cat.name} Cokaloi</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 6 }}>{activeSpell.desc}</div>
+            {canEdit && (
+              canLearn(activeSpell)
+                ? <button className="btn btn-sm" style={{ borderColor: cat.color + '88', color: cat.color, fontSize: 11 }}
+                    onClick={() => { onToggle(activeSpell.name); setActiveSpell(null); }}>
+                    {isLearned(activeSpell.name) ? '★ Learned — click to remove' : '☆ Learn this Cokalos'}
+                  </button>
+                : <div style={{ fontSize: 11, color: '#c84030', fontStyle: 'italic' }}>Requires Insight Rank {activeSpell.level} to learn.</div>
+            )}
+            {mode === 'encounter' && isLearned(activeSpell.name) && (
+              <button className="btn btn-sm" style={{ borderColor: cat.color, color: cat.color, fontSize: 11 }}
+                onClick={() => { onToggle(activeSpell.name); setActiveSpell(null); }}>
+                Cast this Cokalos
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Three columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {/* Dawn — chaotic, all displayed freely */}
+        <div style={{ border: `1px solid ${dawnCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: dawnCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: dawnCat.color, borderBottom: `1px solid ${dawnCat.color}33` }}>
+            ☀ Dawn · Fate &amp; Skill
+          </div>
+          <div style={{ padding: 4 }}>
+            <div style={{ fontSize: 10, color: '#666', padding: '2px 6px', marginBottom: 2, fontStyle: 'italic' }}>Free order — any skill</div>
+            {dawnCat.spells.map(spell => renderSpellNode(spell, dawnCat, true))}
+          </div>
         </div>
-        <svg viewBox="0 0 100 90" style={{ width: '100%', display: 'block' }}>
-          {STARS.map((s, i) => <circle key={i} cx={s.x} cy={s.y * 0.9} r={s.r * 0.5} fill="#fff" opacity={s.opacity} />)}
 
-          <text x="50" y="8" textAnchor="middle" fill={cat.color} fontSize="3.2" fontFamily="Georgia,serif" opacity="0.9">{cat.name} Cokaloi · {cat.element}</text>
+        {/* Dusk — ordered by mastery level */}
+        <div style={{ border: `1px solid ${duskCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: duskCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: duskCat.color, borderBottom: `1px solid ${duskCat.color}33` }}>
+            🌆 Dusk · Social
+          </div>
+          <div style={{ padding: 4 }}>
+            {byLevel(duskCat).map(([level, spells]) => (
+              <div key={level}>
+                <div style={{ fontSize: 9, color: duskCat.color, opacity: 0.6, padding: '3px 6px 1px', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                  Mastery {level}{Number(level) > rank ? ' 🔒' : ''}
+                </div>
+                {spells.map(spell => renderSpellNode(spell, duskCat))}
+              </div>
+            ))}
+          </div>
+        </div>
 
-          {cat.spells.map((spell, i) => {
-            const pos = positions[i] || { x: 50, y: 50 };
-            const learned = isLearned(spell.name);
-            const available = canLearn(spell);
-            const isActive = activeSpell?.name === spell.name;
-            const r = learned ? 3 : available ? 2.2 : 1.6;
-            return (
-              <g key={spell.name} style={{ cursor: 'pointer' }} onClick={() => setActiveSpell(isActive ? null : { ...spell, idx: i })}>
-                {learned && <circle cx={pos.x} cy={pos.y} r={r + 1} fill={cat.color} opacity="0.15" />}
-                <circle cx={pos.x} cy={pos.y} r={r}
-                  fill={learned ? cat.color : available ? cat.color + '44' : '#222'}
-                  stroke={learned ? cat.color : available ? cat.color + '88' : '#444'}
-                  strokeWidth="0.6"
-                />
-                {learned && (
-                  <g transform={`translate(${pos.x},${pos.y})`}>
-                    <polygon points="0,-1.5 0.4,-0.4 1.5,-0.4 0.6,0.3 0.9,1.4 0,0.8 -0.9,1.4 -0.6,0.3 -1.5,-0.4 -0.4,-0.4"
-                      fill="#fff" opacity="0.6" transform={`scale(${r * 0.35})`} />
-                  </g>
-                )}
-                <text x={pos.x} y={pos.y + r + 2.5} textAnchor="middle" fontSize="1.8" fill={cat.color} opacity="0.7">{spell.level}</text>
-              </g>
-            );
-          })}
-
-        </svg>
-
-        {/* Cokaloi spell tooltip — HTML overlay */}
-        {activeSpell && (() => {
-          const pos = positions[activeSpell.idx] || { x: 50, y: 50 };
-          return (
-            <SpellTooltip
-              spell={activeSpell} color={cat.color}
-              onClose={() => setActiveSpell(null)}
-              isLearned={isLearned(activeSpell.name)}
-              canLearn={canLearn(activeSpell)}
-              onToggle={() => { onToggle(activeSpell.name); setActiveSpell(null); }}
-              mode={mode}
-              style={{ position: 'absolute', left: `${Math.min(pos.x, 55)}%`, top: `${Math.max(pos.y - 5, 2)}%` }}
-            />
-          );
-        })()}
-
-        <div style={{ padding: '4px 8px', borderTop: `1px solid ${cat.color}22`, fontSize: 11, color: '#555' }}>
-          {cat.desc} · Insight Rank {insightRank || 1} → max mastery level {insightRank || 1}
+        {/* Night — ordered by mastery level */}
+        <div style={{ border: `1px solid ${nightCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: nightCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: nightCat.color, borderBottom: `1px solid ${nightCat.color}33` }}>
+            🌙 Night · Healing
+          </div>
+          <div style={{ padding: 4 }}>
+            {byLevel(nightCat).map(([level, spells]) => (
+              <div key={level}>
+                <div style={{ fontSize: 9, color: nightCat.color, opacity: 0.6, padding: '3px 6px 1px', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                  Mastery {level}{Number(level) > rank ? ' 🔒' : ''}
+                </div>
+                {spells.map(spell => renderSpellNode(spell, nightCat))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <div style={{ marginTop: 6, fontSize: 12, color: cat.color }}>{learnedSpells.length} Cokaloi learned</div>
     </div>
   );
 }
@@ -512,10 +590,11 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
   );
 }
 
-function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
+function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells, insightRank = 1 }) {
   const [activeCategory, setActiveCategory] = useState(0);
   const cat = COKALOI_CATEGORIES[activeCategory];
   const isLearned = (name) => learnedSpells.includes(name);
+  const canLearn = (spell) => spell.level <= insightRank;
 
   return (
     <div>
@@ -523,7 +602,7 @@ function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
         <div style={{ fontSize: 15, fontWeight: 700, color: learnedSpells.length >= maxSpells ? 'var(--green)' : 'var(--gold)' }}>
           {learnedSpells.length}/{maxSpells} Cokaloi selected
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Dawn spells can be learned in any order. Select freely.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>Dawn spells can be learned in any order. Dusk and Night require Insight Rank {insightRank}+ to learn Mastery {insightRank}+.</div>
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: '.75rem' }}>
@@ -543,19 +622,24 @@ function CoкaloiSpellPicker({ learnedSpells, onToggle, maxSpells }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem', marginBottom: '1rem' }}>
         {cat.spells.map(spell => {
           const learned = isLearned(spell.name);
+          const available = canLearn(spell);
+          const locked = !available && !learned;
           return (
-            <div key={spell.name} onClick={() => onToggle(spell.name)}
-              style={{ padding: '.4rem .6rem', borderRadius: 4, cursor: 'pointer',
+            <div key={spell.name} onClick={() => available || learned ? onToggle(spell.name) : null}
+              style={{ padding: '.4rem .6rem', borderRadius: 4, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.4 : 1,
                 background: learned ? cat.color + '22' : 'var(--bg-panel)',
-                border: `1px solid ${learned ? cat.color : 'var(--border)'}`,
+                border: `1px solid ${learned ? cat.color : available ? cat.color + '55' : 'var(--border)'}`,
               }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: cat.color, fontWeight: 700, minWidth: 14 }}>L{spell.level}</span>
+                <span style={{ fontSize: 11, color: cat.color, fontWeight: 700, minWidth: 14 }}>ML{spell.level}</span>
                 <span style={{ fontSize: 13, color: learned ? cat.color : 'var(--text-primary)', fontWeight: learned ? 600 : 400, flex: 1 }}>{spell.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>TN {spell.tn}</span>
                 {learned && <i className="ti ti-check" style={{ fontSize: 12, color: cat.color }} />}
+                {locked && <i className="ti ti-lock" style={{ fontSize: 11, color: 'var(--text-muted)' }} />}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, paddingLeft: 20, lineHeight: 1.3 }}>{spell.desc.slice(0, 80)}{spell.desc.length > 80 ? '…' : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, paddingLeft: 20, lineHeight: 1.3 }}>
+                {locked ? `Requires Insight Rank ${spell.level}` : `${spell.desc.slice(0, 80)}${spell.desc.length > 80 ? '…' : ''}`}
+              </div>
             </div>
           );
         })}
