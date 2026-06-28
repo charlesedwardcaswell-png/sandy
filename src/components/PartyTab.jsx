@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Silhouette, WoundBadge, FacIcon } from './UI';
+import { Silhouette, FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
-import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA, FACTION_COLORS } from '../data/constants';
+import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA } from '../data/constants';
 import { MagicItemBadge } from './MagicItemCreator';
 import MagicItemCreator from './MagicItemCreator';
 
@@ -38,7 +38,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
 
   const addItem = () => {
     if (!newItemName.trim()) return;
-    const items = [...(inventory.items || []), { name: newItemName.trim(), qty: newItemQty, category: newItemCat }];
+    const items = [...(inventory.items || []), { name: newItemName.trim(), qty: newItemQty, category: newItemCat, added_at: new Date().toISOString() }];
     onUpdateInventory({ items });
     setNewItemName(''); setNewItemQty(1); setNewItemCat('Gear');
   };
@@ -75,7 +75,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
           onClose={() => setShowMagicCreator(false)}
           characters={pcChars}
           onCreateForParty={(item) => {
-            onUpdateInventory({ items: [...items, { ...item, qty: 1, category: 'Magic' }] });
+            onUpdateInventory({ items: [...items, { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
           }}
           onCreateForCharacter={(charId, item) => {
             const char = characters.find(c => c.id === charId);
@@ -179,7 +179,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
             <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 18 }} />
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper</span>
-            {gmView && (
+            {(gmView || myCharId) && (
               <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
                 <input type="number" placeholder="±" value={copperDelta} onChange={e => setCopperDelta(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && applyCopper()} style={{ width: 60, fontSize: 12, padding: '2px 4px' }} />
@@ -230,9 +230,11 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
               <div key={actualIdx} className="inv-row">
                 <ItemIcon category={item.category} />
                 <span className="inv-cat">{item.category}</span>
-                <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}</span>
+                <span style={{ flex: 1, color: 'var(--text-primary)' }}>{item.name}
+                  {item.added_at && (Date.now() - new Date(item.added_at).getTime()) < 3600000 && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 700, background: 'rgba(100,180,100,.2)', border: '1px solid rgba(100,180,100,.5)', color: 'var(--green)', borderRadius: 3, padding: '0 4px', verticalAlign: 'middle' }}>NEW</span>}
+                </span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>×{item.qty}</span>
-                {gmView && (
+                {gmView ? (
                   <>
                     <select
                       value={sendToChar[actualIdx] || ''}
@@ -247,7 +249,12 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                     )}
                     <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeItem(actualIdx)}>×</button>
                   </>
-                )}
+                ) : myCharId ? (
+                  <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
+                    onClick={() => sendItemToCharacter(actualIdx, myCharId)}>
+                    Take
+                  </button>
+                ) : null}
               </div>
             );
           })}

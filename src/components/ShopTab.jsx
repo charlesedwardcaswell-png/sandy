@@ -11,13 +11,75 @@ const QUALITY_TIERS = [
   { key: 'masterwork', label: 'Masterwork', mult: 4,    color: '#e0c060' },
 ];
 
+// Helper to make a shop item from a weapon
+const wItem = (name, quality='standard') => {
+  const w = WEAPONS_LIST.find(x => x.name === name);
+  return { name, price: w?.price?.replace('c','0 copper') || '5 copper', dr: w?.dr || '', quality, visible: true, is_magic: false };
+};
+// Helper to make a shop item from gear
+const gItem = (name, price='2 copper', quality='standard') => ({ name, price, dr: '', quality, visible: true, is_magic: false });
+
 const BUNDLE_PRESETS = {
-  'Weapons Dealer':   { icon: 'ti-sword',    items: WEAPONS_LIST.slice(0, 12).map(w => ({ name: w.name, price: w.price || '5 copper', dr: w.dr || '', quality: 'standard', visible: true, is_magic: false })) },
-  'Armorer':          { icon: 'ti-shield',   items: ['Light Armor','Heavy Armor','Partial Armor','Riding Armor','Shield'].map(n => ({ name: n, price: '20 copper', dr: '', quality: 'standard', visible: true, is_magic: false })) },
-  'Apothecary':       { icon: 'ti-flask',    items: ['Medicine Kit','Antidote','Healing Poultice','Pain Salve','Smelling Salts'].map(n => ({ name: n, price: '5 copper', dr: '', quality: 'standard', visible: true, is_magic: false })) },
-  'General Goods':    { icon: 'ti-backpack', items: GEAR_LIST.slice(0, 10).map(n => ({ name: n, price: '2 copper', dr: '', quality: 'standard', visible: true, is_magic: false })) },
-  'Black Market':     { icon: 'ti-eye-off',  items: ['Poison (Contact)','Poison (Ingested)','Choking Cord','Concealed Blade Rig','Forgery Kit','Lock Picks','Fire Biter (dose)','Night Milk (dose)'].map(n => ({ name: n, price: '10 copper', dr: '', quality: 'standard', visible: true, is_magic: false })) },
-  'Magic Merchant':   { icon: 'ti-sparkles', items: ['Crysteel Dagger','Sahir Focus Stone','Warding Charm','Smokeless Fire Oil','Seal Fragment'].map(n => ({ name: n, price: '50 copper', dr: '', quality: 'fine', visible: true, is_magic: false })) },
+  // ── Standard shops ──────────────────────────────────────────────────────
+  'Weapons Dealer': { icon: 'ti-sword', tier: 'standard', items: [
+    wItem('Longsword'), wItem('Scimitar'), wItem('Shortsword'), wItem('Knife'), wItem('Jambiya'),
+    wItem('Spear'), wItem('Staff'), wItem('Heavy Club'), wItem('War Axe'), wItem('Standard Bow'), wItem('Shortbow'), wItem('Knife'),
+  ]},
+  'Armorer': { icon: 'ti-shield', tier: 'standard', items: [
+    gItem('Partial Armor (+3 TN)', '10 copper'), gItem('Light Armor (+5 TN)', '20 copper'),
+    gItem('Heavy Armor (+10 TN)', '40 copper'), gItem('Riding Armor (+8 TN)', '30 copper'),
+  ]},
+  'Apothecary': { icon: 'ti-flask', tier: 'standard', items: [
+    gItem('Medicine Kit', '5 copper'), gItem('Apothecary Kit', '8 copper'),
+    gItem('Traveling Rations', '1 copper'), gItem('Water Skin', '1 copper'),
+    gItem('Rope (50 ft)', '1 copper'), gItem('Lantern', '2 copper'), gItem('Lantern Oil', '1 copper'),
+    gItem('Flint and Steel', '1 copper'),
+  ]},
+  'General Goods': { icon: 'ti-backpack', tier: 'standard', items: [
+    gItem('Backpack', '2 copper'), gItem('Traveling Cloak', '3 copper'), gItem('Suit of Clothes', '2 copper'),
+    gItem('Sandals', '1 copper'), gItem('Blanket', '1 copper'), gItem('Rope (50 ft)', '1 copper'),
+    gItem('Lantern', '2 copper'), gItem('Lantern Oil', '1 copper'), gItem('Flint and Steel', '1 copper'),
+    gItem('Water Skin', '1 copper'), gItem('Tent (small)', '5 copper'), gItem('Traveling Rations', '1 copper'),
+  ]},
+  'Black Market': { icon: 'ti-eye-off', tier: 'standard', items: [
+    gItem('Lockpicks', '5 copper'), gItem('Generic Poison (dose)', '8 copper'),
+    gItem('Fire Biter (dose)', '15 copper'), gItem('Night Milk (dose)', '12 copper'),
+    gItem('Snake Venom (dose)', '15 copper'), gItem('Spider Venom (dose)', '10 copper'),
+    gItem('Blinding Dust (dose)', '5 copper'), gItem('Poison Powder (dose)', '10 copper'),
+    wItem('Knife'), wItem('Kindjal'),
+  ]},
+  'Outfitter': { icon: 'ti-hanger', tier: 'standard', items: [
+    gItem('Suit of Clothes', '2 copper'), gItem('Fine Clothes', '8 copper'),
+    gItem('Traveling Cloak', '3 copper'), gItem('Sandals', '1 copper'), gItem('Shoes', '2 copper'),
+    gItem('Backpack', '2 copper'), gItem('Coin Purse', '1 copper'), gItem('Blanket', '1 copper'),
+    gItem('Tent (small)', '5 copper'),
+  ]},
+  'Scribe': { icon: 'ti-pencil', tier: 'standard', items: [
+    gItem('Calligraphy Kit', '5 copper'), gItem('Book / Scroll', '3 copper'),
+    gItem('Writing Paper', '1 copper'), gItem('Personal Seal', '8 copper'),
+  ]},
+
+  // ── Superior shops (better stock, fine quality) ──────────────────────────
+  'Superior Weapons': { icon: 'ti-sword', tier: 'superior', items: [
+    wItem('Longsword','fine'), wItem('Scimitar','fine'), wItem('Jambiya','fine'),
+    wItem('Spear','fine'), wItem('Standard Bow','fine'), wItem('Shortbow','fine'),
+    wItem('Kindjal','fine'), wItem('War Axe','fine'),
+  ]},
+  'Superior Armorer': { icon: 'ti-shield', tier: 'superior', items: [
+    gItem('Light Armor (+5 TN)', '60 copper', 'fine'), gItem('Heavy Armor (+10 TN)', '120 copper', 'fine'),
+    gItem('Riding Armor (+8 TN)', '90 copper', 'fine'), gItem('Partial Armor (+3 TN)', '30 copper', 'fine'),
+  ]},
+  'Merchant District': { icon: 'ti-building-store', tier: 'superior', items: [
+    gItem('Fine Clothes', '15 copper', 'fine'), gItem('Traveling Cloak', '10 copper', 'fine'),
+    gItem('Personal Seal', '20 copper', 'fine'), gItem('Calligraphy Kit', '15 copper', 'fine'),
+    gItem('Medicine Kit', '15 copper', 'fine'), gItem('Apothecary Kit', '20 copper', 'fine'),
+    gItem('Shoes', '8 copper', 'fine'), gItem('Musical Instrument', '25 copper', 'fine'),
+  ]},
+  'Sahir Emporium': { icon: 'ti-sparkles', tier: 'superior', items: [
+    gItem('Calligraphy Kit', '20 copper', 'fine'), gItem('Book / Scroll', '15 copper', 'fine'),
+    gItem('Personal Seal', '25 copper', 'fine'), gItem('Apothecary Kit', '25 copper', 'fine'),
+    gItem('Medicine Kit', '20 copper', 'fine'), gItem('Writing Paper', '5 copper'),
+  ]},
 };
 
 function newShop(name) {
@@ -226,7 +288,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 }
 
 
-export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase }) {
+export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops }) {
   const gmView = isGM && !isPCView;
 
   // All shops — loaded from/saved to Supabase
@@ -251,6 +313,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const activeShop = shops.find(s => s.id === activeShopId) || null;
 
   // Load from Supabase
+  // Allow parent to trigger a wipe of local shop state after DB wipe
+  React.useEffect(() => {
+    if (onWipeShops) onWipeShops.current = () => { setShops([]); setActiveShopId(null); };
+  }, [onWipeShops]);
+
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       const saved = data?.settings?.shops_v2 || [];
@@ -339,16 +406,29 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
   const randomizeShop = () => {
     if (!activeShop) return;
-    const shopType = activeShop.name;
-    const preset = BUNDLE_PRESETS[shopType] || Object.values(BUNDLE_PRESETS).find(p => shopType.toLowerCase().includes(p !== undefined ? Object.keys(BUNDLE_PRESETS).find(k => BUNDLE_PRESETS[k] === p)?.split(' ')[0].toLowerCase() : '')) || Object.values(BUNDLE_PRESETS)[0];
-    // Give all items standard quality, then upgrade one to fine
+    const shopName = activeShop.name.toLowerCase();
+    // Try exact match first, then keyword match
+    let preset = BUNDLE_PRESETS[activeShop.name];
+    if (!preset) {
+      const keywords = {
+        'weapon': 'Weapons Dealer', 'sword': 'Weapons Dealer', 'blade': 'Weapons Dealer', 'arms': 'Weapons Dealer',
+        'armor': 'Armorer', 'armour': 'Armorer', 'shield': 'Armorer',
+        'apothecary': 'Apothecary', 'medicine': 'Apothecary', 'herb': 'Apothecary', 'potion': 'Apothecary',
+        'general': 'General Goods', 'supply': 'General Goods', 'market': 'General Goods', 'bazaar': 'General Goods',
+        'black': 'Black Market', 'shadow': 'Black Market', 'fence': 'Black Market', 'underground': 'Black Market', 'poison': 'Black Market',
+        'cloth': 'Outfitter', 'tailor': 'Outfitter', 'outfit': 'Outfitter', 'garment': 'Outfitter',
+        'scribe': 'Scribe', 'scroll': 'Scribe', 'book': 'Scribe', 'ink': 'Scribe',
+        'superior': 'Superior Weapons', 'merchant': 'Merchant District', 'sahir': 'Sahir Emporium', 'magic': 'Sahir Emporium',
+      };
+      const match = Object.entries(keywords).find(([kw]) => shopName.includes(kw));
+      preset = match ? BUNDLE_PRESETS[match[1]] : Object.values(BUNDLE_PRESETS)[3]; // default: General Goods
+    }
     const baseItems = preset.items.map(item => ({ ...item, visible: true }));
-    const upgradeIdx = Math.floor(Math.random() * baseItems.length);
-    baseItems[upgradeIdx] = {
-      ...baseItems[upgradeIdx],
-      quality: 'fine',
-      description: 'An exceptionally well-crafted piece — noticeably superior to common goods.',
-    };
+    // For standard tier: upgrade one random item to fine
+    if (preset.tier === 'standard') {
+      const upgradeIdx = Math.floor(Math.random() * baseItems.length);
+      baseItems[upgradeIdx] = { ...baseItems[upgradeIdx], quality: 'fine' };
+    }
     updateActiveShop({ items: baseItems });
   };
 
@@ -453,11 +533,17 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                                 {item.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
                               </span>
                             </div>
-                            {(item.description || GEAR_DESCRIPTIONS[item.name] || WEAPONS_LIST.find(w=>w.name===item.name)?.special) && (
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.4 }}>
-                                {item.description || GEAR_DESCRIPTIONS[item.name] || `Special: ${WEAPONS_LIST.find(w=>w.name===item.name)?.special}`}
-                              </div>
-                            )}
+                            {(() => {
+                              const weapon = WEAPONS_LIST.find(w => w.name === item.name);
+                              const rulebookText = GEAR_DESCRIPTIONS[item.name] ||
+                                (weapon ? `${weapon.dr ? `DR ${weapon.dr} · ` : ''}${weapon.skill}${weapon.special ? ' · ' + weapon.special : ''}` : null);
+                              return (rulebookText || item.description) ? (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.5 }}>
+                                  {rulebookText && <span style={{ display: 'block', fontStyle: 'italic', color: 'var(--text-muted)' }}>{rulebookText}</span>}
+                                  {item.description && <span style={{ display: 'block', color: 'var(--text-secondary)', marginTop: rulebookText ? 2 : 0 }}>{item.description}</span>}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         </>
                       )}
@@ -606,9 +692,16 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             <select defaultValue="" onChange={e => { if (e.target.value) loadBundle(e.target.value); e.target.value = ''; }}
               style={{ fontSize: 11, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, padding: '2px 4px' }}>
               <option value="">Quick bundle preset…</option>
-              {Object.entries(BUNDLE_PRESETS).map(([name, b]) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
+              <optgroup label="── Standard Shops ──">
+                {Object.entries(BUNDLE_PRESETS).filter(([,b]) => b.tier === 'standard').map(([name]) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </optgroup>
+              <optgroup label="── Superior Shops ──">
+                {Object.entries(BUNDLE_PRESETS).filter(([,b]) => b.tier === 'superior').map(([name]) => (
+                  <option key={name} value={name}>★ {name}</option>
+                ))}
+              </optgroup>
             </select>
 
             <div style={{ marginLeft: 'auto', fontSize: 11, color: activeShop.open ? 'var(--green)' : 'var(--text-muted)' }}>

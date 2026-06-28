@@ -33,7 +33,7 @@ function QuestNotes({ q, onUpdateQuest }) {
 }
 
 // A single quest card — used for both parents and children
-function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
+function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = false }) {
   const qt = QUEST_TYPES[q.quest_type] || QUEST_TYPES.side;
   const [collapsed, setCollapsed] = React.useState(q.status === 'complete');
 
@@ -74,13 +74,17 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
                   {q.title}
                 </span>
             }
-            {q.status === 'active' && (gmView || q.quest_type === 'player') && (
-              <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green-dim)', color: 'var(--green)', padding: '1px 6px' }}
-                onClick={e => { e.stopPropagation(); onUpdateQuest(q.id, { status: 'complete' }); }}>✓</button>
-            )}
+
             <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 4, userSelect: 'none' }}>
               {collapsed ? '▶' : '▼'}
             </span>
+            {gmView && (
+              <button className="btn btn-sm" title="Delete quest"
+                style={{ fontSize: 10, color: 'var(--red)', padding: '0 3px' }}
+                onClick={e => { e.stopPropagation(); if (window.confirm(`Delete quest "${q.title}"?`)) onDeleteQuest && onDeleteQuest(q.id); }}>
+                <i className="ti ti-trash" />
+              </button>
+            )}
             {gmView && (
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {/* Parent quest selector */}
@@ -152,7 +156,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, indent = false }) {
   );
 }
 
-export default function QuestTab({ isGM, isPCView, session, quests, onCreateQuest, onUpdateQuest }) {
+export default function QuestTab({ isGM, isPCView, session, quests, onCreateQuest, onUpdateQuest, onDeleteQuest }) {
   const [showNew, setShowNew] = useState(false);
   const [newQ, setNewQ] = useState({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
   const [showPlayerNew, setShowPlayerNew] = useState(false);
@@ -272,12 +276,12 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
         return (
           <div key={q.id} style={{ marginBottom: '1rem' }}>
             {/* Parent quest */}
-            <QuestCard q={q} quests={quests} gmView={gmView} onUpdateQuest={onUpdateQuest} indent={false} />
+            <QuestCard q={q} quests={quests} gmView={gmView} onUpdateQuest={onUpdateQuest} onDeleteQuest={onDeleteQuest} indent={false} />
             {/* Child quests — indented below, connected visually */}
             {kids.length > 0 && (
               <div style={{ marginTop: 4, paddingLeft: 8, borderLeft: '2px solid var(--border)', marginLeft: 20 }}>
                 {kids.map(child => (
-                  <QuestCard key={child.id} q={child} quests={quests} gmView={gmView} onUpdateQuest={onUpdateQuest} indent={true} />
+                  <QuestCard key={child.id} q={child} quests={quests} gmView={gmView} onUpdateQuest={onUpdateQuest} onDeleteQuest={onDeleteQuest} indent={true} />
                 ))}
               </div>
             )}

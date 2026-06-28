@@ -17,13 +17,18 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
   const pc = pcs?.[c.id];
   const voidTnBoost = c.voidArmor ? 10 : 0;
   const armorBonus = pc?.armorBonus || c.armorBonus || 0;
-  // Full Defense: Agility/Defense roll REPLACES Reflexes×5 (per rulebook p.63)
-  // Normal TN = 5 + Reflexes×5 + armor
-  // Full Defense TN = 5 + armor + defenseRoll (roll replaces the Reflexes×5 component)
-  const fullDefBonus = c.stance === 'Full Defense' ? (c.fullDefenseBonus ?? 10) : 0;
+  // Full Defense: adds HALF Defense roll (rounded up) to normal Armor TN
+  // Defense stance: adds Air Ring + Defense Skill Rank
+  // Full Attack: reduces Armor TN by 10
+  const fullDefBonus = c.stance === 'Full Defense' ? Math.ceil((c.fullDefenseBonus ?? 10) / 2) : 0;
+  const defenseStanceBonus = c.stance === 'Defense' ? ((c.air || 2) + (c.defenseSkillRank || 0)) : 0;
+  const fullAttackPenalty = c.stance === 'Full Attack' ? -10 : 0;
+  // Jinn protection: "+TN to Be Hit = highest Ring"
+  const jinnTNBonus = (pc?.is_npc && pc?.faction === 'Jinn' && Object.values(pc?.techniques || {}).some(t => typeof t === 'string' && t.includes('+TN to Be Hit = highest Ring')))
+    ? Math.max(pc.air || 2, pc.earth || 2, pc.fire || 2, pc.water || 2) : 0;
   const armorTN = c.stance === 'Full Defense'
-    ? 5 + armorBonus + fullDefBonus + voidTnBoost
-    : 5 + (c.reflexes || 2) * 5 + armorBonus + voidTnBoost;
+    ? 5 + (c.reflexes || 2) * 5 + armorBonus + fullDefBonus + voidTnBoost + jinnTNBonus
+    : 5 + (c.reflexes || 2) * 5 + armorBonus + defenseStanceBonus + fullAttackPenalty + voidTnBoost + jinnTNBonus;
   const currentVoid = c.current_void ?? pc?.current_void ?? 0;
   const maxVoid = c.void || pc?.void || 2;
 
@@ -89,7 +94,7 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
             {/* HP — always visible on PC cards, never on NPCs */}
             {!isNPC && pc && (
               <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 4px' }}>
-                {pc.current_wounds ?? 0} / {pc.max_wounds ?? 20} hp
+                {pc.current_wounds ?? 0} / {(pc.earth || pc.stamina || 2) * 17} wounds
               </span>
             )}
             {(c.statusEffects || []).map(e => {
@@ -114,10 +119,14 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
       {/* Bottom row - weapon + armor TN + void */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 12, color: 'var(--text-muted)' }}>
         <i className="ti ti-sword" style={{ fontSize: 13 }} />
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.drawnWeapon || 'Unarmed'}</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {c.drawnWeapons?.length > 1
+            ? c.drawnWeapons.map(w => w.split(' (')[0]).join(' + ')
+            : (c.drawnWeapon || 'Unarmed')}
+        </span>
         {/* Armor TN — shows boost if void spent */}
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}
-          title={c.stance === 'Full Defense' ? `Full Defense: 5 + ${armorBonus} armor + ${c.fullDefenseBonus ?? 10} Defense roll (replaces Reflexes×5)` : `TN to Be Hit: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor`}>
+          title={c.stance === 'Full Defense' ? `Full Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + half(${c.fullDefenseBonus ?? 10} Defense roll) = ${armorTN}` : c.stance === 'Defense' ? `Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + ${(c.air||2)} Air + ${c.defenseSkillRank||0} Defense Skill = ${armorTN}` : `TN to Be Hit: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor${c.stance === 'Full Attack' ? ' −10 (Full Attack)' : ''} = ${armorTN}`}>
           TN <span style={{ color: c.voidArmor ? '#6aba60' : (c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)') }}>{armorTN}</span>
           {c.stance === 'Full Defense' && <span style={{ fontSize: 10, color: '#4a8a40', marginLeft: 2 }}>🛡</span>}
           {c.voidArmor && <span style={{ fontSize: 10, color: '#6aba60', marginLeft: 2 }}>⬡</span>}
@@ -198,7 +207,7 @@ function VoidButton() {
     { icon: 'ti-bolt', label: '+10 Initiative', desc: 'Spend at the start of a round before rolling Initiative to add +10 to your Initiative roll.' },
     { icon: 'ti-star', label: '+2k1 (some techniques)', desc: 'Certain school techniques upgrade Void spend to +2k1 instead of +1k1.' },
     { icon: 'ti-eye', label: 'Negate one attack (Defense R5)', desc: 'Defense Rank 5 Mastery: spend Void as a Free Action to negate one attack per round.' },
-    { icon: 'ti-compass', label: 'Center Stance bonus', desc: 'Your first action in Center Stance adds a flat bonus equal to your School Rank to the roll result. This is separate from — and stacks with — Void Point spending.' },
+    { icon: 'ti-compass', label: 'Center Stance bonus', desc: 'After spending a round in Center Stance (forfeiting all actions), your first action next round gains +1k1 plus your Void Ring as bonus dice. Also +10 to Initiative that round.' },
   ];
   return (
     <div style={{ position: 'relative' }}>
@@ -231,7 +240,7 @@ function VoidButton() {
 // ── Party Card — extracted as a proper component so useState is legal ─────────
 function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combatants, onUpdateCharacter, upEnc }) {
   const [imgErr, setImgErr] = useState(false);
-  const wR = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
+  const wR = getWoundRank(c.current_wounds || 0, (c.earth || 2) * 17, c.earth || 2);
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
   const pc = pcsMap[c.id];
@@ -830,11 +839,20 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         id: pc.id, name: pc.name, type: 'pc',
         school: pc.school, faction: pc.faction,
         reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
+        earth: pc.earth || 2, water: pc.water || 2, strength: pc.strength || 2,
+        insight_rank: pc.insight_rank || pc.school_rank || 1,
+        defenseSkillRank: (pc.skills || []).find(s => s.name === 'Defense')?.rank || 0,
         void: pc.void || 2, current_void: pc.current_void ?? pc.void ?? 2,
         avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || '#c8962a',
         wound: getWoundRank(pc.current_wounds, pc.max_wounds),
         stance: 'Attack',
-        init: (pc.reflexes || 2) * 2 + Math.floor(Math.random() * 8) + 6,
+        init: (() => {
+          const ref = pc.reflexes || 2;
+          const ir = pc.insight_rank || pc.school_rank || 1;
+          const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
+          const sorted = [...dice].sort((a,b) => b - a);
+          return sorted.slice(0, ref).reduce((s,d) => s + d, 0);
+        })(),
         dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
         drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
         statusEffects: [], _action: null,
@@ -978,7 +996,22 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     if (c.type === 'pc') {
       const pc = pcsMap[id];
       if (pc) {
-        const woundMap = [0, pc.max_wounds * 0.1, pc.max_wounds * 0.2, pc.max_wounds * 0.35, pc.max_wounds * 0.55, pc.max_wounds * 0.75, pc.max_wounds * 0.9, pc.max_wounds];
+        // Wounds: Healthy=Earth×5, then each rank=Earth×2, Out=Earth×5
+        // Cumulative thresholds: [0, E×5, E×5+E×2, E×5+E×2×2, ...]
+        const earth = pc.earth || 2;
+        const healthyBuf = earth * 5;
+        const rankBuf = earth * 2;
+        // woundMap[rank] = total wounds at START of that rank
+        const woundMap = [
+          0,                                    // Healthy
+          healthyBuf,                           // Nicked
+          healthyBuf + rankBuf,                 // Grazed
+          healthyBuf + rankBuf * 2,             // Hurt
+          healthyBuf + rankBuf * 3,             // Injured
+          healthyBuf + rankBuf * 4,             // Crippled
+          healthyBuf + rankBuf * 5,             // Down
+          healthyBuf + rankBuf * 6,             // Out (Earth×5 more)
+        ];
         onUpdateCharacter(id, { current_wounds: Math.round(woundMap[newWound] || 0) });
       }
     }
@@ -1063,7 +1096,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     // Apply maneuver effects from raises
     if (result?.success && result?.raises?.length > 0 && modal?.targetId) {
       const maneuvers = result.raises;
-      const RAISE_COST = { Knockdown: 1, Feint: 1, Disarm: 2, Stun: 2, 'Extra Attack': 5, 'Called Shot': 1 };
+      // Feint is a separate full action, not a raise on a normal attack
+      // It's handled when the attacker declares the whole attack as a Feint
+      const RAISE_COST = { 'Feint (2)': 2, 'Knockdown (2)': 2, 'Disarm (3)': 3, 'Extra Attack (5)': 5, 'Called Shot': 1 };
 
       // Count how many raises were declared
       const totalRaises = result.raises.length;
@@ -1084,31 +1119,66 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         let newCombatants = [...combatants];
 
         effects.forEach(effect => {
-          if (effect === 'Knockdown') {
-            newCombatants = newCombatants.map(c => c.id === modal.targetId
-              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Prone'), 'Prone'] }
-              : c);
-            onLogEvent && onLogEvent('ti-arrow-down', `Knockdown — ${modal?.character?.name || 'Attacker'} knocks ${modal.targetName || 'target'} Prone`);
+          if (effect === 'Knockdown (2)') {
+            // Contested Strength + Insight Rank vs Earth + Insight Rank
+            const attackerStr = modal?.character?.strength || 2;
+            const attackerIR = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
+            const target = combatants.find(c => c.id === modal.targetId);
+            const defEarth = target?.earth || 2;
+            const defIR = attackerIR; // approximate same rank
+            // Roll both sides
+            const atkRolls = Array.from({length: attackerStr + attackerIR}, () => Math.ceil(Math.random()*10));
+            const defRolls = Array.from({length: defEarth + defIR}, () => Math.ceil(Math.random()*10));
+            const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
+            const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defEarth).reduce((s,d)=>s+d,0);
+            if (atkTotal > defTotal) {
+              newCombatants = newCombatants.map(c => c.id === modal.targetId
+                ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Prone'), 'Prone'] }
+                : c);
+              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} is Prone`);
+            } else {
+              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown resisted — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} stays standing`);
+            }
           }
-          if (effect === 'Stun') {
+          if (effect === 'Stun_UNUSED') {
             newCombatants = newCombatants.map(c => c.id === modal.targetId
               ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Stunned'), 'Stunned'] }
               : c);
             onLogEvent && onLogEvent('ti-circle-x', `Stun — ${modal.targetName || 'target'} loses their next action`);
           }
-          if (effect === 'Feint') {
-            newCombatants = newCombatants.map(c => c.id === modal.targetId
-              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Feinted'), 'Feinted'] }
-              : c);
-            onLogEvent && onLogEvent('ti-eye-off', `Feint — ${modal.targetName || 'target'} loses Reflexes bonus to Armor TN until next attack`);
+          if (effect === 'Feint (2)') {
+            // 4th Ed Feint (2 raises): bonus damage = half the margin of success, capped at Insight Rank × 5
+            // Margin = roll total - Armor TN (already with the 2 raise cost baked in)
+            const margin = result?.margin || 0;
+            const insightRank = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
+            const feintBonus = Math.min(Math.floor(margin / 2), insightRank * 5);
+            if (feintBonus > 0) {
+              onLogEvent && onLogEvent('ti-eye-off', `Feint — +${feintBonus} bonus damage (half of ${margin} margin, max ${insightRank * 5})`);
+            }
+            // The bonus damage is informational — damage was already rolled
+            // Show it on the ticker so the GM can note it
           }
-          if (effect === 'Disarm') {
-            newCombatants = newCombatants.map(c => c.id === modal.targetId
-              ? { ...c, drawnWeapon: null, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
-              : c);
-            onLogEvent && onLogEvent('ti-sword-off', `Disarm — ${modal.targetName || 'target'} is disarmed`);
+          if (effect === 'Disarm (3)') {
+            // Disarm: only 2k1 damage (override), contested Strength to determine if weapon drops
+            const attackerStr = modal?.character?.strength || 2;
+            const target = combatants.find(c => c.id === modal.targetId);
+            const defStr = target?.strength || 2;
+            const defIR = target?.insight_rank || 1;
+            const atkIR = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
+            const atkRolls = Array.from({length: attackerStr + atkIR}, () => Math.ceil(Math.random()*10));
+            const defRolls = Array.from({length: defStr + defIR}, () => Math.ceil(Math.random()*10));
+            const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
+            const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defStr).reduce((s,d)=>s+d,0);
+            if (atkTotal > defTotal) {
+              newCombatants = newCombatants.map(c => c.id === modal.targetId
+                ? { ...c, drawnWeapon: null, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
+                : c);
+              onLogEvent && onLogEvent('ti-sword-off', `Disarm — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} drops weapon! (Disarm deals 2k1 damage only)`);
+            } else {
+              onLogEvent && onLogEvent('ti-sword-off', `Disarm resisted — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} keeps weapon`);
+            }
           }
-          if (effect === 'Extra Attack') {
+          if (effect === 'Extra Attack (5)') {
             // Grant attacker an extra full action
             const attackerId = modal?.combatantId || active?.id;
             if (attackerId) {
@@ -1136,9 +1206,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   };
 
   const handleDrawWeapon = (id, weapon) => {
-    const dr = weapon.match(/\((\dk\d)\)/)?.[1] || '3k2';
-    upEnc({ combatants: combatants.map(c => c.id === id ? { ...c, drawnWeapon: weapon, dr } : c) });
-    if (pcsMap[id]) onUpdateCharacter(id, { current_weapon: weapon });
+    // weapon can be a string (legacy) or an array of up to 2 weapon strings
+    const weaponList = Array.isArray(weapon) ? weapon : (weapon ? [weapon] : []);
+    const primaryWeapon = weaponList[0] || null;
+    const dr = primaryWeapon?.match(/\((\dk\d)\)/)?.[1] || '3k2';
+    upEnc({ combatants: combatants.map(c => c.id === id
+      ? { ...c, drawnWeapons: weaponList, drawnWeapon: primaryWeapon, dr }
+      : c) });
+    if (pcsMap[id]) onUpdateCharacter(id, { current_weapon: primaryWeapon, current_weapons: weaponList });
   };
 
   const handleSetNPCAction = (npcId, action) => {

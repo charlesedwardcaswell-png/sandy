@@ -71,13 +71,13 @@ function BookDropdown() {
           </div>
 
           {BOOK_TOC.map((chapter, ci) => (
-            <div key={ci} style={{ borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+            <div key={ci} style={{ borderBottom: '1px solid rgba(107,78,40,.2)', background: chapter.isPinned ? 'rgba(200,150,42,.06)' : 'transparent' }}>
               {/* Chapter row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '.4rem .75rem', cursor: 'pointer',
                 background: expanded === ci ? 'rgba(200,150,42,.07)' : 'transparent' }}
                 onClick={() => setExpanded(expanded === ci ? null : ci)}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 30 }}>p.{chapter.page}</span>
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{chapter.chapter}</span>
+                <span style={{ fontSize: 11, color: chapter.isPinned ? 'var(--gold)' : 'var(--text-muted)', minWidth: 30 }}>{chapter.isPinned ? '★' : `p.${chapter.page}`}</span>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: chapter.isPinned ? 'var(--gold)' : 'var(--text-primary)' }}>{chapter.chapter}</span>
                 <button onClick={e => { e.stopPropagation(); openPage(chapter); }}
                   style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--gold-dim)', cursor: 'pointer', fontSize: 10, padding: '1px 5px' }}>
                   {chapter.fileId ? 'Open PDF ↗' : 'Folder ↗'}
@@ -125,7 +125,7 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
@@ -196,7 +196,16 @@ export default function App() {
 
   const [ticker, setTicker] = useState([]);
   const [fullEventLog, setFullEventLog] = useState([]);
+
+  // Restore event log from active session on load/reload
+  useEffect(() => {
+    if (session?.event_log?.length > 0 && fullEventLog.length === 0) {
+      setFullEventLog(session.event_log.map(e => ({ ...e, id: e.id || Date.now() + Math.random() })));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id]);
   const audioRef = useRef(null);
+  const shopWipeRef = useRef(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicUrl, setMusicUrlState] = useState('');
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
@@ -209,10 +218,23 @@ export default function App() {
     });
   }, []);
 
+  // Debounced event log save ref
+  const eventLogSaveTimer = useRef(null);
+
   const push = (icon, text, opts = {}) => {
     const entry = { id: Date.now() + Math.random(), icon, text, ts: new Date().toISOString(), highlight: !!opts.highlight, gmOnly: !!opts.gmOnly };
     setTicker(prev => [entry, ...prev].slice(0, 20));
-    setFullEventLog(prev => [entry, ...prev]);
+    setFullEventLog(prev => {
+      const updated = [entry, ...prev];
+      // Auto-save to active session (debounced 3s)
+      if (session?.id && isGM) {
+        clearTimeout(eventLogSaveTimer.current);
+        eventLogSaveTimer.current = setTimeout(() => {
+          saveEventLog(session.id, updated.map(e => ({ icon: e.icon, text: e.text, ts: e.ts, gmOnly: e.gmOnly })));
+        }, 3000);
+      }
+      return updated;
+    });
   };
 
   // tab state — persisted in localStorage so players return to last tab on reload
@@ -441,6 +463,7 @@ export default function App() {
     push('ti-books', `Session ${sessionNum} archived`);
     clearTimeout(saveTimer.current);
     setSkillLog({});
+    setFullEventLog([]);
     setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0 }));
     setShowSessionEnd(false);
     refetchSessionLog();
@@ -486,6 +509,7 @@ export default function App() {
   };
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', ...(gmView ? ['settings'] : [])];
+  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', settings: 'Settings' };
   const handleTabChange = (id) => {
     setTab(id);
     try { localStorage.setItem('sandy_tab', id); } catch {}
@@ -506,15 +530,19 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v92</span>
+        <span className="hdr-game">The Tool — v103</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
-          <div style={{ lineHeight: 1.2, textAlign: 'center' }}>
+          <div style={{ lineHeight: 1.3, textAlign: 'center' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wk {campaignWeek} · Day {campaignDay}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <span>Wk {campaignWeek}</span>
+              <span style={{ color: 'var(--border)' }}>|</span>
+              <span>Day {campaignDay}</span>
+            </div>
           </div>
         </div>
         {isGM && (
@@ -577,7 +605,7 @@ export default function App() {
       <div className="tabbar">
         {TABS.map(id => (
           <div key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)}>
-            {id.charAt(0).toUpperCase() + id.slice(1)}
+            {TAB_LABELS[id] || id.charAt(0).toUpperCase() + id.slice(1)}
             {id === 'encounter' && encActive && <span className="tab-dot" />}
           </div>
         ))}
@@ -688,6 +716,8 @@ export default function App() {
             activeSession={session}
             onActivateSession={activateSession}
             onCreatePrepSession={createPrepSession}
+            onDeleteSession={deleteSession}
+            onRenumberSession={renumberSession}
             onSavePreparedEncounters={savePreparedEncounters}
             npcsFromLog={npcs}
             skillLog={skillLog}
@@ -697,6 +727,7 @@ export default function App() {
         {tab === 'shop' && (
           <ShopTab
             isGM={isGM} isPCView={isPCView}
+            onWipeShops={shopWipeRef}
             inventory={inventory}
             onUpdateInventory={updateInventory}
             characters={safeChars}
@@ -712,7 +743,7 @@ export default function App() {
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab
-          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession }}
+          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
         />}
       </div>
 
@@ -888,6 +919,7 @@ export default function App() {
           isGM={isGM && !isPCView}
           pcsMap={safeChars.reduce((acc, c) => ({ ...acc, [c.id]: c }), {})}
           onUpdate={(patch) => handleSetEncounter(e => ({ ...e, duelState: { ...e.duelState, ...patch } }))}
+          onUpdateCharacter={handleUpdateChar}
           onClose={() => handleSetEncounter(e => ({ ...e, duelState: null }))}
         />
       )}

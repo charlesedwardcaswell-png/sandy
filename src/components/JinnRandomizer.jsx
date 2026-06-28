@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { SAHIR_SCHOOLS } from '../data/constants';
+import { SAHIR_SCHOOLS, SAHIR_DISCIPLINES } from '../data/constants';
 
 // ── Static Data ─────────────────────────────────────────────────────────────────
 
@@ -238,10 +238,11 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   const [summoner, setSummoner]   = useState(myCharId || null);
   const [summonRoll, setSummonRoll] = useState(null);   // total from dice picker
   const [rolling, setRolling]     = useState(false);
-  const [chosenResults, setChosenResults] = useState(0); // pre-committed choices that raise the TN
+  // chosenResults derived live from preCommits — no separate state needed
   const [tier, setTier]     = useState(null);
   const [type, setType]     = useState(null);
   const [built, setBuilt]   = useState(null);           // { traits, protections, abilities, combat }
+  const [preCommits, setPreCommits] = useState({ traits: [], protections: [], abilities: [], combat: [] }); // pre-roll choices
   const [choices, setChoices] = useState([]);           // list of table-result replacements used
   const [name, setName]     = useState('');
   const [personality, setPersonality] = useState('');
@@ -323,36 +324,106 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
     const traitVals = { reflexes: ringBase, awareness: ringBase, stamina: ringBase, willpower: ringBase, agility: ringBase, intelligence: ringBase, strength: ringBase, perception: ringBase };
     built.traits.forEach(t => { const key = traitMap[t.replace('+1 ', '')]; if (key) traitVals[key] = (traitVals[key] || ringBase) + 1; });
 
+    // ── Build techniques from Jinn abilities ──────────────────────────────────
+    // All Jinn have Invincible and Shapeshifting. Abilities become named techniques.
+    // Protections and combat bonuses are also recorded as techniques.
+    // Techniques must be strings (rank → string) per character schema
+    const techniques = {
+      1: 'Invincible — No mortal weapon can permanently slay a Jinn. If reduced past Out, the Jinn returns to its realm and remembers.',
+      2: 'Shapeshifting — May change its own shape at will as a Free Action.',
+    };
+    let techRank = 3;
+    built.protections.forEach(p => { techniques[techRank++] = `Protection — ${p}`; });
+    built.combat.forEach(c => { techniques[techRank++] = `Combat Bonus — ${c}`; });
+    built.abilities.forEach(a => { techniques[techRank++] = a.split(': ')[1] || a; });
+    if (personality) techniques[techRank++] = `Personality — ${personality}`;
+
+    // ── Map ability strings to actual spells from SAHIR_DISCIPLINES ────────────
+    // e.g. "Summoning: ML2 Primal Elements" → find spell name "Primal Elements 2"
+    const abilityToSpells = (abilityStr) => {
+      const m = abilityStr.match(/ML(\d)\s+(.+)/);
+      if (!m) return [];
+      const level = parseInt(m[1]);
+      const typeName = m[2].trim();
+      // Search SAHIR_DISCIPLINES for matching spells
+      const results = [];
+      if (true) {
+        SAHIR_DISCIPLINES.forEach(disc => {
+          disc.types.forEach(t => {
+            t.spells.forEach(sp => {
+              if (sp.level === level && sp.name.toLowerCase().includes(typeName.toLowerCase().split(' ')[0].toLowerCase())) {
+                results.push({ name: sp.name, tn: sp.tn, discipline: disc.name, level: sp.level, desc: sp.desc });
+              }
+            });
+          });
+        });
+      }
+      return results;
+    };
+
+    const spells = built.abilities.flatMap(a => abilityToSpells(a));
+
+    // ── Build skills: base Jinn skills + Spellcasting for magical Jinn ─────────
+    const skills = [
+      ...Object.entries(tierData.skills).map(([n, rank]) => ({ name: n.charAt(0).toUpperCase() + n.slice(1), rank, school: true })),
+    ];
+    if (spells.length > 0) {
+      skills.push({ name: 'Spellcasting', rank: tier === 'Minor' ? 2 : tier === 'Medium' ? 4 : 6, school: true });
+      skills.push({ name: 'Theology', rank: tier === 'Minor' ? 2 : tier === 'Medium' ? 3 : 4, school: true });
+    }
+
+    const jinnNotes = [
+      `BASE: Attack ${tierData.base.attack}, Damage ${tierData.base.damage}, TN ${tierData.base.tn}, Wounds/rank ${tierData.base.wounds}`,
+      built.protections.length ? `PROTECTIONS: ${built.protections.join('; ')}` : '',
+      built.combat.length      ? `COMBAT BONUSES: ${built.combat.join('; ')}` : '',
+    ].filter(Boolean).join('\n');
+
     const charData = {
       name: name || `${type} ${tier} Jinn`,
       player: 'Summoned Jinn',
-      faction: 'Jinn', family: type,
+      faction: 'Jinn',
+      family: type,
       school: `${type} Jinn (${tier})`,
       school_rank: tier === 'Minor' ? 1 : tier === 'Medium' ? 2 : 3,
       insight_rank: tier === 'Minor' ? 1 : tier === 'Medium' ? 2 : 3,
-      integrity: 4.0, reputation: 0, status: 0,
-      air: ringBase, earth: ringBase, fire: ringBase, water: ringBase, void: tierData.base.void,
+      integrity: 4.0, reputation: 1, status: 1,
+      air: ringBase, earth: ringBase, fire: ringBase, water: ringBase,
+      void: tierData.base.void,
       ...traitVals,
-      current_wounds: 0, max_wounds: (traitVals.stamina || ringBase) * tierData.base.wounds,
-      current_void: tierData.base.void, current_stance: 'Attack',
-      skills: Object.entries(tierData.skills).map(([name, rank]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), rank, school: true })),
-      spells: [],
-      advantages: [], disadvantages: [], equipment: [], techniques: {},
-      gm_notes: [
-        `BASE: Attack ${tierData.base.attack}, Damage ${tierData.base.damage}, TN ${tierData.base.tn}, Wounds/rank ${tierData.base.wounds}`,
-        built.protections.length ? `PROTECTIONS: ${built.protections.join('; ')}` : '',
-        built.abilities.length   ? `ABILITIES: ${built.abilities.join('; ')}` : '',
-        built.combat.length      ? `COMBAT BONUSES: ${built.combat.join('; ')}` : '',
-        personality ? `PERSONALITY: ${personality}` : '',
-      ].filter(Boolean).join('\n'),
-      player_notes: personality,
-      is_npc: false,
+      current_wounds: 0,
+      max_wounds: (traitVals.stamina || ringBase) * tierData.base.wounds,
+      current_void: tierData.base.void,
+      current_stance: 'Attack',
+      current_weapon: 'Unarmed (1k1)',
+      skills,
+      techniques,
+      advantages: [],
+      disadvantages: [],
+      equipment: [],
+      spells,
+      spell_emphasis: spells.length > 0 ? built.abilities[0] || '' : '',
+      xp_total: 0, xp_spent: 0,
+      xp_log: [{ note: jinnNotes, ts: new Date().toISOString() }],
+      copper: 0,
+      pc_password: '',
+      is_npc: true,
     };
 
+    // Jinn go into the characters table (is_npc: true) — full stat block requires it
     const creator = onCreateCharacter || onCreateNPC;
+    if (!creator) {
+      console.error('JinnRandomizer: no creator function available');
+      setSaving(false);
+      alert('Error: could not save Jinn — no create function available.');
+      return;
+    }
     const result = await creator(charData);
     setSaving(false);
-    setSavedJinn(result || charData);
+    if (!result) {
+      alert('Error: Jinn could not be saved to the database. Check console for details.');
+      return;
+    }
+    setSavedJinn(result);
     if (onJinnSummoned) onJinnSummoned(charData.name);
     setStep('negotiate');
   };
@@ -431,7 +502,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
 
             {summoner && (
               <div style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'rgba(200,150,42,.08)', borderRadius: 5, fontSize: 12, color: 'var(--text-muted)' }}>
-                Air Ring: <strong style={{ color: 'var(--gold)' }}>{airRing}</strong> · Lore: Theology: <strong style={{ color: 'var(--gold)' }}>{theologyRank}</strong> → Roll <strong>{rollPool_n}k{rollPool_k}</strong> vs TN {baseTN + chosenResults * 5}
+                Air Ring: <strong style={{ color: 'var(--gold)' }}>{airRing}</strong> · Lore: Theology: <strong style={{ color: 'var(--gold)' }}>{theologyRank}</strong> → Roll <strong>{rollPool_n}k{rollPool_k}</strong> vs TN {baseTN + Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0) * 5}
               </div>
             )}
 
@@ -441,7 +512,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               </button>
             )}
             {rolling && summoner && (
-              <DicePicker rolled={rollPool_n} kept={rollPool_k} tn={baseTN + chosenResults * 5}
+              <DicePicker rolled={rollPool_n} kept={rollPool_k} tn={baseTN + Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0) * 5}
                 allowVoid={true}
                 currentVoid={summonerChar?.current_void || 0}
                 onConfirm={(total, raisesUsed, usedVoid) => {
@@ -455,7 +526,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                 <div style={{ fontSize: 36, fontWeight: 900, color: summonRoll >= 10 ? 'var(--green)' : '#c84030' }}>{summonRoll}</div>
                 {summonRoll >= 10 ? (
                   <div style={{ fontSize: 14, color: 'var(--green)', fontWeight: 600 }}>
-                    ✓ Success — TN {baseTN + chosenResults * 5}
+                    ✓ Success — TN {baseTN + Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0) * 5}
                     {declaredRaises > 0 && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>+{declaredRaises} raise{declaredRaises > 1 ? 's' : ''} → {declaredRaises} free table choice{declaredRaises > 1 ? 's' : ''}</span>}
                   </div>
                 ) : (
@@ -526,7 +597,8 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
 
         {/* ── STEP: CHOOSE ── pre-commit selections before rolling */}
         {step === 'choose' && (() => {
-          const typeData = TYPES[type];
+          const typeData = type ? TYPES[type] : null;
+          if (!typeData) return null;
           const tierIdx = tier === 'Minor' ? 0 : tier === 'Medium' ? 1 : 2;
           const counts = {
             traits:      typeData.traitRolls[tierIdx],
@@ -534,7 +606,6 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             abilities:   typeData.abilRolls[tierIdx],
             combat:      typeData.combatRolls[tierIdx],
           };
-          const totalSlots = Object.values(counts).reduce((s, n) => s + n, 0);
           const totalChosen = Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0);
           const choicesRemaining = maxChoices - totalChosen;
 

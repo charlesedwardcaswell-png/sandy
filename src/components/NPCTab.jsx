@@ -213,6 +213,10 @@ They previously launched a direct assault on Medinaat al-Salaam and were repelle
 
 Yodotai mythology: the earth goddess Gaia and sky god Caelus created ten children who were eventually cast down from heaven by Caelus after rebellion. These fallen divine children became the ancestors of various peoples. The Yodotai's god of war, Conquest, is one such cast-down son.`
       },
+      {
+        key: 'rokugan', label: 'Rokugan',
+        text: `Rokugan — the Emerald Empire — lies far to the east, beyond the Ivory Kingdoms and the great forests. It is a feudal empire of samurai clans, ruled by an Emperor believed to be descended from the sun goddess Amaterasu. Its culture is ancient, formal, and deeply hierarchical.\n\nRokugan's relationship to the Burning Sands is distant but real. Scorpion Clan samurai were enslaved and brought to Medinaat al-Salaam during the reign of the Immortal Caliph — their descendants still live in the city's older neighborhoods. After the Awakening, the freed Scorpion returned east. The Spider Clan, exiled from Rokugan, has made quiet contact with remnant Jackal factions. The Twenty-Seven Days of Darkness was felt in the Emerald Empire as well as the Burning Sands.\n\nThe prophetic line of Mekhem and Duqaq has a peculiar resonance with Rokugani history. Scholars believe Mekhem to be the same individual Rokugan calls Shinsei, the Little Teacher — a wandering prophet of immense spiritual power. Duqaq is believed to be the figure Rokugan calls the Hooded Ronin. The implication — that a single prophetic line has guided both civilizations across centuries — is deeply unsettling to those who know both histories.\n\nRokugan uses koku as currency (rice-based). The rough conversion is 1 koku ≈ 1 copper, though regional variation is considerable. Rokugani characters operating in the Burning Sands treat their Honor as Integrity at half value (rounded down, minimum 1.0).\n\nThe Great Clans of Rokugan rarely venture into the Burning Sands. Those who do are usually Unicorn Clan (whose ancestral wanderings took them through the region centuries ago), Scorpion Clan operatives, or exiles. In Medinaat al-Salaam they are curiosities — foreign warriors whose code of Honor is admired by some and mocked by others.`
+      },
     ],
   },
   {
@@ -220,7 +224,7 @@ Yodotai mythology: the earth goddess Gaia and sky god Caelus created ten childre
     entries: [
       {
         key: 'sahirmagic', label: 'Sahir Magic — The Five Disciplines',
-        text: `A sahir is a magic-user. Unlike the Rokugani practice of speaking to kami, the sahir tradition is based on working with Hakhim's Seal — a map of all known magic, given to the human Hakhim by the Ashalan after the Day of Wrath.
+        text: `A sahir is a magic-user. The sahir tradition is based on working with Hakhim's Seal — a map of all known magic, given to the human Hakhim by the Ashalan after the Day of Wrath.
 
 The Seal is not merely a collection of symbols. It is a function of the universe, which is why it can be worked with internal visualization and hand motions. This is why spellcasting in the Burning Sands appears to include an incantation and a waving of hands — the sahir is reciting the symbols necessary for the spell and changing their position in his mind, as though working with a puzzle only he can see.
 
@@ -293,17 +297,13 @@ For players: crysteel weapons deal damage to spiritual beings, including Jinn an
     entries: [
       {
         key: 'integrity', label: 'Integrity (not Honor)',
-        text: `In the Burning Sands, the Rokugani concept of Honor is replaced by Integrity. Mechanically they function similarly, but the cultural meaning is different.
-
-Honor in Rokugan is tied to the celestial hierarchy, duty to one's lord, and the complex codes of samurai society. Breaking it is a failure of cosmic order.
-
-Integrity in the Burning Sands is about personal truth — whether you do what you say, whether your word can be trusted, whether you hold to your agreements even when it costs you. It matters across all classes and cultures. Even Jinn value it supremely — "integrity is the one imperishable commodity in their culture."
+        text: `Integrity in the Burning Sands is about personal truth — whether you do what you say, whether your word can be trusted, whether you hold to your agreements even when it costs you. It matters across all classes and cultures. Even Jinn value it supremely — "integrity is the one imperishable commodity in their culture."
 
 Note: Values in 4th Edition are doubled from the original LBS book. When a Rokugani character operates in the Burning Sands (or vice versa), treat their foreign equivalent at half value, rounded down to a minimum of 1.0.`
       },
       {
         key: 'tahaddi', label: 'Tahaddi Dueling',
-        text: `The Tahaddi is the Burning Sands equivalent of the Rokugani iaijutsu duel — a formalized single combat tradition recognized across the cultures of Medinaat al-Salaam. Unlike iaijutsu (sword drawing from stillness), Tahaddi is fought with a knife in each hand.
+        text: `The Tahaddi is the formal single combat tradition of the Burning Sands, recognized across the cultures of Medinaat al-Salaam. It is fought with a knife in each hand.
 
 The three formal phases:
 1. Assessment (Void/Tahaddi roll) — Reading your opponent; the foundation of the duel.
@@ -343,8 +343,6 @@ Crysteel weapons are effective against Ghuls. Fire also works. Standard mortal w
       {
         key: 'money', label: 'Money & Economics',
         text: `The currency of Medinaat al-Salaam is the copper piece and the pool (1/100th of a copper). This self-contained economy is built on trade taxation — the city's cut on each transaction is small, but the sheer volume of business makes the coffers always full.
-
-Rokugan uses koku (rice-based currency). The rough conversion is 1 koku = 1 copper — though local variation can be significant.
 
 Common prices: knife (2 copper), light armor (30 copper), longsword (15 copper), scimitar (20 copper), shortsword (7 copper), composite bow (20 copper). For daily goods: candle (20 pool), traveling rations (5 pool per meal), water skin (15 pool), silk bolt (2 copper).
 

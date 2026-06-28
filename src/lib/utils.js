@@ -1,14 +1,19 @@
 import { WOUND_RANKS, WOUND_COLORS, SCHOOL_DATA, SAHIR_SCHOOLS, WEAPONS_LIST } from '../data/constants';
 
 // ── Wound helpers ─────────────────────────────────────────────────────────────
-export function getWoundRank(current, max) {
-  const thresholds = [max, 2, 3, 4, 4, 4, 4, 4];
-  let cumulative = 0;
+export function getWoundRank(current, max, earth) {
+  if (!current || current <= 0) return 0;
+  // Correct LBS wound thresholds: Healthy=Earth×5, each rank=Earth×2
+  // If earth not provided, approximate from max_wounds (max_wounds = Earth×5 + Earth×2×6 = Earth×17)
+  const e = earth || Math.max(1, Math.round((max || 20) / 17));
+  const h = e * 5;
+  const r = e * 2;
+  // Cumulative wound thresholds — wounds at START of each rank
+  const thresholds = [h, h+r, h+r*2, h+r*3, h+r*4, h+r*5, h+r*6];
   for (let i = 0; i < thresholds.length; i++) {
-    cumulative += thresholds[i];
-    if (current <= cumulative) return i;
+    if (current <= thresholds[i]) return i;
   }
-  return 7;
+  return 7; // Out
 }
 
 export function woundColor(rank) { return WOUND_COLORS[rank] || WOUND_COLORS[0]; }
@@ -131,7 +136,7 @@ export function buildCharacterFromForm(form) {
     strength: traits.Strength || 2,
     perception: traits.Perception || 2,
     current_wounds: 0,
-    max_wounds: (traits.Stamina || 2) * 5,
+    max_wounds: (traits.Stamina || 2) * 17, // Earth×5 (Healthy) + Earth×2×6 (wound ranks)
     current_void: traits.Void || 2,
     current_stance: 'Attack',
     current_weapon: firstWeapon ? `${firstWeapon} (${firstWeaponData?.dr || '1k1'})` : 'Unarmed (1k1)',

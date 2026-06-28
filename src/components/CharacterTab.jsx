@@ -102,7 +102,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         {selId && characters.find(c => c.id === selId && !c.is_npc) && (
           <CharacterSheet
             char={characters.find(c => c.id === selId)}
-            isGM={false} canEdit={true}
+            isGM={false} canEdit={selId === myCharId}
             onUpdate={onUpdateCharacter}
             myCharId={myCharId}
             onClaimCharacter={onClaimCharacter}
@@ -260,7 +260,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             air, earth, fire, water, void: voidR,
             reflexes: startRef, awareness: startAwa, stamina: startSta, willpower: startWil,
             agility: startAgi, intelligence: startInt, strength: startStr, perception: startPer,
-            current_wounds: 0, max_wounds: startSta * 10, current_void: voidR,
+            current_wounds: 0, max_wounds: startSta * 17, current_void: voidR,
             integrity: npc.integrity || 4, reputation: npc.reputation || 0, status: npc.status || 0,
             copper: 0, player_notes: npc.player_notes || '', gm_notes: npc.gm_notes || '',
             skills: schoolSkills, equipment: [], advantages: [], disadvantages: [],
@@ -636,7 +636,8 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                 const displayRank = pending ? pending.to : s.rank;
                 const nextCost = skillXpCost(displayRank);
                 return (
-                  <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', borderBottom: '1px solid rgba(107,78,40,.15)' }}>
+                  <React.Fragment key={s.name}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', borderBottom: 'none' }}>
                     <span className={`skill-nm ${s.school ? 'sc' : ''}`} style={{ flex: 1, fontSize: 12 }}>{s.name}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: pending ? 'var(--green)' : 'var(--gold)', minWidth: 18, textAlign: 'center' }}>{displayRank}</span>
                     {displayRank < 10 && (
@@ -674,6 +675,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                       }}
                     />
                   </div>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -714,6 +716,9 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 // ── Character Sheet ───────────────────────────────────────────────────────────
 function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
+  const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
+  const hasSotESheet = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
+  const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[wR] || 0) - (hasSotESheet ? 3 : 0));
   const xpAvail = (char.xp_total || 0) - (char.xp_spent || 0);
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [pendingRankUp, setPendingRankUp] = useState(false);
@@ -772,35 +777,142 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const woundColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
 
   const SKILL_MASTERIES = {
-    // Weapon skills
-    Swordsmanship: { 3: 'Attacks are Simple Actions with chosen sword type', 5: '+1k0 to all attack rolls with swords', 7: 'Ignore opponent\'s reduction on a Called Shot (3 raises)' },
-    Knives:        { 3: 'Throw knives up to 30\' without penalty', 5: 'Extra Attack costs 3 raises instead of 5', 7: '+1k1 damage with knives' },
-    Polearms:      { 3: 'Polearm attacks count as Simple Actions', 5: '+1k0 to attack rolls with polearms', 7: 'Push a target 5\' on any hit (no raise needed)' },
-    Spears:        { 3: 'Attack from a second rank (behind another combatant)', 5: '+1k0 to attack rolls with spears', 7: 'Spear attacks penetrate one level of armor' },
-    Staves:        { 3: 'Knockdown on a hit costs only 1 raise', 5: '+1k0 to defense while wielding a staff', 7: 'Free raise on all staff attacks' },
-    Archery:       { 3: 'Reload a bow as a Free Action', 5: '+1k0 to attack rolls with bows', 7: 'May target a specific location without a Called Shot raise' },
-    Brawling:      { 3: 'Grapple checks are Simple Actions', 5: '+1k0 damage in a grapple', 7: 'Free raise on all grapple rolls' },
-    Tahaddi:       { 3: 'Ready two tahaddi knives as a Free Action', 5: '+1k0 to Assessment rolls in Tahaddi duels', 7: 'Spend Void to add +1k1 damage in Tahaddi' },
-    // Combat / physical
-    Athletics:     { 3: 'Move full distance as a Free Action', 5: '+1k0 to all Athletics rolls', 7: 'Ignore difficult terrain penalties' },
-    Defense:       { 3: '+1k0 Armor TN in Full Defense', 5: 'Negate one attack per round as Free Action (spend Void)', 7: '+5 Armor TN at all times' },
-    Battle:        { 3: 'Identify enemy tactics with a Battle roll (TN 10)', 5: '+1k0 to Battle rolls', 7: 'Grant an ally one extra Simple Action per round' },
-    // Social
-    Sincerity:     { 3: 'Free raise on Sincerity rolls to appear truthful', 5: '+1k0 to Sincerity rolls', 7: 'Once/scene: successfully lie is never detected by magic' },
-    Etiquette:     { 3: 'Never accidentally commit a social blunder', 5: '+1k0 to Etiquette rolls', 7: 'Courteous words never cause an Honor or Glory loss' },
-    Temptation:    { 3: 'Free raise on Temptation rolls', 5: '+1k0 to Temptation rolls', 7: 'Targets cannot resist a successful Temptation with Willpower rolls' },
-    Courtier:      { 3: 'Free raise in social contests', 5: '+1k0 to Courtier rolls', 7: 'Read the true intention of anyone in conversation' },
-    Intimidation:  { 3: 'Intimidation as a Simple Action', 5: '+1k0 to Intimidation rolls', 7: 'Targets who fail cannot recover until out of the scene' },
-    // Scholarly
-    Spellcraft:    { 3: 'Free raise on one spell type of choice', 5: 'Reduce spell TN by 2', 7: 'Cast one spell/session without Hakhim\'s Seal' },
-    Investigation: { 3: 'Free raise when searching for hidden objects', 5: '+1k0 to all Investigation rolls', 7: 'Cannot be surprised' },
-    Medicine:      { 3: 'Treat two patients per day', 5: '+1k0 to all Medicine rolls', 7: 'Patients heal double wounds from rest' },
-    Divination:    { 3: 'Free raise on Divination rolls', 5: '+1k0 to Divination; may use Awareness ring', 7: 'Once/session: ask GM one yes/no about immediate future' },
-    Meditation:    { 3: 'Regain 1 Void Point per scene of meditation (once/day)', 5: '+1k0 to Meditation rolls', 7: 'May spend Void freely without it counting toward void-spend limit' },
-    // Stealth / criminal
-    Stealth:       { 3: 'Move full speed while stealthed without penalty', 5: '+1k0 to all Stealth rolls', 7: 'Hide in plain sight once per scene' },
-    Hunting:       { 3: 'Free raise when tracking', 5: '+1k0 in natural environments', 7: 'Find food and water for a group of 10 anywhere' },
-    'Sleight of Hand': { 3: 'Conceal items on your person undetected', 5: '+1k0 to Sleight of Hand rolls', 7: 'Pick locks and pockets in plain sight without penalties' },
+    // ── Weapon Skills — per L5R 4th Ed (used verbatim per LBS conversion doc) ──
+    Swordsmanship: {
+      3: "Damage rolls with swords are increased by +1k0.",
+      5: "A sword may be readied as a Free Action rather than a Simple Action.",
+      7: "Damage dice explode on a result of 9 or 10 when using a sword.",
+    },
+    Knives: {
+      3: "Off-hand penalties do not apply when using a knife.",
+      5: "Use of a sai or jitte confers one Free Raise toward the Disarm Maneuver.",
+      7: "Use of any knife confers a Free Raise toward the Extra Attack Maneuver.",
+    },
+    Polearms: {
+      3: "During the first round of a skirmish, gain +5 to Initiative Score.",
+      5: "Damage rolls with polearms against mounted or significantly larger opponents are increased by +1k0.",
+      7: "Polearms may be readied as a Free Action.",
+    },
+    Spears: {
+      3: "During the first round of a skirmish, ignore 3 points of Reduction on melee attacks.",
+      5: "Ranged attacks with a spear increase maximum range by 5 feet.",
+      7: "Spears may be readied as a Free Action.",
+    },
+    Staves: {
+      3: "Opponents' armor bonuses to Armor TN are no longer doubled against staff attacks.",
+      5: "Use of a staff confers one Free Raise toward the Knockdown Maneuver.",
+      7: "Large staves may be readied as a Free Action. Small staves gain +1k0 to damage rolls.",
+    },
+    Archery: {
+      3: "Stringing a bow is a Simple Action rather than a Complex Action.",
+      5: "The maximum range of any bow is increased by 50%.",
+      7: "The Strength of the bow is increased by 1 for damage purposes.",
+    },
+    Brawling: {
+      // Uses Jiujutsu masteries per LBS conversion
+      3: "Damage of all unarmed attacks is increased by +1k0.",
+      5: "Use of Brawling confers a Free Raise toward initiating a Grapple.",
+      7: "Damage of all unarmed attacks is increased by +0k1 (+1k1 total from rank 3+7).",
+    },
+    Tahaddi: {
+      // Uses Iaijutsu masteries per LBS conversion doc; rank 3 applies to readying two tahaddi knives
+      3: "Readying two tahaddi knives is a Free Action rather than a Simple Action.",
+      5: "During a Tahaddi Duel, gain one Free Raise on the Focus roll.",
+      7: "During a Tahaddi Duel, if your Assessment roll exceeds your opponent's by 10+, gain +2k2 on your Focus roll (instead of the normal +1k1).",
+    },
+    'Assassin Ranged Weapons': {
+      // Uses Ninjutsu masteries per LBS conversion doc
+      3: "Damage of all Assassin Ranged Weapon attacks is increased by +1k0.",
+      5: "Damage dice for Assassin Ranged Weapons now explode normally (they do not explode by default).",
+      7: "Damage of all Assassin Ranged Weapon attacks is increased by +0k1 (+1k1 total from rank 3+7).",
+    },
+    Horsemanship: {
+      3: "May use the Full Attack Stance when mounted.",
+      5: "Mounting is a Simple Action (not Complex); dismounting is a Free Action (not Simple).",
+      7: "Mounting is a Free Action rather than a Simple Action.",
+    },
+    // ── Combat / Physical ────────────────────────────────────────────────────
+    Athletics: {
+      3: "Moderate Terrain no longer impedes movement. Difficult Terrain reduces Water Ring by 1 instead of 2 for movement.",
+      5: "No movement penalties regardless of terrain type.",
+      7: "May add 5' to the total of one Move Action per Round (does not increase maximum possible movement).",
+    },
+    Defense: {
+      3: "May retain the result of a previous Defense/Reflexes roll rather than re-rolling when maintaining Full Defense in subsequent rounds.",
+      5: "Armor TN is considered 3 higher while in Defense or Full Defense stance.",
+      7: "One Simple Action may be taken while in Full Defense stance (no attacks allowed).",
+    },
+    Battle: {
+      5: "Add Battle Skill Rank to Initiative Score during skirmishes.",
+    },
+    Hunting: {
+      5: "+1k0 to all Stealth rolls made in wilderness environments.",
+    },
+    // ── Social Skills ─────────────────────────────────────────────────────────
+    Sincerity: {
+      5: "+5 bonus to the total of all Contested Rolls made using Sincerity.",
+    },
+    Courtier: {
+      3: "+3 additional Insight above what Rings and Skills normally indicate.",
+      5: "+1k0 to the total of all Contested Rolls made using Courtier.",
+      7: "+7 additional Insight above what Rings and Skills normally indicate (cumulative with Rank 3).",
+    },
+    Etiquette: {
+      3: "+3 additional Insight above what Rings and Skills normally indicate.",
+      5: "+1k0 to the total of all Contested Rolls made using Etiquette.",
+      7: "+7 additional Insight above what Rings and Skills normally indicate (cumulative with Rank 3).",
+    },
+    Temptation: {
+      5: "+5 bonus to the total of any Contested Roll made using Temptation.",
+    },
+    Intimidation: {
+      5: "+5 bonus to the total of any Contested Roll made using Intimidation.",
+    },
+    Acting: {
+      3: "TN to create a disguise is reduced by 5.",
+      5: "TN to create a disguise is reduced by 10 (total).",
+      7: "TN to create a disguise is reduced by 15 (total).",
+    },
+    // ── Scholarly Skills ──────────────────────────────────────────────────────
+    Investigation: {
+      3: "A second Search attempt may be made without an increase to the original TN.",
+      5: "+5 bonus to the total of any Contested Roll made using Investigation.",
+      7: "A third Search attempt may be made even if the second attempt failed.",
+    },
+    Medicine: {
+      5: "Wounds healed on a successful Medicine roll is increased by +1k0.",
+    },
+    Divination: {
+      5: "A second Divination roll may be made without spending a Void Point (all other conditions still apply). May use Awareness/Air instead of Intelligence/Fire.",
+    },
+    Meditation: {
+      3: "A successful Meditation roll restores up to 2 Void Points.",
+      5: "TN for all Meditation (Fasting) rolls is reduced by 5.",
+      7: "A successful Meditation roll restores up to 3 Void Points.",
+    },
+    Spellcraft: {
+      5: "+1k0 on Spell Casting Rolls.",
+    },
+    Calligraphy: {
+      5: "+10 bonus when attempting to break a code or cipher.",
+    },
+    Commerce: {
+      5: "May increase or decrease the price of an item being bought or sold by up to 20%.",
+    },
+    // ── Low / Criminal Skills ─────────────────────────────────────────────────
+    Stealth: {
+      3: "Simple Move Actions while using Stealth allow movement equal to Water Ring x 5 feet.",
+      5: "Simple Move Actions while using Stealth allow movement equal to Water Ring x 10 feet.",
+      7: "May make Free Move Actions normally while using Stealth.",
+    },
+    'Sleight of Hand': {
+      5: "May use the Conceal Emphasis to conceal small weapons on your person.",
+    },
+    Forgery: {
+      3: "+1k0 to Forgery roll result for setting the TN for others to detect it.",
+      5: "+1k0 on any roll to detect a forgery made by someone else.",
+      7: "+0k1 (total +1k1 with Rank 3) to Forgery roll result for setting the detection TN.",
+    },
   };
 
   return (
@@ -967,22 +1079,79 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, marginBottom: '.3rem' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{char.school} · {char.faction}</span>
             </div>
-            {/* Wounds */}
-            <div style={{ marginTop: '.25rem', padding: '.4rem .5rem', background: 'var(--bg-panel)', borderRadius: 4, border: `1px solid ${woundColor}44` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: woundColor, lineHeight: 1 }}>{char.current_wounds || 0}</div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ {char.max_wounds || (char.stamina || 2) * 10} wounds</div>
-                  <div style={{ fontSize: 12, color: woundColor, fontWeight: 600 }}>{woundLabel}</div>
-                </div>
-                {(isGM && !isPCView) && (
-                  <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
-                    <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => update('current_wounds', Math.max(0, (char.current_wounds || 0) - 1))}>Heal</button>
-                    <button className="btn btn-sm btn-d" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => update('current_wounds', (char.current_wounds || 0) + 1)}>+Wound</button>
+            {/* Wounds — tabular layout matching 4th Ed character sheet */}
+            {(() => {
+              const earth = char.earth || char.stamina || 2;
+              const healthyTotal = earth * 5;
+              const rankTotal = earth * 2;
+              const hasSotE = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
+              const soteReduction = hasSotE ? 3 : 0;
+              const WOUND_RANKS = [
+                { label: 'Healthy',  penalty: '+0',                                    total: healthyTotal, color: '#4a8a40' },
+                { label: 'Nicked',   penalty: `+${Math.max(0, 3  - soteReduction)}`,  total: rankTotal,    color: '#8a8a30' },
+                { label: 'Grazed',   penalty: `+${Math.max(0, 5  - soteReduction)}`,  total: rankTotal,    color: '#a87830' },
+                { label: 'Hurt',     penalty: `+${Math.max(0, 10 - soteReduction)}`,  total: rankTotal,    color: '#c86030' },
+                { label: 'Injured',  penalty: `+${Math.max(0, 15 - soteReduction)}`,  total: rankTotal,    color: '#c84030' },
+                { label: 'Crippled', penalty: `+${Math.max(0, 20 - soteReduction)}`,  total: rankTotal,    color: '#a02828' },
+                { label: 'Down',     penalty: `+${Math.max(0, 40 - soteReduction)}`,  total: rankTotal,    color: '#801818' },
+                { label: 'Out',      penalty: '—',                                     total: earth * 5,    color: '#600010' },
+              ];
+              // Cumulative thresholds
+              const thresholds = WOUND_RANKS.reduce((acc, r, i) => {
+                acc.push((acc[i - 1] || 0) + r.total);
+                return acc;
+              }, []);
+              const current = char.current_wounds || 0;
+              return (
+                <div style={{ marginTop: '.25rem', border: `1px solid ${woundColor}44`, borderRadius: 4, overflow: 'hidden', fontSize: 11 }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', background: 'rgba(0,0,0,.3)', padding: '2px 4px', gap: 2, borderBottom: '1px solid rgba(107,78,40,.3)' }}>
+                    <span style={{ flex: 2, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9, letterSpacing: '.05em' }}>Wound Level</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Pen.</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Total</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Curr.</span>
                   </div>
-                )}
-              </div>
-            </div>
+                  {WOUND_RANKS.map((r, i) => {
+                    const rankStart = i === 0 ? 0 : thresholds[i - 1];
+                    const rankEnd = thresholds[i];
+                    const woundsInRank = Math.max(0, Math.min(current - rankStart, r.total));
+                    const isActive = current > rankStart && current <= rankEnd;
+                    const isPast = current > rankEnd;
+                    return (
+                      <div key={r.label} style={{
+                        display: 'flex', alignItems: 'center', gap: 2, padding: '2px 4px',
+                        background: isActive ? `${r.color}22` : isPast ? `${r.color}11` : 'transparent',
+                        borderBottom: '1px solid rgba(107,78,40,.1)',
+                        borderLeft: isActive ? `3px solid ${r.color}` : '3px solid transparent',
+                      }}>
+                        <span style={{ flex: 2, color: isActive ? r.color : isPast ? r.color + 'aa' : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
+                          {r.label} {isActive && woundPenalty > 0 ? <span style={{ fontSize: 9 }}>⚠</span> : ''}
+                        </span>
+                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)' }}>{r.penalty}</span>
+                        <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)' }}>{r.total}</span>
+                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
+                          {isActive ? woundsInRank : isPast ? r.total : 0}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {/* Wound controls */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px', background: 'rgba(0,0,0,.15)', borderTop: '1px solid rgba(107,78,40,.2)' }}>
+                    <span style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)' }}>
+                      Total: <strong style={{ color: woundColor }}>{current}</strong> / {thresholds[thresholds.length - 1]}
+                    </span>
+                    {canEdit && (
+                      <>
+                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--green)' }}
+                          onClick={() => update('current_wounds', Math.max(0, current - 1))}>− Heal</button>
+                        <button className="btn btn-sm btn-d" style={{ fontSize: 10, padding: '1px 5px' }}
+                          onClick={() => update('current_wounds', current + 1)}>+ Wound</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Armor TN / Init */}
             <div style={{ marginTop: '.4rem', fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
               <span>TN <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{5 + (char.reflexes || 2) * 5}</span></span>
@@ -1127,7 +1296,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             <span>Skills</span>
             {canEdit && <AddSkillControl char={char} onAdd={(skillName) => {
               if ((char.skills || []).some(s => s.name === skillName)) return;
-              update('skills', [...(char.skills || []), { name: skillName, rank: 1, school: false }]);
+              update('skills', [...(char.skills || []), { name: skillName, rank: 0, school: false }]);
             }} />}
           </div>
           {/* Quick-add weapon skills strip — shows any combat skill not yet on this character */}
@@ -1141,7 +1310,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>Add:</span>
                 {missing.map(s => (
                   <button key={s} className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--gold-dim)', borderColor: 'var(--gold-dim)' }}
-                    onClick={() => update('skills', [...(char.skills || []), { name: s, rank: 1, school: false }])}>
+                    onClick={() => update('skills', [...(char.skills || []), { name: s, rank: 0, school: false }])}>
                     {s}
                   </button>
                 ))}
@@ -1154,7 +1323,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               const charRank = char.school_rank || 1;
               const activeTechs = Object.entries(char.techniques || {})
                 .filter(([rank]) => +rank <= charRank)
-                .map(([, name]) => name)
+                .map(([, t]) => typeof t === 'object' ? (t.name || '') : t)
                 .filter(Boolean);
               return (char.skills || []).map(s => {
                 const masteries = SKILL_MASTERIES[s.name] || {};
@@ -1175,7 +1344,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <SkillDots rank={s.rank} />
                       {/* Technique glow badges */}
                       {techBadges.map(techName => (
-                        <span key={techName} title={`Modified by technique: ${techName}`} style={{
+                        <span key={techName} title={TECHNIQUE_DESCRIPTIONS[techName] || techName} style={{
                           fontSize: 9, padding: '1px 5px', borderRadius: 8,
                           background: 'rgba(160,100,220,.18)',
                           border: '1px solid rgba(160,100,220,.5)',
@@ -1184,7 +1353,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           cursor: 'default', whiteSpace: 'nowrap',
                           marginLeft: 3,
                         }}>
-                          ✦ {techName.length > 14 ? techName.slice(0, 13) + '…' : techName}
+                          ✦ {techName}
                         </span>
                       ))}
                       {(canEdit && isGM) && (
@@ -1287,6 +1456,40 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             </div>
           )}
         </div>
+
+        {/* Copper */}
+        <div className="card">
+          <div className="card-title"><i className="ti ti-coin" style={{ marginRight: 5 }} />Copper</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)' }}>{char.copper ?? 0}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper</span>
+            {canEdit && (() => {
+              const inputId = `copper-delta-${char.id}`;
+              return (
+                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
+                  <input type="number" id={inputId} placeholder="±amount"
+                    style={{ width: 72, fontSize: 12, padding: '2px 4px' }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const delta = parseInt(e.target.value) || 0;
+                        update('copper', Math.max(0, (char.copper || 0) + delta));
+                        e.target.value = '';
+                      }
+                    }} />
+                  <button className="btn btn-sm" onClick={() => {
+                    const el = document.getElementById(inputId);
+                    const delta = parseInt(el?.value) || 0;
+                    update('copper', Math.max(0, (char.copper || 0) + delta));
+                    if (el) el.value = '';
+                  }}>Apply</button>
+                </div>
+              );
+            })()}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+            Use + to gain, − to spend. Party pool copper is in the Party tab.
+          </div>
+        </div>
       </div>
 
       {/* Right column — Equipment, Techniques, Spells, Advantages */}
@@ -1295,11 +1498,13 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         <div className="card">
           <div className="card-title">Equipment</div>
           {(char.equipment || []).map((e, i) => {
-            const weapon = WEAPONS_LIST.find(w => w.name === e.name);
-            const gearDesc = GEAR_DESCRIPTIONS[e.name];
+            const weapon = WEAPONS_LIST.find(w => w.name === e.name)
+              || WEAPONS_LIST.find(w => w.name.toLowerCase().startsWith(e.name.toLowerCase()));
+            const gearDesc = GEAR_DESCRIPTIONS[e.name]
+              || Object.entries(GEAR_DESCRIPTIONS).find(([k]) => k.toLowerCase().startsWith(e.name.toLowerCase()))?.[1];
             const loreText = weapon
               ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}${weapon.special ? `\nSpecial: ${weapon.special}` : ''}`
-              : gearDesc || e.name;
+              : gearDesc || null;
             if (e.is_magic) {
               return (
                 <div key={i} style={{ marginBottom: '.4rem' }}>
@@ -1323,7 +1528,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           const item = char.equipment[i];
                           const eq = (char.equipment || []).filter((_, idx) => idx !== i);
                           update('equipment', eq);
-                          onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic' }] });
+                          onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
                         }}>→ Party</button>
                     )}
                     {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
@@ -1353,7 +1558,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     {Object.entries(ITEM_QUALITIES).map(([k, q]) => <option key={k} value={k}>{q.label}</option>)}
                   </select>
                 )}
-                <ScrollLore title={e.name} text={loreText} size={10} />
+                <ScrollLore title={e.name} text={loreText || e.name} size={10} />
                 {canEdit && onUpdateInventory && (
                   <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--text-muted)' }}
                     title="Send to Party Inventory"
@@ -1385,7 +1590,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         <div className="card">
           <div className="card-title">Techniques</div>
           {Array.from({ length: char.school_rank || 1 }, (_, i) => i + 1).map(rank => {
-            const currentTech = (char.techniques || {})[rank] || '';
+            const currentTechRaw = (char.techniques || {})[rank];
+            const currentTech = typeof currentTechRaw === 'object' ? (currentTechRaw?.name || '') : (currentTechRaw || '');
             const sd = SCHOOL_DATA[char.school];
             const schoolTechAtRank = sd?.techniques?.[rank];
             // All schools' rank-1 techniques (for starting a second school at this slot)
@@ -1658,8 +1864,9 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
   const steps = schoolIsSahir
     ? ['Faction','Sub-faction','School','Traits & Skills','Spells','Advantages','Identity']
     : ['Faction','Sub-faction','School','Traits & Skills','Advantages','Identity'];
-  const spellStep = schoolIsSahir ? 5 : null;
-  const advStep = schoolIsSahir ? 6 : 5;
+  const advStep = 4;
+  const spellStep = schoolIsSahir ? 6 : null;
+  const traitsStep = 5;
   const identityStep = schoolIsSahir ? 7 : 6;
 
   const handleComplete = () => {
@@ -1678,18 +1885,18 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
           step === 1 ? !faction :
           step === 2 ? !subfaction :
           step === 3 ? !school :
-          step === 4 ? cpRemaining < 0 :
-          step === spellStep ? (selectedSpells.length < startingSpells || (!IS_COKALOI_SCHOOL(school) && (!spellEmphasis || !spellDisciplineBonus))) :
           step === advStep ? false :
+          step === traitsStep ? cpRemaining < 0 :
+          step === spellStep ? (selectedSpells.length < startingSpells || (!IS_COKALOI_SCHOOL(school) && (!spellEmphasis || !spellDisciplineBonus))) :
           step === identityStep ? !name :
           false;
         const nextAction = () => {
           if (step === 1) setStep(2);
           else if (step === 2) setStep(3);
-          else if (step === 3) setStep(4);
-          else if (step === 4) setStep(spellStep || advStep);
-          else if (step === spellStep) setStep(advStep);
-          else if (step === advStep) setStep(identityStep);
+          else if (step === 3) setStep(advStep);
+          else if (step === advStep) setStep(traitsStep);
+          else if (step === traitsStep) setStep(spellStep || identityStep);
+          else if (step === spellStep) setStep(identityStep);
           else if (step === identityStep) handleComplete();
         };
         const isLastStep = step === identityStep;
@@ -1722,7 +1929,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
       <div className="cc-progress">{steps.map((_, i) => <div key={i} className={`cc-prog-dot ${i < step - 1 ? 'done' : i === step - 1 ? 'active' : ''}`} />)}</div>
       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.25rem' }}>Step {step}: {steps[step - 1]}</div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-        {step === 1 ? 'Choose your faction.' : step === 2 ? 'Choose your sub-faction — grants a bonus trait.' : step === 3 ? 'Choose your school.' : step === 4 ? 'Spend your 45 Character Points.' : step === spellStep ? `Select starting ${school === "Ra'Shari Diviner" ? 'Cokaloi (6)' : 'spells (3)'}.` : step === advStep ? 'Choose advantages and disadvantages. Max 10 points from disadvantages.' : 'Name your character and set a login password.'}
+        {step === 1 ? 'Choose your faction.' : step === 2 ? 'Choose your sub-faction — grants a bonus trait.' : step === 3 ? 'Choose your school.' : step === advStep ? 'Choose advantages and disadvantages. They may grant or cost Character Points.' : step === traitsStep ? 'Spend your Character Points on traits and skills.' : step === spellStep ? `Select starting ${school === "Ra'Shari Diviner" ? 'Cokaloi (6)' : 'spells (3)'}.` : 'Name your character and set a login password.'}
       </div>
 
       {/* Step 1: Faction */}
@@ -1850,7 +2057,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
       )}
 
       {/* Step 4: Traits & Skills */}
-      {step === 4 && (
+      {step === traitsStep && (
         <div>
           <div className="cp-meter">
             <div><div className="cp-val" style={{ color: cpRemaining < 0 ? 'var(--red)' : 'var(--gold)' }}>{cpRemaining}</div><div className="cp-label">CP Remaining</div></div>
@@ -1967,7 +2174,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
             </div>
             <button className="btn btn-p"
               disabled={selectedSpells.length < startingSpells || (!IS_COKALOI_SCHOOL(school) && (!spellEmphasis || !spellDisciplineBonus))}
-              onClick={() => setStep(advStep)}>
+              onClick={() => setStep(traitsStep)}>
               Next →
             </button>
           </div>

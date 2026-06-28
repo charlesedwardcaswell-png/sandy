@@ -319,10 +319,13 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
       </div>
 
       <div style={{ background: 'linear-gradient(135deg, #0a0814 0%, #050810 100%)', borderRadius: 8, border: `1px solid ${cat.color}33`, overflow: 'visible', position: 'relative' }}>
+        <div style={{ padding: '4px 8px', borderBottom: `1px solid ${cat.color}22`, fontSize: 11, color: cat.color, fontStyle: 'italic' }}>
+          {cat.name} Cokaloi · {cat.desc}
+        </div>
         <svg viewBox="0 0 100 90" style={{ width: '100%', display: 'block' }}>
           {STARS.map((s, i) => <circle key={i} cx={s.x} cy={s.y * 0.9} r={s.r * 0.5} fill="#fff" opacity={s.opacity} />)}
 
-          <text x="50" y="8" textAnchor="middle" fill={cat.color} fontSize="4" fontFamily="Georgia,serif" opacity="0.9">{cat.name} Cokaloi · {cat.desc.split('.')[0]}</text>
+          <text x="50" y="8" textAnchor="middle" fill={cat.color} fontSize="3.2" fontFamily="Georgia,serif" opacity="0.9">{cat.name} Cokaloi · {cat.element}</text>
 
           {cat.spells.map((spell, i) => {
             const pos = positions[i] || { x: 50, y: 50 };

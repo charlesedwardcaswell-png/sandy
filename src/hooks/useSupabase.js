@@ -144,7 +144,31 @@ export function useActiveSession() {
     if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_encounters: prepEncounters }));
   };
 
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, refetch: fetch };
+  const deleteSession = async (sessionId) => {
+    await supabase.from('sessions').delete().eq('id', sessionId);
+    setAllSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (session?.id === sessionId) setSession(null);
+  };
+
+  const renumberSession = async (sessionId, newNumber) => {
+    // If newNumber is taken, shift all sessions >= newNumber up by 1 first
+    const existing = allSessions.find(s => s.session_number === newNumber && s.id !== sessionId);
+    if (existing) {
+      // Shift up: all sessions with number >= newNumber (except the one being moved)
+      const toShift = allSessions.filter(s => s.session_number >= newNumber && s.id !== sessionId);
+      for (const s of toShift) {
+        await supabase.from('sessions').update({ session_number: s.session_number + 1 }).eq('id', s.id);
+      }
+      setAllSessions(prev => prev.map(s =>
+        s.session_number >= newNumber && s.id !== sessionId ? { ...s, session_number: s.session_number + 1 } : s
+      ));
+    }
+    await supabase.from('sessions').update({ session_number: newNumber }).eq('id', sessionId);
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, session_number: newNumber } : s)
+      .sort((a, b) => a.session_number - b.session_number));
+  };
+
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -344,7 +368,12 @@ export function useQuests(sessionId) {
     return data;
   };
 
-  return { quests, loading, createQuest, updateQuest, refetch: fetch };
+  const deleteQuest = async (id) => {
+    await supabase.from('quests').delete().eq('id', id);
+    setQuests(prev => prev.filter(q => q.id !== id));
+  };
+
+  return { quests, loading, createQuest, updateQuest, deleteQuest, refetch: fetch };
 }
 
 // ── Map Pins ──────────────────────────────────────────────────────────────────

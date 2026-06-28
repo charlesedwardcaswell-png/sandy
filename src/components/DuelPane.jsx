@@ -32,16 +32,17 @@ function getIntelValue(pc, key) {
 
 // ── Dice Picker ───────────────────────────────────────────────────────────────
 
-function DicePicker({ pool, onConfirm, label }) {
+function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
   const [dice, setDice] = useState(() => rollDice(pool.rolled));
   const [kept, setKept] = useState(new Set());
   const [exploded, setExploded] = useState(new Set());
+  const [voidSpent, setVoidSpent] = useState(false);
 
   const toggle = (i) => {
     const d = dice[i];
     const n = new Set(kept);
     if (n.has(i)) { n.delete(i); setKept(n); return; }
-    if (n.size >= pool.kept) return;
+    if (n.size >= effectiveKept) return;
     if (d === 10 && !exploded.has(i)) {
       const bonus = Math.ceil(Math.random() * 10);
       setDice(prev => { const nd = [...prev]; nd[i] = 10 + bonus; return nd; });
@@ -50,21 +51,36 @@ function DicePicker({ pool, onConfirm, label }) {
     n.add(i); setKept(n);
   };
 
-  const total = [...kept].reduce((s, i) => s + dice[i], 0) + (pool.bonus || 0);
-  const ready = kept.size === pool.kept;
+  // Void spending: adds +1k1 (one extra rolled, one extra kept)
+  const voidRoll = voidSpent ? rollDice(1)[0] : 0;
+  const voidBonus = voidSpent ? 1 : 0; // +1k1 means +1 kept die
+  const effectiveKept = pool.kept + voidBonus;
+  const allDice = voidSpent ? [...dice, voidRoll] : dice;
+  const total = [...kept].reduce((s, i) => s + allDice[i], 0) + (pool.bonus || 0);
+  const ready = kept.size === effectiveKept;
 
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-        {label || `${pool.rolled}k${pool.kept}`} — keep {pool.kept}
+        {label || `${pool.rolled + (voidSpent ? 1 : 0)}k${pool.kept + (voidSpent ? 1 : 0)}`} — keep {effectiveKept}{voidSpent ? ' (Void)' : ''}
         {pool.bonus > 0 && <span style={{ color: '#c0a0e0', marginLeft: 6 }}>+{pool.bonus} bonus</span>}
         {pool.tn && <span style={{ color: 'var(--gold-dim)', marginLeft: 6 }}>TN {pool.tn}</span>}
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
         Click to keep · click an unkept 10 to explode it first
       </div>
+      {allowVoid && (currentVoid ?? 1) > 0 && (
+        <div style={{ marginBottom: '.4rem' }}>
+          <button className={`btn btn-sm ${voidSpent ? 'btn-p' : ''}`}
+            onClick={() => { setVoidSpent(v => !v); setKept(new Set()); }}
+            style={{ fontSize: 11, borderColor: voidSpent ? '#c0a0e0' : undefined }}>
+            {voidSpent ? '✦ Void Spent (+1k1)' : '+ Spend Void (+1k1)'}
+          </button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginBottom: '.6rem' }}>
-        {dice.map((d, i) => {
+        {allDice.map((d, i) => {
+          const isVoidDie = voidSpent && i === allDice.length - 1;
           const isKept = kept.has(i);
           const isExplosion = d > 10;
           const isNatural10 = d === 10 && !exploded.has(i);
@@ -72,7 +88,7 @@ function DicePicker({ pool, onConfirm, label }) {
             <div key={i} onClick={() => toggle(i)} style={{
               minWidth: 40, height: 40, padding: '0 4px', borderRadius: 6, cursor: 'pointer',
               background: isKept ? (isExplosion ? '#7040a8' : 'var(--gold)') : 'var(--bg-panel)',
-              border: `2px solid ${isKept ? (isExplosion ? '#b080e8' : '#c8a040') : (isNatural10 ? '#c0a0e0' : 'var(--border)')}`,
+              border: `2px solid ${isKept ? (isExplosion ? '#b080e8' : '#c8a040') : (isVoidDie ? '#c0a0e0aa' : isNatural10 ? '#c0a0e0' : 'var(--border)')}`,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, fontWeight: 900,
               color: isKept ? '#1a1208' : (isNatural10 ? '#c0a0e0' : 'var(--text-primary)'),
@@ -154,7 +170,7 @@ function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct }) {
 }
 
 
-export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClose }) {
+export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpdateCharacter, onClose }) {
   const [rolling, setRolling] = useState({});
   const [revealedIntel, setRevealedIntel] = useState([]); // list of revealed INTEL_LIST keys
   const [strikeRaises, setStrikeRaises] = useState({ challenger: 0, defender: 0 });
@@ -222,7 +238,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
     const drStr = (weapon?.dr || '1k1').toLowerCase();
     const [r, k] = drStr.split('k').map(Number);
     const raises = (duel.strikeFirstRaises?.[side] || 0) + (strikeRaises[side] || 0);
-    return { rolled: r || 1, kept: k || 1, raiseBonus: raises * 5, label: `${r || 1}k${k || 1}` };
+    return { rolled: r || 1, kept: k || 1, label: `${r || 1}k${k || 1}` };
   };
 
   const canAct = (side) => isGM || (side === 'challenger' && isChallenger) || (side === 'defender' && isDefender);
@@ -515,7 +531,9 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
                       </div>
                     ) : isRolling && can ? (
                       <DicePicker
-                        pool={{ rolled: pool.rolled, kept: pool.kept, tn: pool.tn, bonus: (freeR + strikeRaises[side]) > 0 ? 0 : 0 }}
+                        pool={{ rolled: pool.rolled, kept: pool.kept, tn: pool.tn }}
+                        allowVoid={true}
+                        currentVoid={duel[side]?.current_void ?? 1}
                         onConfirm={total => {
                           onUpdate({ strikeRolls: { ...duel.strikeRolls, [side]: total }, strikeRaisesUsed: { ...duel.strikeRaisesUsed, [side]: strikeRaises[side] } });
                           setRolling(r => ({ ...r, ['strike_' + side]: false }));
@@ -545,9 +563,15 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  {strikeResult.cHit ? <div style={{ color: 'var(--gold)' }}>{duel.challenger.name} hit (TN {strikeResult.cTN})</div>
+                  {strikeResult.cHit
+                    ? <div style={{ color: duel.winner === 'defender' && strikeResult.cHit ? '#c0a0e0' : 'var(--gold)' }}>
+                        {duel.challenger.name} hit (TN {strikeResult.cTN}){duel.winner === 'defender' && ' ⚡ Scorpion Strike'}
+                      </div>
                     : <div style={{ color: 'var(--text-muted)' }}>{duel.challenger.name} missed (TN {strikeResult.cTN})</div>}
-                  {strikeResult.dHit ? <div style={{ color: 'var(--gold)' }}>{duel.defender.name} hit (TN {strikeResult.dTN})</div>
+                  {strikeResult.dHit
+                    ? <div style={{ color: duel.winner === 'challenger' && strikeResult.dHit ? '#c0a0e0' : 'var(--gold)' }}>
+                        {duel.defender.name} hit (TN {strikeResult.dTN}){duel.winner === 'challenger' && ' ⚡ Scorpion Strike'}
+                      </div>
                     : <div style={{ color: 'var(--text-muted)' }}>{duel.defender.name} missed (TN {strikeResult.dTN})</div>}
                 </div>
               )}
@@ -561,10 +585,13 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
       {phase === 'damage' && isInvolved && (
         <div style={{ width: '100%', maxWidth: 480 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-            Roll weapon damage for each duelist who landed a hit. Raises add +5 wounds each.
+            Roll weapon damage for each duelist who landed a hit.
           </div>
           {['challenger','defender'].map(side => {
             const hit = side === 'challenger' ? strikeResult?.cHit : strikeResult?.dHit;
+            // Scorpion Strike: in non-kharmic duel, loser may still hit if roll beats Armor TN
+            const isLoser = duel.winner && duel.winner !== side;
+            const isScorpionStrike = !duel.kharmic && isLoser && hit;
             if (!hit) return (
               <div key={side} style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '.75rem', fontSize: 12 }}>
                 {duel[side].name} — missed, no damage roll
@@ -576,13 +603,13 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
             const can = canAct(side);
             return (
               <div key={side} style={{ marginBottom: '1.25rem', padding: '.75rem', background: 'var(--bg-panel)', borderRadius: 6, border: '1px solid rgba(200,150,42,.3)' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: '.35rem' }}>
-                  {duel[side].name} — {dmg.label}{dmg.raiseBonus > 0 ? ` + ${dmg.raiseBonus} (raises)` : ''}
+                <div style={{ fontSize: 13, fontWeight: 700, color: isScorpionStrike ? '#c0a0e0' : 'var(--gold)', marginBottom: '.35rem' }}>
+                  {duel[side].name} — {dmg.label}
+                  {isScorpionStrike && <span style={{ fontSize: 11, color: '#c0a0e0', marginLeft: 6 }}>⚡ Scorpion Strike</span>}
                 </div>
                 {hasDmg ? (
                   <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)' }}>
-                    {duel.damageRolls[side] + dmg.raiseBonus} wounds
-                    {dmg.raiseBonus > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>({duel.damageRolls[side]} + {dmg.raiseBonus})</span>}
+                    {duel.damageRolls[side]} wounds
                   </div>
                 ) : isRollingDmg && can ? (
                   <DicePicker pool={{ rolled: dmg.rolled, kept: dmg.kept, bonus: 0 }}
@@ -626,10 +653,9 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: '.5rem' }}>
               {Object.entries(duel.damageRolls).map(([side, dmg]) => {
                 const raises = (duel.strikeFirstRaises?.[side] || 0) + (duel.strikeRaisesUsed?.[side] || 0);
-                const total = dmg + raises * 5;
                 return (
                   <div key={side} style={{ marginBottom: '.2rem' }}>
-                    {duel[side]?.name}: <strong style={{ color: 'var(--gold)' }}>{total} wounds</strong>
+                    {duel[side]?.name}: <strong style={{ color: 'var(--gold)' }}>{dmg} wounds</strong>
                   </div>
                 );
               })}
@@ -685,7 +711,23 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onClo
             const hitters = ['challenger','defender'].filter(s => s === 'challenger' ? strikeResult?.cHit : strikeResult?.dHit);
             const allDone = hitters.every(s => duel.damageRolls?.[s] != null);
             return allDone ? (
-              <button className="btn btn-p" onClick={() => onUpdate({ phase: 'resolved' })}>
+              <button className="btn btn-p" onClick={() => {
+                // Apply damage to characters
+                if (duel.damageRolls && onUpdateCharacter) {
+                  ['challenger','defender'].forEach(side => {
+                    const rawDmg = duel.damageRolls[side];
+                    if (rawDmg == null) return;
+                    const totalDmg = rawDmg; // Damage roll has no raises — raises are for attack rolls only
+                    const charId = duel[side]?.id;
+                    const char = pcsMap?.[charId];
+                    if (char && totalDmg > 0) {
+                      const newWounds = Math.min((char.current_wounds || 0) + totalDmg, char.max_wounds || 34);
+                      onUpdateCharacter(charId, { current_wounds: newWounds });
+                    }
+                  });
+                }
+                onUpdate({ phase: 'resolved' });
+              }}>
                 Resolve Duel →
               </button>
             ) : null;

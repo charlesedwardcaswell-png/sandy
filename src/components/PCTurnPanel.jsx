@@ -38,7 +38,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
           {[
             { id: 'attack', icon: 'ti-sword',              label: 'Attack',       color: '#c84030',
-              disabled: combatant.stance === 'Full Defense' || combatant.stance === 'Defense' },
+              disabled: combatant.stance === 'Full Defense' },
             { id: 'skill',  icon: 'ti-list-check',          label: 'Use Skill',    color: 'var(--gold)' },
             { id: 'defend', icon: 'ti-shield',              label: 'Full Defense', color: '#4a8a40' },
             { id: 'move',   icon: 'ti-run',                 label: 'Move',         color: 'var(--text-secondary)' },
@@ -55,7 +55,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     skill: 'Defense (Full Defense)', tn: 5,
                     baseRoll: (combatant.agility || 2) + 1,
                     baseKeep: combatant.agility || 2,
-                    resultLabel: 'Result replaces Reflexes×5 as Armor TN',
+                    resultLabel: 'Half this result (round up) added to normal Armor TN until next Turn.',
                   });
                   if (onSpendAction) onSpendAction('full');
                   setSelectedAction('defend');
@@ -105,8 +105,25 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     );
   }
 
-  const woundRank = getWoundRank(character.current_wounds, character.max_wounds);
-  const woundPenalty = woundRank >= 3 ? -(woundRank - 2) : 0; // Hurt=-1k0, Injured=-2k0, Crippled=-3k0
+  const woundRank = getWoundRank(character.current_wounds, (character.earth || 2) * 17, character.earth || 2);
+  // Wound penalties are TN additions per L5R 4th Ed; Strength of the Earth reduces by 3
+  const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
+  const hasStrengthOfEarth = (character.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
+  const woundPenaltyReduction = hasStrengthOfEarth ? 3 : 0;
+  const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction);
+
+  // Drawn weapons and dual-wield penalties — computed at top level for use in roll TN
+  const drawnList = combatant.drawnWeapons || (combatant.drawnWeapon ? [combatant.drawnWeapon] : []);
+  const isDualWielding = drawnList.length >= 2;
+  const primaryHandPenalty = isDualWielding ? -5 : 0;
+  const getOffHandPenalty = (wName) => {
+    const w = WEAPONS_LIST.find(x => x.name === wName);
+    return w?.size === 'small' ? -5 : w?.size === 'large' ? -15 : -10;
+  };
+  const dualWieldPenalty = isDualWielding && selectedWeapon
+    ? (drawnList[0]?.startsWith(selectedWeapon.name) ? primaryHandPenalty : getOffHandPenalty(selectedWeapon.name))
+    : 0;
+  const dualWieldArmorBonus = isDualWielding ? (character?.insight_rank || character?.school_rank || 1) : 0;
 
   // Targetable pool — enemies always, allies too if friendly-fire targeting is enabled
   const targetPool = allowFriendly ? [...enemies, ...allies] : enemies;
@@ -125,8 +142,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const displaySkills = skillCategory === 'combat' ? combatSkills : skillCategory === 'social' ? socialSkills : otherSkills;
 
   // Stance bonus to attack rolls
-  const stanceRollBonus = combatant.stance === 'Full Attack' ? 1 : 0;
-  const stanceKeepBonus = 0; // Full Attack only adds rolled dice, not kept
+  const stanceRollBonus = combatant.stance === 'Full Attack' ? 2 : 0;
+  const stanceKeepBonus = combatant.stance === 'Full Attack' ? 1 : 0; // Full Attack +2k1
+  // Center stance: +1k1 + Void Ring on first action (after spending previous round in Center)
+  const voidRing = character?.void || combatant.void || 2;
+  const centerExtraRoll = combatant.stance === 'Center' ? (1 + voidRing) : 0;
+  const centerExtraKeep = combatant.stance === 'Center' ? 1 : 0;
   const centerBonus = combatant.stance === 'Center' ? (character.school_rank || 1) : 0;
 
   // Skill mastery bonuses (ranks 3, 5, 7)
@@ -205,7 +226,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     const qualityKeepBonus = isAttack ? (qualityData.keepBonus || 0) : 0;
 
     const bonusNotes = [];
-    if (stanceBonus > 0) bonusNotes.push(`Full Attack: +${stanceBonus} rolled die`);
+    if (stanceRollBonus > 0) bonusNotes.push(`Full Attack: +2k1 to attacks (−10 Armor TN)`);
+    if (dualWieldPenalty !== 0) bonusNotes.push(`Dual wield: ${dualWieldPenalty} TN to this attack`);
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
     if (hasMasteryFreeRaise) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
@@ -351,16 +373,35 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character?.name || combatant.name} — {isNPCTurn ? 'NPC Turn' : 'Your Turn'}
         </div>
         {/* Action Economy Display */}
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Actions:</div>
-          <div title="Full Action" style={{ width: 20, height: 20, borderRadius: 3, background: actions.full > 0 ? 'var(--gold)' : 'var(--bg-panel)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: actions.full > 0 ? '#1a1208' : 'var(--text-muted)' }}>F</div>
-          <div title="Simple Action 1" style={{ width: 16, height: 20, borderRadius: 3, background: actions.simple >= 1 ? 'var(--gold-dim)' : 'var(--bg-panel)', border: '1px solid var(--border)' }} />
-          <div title="Simple Action 2" style={{ width: 16, height: 20, borderRadius: 3, background: actions.simple >= 2 ? 'var(--gold-dim)' : 'var(--bg-panel)', border: '1px solid var(--border)' }} />
-          {noActionsLeft && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Done</span>}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Actions:</div>
+          {/* Full action pip */}
+          <div title="Full Action (1 Complex OR 2 Simple)" style={{
+            minWidth: 36, height: 30, borderRadius: 4, padding: '0 6px',
+            background: actions.full > 0 ? 'var(--gold)' : 'var(--bg-panel)',
+            border: `2px solid ${actions.full > 0 ? 'var(--gold)' : 'var(--border)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700, color: actions.full > 0 ? '#1a1208' : 'var(--text-muted)',
+          }}>
+            {actions.full > 0 ? `${actions.full}×` : ''}F
+          </div>
+          {/* Simple action pips */}
+          {[1, 2].map(n => (
+            <div key={n} title={`Simple Action ${n}`} style={{
+              minWidth: 32, height: 30, borderRadius: 4, padding: '0 5px',
+              background: actions.simple >= n ? 'rgba(200,150,42,.25)' : 'var(--bg-panel)',
+              border: `2px solid ${actions.simple >= n ? 'var(--gold-dim)' : 'var(--border)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 600, color: actions.simple >= n ? 'var(--gold)' : 'var(--text-muted)',
+            }}>
+              S
+            </div>
+          ))}
+          {noActionsLeft && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginLeft: 2 }}>Done</span>}
         </div>
         {woundRank >= 3 && (
           <div style={{ fontSize: 12, padding: '2px 7px', border: '1px solid var(--red-dim)', borderRadius: 3, color: 'var(--red)', background: 'rgba(200,64,48,.1)' }}>
-            {woundRank === 3 ? '–1k0' : woundRank === 4 ? '–2k0' : '–3k0'} wound penalty
+            +{woundPenalty} TN wound penalty
           </div>
         )}
       </div>
@@ -419,8 +460,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
           { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       color: '#c84030',
-            disabled: combatant.stance === 'Full Defense' || combatant.stance === 'Defense',
-            title: (combatant.stance === 'Full Defense' || combatant.stance === 'Defense') ? 'Cannot attack in ' + combatant.stance + ' stance' : 'Attack' },
+            disabled: combatant.stance === 'Full Defense',
+            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense stance — only Free Actions allowed' : 'Attack' },
           { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    color: 'var(--gold)' },
           { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  color: 'var(--text-secondary)' },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', color: '#4a8a40',
@@ -562,7 +603,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       ringVal: pool.ringVal,
                       baseRoll: pool.roll,
                       baseKeep: pool.keep,
-                      tn: getTargetTN(selectedTarget),
+                      tn: getTargetTN(selectedTarget) + (dualWieldPenalty || 0),
                       isAttack: true,
                       dr: selectedWeapon.dr,
                       targetName: targetPool.find(e => e.id === selectedTarget)?.name,
@@ -596,7 +637,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gold)' }}>{selectedSkill.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   Rank {selectedSkill.rank} + {pool.traitKey} {pool.traitVal} = {pool.roll}k{pool.keep}
-                  {woundPenalty < 0 && <span style={{ color: 'var(--red)' }}> ({woundPenalty}k0 wound penalty)</span>}
+                  {woundPenalty > 0 && <span style={{ color: 'var(--red)' }}> (+{woundPenalty} TN wound penalty)</span>}
                 </div>
               </div>
               {/* Manual TN entry — GM tells the player what to type */}
@@ -639,23 +680,74 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       )}
 
       {/* Draw weapon */}
-      {selectedAction === 'draw' && (
-        <div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Select weapon to draw:</div>
-          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-            {(character.equipment || []).filter(e => e.dr && e.equipped).map(e => (
-              <button key={e.name} className={`btn btn-sm ${combatant.drawnWeapon?.startsWith(e.name) ? 'btn-p' : ''}`}
-                onClick={() => { onDrawWeapon(`${e.name} (${e.dr})`); setSelectedAction(null); }}>
-                {e.name} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{e.dr}</span>
+      {selectedAction === 'draw' && (() => {
+        // Support up to 2 equipped weapons
+      
+        const allWeapons = (character.equipment || []).filter(e => e.dr);
+        const getWeaponData = (wStr) => {
+          const wName = wStr.split(' (')[0];
+          return WEAPONS_LIST.find(w => w.name === wName) || {};
+        };
+        const toggleWeapon = (weaponStr) => {
+          const wData = getWeaponData(weaponStr);
+          // Enforce two-handed / bow: cannot pair with anything
+          if (drawnList.includes(weaponStr)) {
+            // Unequipping
+            onDrawWeapon(drawnList.filter(w => w !== weaponStr));
+            return;
+          }
+          // Check if new weapon is two-handed
+          if (wData.twoHanded) {
+            onDrawWeapon([weaponStr]);  // replace all — two-handed goes alone
+            setSelectedAction(null);
+            return;
+          }
+          // Check if currently drawn weapon is two-handed — must unequip first
+          if (drawnList.some(w => getWeaponData(w).twoHanded)) {
+            onDrawWeapon([weaponStr]);
+            setSelectedAction(null);
+            return;
+          }
+          // Normal: allow up to 2 one-handed weapons
+          let next = drawnList.length < 2 ? [...drawnList, weaponStr] : [drawnList[drawnList.length - 1], weaponStr];
+          onDrawWeapon(next);
+          if (next.length > 0) setSelectedAction(null);
+        };
+        return (
+          <div style={{ padding: '.5rem', background: 'rgba(107,78,40,.08)', borderRadius: 5, marginBottom: '.5rem' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+              Select weapon(s) to draw <span style={{ color: 'var(--gold)' }}>(up to 2)</span> — tap to toggle:
+            </div>
+            <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+              {allWeapons.map(e => {
+                const wStr = `${e.name} (${e.dr})`;
+                const active = drawnList.includes(wStr);
+                return (
+                  <button key={e.name} className={`btn btn-sm ${active ? 'btn-p' : ''}`}
+                    onClick={() => toggleWeapon(wStr)}>
+                    {e.name} <span style={{ fontSize: 11, color: active ? 'var(--gold-dim)' : 'var(--text-muted)' }}>{e.dr}</span>
+                    {active && <span style={{ marginLeft: 4, fontSize: 9 }}>✓</span>}
+                  </button>
+                );
+              })}
+              <button className={`btn btn-sm ${drawnList.includes('Unarmed (1k1)') ? 'btn-p' : ''}`}
+                onClick={() => toggleWeapon('Unarmed (1k1)')}>
+                Unarmed <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1k1</span>
               </button>
-            ))}
-            <button className={`btn btn-sm ${combatant.drawnWeapon === 'Unarmed (1k1)' ? 'btn-p' : ''}`}
-              onClick={() => { onDrawWeapon('Unarmed (1k1)'); setSelectedAction(null); }}>
-              Unarmed <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1k1</span>
-            </button>
+            </div>
+            {drawnList.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: '.3rem' }}>
+                Drawn: {drawnList.map(w => w.split(' (')[0]).join(' + ')}
+              </div>
+            )}
+            {isDualWielding && (
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.5 }}>
+                Dual wield: primary hand −5 TN to attacks · off-hand penalty varies by size (small −5, medium −10, large −15) · +{dualWieldArmorBonus} Armor TN (Insight Rank)
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
       </>
       )}
     </div>

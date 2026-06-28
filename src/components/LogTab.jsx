@@ -4,10 +4,12 @@ import { formatDate } from '../lib/utils';
 import EncounterBuilder from './EncounterBuilder';
 
 // ── LogTab ────────────────────────────────────────────────────────────────────
-export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onSavePreparedEncounters, npcsFromLog, skillLog, eventLog = [] }) {
+export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, npcsFromLog, skillLog, eventLog = [] }) {
   const [expandedSession, setExpandedSession] = useState({});
   const [showBuilderFor, setShowBuilderFor] = useState(null);
   const [newSessionTitle, setNewSessionTitle] = useState('');
+  const [newSessionNum, setNewSessionNum] = useState(null);
+  const [editingSessionNum, setEditingSessionNum] = useState(null);
   const [showNewSession, setShowNewSession] = useState(false);
 
   const skillRows = Object.entries(skillLog || {}).sort((a, b) => b[1].total - a[1].total);
@@ -82,15 +84,28 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
           )}
         </div>
 
-        {isGM && showNewSession && (
-          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', alignItems: 'center', padding: '.5rem .75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 5 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Session {nextSessionNum}</span>
-            <input style={{ flex: 1, fontSize: 13 }} placeholder="Title (optional)" value={newSessionTitle} onChange={e => setNewSessionTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { onCreatePrepSession && onCreatePrepSession(nextSessionNum, newSessionTitle); setNewSessionTitle(''); setShowNewSession(false); } }} />
-            <button className="btn btn-sm btn-p" onClick={() => { onCreatePrepSession && onCreatePrepSession(nextSessionNum, newSessionTitle); setNewSessionTitle(''); setShowNewSession(false); }}>Create</button>
-            <button className="btn btn-sm" onClick={() => setShowNewSession(false)}>✕</button>
-          </div>
-        )}
+        {isGM && showNewSession && (() => {
+          const chosenNum = newSessionNum ?? nextSessionNum;
+          const numTaken = allSess.some(s => s.session_number === chosenNum);
+          const doCreate = () => {
+            onCreatePrepSession && onCreatePrepSession(chosenNum, newSessionTitle);
+            setNewSessionTitle(''); setNewSessionNum(null); setShowNewSession(false);
+          };
+          return (
+            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', alignItems: 'center', padding: '.5rem .75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 5, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Session #</span>
+                <input type="number" min="1" value={chosenNum} onChange={e => setNewSessionNum(parseInt(e.target.value) || nextSessionNum)}
+                  style={{ width: 52, fontSize: 13, textAlign: 'center' }} />
+                {numTaken && <span style={{ fontSize: 10, color: 'var(--gold)' }}>⚠ Will shift existing sessions up</span>}
+              </div>
+              <input style={{ flex: 1, fontSize: 13, minWidth: 120 }} placeholder="Title (optional)" value={newSessionTitle} onChange={e => setNewSessionTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') doCreate(); }} />
+              <button className="btn btn-sm btn-p" onClick={doCreate}>Create</button>
+              <button className="btn btn-sm" onClick={() => { setShowNewSession(false); setNewSessionNum(null); }}>✕</button>
+            </div>
+          );
+        })()}
 
         {allSess.length === 0 ? (
           <Empty icon="ti-calendar" message="No sessions yet. Start a session using the bar above, or prep a future session here." />
@@ -114,7 +129,26 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                     : <i className={`ti ${isPast ? 'ti-calendar-check' : 'ti-calendar'}`} style={{ fontSize: 14, color: 'var(--text-muted)', flexShrink: 0 }} />
                   }
                   <span style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? 'var(--gold)' : 'var(--text-secondary)' }}>
-                    Session {s.session_number}
+                    {editingSessionNum === s.id ? (
+                      <select autoFocus defaultValue={s.session_number}
+                        onChange={e => {
+                          const n = parseInt(e.target.value);
+                          if (n !== s.session_number) onRenumberSession && onRenumberSession(s.id, n);
+                          setEditingSessionNum(null);
+                        }}
+                        onBlur={() => setEditingSessionNum(null)}
+                        style={{ fontSize: 12, background: 'var(--bg-panel)', color: 'var(--gold)', border: '1px solid var(--gold-dim)', borderRadius: 3 }}>
+                        {Array.from({ length: Math.max(nextSessionNum, s.session_number) + 2 }, (_, i) => i + 1).map(n => (
+                          <option key={n} value={n}>Session {n}{allSess.some(x => x.session_number === n && x.id !== s.id) ? ' ⚠' : ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span onClick={() => isGM && setEditingSessionNum(s.id)}
+                        title={isGM ? 'Click to renumber' : undefined}
+                        style={{ cursor: isGM ? 'pointer' : 'default' }}>
+                        Session {s.session_number}
+                      </span>
+                    )}
                   </span>
                   {(s.title || s.recap?.event) && (
                     <span style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
@@ -125,6 +159,13 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                   {isPrep && <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 4px', flexShrink: 0 }}>PREP</span>}
                   {prep.length > 0 && <span style={{ fontSize: 11, color: 'var(--gold-dim)', flexShrink: 0 }}>{prep.length} prepared</span>}
                   {sessionEncounters.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{sessionEncounters.length} fought</span>}
+                  {isGM && !isCurrent && (
+                    <button className="btn btn-sm" title="Delete session"
+                      style={{ fontSize: 11, color: 'var(--red)', padding: '0 5px', flexShrink: 0 }}
+                      onClick={e => { e.stopPropagation(); if (window.confirm(`Delete Session ${s.session_number}?`)) onDeleteSession && onDeleteSession(s.id); }}>
+                      <i className="ti ti-trash" />
+                    </button>
+                  )}
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 'auto' }}>{exp ? '▲' : '▼'}</span>
                 </div>
 
@@ -171,6 +212,22 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                             </div>
                             {e.description && (
                               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, marginLeft: 20, fontStyle: 'italic', lineHeight: 1.4 }}>{e.description}</div>
+                            )}
+                            {((e.party_members?.length > 0) || (e.enemies?.length > 0)) && (
+                              <div style={{ marginTop: 3, marginLeft: 20, fontSize: 11, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                {e.party_members?.length > 0 && (
+                                  <span style={{ color: 'var(--green-dim)' }}>
+                                    <i className="ti ti-users" style={{ fontSize: 10, marginRight: 3 }} />
+                                    {e.party_members.map(p => p.name).join(', ')}
+                                  </span>
+                                )}
+                                {e.enemies?.length > 0 && (
+                                  <span style={{ color: 'var(--red-dim)' }}>
+                                    <i className="ti ti-skull" style={{ fontSize: 10, marginRight: 3 }} />
+                                    {e.enemies.map(en => en.name).join(', ')}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}

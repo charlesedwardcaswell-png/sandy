@@ -6,7 +6,7 @@ import { playSuccess, playFailure, playClick } from '../lib/sounds';
 // ── Compute technique + advantage roll bonuses for a roll context ─────────────
 // Returns { extraRolled, extraKept, extraFlat, freeRaises, notes, conditionals }
 // 'conditionals' = bonuses that need player confirmation (stance-dependent, etc.)
-function skillMatches(bonus, skillName, isAttack, isDamage, isSpellcasting, isInitiative, isSocial, isLore) {
+function skillMatches(bonus, skillName, isAttack, isDamage, isSpellcasting, isInitiative, isSocial, isLore, isTrait, isPerform, isContested) {
   const s = bonus.skills || [];
   if (s.includes('ALL')) return true;
   if (s.includes('ATTACK') && isAttack) return true;
@@ -15,6 +15,10 @@ function skillMatches(bonus, skillName, isAttack, isDamage, isSpellcasting, isIn
   if (s.includes('INITIATIVE') && isInitiative) return true;
   if (s.includes('SOCIAL') && isSocial) return true;
   if (s.includes('LORE') && isLore) return true;
+  if (s.includes('TRAIT') && isTrait) return true;
+  if (s.includes('PERFORM') && isPerform) return true;
+  if (s.includes('CONTESTED') && isContested) return true;
+  if (s.includes('INTELLIGENCE') && skillName?.toLowerCase?.().includes('intelligence')) return true;
   if (s.includes('REDUCTION')) return false; // informational only
   return s.some(sk => sk === skillName);
 }
@@ -32,6 +36,9 @@ function computeBonuses(character, skillName, isAttack, isDamage, currentStance)
   const isSpellcasting = SPELLCASTING_SKILLS.includes(skillName);
   const isDmg = isDamage || skillName === 'DAMAGE';
   const isAtk = isAttack || skillName === 'ATTACK';
+  const isTrait = !skillName || skillName === skillName?.toUpperCase?.();
+  const isPerform = skillName?.startsWith('Perform');
+  const isContested = false; // passed separately if needed
 
   const earnedTechs = Object.entries(character.techniques || {}).filter(([r]) => +r <= (character.school_rank || 1)).map(([,n]) => n).filter(Boolean);
   const charAdvantages = (character.advantages || []).map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
@@ -41,7 +48,7 @@ function computeBonuses(character, skillName, isAttack, isDamage, currentStance)
   const conditionalItems = [];
 
   const processBonus = (bonus, sourceName) => {
-    if (!skillMatches(bonus, skillName, isAtk, isDmg, isSpellcasting, isInitiative, isSocial, isLore)) return;
+    if (!skillMatches(bonus, skillName, isAtk, isDmg, isSpellcasting, isInitiative, isSocial, isLore, isTrait, isPerform, isContested)) return;
     // Check stance filter
     if (bonus.stances && currentStance && !bonus.stances.some(s => currentStance.includes(s))) {
       conditionalItems.push({ note: bonus.note, condition: `Only in: ${bonus.stances.join('/')} stance`, source: sourceName });
@@ -69,6 +76,36 @@ function computeBonuses(character, skillName, isAttack, isDamage, currentStance)
   earnedTechs.forEach(techName => {
     const bonuses = TECHNIQUE_ROLL_BONUSES[techName] || [];
     bonuses.forEach(b => processBonus(b, techName));
+
+    // Parse Jinn combat bonus strings (e.g. "Attack bonus = highest Ring")
+    if (character.is_npc && character.faction === 'Jinn' && typeof techName === 'string') {
+      const highestRing = Math.max(character.air || 2, character.earth || 2, character.fire || 2, character.water || 2);
+      if (techName.includes('Attack bonus = highest Ring') && isAtk) {
+        extraRolled += highestRing;
+        autoNotes.push(`+${highestRing}k0 attack (Jinn Combat Bonus)`);
+      }
+      if (techName.includes('Damage bonus = highest Ring') && isDmg) {
+        extraRolled += highestRing;
+        autoNotes.push(`+${highestRing}k0 damage (Jinn Combat Bonus)`);
+      }
+      if (techName.includes('+TN to Be Hit = highest Ring')) {
+        // This is defensive — noted conditionally
+        conditionalItems.push({ note: `+${highestRing} TN to Be Hit (Jinn Protection)`, condition: 'Always active — applied to Armor TN', source: techName });
+      }
+      if (techName.includes('Initiative bonus = highest Ring') && isInitiative) {
+        extraRolled += highestRing;
+        autoNotes.push(`+${highestRing}k0 initiative (Jinn Combat Bonus)`);
+      }
+      if (techName.includes('Extra Wounds per Wound Rank = highest Ring')) {
+        conditionalItems.push({ note: `+${highestRing} Wounds per Wound Rank (Jinn Combat Bonus)`, condition: 'Applied to wound thresholds', source: techName });
+      }
+      if (techName.includes('Suffers no Wound Penalties')) {
+        autoNotes.push('No Wound Penalties (Jinn Protection)');
+      }
+      if (techName.includes('Cannot be affected by spells')) {
+        conditionalItems.push({ note: 'Immune to spells (Jinn Protection)', condition: 'Always active', source: techName });
+      }
+    }
   });
 
   // Process advantages
@@ -139,7 +176,8 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const rollCount = (context?.baseRoll || 2) + voidBonus + extraRoll + techRolled;
   const keepCount = Math.min((context?.baseKeep || 2) + voidBonus + extraKeep + techKept, rollCount);
   const freeRaiseReduction = ((context?.freeRaises || 0) + techFreeRaises + manualFreeRaises) * 5;
-  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raises.length * 5);
+  const woundTNPenalty = context?.woundPenalty || 0;
+  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raises.length * 5 + woundTNPenalty);
 
   const toggleRaise = (r) => setRaises(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
@@ -265,6 +303,11 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
                 {context.freeRaises > 0 && (
                   <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 2 }}>
                     <i className="ti ti-arrow-up" style={{ fontSize: 11, marginRight: 4 }} />{context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} already applied (TN effectively {(context?.tn || 15) - context.freeRaises * 5})
+                  </div>
+                )}
+                {woundTNPenalty > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--red)', display: 'flex', alignItems: 'center' }}>
+                    <i className="ti ti-heart-broken" style={{ fontSize: 11, marginRight: 4 }} />Wound penalty: +{woundTNPenalty} TN applied to this roll
                   </div>
                 )}
               </div>

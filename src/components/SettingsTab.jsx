@@ -204,6 +204,14 @@ export default function SettingsTab({ onWipe = {} }) {
     if (afterRefetch) afterRefetch();
   };
 
+  const wipeAllShops = async () => {
+    const { data: gameRow } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const updated = { ...(gameRow?.settings || {}), shops_v2: [] };
+    const { error } = await supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
+    if (error) { console.error('wipeAllShops failed:', error.message); return; }
+    if (onWipe.shops) onWipe.shops();
+  };
+
   const clearActiveSession = async () => {
     // Find the active session
     const { data, error } = await supabase
@@ -475,6 +483,7 @@ export default function SettingsTab({ onWipe = {} }) {
         </div>
         <DangerAction label="Clear Active Session" description="Ends the current session without archiving it — wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
         <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
+        <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory — cannot be undone" onConfirm={wipeAllShops} />
         <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
         <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0"
           onConfirm={async () => { await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); }} />
