@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
@@ -561,6 +561,11 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
         }
       } else if (item.type === 'skill') {
         updates.skills = (updates.skills || char.skills || []).map(s => s.name === item.key ? { ...s, rank: item.to } : s);
+      } else if (item.type === 'emphasis') {
+        const [skillName, emphasis] = item.key.split('|||');
+        updates.skills = (updates.skills || char.skills || []).map(s =>
+          s.name === skillName ? { ...s, emphases: [...new Set([...(s.emphases || []), emphasis])] } : s
+        );
       }
     });
     onBatchUpdate(updates);
@@ -645,7 +650,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 
           {/* Skills */}
           <div className="card">
-            <div className="card-title">Skills <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>(new rank × 2 XP)</span></div>
+            <div className="card-title">Skills <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>(new rank × 2 XP · emphasis: 2/4/6… XP)</span></div>
             <div style={{ maxHeight: 320, overflowY: 'auto' }}>
               {(char.skills || []).map(s => {
                 const cartKey = `skill_${s.name}`;
@@ -665,32 +670,56 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                     )}
                     {pending && <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removeFromCart(cartKey)}>✕</button>}
                   </div>
-                  {/* Emphases */}
+                  {/* Emphases — show owned + XP purchase option */}
                   <div style={{ paddingLeft: '.5rem', paddingBottom: 2 }}>
-                    {(s.emphases || []).map(e => (
-                      <span key={e} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: 'rgba(200,150,42,.12)', border: '1px solid rgba(200,150,42,.3)', color: 'var(--gold-dim)', marginRight: 3, cursor: 'pointer' }}
-                        title="Click to remove"
-                        onClick={() => {
-                          const updated = (char.skills || []).map(x => x.name === s.name ? { ...x, emphases: (x.emphases || []).filter(em => em !== e) } : x);
-                          onBatchUpdate({ skills: updated });
-                        }}>
-                        {e} ×
-                      </span>
-                    ))}
-                    <input
-                      placeholder="+ add emphasis (Enter)"
-                      style={{ fontSize: 10, width: 120, padding: '1px 4px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-muted)', fontFamily: 'inherit', outline: 'none' }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && e.target.value.trim()) {
-                          const val = e.target.value.trim();
-                          const updated = (char.skills || []).map(x => x.name === s.name
-                            ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
-                            : x);
-                          onBatchUpdate({ skills: updated });
-                          e.target.value = '';
-                        }
-                      }}
-                    />
+                    {(s.emphases || []).map(e => {
+                      const cartKey = `emph_${s.name}|||${e}`;
+                      return (
+                        <span key={e} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: cart[cartKey] ? 'rgba(40,160,80,.15)' : 'rgba(200,150,42,.12)', border: `1px solid ${cart[cartKey] ? 'var(--green-dim)' : 'rgba(200,150,42,.3)'}`, color: cart[cartKey] ? 'var(--green)' : 'var(--gold-dim)', marginRight: 3 }}>
+                          {e}
+                        </span>
+                      );
+                    })}
+                    {/* XP emphasis purchase — from predefined list only */}
+                    {(() => {
+                      const ownedEmphases = s.emphases || [];
+                      const allowedEmphases = SKILL_EMPHASES[s.name] || [];
+                      const pendingEmphases = Object.values(cart).filter(i => i.type === 'emphasis' && i.key.startsWith(s.name + '|||')).map(i => i.to);
+                      const allOwned = [...ownedEmphases, ...pendingEmphases];
+                      const available = allowedEmphases.filter(e => !allOwned.includes(e));
+                      // Rank cap: R1=1, R3=3, R5=5, R7=6, R10=unlimited
+                      const emphasisCap = s.rank >= 10 ? 99 : s.rank >= 7 ? 6 : s.rank >= 5 ? 5 : s.rank >= 3 ? 3 : 1;
+                      const atCap = allOwned.length >= emphasisCap;
+                      // XP cost doubles per emphasis: 1st=2, 2nd=4, 3rd=6...
+                      const nextCost = (allOwned.length + 1) * 2;
+                      if (available.length === 0 && allowedEmphases.length === 0) return null;
+                      return (
+                        <div style={{ marginTop: 3 }}>
+                          {atCap && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>Max emphases at Rank {s.rank}</span>}
+                          {!atCap && available.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
+                              <span style={{ fontSize: 9, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>{nextCost}xp:</span>
+                              {available.map(emp => {
+                                const cartKey = `emph_${s.name}|||${emp}`;
+                                const inCart = !!cart[cartKey];
+                                return (
+                                  <button key={emp} onClick={() => {
+                                    if (inCart) {
+                                      setCart(c => { const n = {...c}; delete n[cartKey]; return n; });
+                                    } else {
+                                      setCart(c => ({ ...c, [cartKey]: { type: 'emphasis', key: `${s.name}|||${emp}`, cost: nextCost, label: `${s.name}: ${emp} (emphasis)`, from: '', to: emp } }));
+                                    }
+                                  }}
+                                    style={{ fontSize: 9, padding: '1px 5px', borderRadius: 8, border: `1px solid ${inCart ? 'var(--green)' : 'rgba(200,150,42,.3)'}`, background: inCart ? 'rgba(40,160,80,.15)' : 'transparent', color: inCart ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    {inCart ? '✓ ' : '+ '}{emp}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   </React.Fragment>
                 );
@@ -1356,7 +1385,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <span className={`skill-nm ${s.school ? 'sc' : ''}`}>
                         {s.name}
                         {(s.emphases || []).map(e => (
-                          <span key={e} style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 4 }}>({e})</span>
+                          <span key={e} style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 4 }}>
+                            ({e}){canEdit && <span style={{ cursor: 'pointer', marginLeft: 2, color: 'var(--text-muted)' }}
+                              onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, emphases: (x.emphases || []).filter(em => em !== e) } : x); update('skills', skills); }}>×</span>}
+                          </span>
                         ))}
                       </span>
                       <SkillDots rank={s.rank} />
@@ -1374,24 +1406,30 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           ✦ {techName}
                         </span>
                       ))}
-                      {(canEdit && isGM) && (
+                      {canEdit && (
                         <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
-                          <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
-                          <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
-                          <input
-                            placeholder="Add emphasis…"
-                            style={{ fontSize: 10, width: 90, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit' }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && e.target.value.trim()) {
-                                const val = e.target.value.trim();
-                                const skills = (char.skills || []).map(x => x.name === s.name
-                                  ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
-                                  : x);
-                                update('skills', skills);
-                                e.target.value = '';
-                              }
-                            }}
-                          />
+                          {isGM && (
+                            <>
+                              <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.max(0, x.rank - 1) } : x); update('skills', skills); }}>−</button>
+                              <button className="trait-btn" onClick={() => { const skills = (char.skills || []).map(x => x.name === s.name ? { ...x, rank: Math.min(10, x.rank + 1) } : x); update('skills', skills); }}>+</button>
+                            </>
+                          )}
+                          {isGM && (
+                            <input
+                              placeholder="Add emphasis (GM)…"
+                              style={{ fontSize: 10, width: 100, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit' }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  const val = e.target.value.trim();
+                                  const skills = (char.skills || []).map(x => x.name === s.name
+                                    ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
+                                    : x);
+                                  update('skills', skills);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -1921,7 +1959,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '1rem' }}>
             {(step > 1 || onCancel) && (
-              <button className="btn btn-sm" onClick={backAction}>← Back</button>
+              <button className="btn btn-sm" onClick={backAction}>{step === 1 ? '✕ Cancel Creation' : '← Back'}</button>
             )}
             <div style={{ flex: 1 }} />
             <button className="btn btn-p btn-sm" disabled={nextDisabled} onClick={nextAction}>
@@ -2023,6 +2061,11 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
                 <span style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600 }}>+1 {trait === 'Any' ? 'Any Trait' : trait}</span>
                 {subfaction === sf && <i className="ti ti-check" style={{ color: 'var(--gold)', fontSize: 16 }} />}
               </div>
+              {SUBFACTION_DESCRIPTIONS[sf] && (
+                <div style={{ fontSize: 12, color: subfaction === sf ? 'var(--text-secondary)' : 'var(--text-muted)', marginTop: '.35rem', lineHeight: 1.5, opacity: subfaction === sf ? 1 : 0.7 }}>
+                  {SUBFACTION_DESCRIPTIONS[sf]}
+                </div>
+              )}
               {subfaction === sf && trait === 'Any' && (
                 <div style={{ marginTop: '.5rem' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: '.5rem' }}>Choose trait:</span>

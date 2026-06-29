@@ -308,6 +308,9 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [customDr, setCustomDr] = useState('');
   const [customQuality, setCustomQuality] = useState('standard');
   const [editingShopName, setEditingShopName] = useState(false);
+  const [randomTheme, setRandomTheme] = useState('auto');
+  const [insufficientFunds, setInsufficientFunds] = useState(null); // { needed, have, item } // auto | weapons | armor | apothecary | general | black | outfitter | scribe | superior | sahir
+  const [randomQuality, setRandomQuality] = useState('standard'); // standard | fine | superior
   const [shopNameInput, setShopNameInput] = useState('');
 
   const activeShop = shops.find(s => s.id === activeShopId) || null;
@@ -379,7 +382,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const loadBundle = (bundleName) => {
     if (!activeShop || !bundleName) return;
     const bundleItems = BUNDLE_PRESETS[bundleName].items.map(i => ({ ...i }));
-    updateActiveShop({ items: bundleItems });
+    const existing = activeShop.items || [];
+    // Add to existing inventory, not replace — deduplicate by name
+    const existingNames = new Set(existing.map(i => i.name));
+    const newItems = bundleItems.filter(i => !existingNames.has(i.name));
+    updateActiveShop({ items: [...existing, ...newItems] });
   };
 
   const updateActiveShop = (patch) => {
@@ -407,28 +414,54 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const randomizeShop = () => {
     if (!activeShop) return;
     const shopName = activeShop.name.toLowerCase();
-    // Try exact match first, then keyword match
-    let preset = BUNDLE_PRESETS[activeShop.name];
-    if (!preset) {
+    const THEME_MAP = {
+      'weapons': 'Weapons Dealer', 'armor': 'Armorer', 'apothecary': 'Apothecary',
+      'general': 'General Goods', 'black': 'Black Market', 'outfitter': 'Outfitter',
+      'scribe': 'Scribe', 'superior': 'Superior Weapons', 'sahir': 'Sahir Emporium',
+    };
+    let presetKey;
+    if (randomTheme !== 'auto') {
+      presetKey = THEME_MAP[randomTheme] || 'General Goods';
+    } else {
+      // Auto-detect from shop name
       const keywords = {
         'weapon': 'Weapons Dealer', 'sword': 'Weapons Dealer', 'blade': 'Weapons Dealer', 'arms': 'Weapons Dealer',
         'armor': 'Armorer', 'armour': 'Armorer', 'shield': 'Armorer',
-        'apothecary': 'Apothecary', 'medicine': 'Apothecary', 'herb': 'Apothecary', 'potion': 'Apothecary',
+        'apothecary': 'Apothecary', 'medicine': 'Apothecary', 'herb': 'Apothecary',
         'general': 'General Goods', 'supply': 'General Goods', 'market': 'General Goods', 'bazaar': 'General Goods',
-        'black': 'Black Market', 'shadow': 'Black Market', 'fence': 'Black Market', 'underground': 'Black Market', 'poison': 'Black Market',
-        'cloth': 'Outfitter', 'tailor': 'Outfitter', 'outfit': 'Outfitter', 'garment': 'Outfitter',
-        'scribe': 'Scribe', 'scroll': 'Scribe', 'book': 'Scribe', 'ink': 'Scribe',
-        'superior': 'Superior Weapons', 'merchant': 'Merchant District', 'sahir': 'Sahir Emporium', 'magic': 'Sahir Emporium',
+        'black': 'Black Market', 'shadow': 'Black Market', 'fence': 'Black Market', 'poison': 'Black Market',
+        'cloth': 'Outfitter', 'tailor': 'Outfitter', 'outfit': 'Outfitter',
+        'scribe': 'Scribe', 'scroll': 'Scribe', 'book': 'Scribe',
+        'superior': 'Superior Weapons', 'sahir': 'Sahir Emporium', 'magic': 'Sahir Emporium',
       };
       const match = Object.entries(keywords).find(([kw]) => shopName.includes(kw));
-      preset = match ? BUNDLE_PRESETS[match[1]] : Object.values(BUNDLE_PRESETS)[3]; // default: General Goods
+      presetKey = match ? match[1] : Object.keys(BUNDLE_PRESETS)[Math.floor(Math.random() * Object.keys(BUNDLE_PRESETS).length)];
     }
+    const preset = BUNDLE_PRESETS[presetKey] || Object.values(BUNDLE_PRESETS)[3];
+    // Build items with random variation
     const baseItems = preset.items.map(item => ({ ...item, visible: true }));
-    // For standard tier: upgrade one random item to fine
-    if (preset.tier === 'standard') {
+    // Apply quality setting
+    if (randomQuality === 'fine') {
+      // Upgrade 2-4 random items to fine
+      const count = 2 + Math.floor(Math.random() * 3);
+      const indices = [...Array(baseItems.length).keys()].sort(() => Math.random() - 0.5).slice(0, count);
+      indices.forEach(i => { baseItems[i] = { ...baseItems[i], quality: 'fine' }; });
+    } else if (randomQuality === 'superior') {
+      baseItems.forEach((_, i) => { baseItems[i] = { ...baseItems[i], quality: 'fine' }; });
+      const superIdx = Math.floor(Math.random() * baseItems.length);
+      baseItems[superIdx] = { ...baseItems[superIdx], quality: 'superior' };
+    } else {
+      // standard: upgrade exactly one random item to fine
       const upgradeIdx = Math.floor(Math.random() * baseItems.length);
       baseItems[upgradeIdx] = { ...baseItems[upgradeIdx], quality: 'fine' };
     }
+    // Randomize prices ±20%
+    baseItems.forEach((item, i) => {
+      if (item.price && !isNaN(item.price)) {
+        const variance = 0.8 + Math.random() * 0.4;
+        baseItems[i] = { ...item, price: Math.round(Number(item.price) * variance) };
+      }
+    });
     updateActiveShop({ items: baseItems });
   };
 
@@ -467,6 +500,17 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     const copperAmt = parseCopperAmount(item.price, item.quality);
     const destName = purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'Character';
 
+    // Check if enough funds
+    if (copperAmt > 0) {
+      const availableCopper = purchaseTarget === 'party'
+        ? (inventory?.copper || 0)
+        : ((characters || []).find(c => c.id === purchaseTarget)?.copper || 0);
+      if (availableCopper < copperAmt) {
+        setInsufficientFunds({ needed: copperAmt, have: availableCopper, item: displayName });
+        return; // block purchase
+      }
+    }
+
     const itemEntry = item.is_magic
       ? { ...item, equipped: false, inUse: false }
       : { name: displayName, dr: item.dr || undefined, equipped: false, inUse: false, quality: item.quality, qty: 1, category: 'Gear' };
@@ -496,12 +540,44 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         </div>
       );
     }
+    // Copper balance and insufficient funds logic
+    const myChar = characters?.find(c => c.id === myCharId);
+    const targetCopper = purchaseTarget === 'party'
+      ? (inventory?.copper || 0)
+      : ((characters || []).find(c => c.id === purchaseTarget)?.copper || 0);
+
     return (
-      <div>
+      <div style={{ position: 'relative' }}>
+        {/* Insufficient funds popup */}
+        {insufficientFunds && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--red)', borderRadius: 8, padding: '2rem', maxWidth: 300, textAlign: 'center', boxShadow: '0 0 24px rgba(200,50,40,.3)' }}>
+              <div style={{ fontSize: 32, marginBottom: '.5rem' }}>🪙</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)', marginBottom: '.5rem' }}>Not Enough Coin</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+                <strong>{insufficientFunds.item}</strong><br />
+                costs <strong style={{ color: 'var(--gold)' }}>{insufficientFunds.needed} copper</strong><br />
+                but you only have <strong style={{ color: 'var(--red)' }}>{insufficientFunds.have} copper</strong>.
+              </div>
+              <button className="btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => setInsufficientFunds(null)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Copper balance — large watermark top left */}
+        <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0, lineHeight: 1 }}>
+          <div style={{ fontSize: 42, fontWeight: 900, color: 'var(--gold)', opacity: 0.15, userSelect: 'none' }}>
+            🪙 {targetCopper}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--gold-dim)', opacity: 0.6, marginTop: -4, paddingLeft: 2 }}>
+            {purchaseTarget === 'party' ? 'Party funds' : 'Personal funds'}
+          </div>
+        </div>
+        <div style={{ paddingLeft: 0, position: 'relative', zIndex: 1 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span><i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar</span>
+          <span style={{ marginLeft: 88 }}><i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar</span>
           {onRoll && (() => {
-            const myChar = characters?.find(c => c.id === myCharId);
             const appraisalSkill = myChar ? (myChar.skills || []).find(s => s.name === 'Appraisal') : null;
             return (
               <button className="btn btn-sm" style={{ fontSize: 12, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
@@ -572,6 +648,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             </div>
           );
         })}
+      </div>
       </div>
     );
   }
@@ -785,10 +862,29 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             })}
 
             {/* Randomize shop */}
-            <div style={{ marginBottom: '.5rem' }}>
+            <div style={{ marginBottom: '.5rem', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select value={randomTheme} onChange={e => setRandomTheme(e.target.value)}
+                style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3 }}>
+                <option value="auto">Auto theme</option>
+                <option value="weapons">Weapons</option>
+                <option value="armor">Armor</option>
+                <option value="apothecary">Apothecary</option>
+                <option value="general">General Goods</option>
+                <option value="black">Black Market</option>
+                <option value="outfitter">Outfitter</option>
+                <option value="scribe">Scribe</option>
+                <option value="superior">Superior Weapons</option>
+                <option value="sahir">Sahir Emporium</option>
+              </select>
+              <select value={randomQuality} onChange={e => setRandomQuality(e.target.value)}
+                style={{ fontSize: 11, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3 }}>
+                <option value="standard">Standard quality</option>
+                <option value="fine">Fine (several upgraded)</option>
+                <option value="superior">Superior (all fine + one superior)</option>
+              </select>
               <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}
-                onClick={randomizeShop} title="Stock shop with preset items, one upgraded to Fine quality">
-                🎲 Randomize Shop Stock
+                onClick={randomizeShop}>
+                🎲 Randomize
               </button>
             </div>
 

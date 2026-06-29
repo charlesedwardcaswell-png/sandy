@@ -17,7 +17,7 @@ import SettingsTab from './components/SettingsTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
 import DuelPane from './components/DuelPane';
-import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID } from './data/constants';
+import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID, POISON_EMPHASES } from './data/constants';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
@@ -150,7 +150,7 @@ export default function App() {
       // Only reset if we've been sessionless for a moment
       const timer = setTimeout(() => {
         if (!sessionTransitionRef.current) {
-          setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
+          setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, grantedActions: {}, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
         }
       }, 1500);
       return () => clearTimeout(timer);
@@ -214,6 +214,16 @@ export default function App() {
   const audioRef = useRef(null);
   const shopWipeRef = useRef(null);
 
+  // Zoom
+  const [zoom, setZoom] = useState(() => {
+    try { return parseFloat(localStorage.getItem('sandy_zoom') || '1'); } catch { return 1; }
+  });
+  useEffect(() => {
+    document.getElementById('app-root')?.style?.setProperty('zoom', zoom);
+    document.getElementById('app-root') && (document.getElementById('app-root').style.zoom = zoom);
+    try { localStorage.setItem('sandy_zoom', zoom); } catch {}
+  }, [zoom]);
+
   // Theme
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('sandy_theme') || 'default'; } catch { return 'default'; }
@@ -227,6 +237,8 @@ export default function App() {
     { id: 'arcane',  label: 'Arcane',  icon: '✦' },
     { id: 'marble',  label: 'Marble',  icon: '◈' },
     { id: 'void',    label: 'Void',    icon: '◆' },
+    { id: 'ember',   label: 'Ember',   icon: '🔥' },
+    { id: 'jade',    label: 'Jade',    icon: '◉' },
   ];
   const jinnSummonerRef = useRef(null); // called with bonus when Jinn Summoning spell succeeds
   const [jinnSummonBonus, setJinnSummonBonus] = useState(null);
@@ -508,7 +520,7 @@ export default function App() {
     clearTimeout(saveTimer.current);
     setSkillLog({});
     setFullEventLog([]);
-    setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0 }));
+    setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0, grantedActions: {} }));
     setShowSessionEnd(false);
     refetchSessionLog();
   };
@@ -595,7 +607,7 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    <div className="app" id="app-root" style={{ zoom: zoom }}>
       {showSessionEnd && (
         <SessionEndModal
           session={session}
@@ -609,7 +621,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v108</span>
+        <span className="hdr-game">The Tool — v109.1</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -641,15 +653,27 @@ export default function App() {
             <i className={`ti ${musicPlaying ? 'ti-player-pause' : 'ti-player-play'}`} style={{ fontSize: 14 }} />
           </button>
         )}
-        {/* Theme picker */}
+        {/* Zoom buttons */}
         <div style={{ display: 'flex', gap: 1, border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
-          {THEMES.map(t => (
-            <button key={t.id} title={t.label} onClick={() => setTheme(t.id)}
-              style={{ padding: '3px 7px', fontSize: 13, background: theme === t.id ? 'var(--gold)' : 'transparent', color: theme === t.id ? 'var(--bg-deep)' : 'var(--text-muted)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', lineHeight: 1 }}>
-              {t.icon}
-            </button>
-          ))}
+          <button onClick={() => setZoom(z => Math.max(0.7, Math.round((z - 0.1) * 10) / 10))}
+            title="Zoom out" style={{ padding: '3px 7px', fontSize: 13, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>−</button>
+          <span style={{ padding: '3px 2px', fontSize: 10, color: 'var(--text-muted)', lineHeight: '1.6', userSelect: 'none' }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(1.4, Math.round((z + 0.1) * 10) / 10))}
+            title="Zoom in" style={{ padding: '3px 7px', fontSize: 13, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>+</button>
         </div>
+
+        {/* Theme cycle button */}
+        {(() => {
+          const curr = THEMES.find(t => t.id === theme) || THEMES[0];
+          const nextTheme = THEMES[(THEMES.indexOf(curr) + 1) % THEMES.length];
+          return (
+            <button onClick={() => setTheme(nextTheme.id)}
+              title={`Theme: ${curr.label} — click for ${nextTheme.label}`}
+              style={{ padding: '3px 9px', fontSize: 13, background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--gold)', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, flexShrink: 0 }}>
+              {curr.icon} <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{curr.label}</span>
+            </button>
+          );
+        })()}
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
           {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
@@ -1083,6 +1107,17 @@ export default function App() {
                   const newWounds = Math.max(0, (patient.current_wounds || 0) - woundsHealed);
                   handleUpdateChar(od.medicinePatientId, { current_wounds: newWounds });
                   push('ti-heart', `${healer?.name || 'Healer'} treated ${patient.name} — healed ${woundsHealed} wounds`);
+                }
+              }
+              // Craft: Poison — add dose to character equipment on success
+              if (od.craftPoison && od.poisonType) {
+                const char = safeChars.find(c => c.id === od.characterId);
+                const poisonData = POISON_EMPHASES[od.poisonType] || {};
+                if (char) {
+                  const doseName = `${od.poisonType} (Craft TN ${poisonData.craftTN || '?'} — ${poisonData.effect || 'see rulebook'})`;
+                  const eq = [...(char.equipment || []), { name: doseName, dr: '', skill: '', equipped: false, inUse: false }];
+                  handleUpdateChar(od.characterId, { equipment: eq });
+                  push('ti-flask', `${char.name} crafted: ${od.poisonType} (+1 dose to inventory)`);
                 }
               }
               // Acting / Stealth — create condition with TN to see through

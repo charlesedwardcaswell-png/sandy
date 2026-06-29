@@ -64,6 +64,47 @@ body.theme-marble {
   --green-dim: #1a6858;
   background: #0a0e18;
 }
+
+body.theme-ember {
+  --bg-deep: #160800;
+  --bg-dark: #1e0c02;
+  --bg-mid: #2a1204;
+  --bg-panel: #321806;
+  --bg-card: #3e2008;
+  --border: #8a3a08;
+  --border-light: #c05a18;
+  --gold: #f08030;
+  --gold-light: #ffa850;
+  --gold-dim: #8a4010;
+  --text-primary: #f8d8b8;
+  --text-secondary: #c8906a;
+  --text-muted: #886040;
+  --red: #e04020;
+  --red-dim: #801808;
+  --green: #70a828;
+  --green-dim: #385410;
+  background: #160800;
+}
+body.theme-jade {
+  --bg-deep: #04120a;
+  --bg-dark: #061a10;
+  --bg-mid: #0a2016;
+  --bg-panel: #0e281c;
+  --bg-card: #123022;
+  --border: #1e6040;
+  --border-light: #2e9060;
+  --gold: #50c880;
+  --gold-light: #80e8a8;
+  --gold-dim: #1e6840;
+  --text-primary: #c8f0d8;
+  --text-secondary: #70b888;
+  --text-muted: #387050;
+  --red: #e05050;
+  --red-dim: #782828;
+  --green: #40d870;
+  --green-dim: #187838;
+  background: #04120a;
+}
 body.theme-void {
   --bg-deep: #000000;
   --bg-dark: #0a0a0a;

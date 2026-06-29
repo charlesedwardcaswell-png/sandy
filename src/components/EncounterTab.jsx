@@ -1290,7 +1290,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       env_quirk: envQuirk || null,
     };
     if (onAddEncounterEntry) await onAddEncounterEntry(entry);
-    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs });
+    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs, grantedActions: {} });
     setNpcTargets({});
     setTargeting(null);
   };
@@ -1438,15 +1438,21 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           if (!myGranted || !myChar) return null;
           const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: 'Attack', drawnWeapon: null, dr: '3k2', current_void: myChar.current_void };
           return (
-            <PCTurnPanel
-              combatant={fakeCombatant}
-              character={myChar}
-              enemies={[]}
-              onRoll={ctx => setModal({ ...ctx, character: myChar })}
-              onStanceChange={() => {}}
-              onDrawWeapon={() => {}}
-              onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
-            />
+            <div style={{ border: '3px solid var(--gold)', borderRadius: 8, padding: '2px', marginTop: '1rem', boxShadow: '0 0 12px rgba(200,150,42,.3)' }}>
+              <div style={{ background: 'rgba(200,150,42,.1)', borderRadius: '4px 4px 0 0', padding: '4px 10px', fontSize: 11, color: 'var(--gold)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                ✦ Granted Action — {myChar.name} ({myGranted} remaining)
+              </div>
+              <PCTurnPanel
+                combatant={fakeCombatant}
+                character={myChar}
+                enemies={[]}
+                onRoll={ctx => setModal({ ...ctx, character: myChar })}
+                onStanceChange={() => {}}
+                onDrawWeapon={() => {}}
+                onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
+                onSpendAction={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
+              />
+            </div>
           );
         })()}
 

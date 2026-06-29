@@ -35,7 +35,7 @@ export const SKILL_CATEGORIES = {
     'Locksmithing','Spellcraft',
   ],
   'Lore': [
-    'Lore: Burning Sands','Lore: Ebonites','Lore: History','Lore: Jackal',
+    'Lore: Anatomy','Lore: Burning Sands','Lore: Ebonites','Lore: History','Lore: Jackal',
     'Lore: Khadi','Lore: Law','Lore: Theology','Lore: Undead',
     'Lore: Underworld','Lore: Yodotai History','Lore: [Custom]',
   ],
@@ -47,6 +47,62 @@ export const SKILL_CATEGORIES = {
 export const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flat().filter(s => !s.endsWith('[Custom]'));
 // Skills that are open-ended and need a free-text subtopic field
 export const OPEN_SKILLS = ['Lore','Craft','Perform'];
+
+// Suggested emphases per skill — used in skill picker and Craft: Poison inventory outcome
+export const SKILL_EMPHASES = {
+  'Medicine': ['Antidotes','Disease','Herbalism','Nonhuman Medicine','Wound Treatment'],
+  'Sleight of Hand': ['Conceal','Escape','Pick Pockets','Prestidigitation'],
+  'Investigation': ['Notice','Interrogation','Tracking'],
+  'Stealth': ['Hiding','Sneaking','Shadowing'],
+  'Acting': ['Disguise','Impersonation','Performance'],
+  'Commerce': ['Appraisal','Haggling','Forgery'],
+  'Hunting': ['Survival','Tracking','Trapping'],
+  'Knives': ['Jambiya','Throwing'],
+  'Swordsmanship': ['Scimitar','Longsword','Khadja'],
+  'Archery': ['Composite Bow','Short Bow'],
+  'Divination': ['Astrology','Prophecy','Omens'],
+  'Storytelling': ['Epic Poetry','Legends','Oral History'],
+  'Craft: Poison': [
+    'Generic Poison',
+    'Dripping Poison',
+    'Wish You Dead',
+    'Fire Biter',
+    'Night Milk',
+    'Hot Madness',
+    'Stolen Breath',
+    'Kirei-ko',
+    'Fauntei Shi',
+    'Snake Venom',
+    'Scorpion Venom',
+    'Poison Powder',
+    'Crafted Powder',
+  ],
+  'Craft: Weaponsmith': ['Swords','Knives','Polearms','Bows'],
+  'Craft: Armorsmith': ['Light Armor','Heavy Armor','Shields'],
+  'Perform: Dancing': ['Folk Dance','Sword Dance','Ritual Dance'],
+  'Perform: Singing': ['Lament','Epic','Sacred'],
+  'Lore: Theology': ['Senpet Gods','Ivory Kingdoms','Ra\'Shari Beliefs'],
+  'Lore: Underworld': ['Smuggling','Assassination','Fencing'],
+  'Lore: Undead': ['Ghuls','Khadi','Necromancy'],
+};
+
+// Craft: Poison emphasis → inventory item data
+export const POISON_EMPHASES = {
+  'Generic Poison': { craftTN: 10, effect: '-1 Trait until sleep', category: 'Poison' },
+  'Dripping Poison': { craftTN: 20, effect: '-2 Strength; Stamina roll TN 15 hourly', category: 'Poison' },
+  'Wish You Dead': { craftTN: 25, effect: '-1 Stamina + nausea for 8 hours', category: 'Poison' },
+  'Fire Biter': { craftTN: 25, effect: '-2 Agility + 2k2 wounds (bloodstream)', category: 'Poison' },
+  'Night Milk': { craftTN: 25, effect: 'Stamina TN 25 per minute or 2k1 wounds', category: 'Poison' },
+  'Hot Madness': { craftTN: 30, effect: '-2 Intelligence and Willpower until rest', category: 'Poison' },
+  'Stolen Breath': { craftTN: 30, effect: 'Voice loss; Stamina TN 30 to shake off', category: 'Poison' },
+  'Kirei-ko': { craftTN: 35, effect: '-1 Stamina every 2 weeks contact', category: 'Poison' },
+  'Fauntei Shi': { craftTN: 55, effect: 'Stamina TN 35 every 10 min or die', category: 'Poison' },
+  'Snake Venom': { craftTN: 20, effect: '-1 Agility and Reflexes per hour untreated', category: 'Poison' },
+  'Scorpion Venom': { craftTN: 20, effect: '-1 Agility and Reflexes per hour untreated', category: 'Poison' },
+  'Poison Powder': { craftTN: 25, effect: 'Blindness/Choking/Itching/Nausea (choose)', category: 'Poison' },
+  'Crafted Powder': { craftTN: 10, effect: 'Blindness/choking/itching/nausea (cheap)', category: 'Poison' },
+};
+
 
 export const FACTION_ICONS = {
   'City Guard':          'ti-shield-filled',
@@ -135,6 +191,63 @@ export const SUBFACTION_BONUSES = {
   'Rogues / Foreigners': { 'Rogue':'Agility', 'Foreigner':'Any' },
   'Independent': { 'Free Agent':'Willpower' },
 };
+
+export const SUBFACTION_DESCRIPTIONS = {
+  // City Guard
+  'City Guard': "The only legal armed force in Medinaat al-Salaam, the City Guard maintains order under the Caliph's authority. Guardsmen come from every faction — many houses enroll their warriors here to gain the legal right to bear weapons openly. The Qadi, the city's judges and magistrates, are all former guardsmen. Service is respected but unglamorous; the work is dirty, the pay modest, and the politics treacherous.",
+
+  // Dahab Houses
+  'House Asmari': "The eldest of the Dahabi houses, House Asmari made its fortune in bulk trade — grain, livestock, and building materials. They are known for brute pragmatism, preferring direct force to subtlety. Their warriors are among the most feared in the merchant quarter, and they have long-standing ties to the City Guard that other houses envy.",
+  'House Basiri': "Scholars and alchemists, House Basiri's wealth flows from knowledge — particularly knowledge others would pay dearly to keep secret. They deal in rare books, arcane formulae, and forbidden information. Their members are disproportionately intelligent, and their inner circle is rumored to include sahir who never formally joined the Qabal.",
+  'House Enour': "House Enour controls the flow of will — they are kingmakers, political brokers, and the architects of alliances across the city. Their coin funds elections, their pressure dissolves inconvenient marriages, and their grudges last for generations. They are patient, methodical, and almost impossible to outmaneuver on their home ground of politics.",
+  'House Haffit': "The acrobats of commerce, House Haffit deal in speed — fast ships, fast horses, fast couriers. They run the city's most reliable courier network and maintain depots across the desert trade routes. Their enforcers are known for their agility and their willingness to operate in environments no sane merchant would enter.",
+  'House Hazaad': "Once favored by the Immortal Caliph herself, House Hazaad holds the most dangerous secret in Dahab: they were legally permitted to practice sahir magic under the old regime. With the Caliph dead, that dispensation is contested — but so is the power behind it. House Hazaad walks a knife's edge between the Qabal's suspicion and the Guard's authority.",
+  'House Mendadi': "Reflexes, they say in the merchant quarter, are a House Mendadi virtue. They work in swift, decisive deals — spices, silk, and items that move too fast for customs agents. They have the best network of lookouts and informants of any house, and their enforcers are famous for striking first and asking questions afterward.",
+  'House Menjari': "Famed for the merchant who first brought a gorilla to the city — and turned the spectacle into a gold mine — House Menjari specializes in the exotic. Foreign goods, imported novelties, creatures from distant lands. They cultivate Perception as a virtue: the ability to see what will be fashionable before anyone else does.",
+  'House Rashid': "The oldest money in Dahab belongs to House Rashid — old enough that their ancestors remember when the current merchant quarter was a camel market. They deal in endurance: long-term contracts, patient investments, multi-generational partnerships. Their Stamina as a house mirrors their Stamina as merchants. They are slow to anger and very slow to forgive.",
+
+  // Qabal
+  'Traditionalists': "The Traditionalists believe Hakhim's Seal exists for a reason, and that reason has not changed in a thousand years. They teach magic only to those who have proven themselves worthy through years of study, and they distrust innovation as much as they distrust outsiders. Their techniques are older, their discipline stricter, and their power arguably deeper.",
+  'Progressivists': "The Progressivists believe that the sahir tradition must evolve or atrophy. They experiment with new disciplines, accept students from unusual backgrounds, and are more willing to share knowledge with allied factions. Their critics say they are reckless; their supporters say they are the only reason the Qabal is still relevant in a changed city.",
+
+  // Assassins
+  'Qadi / Caliphate Guards': "The public face of the Order — guardsmen and magistrates who serve the law while serving the Mountain's agenda. They gather intelligence, protect strategic interests, and make sure that the right people receive justice. Their Perception is their greatest asset: they see everything, remember everything, and report to the Order what the city cannot afford to know.",
+  'Daughters / Sons of the Mountain': "The warrior heart of the Assassins, trained at the hidden Keep. Slayers, Keepers, Duelists — all begin here. Their training is brutal and their loyalty absolute. The female membership dominates the highest ranks, carrying the ancient traditions of the Order. Those who emerge carry the Mountain's mark: excellence, silence, and the knowledge of when to act.",
+  'Order of the Blood-Red Tiger': "A splinter tradition within the Assassins, the Blood-Red Tiger emphasizes aggressive attack over patient observation. Their members are faster, more reckless, and more willing to operate in the open. Some say they are the Order's answer to a world that no longer fears subtlety. Others say they are a liability that will eventually get the whole Order killed.",
+
+  // Ashalan
+  'Ashalan': "Ancient blue-skinned immortals, created by jinn at the dawn of the world, the Ashalan live beneath Medinaat al-Salaam in the City of the Seventh Star. Their tattoos glow with Shilah's power — beautiful in darkness, deadly in direct sunlight. Once the Council of Twelve led them; now only three of the original twelve remain. They watch, advise, and endure, searching for ways to preserve a race that the world slowly forgets.",
+
+  // Ra'Shari
+  "Great Caravan of Commerce": "The merchants and dealers of the Ra'Shari world, the Commerce Caravan does not merely sell goods — they are living repositories of market knowledge, price history, and trade route information across the entire Burning Sands. Their Willpower comes from the discipline of negotiation: knowing when to hold and when to yield.",
+  "Great Caravan of Entertainment": "Dancers, storytellers, musicians, and illusionists — the Entertainment Caravan is both the Ra'Shari's public face and their most effective cover. While audiences watch the performance, the Caravan watches the audience. Their Awareness is legendary, and their ability to vanish into a crowd is unmatched.",
+  "Great Caravan of Memory": "Scholars and archivists of the Ra'Shari tradition, the Memory Caravan carries the history of their people in their minds — and the history of everyone else's people too. Their Intelligence is their armor. They know things that the city's great libraries have forgotten, and they sell that knowledge carefully, to those who can be trusted to use it well.",
+  "Great Caravan of Mysticism": "Diviners, seers, and the most spiritually gifted of the Ra'Shari. The Mysticism Caravan interprets the bones — the Cokaloi — and reads the patterns of fate. Their Perception goes beyond the physical; they see connections that others miss and patterns in events that seem random. They are the keepers of the old task the Ashalan gave their people.",
+
+  // Senpet
+  'Senpet': "Warriors of the Ten Thousand Gods, the Senpet come from a vast empire to the south and west. Their religion permeates every aspect of their lives — even their magic is a form of devotion. Senpet warriors in Medinaat al-Salaam serve as soldiers, mercenaries, and missionaries. They are disciplined, proud, and convinced that their gods' favor is both real and deserved.",
+
+  // Yodotai
+  'Yodotai': "Soldiers of an empire that has conquered everything it has touched, the Yodotai bring their military discipline, their unit tactics, and their unshakeable belief in the Yodotai Way to every posting. They are not comfortable in the Burning Sands — too much sand, too little order — but they are effective. Their Strength is legendary and their unit cohesion unmatched.",
+
+  // Ebonites
+  'Order of the Ebon Hand': "Knights of an ancient order dedicated to fighting the Khadi and the undead, the Ebonites have come to Medinaat al-Salaam because this is where the battle is thickest. Their Integrity is their weapon as much as their swords. They accept recruits from any background and any faction, provided those recruits can pass the Test of the Ebon Stone — a trial that breaks most who attempt it.",
+
+  // Jackals
+  'Jackals': "The criminal underground of Medinaat al-Salaam — smugglers, necromancers, assassins who work for coin rather than principle. The Jackals are not a unified faction so much as a shared identity: everyone who operates outside the law, everyone who profits from what the city officially forbids. Their Agility is survival: the ability to move fast, shift identity, and be somewhere else when the Guard arrives.",
+
+  // Merchants
+  'Independent Merchant': "Not every merchant belongs to one of the great Houses. Independent traders navigate the city without the protection of a House name — which means no political cover, no enforcers, and no bailouts. What they gain is freedom: the ability to deal with anyone, broker agreements that House pride would forbid, and keep all of the profit. Their Awareness comes from necessity: in this city, an unaffiliated merchant who isn't watching will not be an unaffiliated merchant for long.",
+
+  // Rogues
+  'Rogue': "Former soldiers, disgraced nobles, travelers stranded far from home — rogues are defined by what they are not. No faction, no House, no Order. They survive on adaptability and the willingness to do what others won't. The city always needs people who ask no questions.",
+  'Foreigner': "You came from elsewhere. Rokugan, the Ivory Kingdoms, the far north — it doesn't matter much. What matters is that Medinaat al-Salaam is not your home and everyone can tell. That's a disadvantage in politics and an advantage in the shadows: no one expects you to know the rules.",
+
+  // Independent
+  'Free Agent': "You belong to no faction by choice. This is either principled independence or dangerous foolishness depending on who you ask. Free Agents operate in the spaces between the great powers, taking contracts from anyone and answering to no one. The Willpower required to maintain neutrality in this city is considerable.",
+};
+
+
 
 export const SAHIR_SCHOOLS = ['Dahabi Bargainer','Qabal Summoner','Children of Midnight',"Ra'Shari Diviner",'Senpet Sahir','Necromancer','Heartless Khadi'];
 
@@ -526,7 +639,13 @@ export const ADVANTAGES = [
   { name: "Clear Thinker", cost: 3, type: "Mental", desc: "When making a Contested Roll against someone attempting to confuse or manipulate you, gain +1k0." },
   { name: "Crafty", cost: 3, type: "Mental", desc: "When forced to make an Unskilled Roll using a Low Skill, you are considered to have 1 rank instead." },
   { name: "Daredevil", cost: 3, type: "Mental", desc: "When spending a Void Point to enhance an Athletics roll, gain +3k1 instead of the normal +1k1." },
-  { name: "Dark Paragon", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Honor (or spend Void) as a Free Action to gain a specific bonus depending on chosen Shourido precept." },
+  { name: "Dark Paragon (Control)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any Social Skill Roll." },
+  { name: "Dark Paragon (Determination)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to negate all TN penalties (including Wounds) on one Skill or Spellcasting Roll." },
+  { name: "Dark Paragon (Insight)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any roll that used the Awareness Trait." },
+  { name: "Dark Paragon (Knowledge)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any roll that used the Intelligence Trait." },
+  { name: "Dark Paragon (Perfection)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to cause any one die of your choice on a Skill Roll to explode (no +5 bonus added)." },
+  { name: "Dark Paragon (Strength)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any Damage Roll, keeping the higher result." },
+  { name: "Dark Paragon (Will)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to negate 10 Wounds at the moment they are suffered." },
   { name: "Forbidden Knowledge", cost: 5, type: "Mental", desc: "You possess dangerous knowledge of a forbidden subject. Gain 1 rank in an appropriate Lore skill and related bonuses (discuss with GM)." },
   { name: "Great Potential", cost: 5, type: "Mental", desc: "Choose one Skill. Raises on rolls using that Skill are limited by your Skill Rank rather than Void Ring (use whichever is higher)." },
   { name: "Heartless", cost: 4, type: "Mental", desc: "+1k0 to resist any Courtier, Sincerity, or Temptation roll made to persuade, seduce, or change your mind." },
@@ -539,6 +658,14 @@ export const ADVANTAGES = [
   { name: "Tactician", cost: 4, type: "Mental", desc: "When making a roll on the Mass Battle Table, you may increase or decrease the result by 5." },
   { name: "Virtuous", cost: 3, type: "Mental", desc: "Possess one additional rank of Integrity (Honor) above your normal starting value." },
   { name: "Wary", cost: 3, type: "Mental", desc: "+1k1 on Investigation (Notice)/Perception when rolling to detect an ambush against Stealth (Ambush)/Agility." },
+  // Paragon (7 tenet variants)
+  { name: "Paragon of Compassion", cost: 7, type: "Mental", desc: "When spending a Void Point to improve a roll made to directly help someone of lower Status or lesser means, gain +2k2 instead of +1k1. Gain +1 Integrity whenever you exhibit genuine compassion." },
+  { name: "Paragon of Courage", cost: 7, type: "Mental", desc: "Gain +1k1 to any roll made to resist Intimidation or to overcome Fear effects. Gain +1 Integrity whenever you exhibit genuine courage." },
+  { name: "Paragon of Courtesy", cost: 7, type: "Mental", desc: "When making an Etiquette roll to avoid embarrassment or give no offense, add +2k0 to the roll. Gain +1 Integrity whenever you exemplify courtesy." },
+  { name: "Paragon of Duty", cost: 7, type: "Mental", desc: "Once per session, spend a Void Point on any Skill Roll or Spellcasting Roll to negate all TN penalties for that roll, including Wound penalties. Gain +1 Integrity for honoring your duty at personal cost." },
+  { name: "Paragon of Honesty", cost: 7, type: "Mental", desc: "Gain +1k1 on Sincerity (Honesty) rolls. This bonus applies even if you do not possess the Emphasis but the situation calls for honest speech. Gain +1 Integrity for speaking truth in costly moments." },
+  { name: "Paragon of Honor", cost: 7, type: "Mental", desc: "Add twice your Integrity Rank to all rolls to resist Temptation or Intimidation, instead of the normal single Integrity bonus. Gain +1 Integrity for maintaining honor when others would not." },
+  { name: "Paragon of Sincerity", cost: 7, type: "Mental", desc: "Add +2k0 to all Contested Rolls using the Sincerity Skill. Gain +1 Integrity whenever your words carry genuine conviction that changes hearts or minds." },
   // ── Physical ──────────────────────────────────────────────────────────────
   { name: "Bland", cost: 2, type: "Physical", desc: "Extremely unremarkable. May voluntarily increase the TN of rolls to recognize you by 10." },
   { name: "Crab Hands", cost: 3, type: "Physical", desc: "When forced to make an Unskilled Roll with a Weapon Skill, you are considered to have 1 rank instead." },
@@ -573,7 +700,7 @@ export const ADVANTAGES = [
   { name: "Wealthy", cost: 1, type: "Material", desc: "1 pt per rank. Each rank grants 2 additional koku added to starting outfit." },
   { name: "Well-Connected", cost: 3, type: "Social", desc: "3 pts per rank. Once per session per rank, roll Courtier/Awareness TN 20 for a minor favor from someone at court." },
   // ── Spiritual ─────────────────────────────────────────────────────────────
-  { name: "Blood of Osano-Wo", cost: 4, type: "Spiritual", desc: "Immune to damage/penalties from natural weather. Reduce damage from elemental weather spells by 1k1." },
+  { name: "Blood of Fate", cost: 4, type: "Spiritual", desc: "The blood of desert fortune flows in you. Immune to damage/penalties from natural weather and sandstorms. Reduce damage from elemental weather spells by 1k1." },
   { name: "Chosen by the Oracles", cost: 6, type: "Spiritual", desc: "Choose one Ring. +1k1 to the total of all Ring Rolls using that Ring." },
   { name: "Elemental Blessing", cost: 4, type: "Spiritual", desc: "Choose one Ring (not Void). Cost to increase Traits associated with that Ring is decreased by 1 XP each time." },
   { name: "Enlightened", cost: 6, type: "Spiritual", desc: "Cost to increase Void Ring decreased by 2 XP each time." },
@@ -590,25 +717,38 @@ export const ADVANTAGES = [
   { name: "Reincarnated", cost: 6, type: "Spiritual", desc: "+1k0 to any three non-School Skills of your choice. Occasional visions/dreams from previous life." },
   { name: "Sacred Weapon", cost: 5, type: "Material", desc: "Variable cost (3-6 pts). A specially crafted weapon with unique properties specific to your faction." },
   { name: "Servant of Smokeless Fire", cost: 4, type: "Spiritual", desc: "Sahir only. Grants the ability to summon Jinn. Rules for summoning found in Appendix Two." },
-  { name: "Seven Fortunes' Blessing", cost: 4, type: "Spiritual", desc: "One of the Seven Fortunes blesses you. Effect depends on chosen Fortune (Benten, Bishamon, Daikoku, Ebisu, Fukurokujin, Hotei, or Jurojin)." },
-  { name: "Touch of the Spirit Realms", cost: 5, type: "Spiritual", desc: "A fragment of a spirit realm's essence suffuses you. Effect depends on chosen realm." },
+  { name: "Blessed by Shilah", cost: 4, type: "Spiritual", desc: "The Bright-Eyed Mother Sun smiles upon you. Gain +0k1 to Social rolls when persuading (not coercing) others. Your presence warms those around you." },
+  { name: "Blessed by Kaleel", cost: 4, type: "Spiritual", desc: "The Pale-Eyed God of night and endurance marks you as worthy. Once per session as a Free Action, gain +1k0 to all Attack rolls for one round without spending Void." },
+  { name: "Blessed by the Desert", cost: 4, type: "Spiritual", desc: "The sands themselves favor your trade and enterprise. Gain +1k1 to all Commerce skill rolls." },
+  { name: "Blessed by the Honest Hand", cost: 4, type: "Spiritual", desc: "Rewarded for honest labor, you carry fortune in your craft. Gain a Free Raise on all rolls with one chosen non-weapon skill (chosen at character creation)." },
+  { name: "Blessed by the All-Seeing Eye", cost: 4, type: "Spiritual", desc: "Ancient wisdom attends your studies. Gain +1k1 to all rolls with one chosen Lore skill (chosen at character creation)." },
+  { name: "Blessed by the Wanderer", cost: 4, type: "Spiritual", desc: "The spirit of the road and open horizon sustains you. Once per session, you may recover 1 spent Void Point as a Free Action when under open sky or in motion." },
+  { name: "Blessed by the Keeper of Years", cost: 4, type: "Spiritual", desc: "Longevity and endurance are your birthright. Your Stamina is considered one rank higher for the purpose of determining Wound Ranks and natural healing." },
 ];
 
 export const DISADVANTAGES = [
   // ── Mental ────────────────────────────────────────────────────────────────
+  { name: "Ascetic", value: 2, type: "Mental", desc: "You have no interest in material wealth or comfort. Your starting outfit includes only necessities. Any time you would gain Reputation from conspicuous wealth or luxury, you gain half the normal amount." },
   { name: "Brash", value: 3, type: "Mental", desc: "Short temper. When threatened or insulted, must roll Willpower TN 25 (+ Integrity) or attack immediately." },
   { name: "Can't Lie", value: 2, type: "Mental", desc: "Cannot tell lies. If someone lies in your presence and you know it, must roll Willpower TN 20 or immediately correct them." },
   { name: "Compulsion", value: 2, type: "Mental", desc: "Compelled to partake in an activity. Must roll Willpower TN 15 to resist; TN +5 per additional point (max TN 25 / 4 pts)." },
   { name: "Consumed", value: 4, type: "Mental", desc: "Wholly consumed by a Shourido tenet. Penalties vary by tenet chosen (Control, Determination, Insight, Knowledge, Perfection, Strength, or Will)." },
   { name: "Contrary", value: 3, type: "Mental", desc: "Must share opinions at every opportunity. In any tense situation, must roll Willpower (TN 5-25, GM decides) to avoid taking action." },
-  { name: "Disbeliever", value: 3, type: "Mental", desc: "No faith in Rokugani theology. Social Skill Rolls with shugenja and monks have TN +5." },
+  { name: "Disbeliever", value: 3, type: "Mental", desc: "You have no faith in the spiritual or divine. Social Skill Rolls with sahir, diviners, priests, and other spiritually devoted individuals have TN +5." },
   { name: "Doubt", value: 4, type: "Mental", desc: "Choose one School Skill. Every time you use it, must declare one Raise that confers no benefit." },
   { name: "Driven", value: 2, type: "Mental", desc: "Obsessed with a goal. Will sacrifice family, friends, possessions, even Integrity to accomplish it." },
-  { name: "Failure of Bushido", value: 3, type: "Mental", desc: "One tenet of Bushido is foreign to you. Penalties vary by tenet chosen (Compassion, Courage, Courtesy, Duty, Honesty, Honor, or Sincerity)." },
+  { name: "Failure of Compassion", value: 3, type: "Mental", desc: "The plight of others fails to move you. You must spend a Void Point to willingly place yourself at risk for a stranger's welfare unless there is a direct benefit to you." },
+  { name: "Failure of Courage", value: 3, type: "Mental", desc: "Fear grips you when it should not. When facing a Fear effect or clearly superior opposition, roll Willpower TN 20 or be compelled to withdraw or freeze for one Round." },
+  { name: "Failure of Courtesy", value: 3, type: "Mental", desc: "Social niceties feel hollow to you. In any formal social context, you must spend a Void Point to observe proper etiquette; otherwise, you cause unintentional offense (-5 TN to Social rolls for the scene)." },
+  { name: "Failure of Duty", value: 3, type: "Mental", desc: "Personal desire wars with obligation. When your duty conflicts with something you want, roll Willpower TN 20 or choose the personal desire over the duty." },
+  { name: "Failure of Honesty", value: 3, type: "Mental", desc: "Convenient untruths come easily to you. You gain +1k0 on Sincerity (Deceit) rolls, but any Integrity loss from dishonest acts is doubled." },
+  { name: "Failure of Honor", value: 3, type: "Mental", desc: "Your personal code bends when it should hold. Any Integrity loss you suffer from dishonorable acts is increased by 1." },
+  { name: "Failure of Sincerity", value: 3, type: "Mental", desc: "Something about you reads as insincere even when you speak truth. Opponents gain +1k0 on all Contested Sincerity rolls made against you." },
   { name: "Fascination", value: 1, type: "Mental", desc: "Completely fascinated by a subject. Will take even dishonorable actions to learn more about it." },
   { name: "Frail Mind", value: 3, type: "Mental", desc: "Difficulty concentrating. When making a Contested Roll using Willpower, your opponent gains +2k0." },
   { name: "Greedy", value: 3, type: "Mental", desc: "Opponents using Temptation (Bribery) against you gain +1k1." },
   { name: "Gullible", value: 4, type: "Mental", desc: "Opponents using Sincerity (Deceit) against you gain +1k1." },
+  { name: "Lechery", value: 2, type: "Social", desc: "Physical pleasure is a weakness. When an opponent uses Temptation (Seduction) against you, they gain +1k1 to the total of the roll." },
   { name: "Idealistic", value: 2, type: "Mental", desc: "Hopelessly naive view of the world. Whenever you lose Integrity, the loss is increased by 1." },
   { name: "Insensitive", value: 2, type: "Mental", desc: "Must spend a Void Point to place yourself at risk for another's welfare unless there is direct benefit to you." },
   { name: "Jealousy", value: 3, type: "Mental", desc: "Obsessed with outperforming a specific individual. Choose one PC or major NPC. You will go to any lengths to best them." },
@@ -630,6 +770,7 @@ export const DISADVANTAGES = [
   { name: "Weakness", value: 6, type: "Physical", desc: "Choose one Trait. That Trait is treated as one rank lower for all rolls and mechanical effects." },
   // ── Social ────────────────────────────────────────────────────────────────
   { name: "Antisocial", value: 2, type: "Social", desc: "2 pts: –1k0 to all Social rolls. 4 pts: –1k1 to all Social rolls." },
+  { name: "Wanderer", value: 2, type: "Mental", desc: "You have an almost supernatural ability to get lost. Even in familiar territory you take wrong turns and lose your bearings. You suffer -15 to any Navigation roll and require a guide or explicit directions for even routine travel." },
   { name: "Bitter Betrothal", value: 2, type: "Social", desc: "Promised to someone who despises you. Mutual dislike causes difficulty with domestic and bureaucratic tasks." },
   { name: "Black Sheep", value: 3, type: "Social", desc: "Family is disgusted with you. May only maintain family relations via the Allies Advantage." },
   { name: "Blackmailed", value: 2, type: "Social", desc: "Variable cost = your Status Rank. Someone holds a dark secret and makes demands." },
@@ -640,17 +781,19 @@ export const DISADVANTAGES = [
   { name: "Dishonored", value: 5, type: "Social", desc: "Name removed from family records. Status Rank 1; may not gain Status while this Disadvantage persists." },
   { name: "Disturbing Countenance", value: 3, type: "Social", desc: "Something about you unsettles others. TN of all Social Skill Rolls increased by +5." },
   { name: "Forced Retirement", value: 4, type: "Social", desc: "Forced into a monastery; may not advance further in your School." },
-  { name: "Gaijin Name", value: 1, type: "Social", desc: "Your name is clearly not of local origin. Individual dice may only explode once on Social Skill Rolls (max result 20 per die)." },
+  { name: "Mistrusted Foreigner", value: 1, type: "Social", desc: "Your foreign origins mark you as an outsider in Medinaat al-Salaam. Individual dice may only explode once on Social Skill Rolls with locals who are suspicious of foreigners (max result 20 per die)." },
   { name: "Hostage", value: 3, type: "Social", desc: "Held as a guest in another faction's territory; cannot leave without escort. Life forfeit if your faction breaks the treaty." },
   { name: "Infamous", value: 2, type: "Social", desc: "Known for being ruthless and cruel. Starting Reputation replaced with Infamy at the same rank." },
   { name: "Obligation", value: 3, type: "Social", desc: "3/6 pts. Indebted to someone. When it comes due, nothing else matters — honor it even at cost to yourself." },
   { name: "Rumormonger", value: 4, type: "Social", desc: "Cannot resist spreading gossip. Must roll Willpower vs TN equal to 5 × highest-Glory individual's Glory Rank to resist." },
   { name: "Social Disadvantage", value: 3, type: "Social", desc: "Begin with Status Rank 0." },
   { name: "Stolen Identity Stigma", value: 3, type: "Social", desc: "Potential enemy from another faction. Functions as Sworn Enemy with 1 extra point; enemy identity changes periodically (GM decides)." },
+  { name: "Nemesis", value: 4, type: "Social", desc: "You have earned a truly implacable enemy — one whose resources, connections, and burning hatred far exceed those of a Sworn Enemy. They will sacrifice considerable resources to see you destroyed. +1 pt per Insight Rank above yours they possess." },
   { name: "Sworn Enemy", value: 3, type: "Social", desc: "An enemy determined to see you defeated or dead. +1 pt per Insight Rank above yours. +2 pts to make them your kharmic nemesis (cannot spend Void opposing them)." },
   // ── Spiritual ─────────────────────────────────────────────────────────────
+  { name: "Desert Curse", value: 4, type: "Spiritual", desc: "Your bloodline carries a spiritual weakness to the corrupting forces of the desert. You suffer -1k0 on any roll to resist acquiring spiritual corruption, Jinn influence, or supernatural desert afflictions. (Equivalent to Moto Curse in LBS setting.)" },
   { name: "Bad Fortune", value: 3, type: "Spiritual", desc: "Something unpleasant is in store. Form varies: Secret Love, Disfigurement, Evil Eye, Allergy, Lingering Misfortune, or Unknown Enemy." },
-  { name: "Cursed by the Realm", value: 4, type: "Spiritual", desc: "Essence of one spirit realm has marked you as its foe. Penalty depends on chosen realm (Chikushudo, Gaki-do, Jigoku, etc.)." },
+  { name: "Marked by the Sands", value: 4, type: "Spiritual", desc: "An elemental or supernatural force of the Burning Sands has marked you as its enemy. Choose one Ring element or supernatural force (Jinn, the Khadi, the desert itself). Effects of that force are more severe for you; discuss specifics with your GM." },
   { name: "Dark Fate", value: 3, type: "Spiritual", desc: "Destined to cause great darkness. Once per session when you would die, you are reduced to 1 Wound instead." },
   { name: "Elemental Imbalance", value: 2, type: "Spiritual", desc: "Sahir only. 2 pts per rank. When casting a specific element's spells, must roll Willpower TN 15+5/rank or something disastrous occurs." },
   { name: "Enlightened Madness", value: 4, type: "Spiritual", desc: "4/6 pts. Choose Ring, Skill, or tattoo. When using it, roll Willpower (TN 20 or 30) or be consumed by madness for 8 hours." },
@@ -658,12 +801,18 @@ export const DISADVANTAGES = [
   { name: "Lord Moon's Curse", value: 3, type: "Spiritual", desc: "3/5/7 pts. Gain one bonus Void at full moon — but must roll Willpower TN 15+5/rank or lose control of character until sunrise." },
   { name: "Lost Love", value: 3, type: "Spiritual", desc: "Lost true love (romantic, familial, or brotherly). When reminded, all TNs +5 until spending a Void Point. Cannot trigger more than twice/day." },
   { name: "Momoku", value: 8, type: "Spiritual", desc: "Possess Void Points but may not spend them on anything except School Techniques that specifically require Void Points." },
-  { name: "Seven Fortunes' Curse", value: 3, type: "Spiritual", desc: "One of the Seven Fortunes has cursed you. Effect depends on which Fortune (Benten, Bishamon, Daikoku, Ebisu, Fukurokujin, Hotei, or Jurojin)." },
+  { name: "Cursed by Shilah", value: 3, type: "Spiritual", desc: "The sun turns her face from you. You suffer -1k0 on all Social rolls made to persuade or charm others. In direct sunlight, Social TNs increase by +5." },
+  { name: "Cursed by Kaleel", value: 3, type: "Spiritual", desc: "The pale god withholds his blessing in battle. You suffer -1k0 on all Attack rolls when in the Attack or Full Attack Stance." },
+  { name: "Cursed by the Desert", value: 3, type: "Spiritual", desc: "Fortune sours your dealings. On all Commerce rolls, your kept dice maximum is reduced by 1 (minimum 1 kept die)." },
+  { name: "Cursed by the Honest Hand", value: 3, type: "Spiritual", desc: "One skill eludes your mastery. The XP cost to raise one chosen non-weapon skill (chosen at creation) is doubled permanently." },
+  { name: "Cursed by the All-Seeing Eye", value: 3, type: "Spiritual", desc: "Ancient knowledge is hidden from you. Once per session, the GM may force you to re-roll one Lore or Investigation roll, keeping the new result." },
+  { name: "Cursed by the Wanderer", value: 3, type: "Spiritual", desc: "Solitude saps your spirit. You cannot voluntarily regain Void Points through meditation or rest when completely alone — you require at least one companion present." },
+  { name: "Cursed by the Keeper of Years", value: 3, type: "Spiritual", desc: "Your wounds linger beyond reason. Your natural healing rate is halved, and the Medicine TN to treat your wounds is increased by +5." },
   { name: "Sleeper Agent", value: 5, type: "Mental", desc: "Unknown to you, a faction has programmed you with a trigger phrase. Anyone who knows it can command you with up to 5 words." },
   { name: "Touch of the Void", value: 3, type: "Spiritual", desc: "When spending a Void Point, gain +2k1 instead of +1k1 — but must roll Willpower TN 30 or be Dazed for one Round." },
   { name: "Uncentered", value: 2, type: "Spiritual", desc: "Monk only. Cannot learn Void Kiho or take the Void Versatility Advantage." },
   { name: "Unlucky", value: 2, type: "Spiritual", desc: "2 pts per rank. A number of times per session equal to rank, the GM may force you to re-roll one roll (keeping the second result)." },
-  { name: "Wrath of the Kami", value: 3, type: "Spiritual", desc: "Choose one element. Spells of that element cast against you confer one Free Raise on the Casting Roll." },
+  { name: "Wrath of the Desert", value: 3, type: "Spiritual", desc: "The elemental forces of the sands have turned against you. Choose one Ring element. Spells of that element cast against you confer one Free Raise on the Casting Roll." },
 ];
 
 export const FACTIONS_DATA = [
@@ -1395,14 +1544,24 @@ export const TECHNIQUE_ROLL_BONUSES = {
 
   // ── City Guard ────────────────────────────────────────────────────────────────
   'Trained For War': [
-    { skills: ['Athletics','Battle','Defense','Initiative'], rolled: 1, kept: 1, voidOnly: true, note: '+2k1 (not +1k1) when spending Void on class skills' },
+    { skills: ['Athletics','Battle','Defense','INITIATIVE'], rolled: 1, kept: 1, voidOnly: true, note: '+2k1 (not +1k1) when spending Void on class skills' },
+    { skills: ['Defense','Sincerity','Etiquette','Courtier','SOCIAL'], conditional: 'Add School Rank to resist Fear/Intimidation/Temptation', note: '+Rank to contested social resistance rolls' },
+    { skills: ['WOUNDPENALTY'], conditional: 'Subtract School Rank from Wound TN penalties', note: '-Rank to Wound TN penalties' },
   ],
   'Strike With Fury': [
     { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative always' },
     { skills: ['ATTACK'], rolled: 1, kept: 0, stances: ['Full Attack'], note: '+1k0 Attack in Full Attack stance' },
   ],
+  'Implacable Foe': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'With chosen weapon skill (school weapon)', note: 'Attacks with chosen weapon are Simple Actions' },
+    { skills: ['ATTACK'], freeRaises: 1, conditional: 'With emphasis matching chosen weapon', note: 'Free Raise when attacking with chosen weapon emphasis' },
+  ],
+  'Instrument of the Caliph': [
+    { skills: ['Defense','Sincerity','Etiquette','SOCIAL'], conditional: 'Twice School Rank to resist duties (replaces R1)', note: '+2×Rank to resist Fear/Intimidation/Temptation (replaces R1)' },
+  ],
   'The Sublime Warrior': [
     { skills: ['INITIATIVE'], flat: 5, voidOnly: true, note: '+5 to Initiative when spending Void' },
+    { skills: ['WOUNDPENALTY'], conditional: 'Void spend: ignore all wound penalties for one round', note: 'Spend Void to ignore all wound penalties for one round' },
   ],
 
   // ── Dahabi Enforcer ────────────────────────────────────────────────────────────
@@ -1413,6 +1572,9 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Dangerous Maneuvers': [
     { skills: ['Brawling'], rolled: 1, kept: 1, conditional: 'Grapple', note: '+1k1 Contested Strength / Brawling in grapple' },
     { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Grapple', note: '+1k0 Damage in grapple' },
+  ],
+  'Show of Force': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'Unarmed or warrior keyword weapons', note: 'Attacks with warrior weapons are Simple Actions' },
   ],
   'Bitter Shadows': [
     { skills: ['Brawling'], rolled: 2, kept: 2, conditional: 'Grapple', note: '+2k2 Contested Strength in grapple (replaces R2)' },
@@ -1436,13 +1598,19 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['Commerce','Sincerity','Temptation'], rolled: 2, kept: 0, conditional: 'Opponent declared Raises', note: '+2k0 if opponent declared Raises on contested Commerce/Sincerity/Temptation' },
   ],
   'An Eye for a Deal': [
-    { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], flat: null, voidOnly: true, conditional: 'Non-weapon skill Void spend', note: 'Add School Rank to total when spending Void on non-weapon skills' },
+    { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], flat: null, voidOnly: true, conditional: 'Non-weapon skill Void spend — add School Rank to total', note: 'Add School Rank to total when spending Void on non-weapon skills' },
+  ],
+  'Silver Tongued Devil': [
+    { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], rolled: 1, kept: 0, conditional: 'Reroll Sincerity as Commerce on failure (once)', note: 'May reroll failed Sincerity as Commerce; +1k0 social rolls (cumulative)' },
   ],
   'Merchant King': [
     { skills: ['SOCIAL'], rolled: 5, kept: 0, conditional: 'Uncontested, no Raises declared', note: '+5k0 uncontested Social with no Raises' },
   ],
 
   // ── Qabal Agent ───────────────────────────────────────────────────────────────
+  'No One of Import': [
+    { skills: ['Sincerity'], rolled: 0, kept: 0, flat: -1, conditional: 'Opponent rolls to detect your lies — they suffer -1k0', note: 'Opponents suffer -1k0 to detect-lying rolls against you' },
+  ],
   'A Good Excuse': [
     { skills: ['Sincerity'], rolled: 2, kept: 0, note: '+2k0 Sincerity (Deceit)' },
   ],
@@ -1454,8 +1622,14 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Ashalan Blood-Sworn ────────────────────────────────────────────────────────
+  'Blessed by the Crystal': [
+    { skills: ['Defense','SOCIAL'], conditional: 'Add School Rank to resist Fear/Intimidation/Temptation/effects against protecting your people', note: '+Rank to resist Fear/Intimidation/Temptation' },
+  ],
   'Fortification in Form': [
     { skills: ['REDUCTION'], note: 'Reduction = Earth Ring (stacks with armor)' },
+  ],
+  'To Fight for the Future': [
+    { skills: ['ATTACK'], simpleAction: true, note: 'Making an attack is a Simple Action' },
   ],
 
   // ── Ashalan Heart-Seekers ──────────────────────────────────────────────────────
@@ -1466,7 +1640,12 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['Investigation','Awareness','Perception'], freeRaises: 1, note: 'Free Raise on Perception/Awareness rolls' },
   ],
   'One Mind, One Action': [
-    { skills: ['SPELLCASTING','Spellcraft'], conditional: 'Countering a spell (Intelligence/Spellcraft vs Spellcasting roll)', note: 'May counter spells with Intelligence/Spellcraft; +2×Rank Armor TN' },
+    { skills: ['SPELLCASTING','Spellcraft'], conditional: 'Counter a spell: Intelligence/Spellcraft vs TN = Spellcasting roll', note: 'May counter spells with Intelligence/Spellcraft; +2×Rank Armor TN bonus' },
+    { skills: ['ARMORNBONUS'], conditional: '+2×School Rank to Armor TN always', note: '+2×Rank Armor TN' },
+  ],
+  'Bane of the Khadi': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'With an Ashalan weapon (khadja, scimitar)', note: 'Attacks with Ashalan weapons are Simple Actions' },
+    { skills: ['ATTACK'], conditional: 'Special attack: 3 Raises — opponent suffers +30 TN penalty and Water Ring reduced by Rank', note: '3-Raise special: opponent +30 TN, Water Ring -Rank for Rank rounds' },
   ],
 
   // ── Assassin Slayer ────────────────────────────────────────────────────────────
@@ -1474,24 +1653,44 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['Acting','Sincerity','Etiquette','Stealth'], rolled: 1, kept: 0, note: '+1k0 Acting/Sincerity/Etiquette/Stealth' },
     { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Target unaware of your presence', note: '+1k0 Damage vs unaware targets' },
   ],
+  'Rite of Assassination': [
+    { skills: ['ARMORBONUS'], conditional: 'Armor TN bonus = Stealth Skill Rank; doubled vs Rite target', note: '+Stealth rank to Armor TN; doubled vs Rite target' },
+  ],
+  'Let Him Bleed': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'vs lone opponent or Rite of Assassination target', note: 'Attacks vs lone/Rite target are Simple Actions' },
+  ],
   'Blood Calls for Blood': [
-    { skills: ['ATTACK'], conditional: 'vs lone opponent or Rite target — add Stealth skill rank as bonus dice', note: '+Stealth rank rolled dice to Attack vs lone/Rite target' },
+    { skills: ['ATTACK'], conditional: 'vs lone/Rite target: add Stealth Skill rank as rolled bonus dice; Raises unlimited', note: '+Stealth rank rolled dice to Attack; unlimited Raises vs lone/Rite target' },
   ],
 
   // ── Assassin Keeper ────────────────────────────────────────────────────────────
   "The Keeper's Courage": [
     { skills: ['Investigation','Hunting','Perception'], rolled: 1, kept: 0, note: '+1k0 Perception-based rolls' },
   ],
+  "The Keeper's Judgment": [
+    { skills: ['ATTACK'], conditional: 'Choose to Disable (no damage, inflict Dazed) instead of wound', note: 'May choose to Daze target instead of dealing wounds' },
+  ],
+  "The Keeper's Justice": [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'Attacks that inflict Dazed or initiate grapple are Simple Actions', note: 'Non-damaging attacks (Daze/grapple) are Simple Actions' },
+  ],
+  "The Keeper's Art": [
+    { skills: ['ATTACK'], rolled: 0, kept: 0, freeRaises: 1, conditional: '1 Free Raise on Attack vs Dazed opponent to Fatigue them', note: '+1 Free Raise vs Dazed targets to inflict Fatigued' },
+  ],
 
   // ── Ra\'Shari Knife-Fighter ─────────────────────────────────────────────────────
   'The Endless Dance': [
     { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative' },
+    { skills: ['ARMORBONUS'], conditional: 'Armor TN bonus = Perform (Dance) Skill rank while not in heavy armor', note: '+Dance Skill rank to Armor TN (light armor only)' },
   ],
   'Flashing Talons': [
     { skills: ['DAMAGE'], rolled: 1, kept: 0, conditional: 'Bladed weapon (knife, sword, khadja, etc.)', note: '+1k0 Damage with bladed weapons' },
   ],
   'Through the Cracks': [
     { skills: ['INITIATIVE'], rolled: 1, kept: 0, note: '+1k0 Initiative (total +2k0 with R1)' },
+    { skills: ['ATTACK'], freeRaises: 0, conditional: 'Extra Attack costs 3 Raises (not 5) when unarmed or with knives only', note: 'Extra Attack costs 3 Raises (unarmed/knives only)' },
+  ],
+  'Two Knives, Two Wounds': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'Knife or unarmed attack', note: 'Knife/unarmed attacks are Simple Actions' },
   ],
   'Strike to Slay': [
     { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, conditional: 'Knife or unarmed', note: '+1k1 Damage with knife/unarmed when spending Void' },
@@ -1521,24 +1720,50 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Senpet Legionnaire ─────────────────────────────────────────────────────────
+  'Divine Insight': [
+    { skills: ['Hunting'], rolled: 1, kept: 1, conditional: 'Desert survival only', note: '+1k1 Hunting (Survival) in the desert' },
+    { skills: ['ARMORBONUS'], conditional: 'Add Lore: Theology rank to Armor TN in Center Stance', note: '+Theology rank to Armor TN in Center Stance' },
+  ],
   'Divine Strength': [
     { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, note: '+1k1 Damage when spending Void' },
+  ],
+  'Divine Retribution': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Senpet keyword weapons (Khopesh, Shamsir)', note: 'Attacks with Senpet weapons are Simple Actions' },
+  ],
+  'The Gods Protect Me': [
+    { skills: ['ARMORBONUS'], flat: 20, voidOnly: true, stances: ['Center'], note: '+20 Armor TN in Center Stance (Void spend, once per round)' },
   ],
   'The Gods Guide my Hand': [
     { skills: ['ATTACK'], rolled: 4, kept: 1, voidOnly: true, conditional: 'Once per skirmish', note: '+4k1 Attack once per skirmish (Void)' },
   ],
 
   // ── Senpet Charioteer ─────────────────────────────────────────────────────────
+  'Ride Into Battle': [
+    { skills: ['INITIATIVE'], rolled: 1, kept: 0, conditional: 'While mounted on chariot', note: '+1k0 Initiative when mounted on chariot' },
+    { skills: ['ARMORBONUS'], voidOnly: true, conditional: 'Add Lore: Theology rank to Armor TN bonus when spending Void (mounted/Full Attack)', note: '+Theology rank to Armor TN void-spend bonus (mounted/Full Attack)' },
+  ],
   'Ruthless Advance': [
     { skills: ['ATTACK'], rolled: 3, kept: 0, voidOnly: true, stances: ['Full Attack'], conditional: 'Mounted on chariot OR Full Attack stance', note: '+3k0 Attack until Reactions Stage (Void, mounted/Full Attack)' },
+  ],
+  'Speed is my Armor': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'While mounted on chariot OR in Full Attack stance', note: 'Attacks are Simple Actions while mounted or in Full Attack' },
   ],
 
   // ── Ebonite Templar ────────────────────────────────────────────────────────────
   'Tapping the Inner Strength': [
     { skills: ['ATTACK','DAMAGE','SOCIAL'], rolled: 1, kept: 0, conditional: 'Opponent has lower Integrity', note: '+1k0 Attack/Damage/Social vs lower-Integrity opponents' },
   ],
+  'By Thy Will': [
+    { skills: ['INITIATIVE'], voidOnly: true, conditional: 'Spend Void during Reactions Stage to boost Initiative as if start of round', note: 'Void: boost Initiative score as if re-rolling (lasts rest of skirmish)' },
+  ],
+  'The Ebon Hand': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'Warrior or Ebonite keyword weapons', note: 'Attacks with warrior/Ebonite weapons are Simple Actions' },
+  ],
   'By Word Or By Sword': [
-    { skills: ['SOCIAL'], voidOnly: true, conditional: 'Add half Integrity (round down) as rolled dice', note: '+½ Integrity dice to Social roll (Void spend)' },
+    { skills: ['SOCIAL'], voidOnly: true, conditional: 'Add half Integrity (round down) as rolled dice', note: '+½ Integrity as rolled dice to Social (Void spend)' },
+  ],
+  'Will of the Stone': [
+    { skills: ['WOUNDPENALTY'], voidOnly: true, conditional: 'Spend Void to ignore all wound penalties for remainder of skirmish', note: 'Void: ignore all wound penalties for rest of skirmish' },
   ],
 
   // ── Jani ────────────────────────────────────────────────────────────────────
@@ -1554,9 +1779,22 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['INITIATIVE'], rolled: 2, kept: 0, note: '+2k0 Initiative (total)' },
     { skills: ['Stealth'], rolled: 2, kept: 0, note: '+2k0 Stealth (total)' },
     { skills: ['Investigation','Hunting','Perception'], rolled: 2, kept: 0, note: '+2k0 Perception-based (total)' },
+    { skills: ['Acting'], freeRaises: 1, conditional: 'Disguise Emphasis only', note: 'Free Raise on Acting (Disguise)' },
+  ],
+  'Seen and Not Noticed': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Knives, Staves, or Assassin Ranged Weapons', note: 'Attacks with Knives/Staves/ARW are Simple Actions' },
+  ],
+  'Blinding Speed': [
+    { skills: ['ATTACK'], conditional: 'Extra Attack costs 3 Raises (Knives/Staves/ARW)', note: 'Extra Attack costs 3 Raises with Knives/Staves/ARW' },
   ],
 
   // ── Necromancer ────────────────────────────────────────────────────────────────
+  'Master of Undeath and Death': [
+    { skills: ['CONTESTED'], rolled: 2, kept: 0, conditional: 'Contested rolls involving Willpower', note: '+2k0 on Contested Willpower rolls' },
+  ],
+  'Creator of Undeath': [
+    { skills: ['Intimidation','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Intimidation/Sincerity (Deceit)' },
+  ],
   'Leader of Undead': [
     { skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'Undead allies only (not self)', note: 'Undead under your control get +1k0 Attack/Damage' },
   ],
@@ -1608,33 +1846,54 @@ export const TECHNIQUE_ROLL_BONUSES = {
 
   // ── Senpet Sahir ────────────────────────────────────────────────────────────
   'By the Grace of the Gods': [
-    { skills: ['SPELLCASTING','Spellcraft'], freeRaises: 1, note: 'Free Raise on all Spellcasting rolls' },
-    { skills: ['SOCIAL','Commerce','Sincerity','Temptation','Courtier','Etiquette'], conditional: 'Religious/theological context', note: '+Lore: Theology rank to Social rolls (religious matters)' },
+    { skills: ['SPELLCASTING','Spellcraft'], rolled: 1, kept: 1, conditional: 'Chosen discipline only at character creation', note: '+1k1 to chosen discipline Spellcasting' },
   ],
 
   // ── Assassin Duelist ────────────────────────────────────────────────────────
   'The Tiger Claw Cut': [
     { skills: ['ALL'], rolled: 2, kept: 1, stances: ['Center'], note: '+2k1 ALL rolls in Center stance' },
   ],
+  'No Escape': [
+    { skills: ['ATTACK'], conditional: 'Extra Attack costs 3 Raises when wielding a weapon in each hand', note: 'Extra Attack costs 3 Raises (dual-wield); second attack from off-hand' },
+  ],
   'The Final Strike': [
     { skills: ['DAMAGE'], voidOnly: true, conditional: 'Tahaddi Duel only — spend any amount of Void', note: 'Add any number of Void Points to Tahaddi Duel Damage' },
   ],
 
   // ── Yodotai Legionnaire ──────────────────────────────────────────────────────
+  'Tortoise Formation': [
+    { skills: ['ARMORBONUS'], conditional: 'Full Defense Stance + scutum shield: +Insight Rank to Armor TN', note: '+Insight Rank Armor TN in Full Defense with scutum' },
+  ],
   'In Close Quarters': [
     { skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'Round you switch from Full Defense → Full Attack', note: '+1k0 Attack on the round you switch stances (Full Defense → Full Attack)' },
+  ],
+  'Deadly Strike (Legionnaire)': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Yodotai and Warrior weapons', note: 'Attacks with Yodotai/Warrior weapons are Simple Actions' },
+  ],
+  'Wedge Formation': [
+    { skills: ['REDUCTION'], conditional: 'Attack Stance: Reduction = School Rank', note: 'Gain Reduction equal to Rank in Attack Stance' },
   ],
 
   // ── Yodotai Mercenary ────────────────────────────────────────────────────────
   'Stranger in a Foreign Land': [
     { skills: ['Battle','Intimidation','Courtier'], rolled: 1, kept: 0, note: '+1k0 Battle/Intimidation/Courtier' },
   ],
+  'Unfriendly Glare': [
+    { skills: ['ATTACK'], simpleAction: true, conditional: 'Warrior and Yodotai weapons', note: 'Attacks with warrior/Yodotai weapons are Simple Actions' },
+  ],
 
   // ── Yodotai Berserker ─────────────────────────────────────────────────────────
+  'Deadly Strike (Berserker)': [
+    { skills: ['DAMAGE'], rolled: 2, kept: 0, stances: ['Full Attack'], conditional: 'Yodotai weapon, Full Attack stance', note: '+2k0 Damage in Full Attack (Yodotai weapon)' },
+  ],
+  'Aura of Power': [
+    { skills: ['REDUCTION'], conditional: 'Berserker gains Reduction = Rank in Full Attack stance', note: 'Reduction = Berserker Rank in Full Attack' },
+  ],
   'Killing Blow': [
     { skills: ['DAMAGE'], flat: 5, kept: 0, rolled: 0, voidOnly: true, stances: ['Full Attack'], note: '+5k0 Damage in Full Attack (Void spend)' },
   ],
 };
+
 
 // ── Advantage Roll Bonuses ───────────────────────────────────────────────────────
 export const ADVANTAGE_ROLL_BONUSES = {
@@ -1654,13 +1913,36 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Sacred Weapon':        [{ skills: ['ATTACK'], rolled: 0, kept: 0, flat: 0, conditional: 'see weapon description', note: 'Sacred Weapon: see individual weapon description for bonuses' }],
   'Sensation':            [{ skills: ['PERFORM'], rolled: 0, kept: 0, flat: 0, conditional: 'Unskilled Perform rolls', note: 'Treated as rank 1 in any Perform Skill when making Unskilled Roll (Sensation)' }],
   'Silent':               [{ skills: ['Stealth'], rolled: 1, kept: 0, note: '+1k0 all Stealth rolls (Silent)' }],
-  "Seven Fortunes' Blessing (Benten)": [{ skills: ['SOCIAL'], rolled: 0, kept: 1, conditional: 'persuasion only (not coercion)', note: "+0k1 Social when persuading (Benten's Blessing)" }],
-  "Seven Fortunes' Blessing (Daikoku)": [{ skills: ['Commerce'], rolled: 1, kept: 1, note: "+1k1 Commerce (Daikoku's Blessing)" }],
-  "Seven Fortunes' Blessing (Fukurokujin)": [{ skills: ['LORE'], rolled: 1, kept: 1, conditional: 'chosen Lore Skill only', note: "+1k1 chosen Lore Skill (Fukurokujin's Blessing)" }],
+  'Blessed by Shilah': [{ skills: ['SOCIAL'], rolled: 0, kept: 1, conditional: 'persuasion only (not coercion)', note: '+0k1 Social when persuading (Shilah\'s Blessing)' }],
+  'Blessed by the Desert': [{ skills: ['Commerce'], rolled: 1, kept: 1, note: '+1k1 Commerce (Desert\'s Blessing)' }],
+  'Blessed by the All-Seeing Eye': [{ skills: ['LORE'], rolled: 1, kept: 1, conditional: 'chosen Lore Skill only', note: '+1k1 chosen Lore Skill (All-Seeing Eye Blessing)' }],
+  'Blessed by the Honest Hand': [{ skills: ['ALL'], freeRaises: 1, conditional: 'chosen non-weapon skill only', note: 'Free Raise on chosen non-weapon skill (Honest Hand Blessing)' }],
+  'Blessed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Stamina considered one rank higher for Wounds and healing', note: 'Stamina +1 for Wound Ranks (Keeper of Years Blessing)' }],
   'Stolen Identity':      [{ skills: ['Acting'], freeRaises: 2, conditional: 'when using alternate identity', note: '2 Free Raises on Acting when using stolen identity (Stolen Identity)' }],
   'Strength of the Earth': [{ skills: ['ALL'], flat: 3, conditional: 'reduces wound TN penalty only — already coded in wound system', note: 'Wound TN penalties reduced by 3 (Strength of the Earth)' }],
   'Touch of the Void':    [{ skills: ['ALL'], rolled: 1, kept: 1, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 (not +1k1) when spending Void — risk Dazed (Touch of the Void)' }],
   'Virtuous':             [{ skills: ['ALL'], flat: 0, conditional: 'Integrity/Honor bonus only', note: '+1 starting Integrity Rank (Virtuous)' }],
   'Voice':                [{ skills: ['PERFORM'], rolled: 1, kept: 1, conditional: 'voice-based Perform only', note: '+1k1 voice-based Perform (Singing, Oratory, etc.) (Voice)' }],
   'Wary':                 [{ skills: ['Investigation'], rolled: 1, kept: 1, conditional: 'vs Stealth (Ambush) only', note: '+1k1 Investigation (Notice) vs Stealth (Ambush) (Wary)' }],
+
+  // ── Paragon variants ──────────────────────────────────────────────────────
+  'Paragon of Compassion':  [{ skills: ['ALL'], rolled: 2, kept: 2, voidOnly: true, conditional: 'helping someone of lower Status', note: '+2k2 (not +1k1) when spending Void to help someone lower than you (Paragon of Compassion)' }],
+  'Paragon of Courage':     [{ skills: ['SOCIAL','Defense'], rolled: 1, kept: 1, conditional: 'resisting Intimidation or Fear', note: '+1k1 to resist Intimidation or Fear (Paragon of Courage)' }],
+  'Paragon of Courtesy':    [{ skills: ['Etiquette'], rolled: 2, kept: 0, conditional: 'avoiding embarrassment or giving offense', note: '+2k0 Etiquette to avoid embarrassment (Paragon of Courtesy)' }],
+  'Paragon of Honesty':     [{ skills: ['Sincerity'], rolled: 1, kept: 1, conditional: 'Honesty — honest speech', note: '+1k1 Sincerity (Honesty) (Paragon of Honesty)' }],
+  'Paragon of Honor':       [{ skills: ['SOCIAL','Defense'], conditional: 'add twice Integrity Rank to resist Temptation/Intimidation', note: '+2×Integrity Rank to resist Temptation/Intimidation (Paragon of Honor)' }],
+  'Paragon of Sincerity':   [{ skills: ['Sincerity'], rolled: 2, kept: 0, conditional: 'Contested Rolls only', note: '+2k0 Contested Sincerity Rolls (Paragon of Sincerity)' }],
+
+  // ── Dark Paragon variants (all conditional/once-per-session) ─────────────
+  'Dark Paragon (Control)':      [{ skills: ['SOCIAL'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to re-roll any Social Skill Roll', note: 'Re-roll one Social roll (Dark Paragon Control)' }],
+  'Dark Paragon (Determination)':[{ skills: ['ALL'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to negate all TN penalties on one roll', note: 'Negate all TN/Wound penalties on one roll (Dark Paragon Determination)' }],
+  'Dark Paragon (Insight)':      [{ skills: ['AWARENESS'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to re-roll any Awareness roll', note: 'Re-roll one Awareness roll (Dark Paragon Insight)' }],
+  'Dark Paragon (Knowledge)':    [{ skills: ['INTELLIGENCE'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to re-roll any Intelligence roll', note: 'Re-roll one Intelligence roll (Dark Paragon Knowledge)' }],
+  'Dark Paragon (Perfection)':   [{ skills: ['ALL'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to force one die to explode', note: 'Force one die to explode on a Skill Roll (Dark Paragon Perfection)' }],
+  'Dark Paragon (Strength)':     [{ skills: ['DAMAGE'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to re-roll any Damage Roll', note: 'Re-roll one Damage Roll (Dark Paragon Strength)' }],
+  'Dark Paragon (Will)':         [{ skills: ['ALL'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to negate 10 Wounds', note: 'Negate 10 Wounds when suffered (Dark Paragon Will)' }],
+
+  // ── LBS-specific advantages ───────────────────────────────────────────────
+  'Ambidextrous':    [{ skills: ['ATTACK'], flat: -5, conditional: 'dual wield only — reduces off-hand penalty from -10 to -5', note: 'Dual-wield off-hand penalty -5 instead of -10 (Ambidextrous)' }],
+  'Chosen by the Oracles': [{ skills: ['RING'], rolled: 1, kept: 1, conditional: 'chosen Ring only', note: '+1k1 all rolls using chosen Ring (Chosen by the Oracles)' }],
 };

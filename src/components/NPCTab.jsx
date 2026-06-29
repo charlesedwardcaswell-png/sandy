@@ -496,13 +496,20 @@ function NPCDetailModal({ npc, isGM, onSave, onDelete, onClose }) {
               <div><span style={{ color: 'var(--text-muted)' }}>Bonus Trait:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.bonus_trait}</span></div>
               <div style={{ marginTop: '.3rem' }}><span style={{ color: 'var(--text-muted)' }}>School Skills:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.skills?.join(', ')}</span></div>
               <div style={{ marginTop: '.3rem' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Techniques:</span>
+                <span style={{ color: 'var(--text-muted)' }}>Techniques (Rank {npc.rank || 1}):</span>
                 <div style={{ marginTop: 2 }}>
-                  {Object.entries(sd.techniques || {}).map(([r, t]) => (
+                  {Object.entries(sd.techniques || {})
+                    .filter(([r]) => +r <= (npc.rank || 1))
+                    .map(([r, t]) => (
                     <div key={r} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--gold-dim)', minWidth: 20, display: 'inline-block' }}>R{r}:</span> {t}
                     </div>
                   ))}
+                  {Object.entries(sd.techniques || {}).some(([r]) => +r > (npc.rank || 1)) && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}>
+                      +{Object.entries(sd.techniques).filter(([r]) => +r > (npc.rank || 1)).length} more at higher ranks
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ marginTop: '.3rem' }}><span style={{ color: 'var(--text-muted)' }}>Equipment:</span> <span style={{ color: 'var(--text-secondary)' }}>{sd.equipment?.join(', ')}</span></div>

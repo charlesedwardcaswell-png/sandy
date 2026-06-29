@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, SKILL_EMPHASES, POISON_EMPHASES } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
@@ -22,6 +22,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
   const [forgeryDocName, setForgeryDocName] = useState('');
+  const [selectedEmphasis, setSelectedEmphasis] = useState(null); // active emphasis for free raise
 
   if (!isNPCTurn && !character) return null;
 
@@ -237,6 +238,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (dualWieldPenalty !== 0) bonusNotes.push(`Dual wield: ${dualWieldPenalty} TN to this attack`);
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
     if (hasMasteryFreeRaise) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
+    if (selectedEmphasis) bonusNotes.push(`Emphasis (${selectedEmphasis}): reroll 1s on kept dice`);
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
@@ -258,9 +260,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       suggestedFlatMod: centerBonus,
       bonusNotes,
       freeRaises: hasMasteryFreeRaise ? 1 : 0,
+      activeEmphasis: selectedEmphasis || null, // rerolls 1s on kept dice, not a free raise
       // Skill outcome context
       skillOutcome: selectedSkill.name,
       skillOutcomeData: {
+        medicine: selectedSkill.name === 'Medicine',
+        medicinePatientId: selectedSkill.name === 'Medicine' ? (skillTarget || character?.id) : null,
+        craftPoison: selectedSkill.name === 'Craft: Poison' && !!selectedEmphasis && !!POISON_EMPHASES[selectedEmphasis],
+        poisonType: selectedEmphasis && POISON_EMPHASES[selectedEmphasis] ? selectedEmphasis : null,
         acting: selectedSkill.name === 'Acting' || selectedSkill.name === 'Stealth',
         stealth: selectedSkill.name === 'Stealth',
         meditation: selectedSkill.name === 'Meditation',
@@ -350,35 +357,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               <SpellConstellation
                 character={character}
                 mode="encounter"
-                onCastSpell={(spellName) => setPendingSpell(spellName)}
+                onCastSpell={(spellName) => handleCast(spellName)}
               />
             </div>
 
-            {/* Cast controls — shown when a spell is selected */}
-            {pendingSpell && (
-              <div style={{ background: 'rgba(160,100,220,.1)', border: '1px solid rgba(160,100,220,.4)', borderRadius: 6, padding: '.75rem', flexShrink: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#c0a0e0', marginBottom: '.5rem' }}>
-                  Casting: {pendingSpell}
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>TN {spellTNs[pendingSpell] || 15}</span>
-                  <button onClick={() => setPendingSpell(null)} style={{ marginLeft: 8, background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 14 }}>×</button>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={spellVoidSpent} onChange={e => setSpellVoidSpent(e.target.checked)} />
-                    <span style={{ color: '#c0a0e0' }}>Spend Void (+1k)</span>
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Free Raises:</span>
-                    <input type="number" min={0} max={5} value={spellRaises} onChange={e => setSpellRaises(Number(e.target.value))}
-                      style={{ width: 40, textAlign: 'center', fontSize: 12 }} />
-                  </div>
-                  <button className="btn btn-p" style={{ fontSize: 13 }} onClick={() => handleCast(pendingSpell)}>
-                    <i className="ti ti-sparkles" style={{ marginRight: 5 }} />
-                    Roll {intRing + spellcraftRank}k{intRing + (spellVoidSpent ? 1 : 0)} vs TN {(spellTNs[pendingSpell] || 15) - spellRaises * 5}
-                  </button>
-                </div>
-              </div>
-            )}
+
           </div>
         );
       })()}
@@ -400,7 +383,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   (cat === 'Perform' && name.startsWith('Perform:'))
                 );
               }).map(sk => sk.name || sk) : [];
-              const allForCat = [...playerSkills, ...customSkills, ...otherSkills.slice(0, 3)];
+              const allForCat = [...playerSkills, ...customSkills, ...otherSkills];
               if (allForCat.length === 0) return null;
               return (
                 <div key={cat} style={{ minWidth: 160 }}>
@@ -417,6 +400,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                         setShowSkillPicker(false);
                         setSelectedSkill({ name: sName, rank: typeof rank === 'number' ? rank : 0 });
                         setSelectedAction('skill');
+                        setSelectedEmphasis(null);
                       }}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: hasSkill ? 'rgba(107,78,40,.15)' : 'transparent', border: `1px solid ${hasSkill ? 'var(--gold-dim)' : 'var(--border)'}`, borderRadius: 4, padding: '.3rem .5rem', marginBottom: '.25rem', cursor: 'pointer', color: hasSkill ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'inherit', fontSize: 13, textAlign: 'left', flexWrap: 'wrap' }}>
                         <span style={{ flex: 1 }}>{sName}</span>
@@ -443,28 +427,30 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character?.name || combatant.name} — {isNPCTurn ? 'NPC Turn' : 'Your Turn'}
         </div>
         {/* Action Economy Display */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Actions:</div>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 2, textTransform: 'uppercase', letterSpacing: '.05em' }}>Actions:</div>
           {/* Full action pip */}
-          <div title="Full Action (1 Complex OR 2 Simple)" style={{
-            minWidth: 36, height: 30, borderRadius: 4, padding: '0 6px',
+          <div title="Full (Complex) Action remaining — costs 1 Full Action" style={{
+            height: 28, borderRadius: 4, padding: '0 8px',
             background: actions.full > 0 ? 'var(--gold)' : 'var(--bg-panel)',
             border: `2px solid ${actions.full > 0 ? 'var(--gold)' : 'var(--border)'}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 700, color: actions.full > 0 ? '#1a1208' : 'var(--text-muted)',
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontSize: 11, fontWeight: 700, color: actions.full > 0 ? '#1a1208' : 'var(--text-muted)',
           }}>
-            {actions.full > 0 ? `${actions.full}×` : ''}F
+            <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.8 }}>FULL</span>
+            <span>{actions.full > 0 ? actions.full : '–'}</span>
           </div>
           {/* Simple action pips */}
           {[1, 2].map(n => (
-            <div key={n} title={`Simple Action ${n}`} style={{
-              minWidth: 32, height: 30, borderRadius: 4, padding: '0 5px',
-              background: actions.simple >= n ? 'rgba(200,150,42,.25)' : 'var(--bg-panel)',
+            <div key={n} title={`Simple Action ${n} of 2`} style={{
+              height: 28, borderRadius: 4, padding: '0 6px',
+              background: actions.simple >= n ? 'rgba(200,150,42,.2)' : 'var(--bg-panel)',
               border: `2px solid ${actions.simple >= n ? 'var(--gold-dim)' : 'var(--border)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', gap: 3,
               fontSize: 11, fontWeight: 600, color: actions.simple >= n ? 'var(--gold)' : 'var(--text-muted)',
             }}>
-              S
+              <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.8 }}>S</span>
+              <span>{actions.simple >= n ? '●' : '○'}</span>
             </div>
           ))}
           {noActionsLeft && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginLeft: 2 }}>Done</span>}
@@ -529,15 +515,15 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
-          { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       color: '#c84030',
+          { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       actionType: 'Full',   color: '#c84030',
             disabled: combatant.stance === 'Full Defense',
-            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense stance — only Free Actions allowed' : 'Attack' },
-          { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    color: 'var(--gold)' },
-          { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  color: 'var(--text-secondary)' },
-          { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', color: '#4a8a40',
-            title: 'Declare Full Defense — rolls Agility/Defense, result replaces your Armor TN' },
-          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    color: 'var(--text-muted)' },
-          { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   color: '#c0a0e0', hidden: !(character?.spells?.length > 0) },
+            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense stance — only Free Actions allowed' : 'Attack (Full Action)' },
+          { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    actionType: 'Full',   color: 'var(--gold)',            title: 'Use a Skill (Full Action)' },
+          { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  actionType: 'Simple', color: 'var(--text-secondary)', title: 'Draw or ready a weapon (Simple Action)' },
+          { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
+            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
+          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: 'var(--text-muted)',     title: 'Pass — skip your turn' },
+          { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0', hidden: !(character?.spells?.length > 0), title: 'Cast a Spell (Full Action)' },
         ].filter(action => !action.hidden).map(action => (
           <button key={action.id}
             disabled={!!action.disabled}
@@ -592,6 +578,17 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           >
             <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
             <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
+            {action.actionType && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '.04em',
+                padding: '1px 5px', borderRadius: 3, marginTop: -2,
+                background: action.actionType === 'Full' ? 'rgba(200,80,40,.2)' :
+                            action.actionType === 'Simple' ? 'rgba(200,150,42,.18)' : 'rgba(100,100,100,.15)',
+                color: action.actionType === 'Full' ? '#e07050' :
+                       action.actionType === 'Simple' ? 'var(--gold-dim)' : 'var(--text-muted)',
+                textTransform: 'uppercase',
+              }}>{action.actionType}</span>
+            )}
           </button>
         ))}
       </div>
@@ -720,6 +717,39 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   id="manual-tn-input"
                   style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
               </div>
+              {/* Emphasis selector — free raise when applicable */}
+              {(() => {
+                const skillObj = (character?.skills || []).find(s => s.name === selectedSkill.name);
+                const ownedEmphases = skillObj?.emphases || [];
+                const suggestedEmphases = (SKILL_EMPHASES[selectedSkill.name] || []).filter(e => !ownedEmphases.includes(e));
+                const emphases = [...ownedEmphases, ...suggestedEmphases];
+                if (emphases.length === 0) return null;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Emphasis:</span>
+                    <button onClick={() => setSelectedEmphasis(null)}
+                      style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, border: `1px solid ${!selectedEmphasis ? 'var(--gold)' : 'var(--border)'}`, background: !selectedEmphasis ? 'rgba(200,150,42,.15)' : 'transparent', color: !selectedEmphasis ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      None
+                    </button>
+                    {emphases.map(e => {
+                      const owned = ownedEmphases.includes(e);
+                      const active = selectedEmphasis === e;
+                      return (
+                        <button key={e} onClick={() => setSelectedEmphasis(active ? null : e)}
+                          style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10,
+                            border: `1px solid ${active ? 'var(--gold)' : owned ? 'var(--gold-dim)' : 'var(--border)'}`,
+                            background: active ? 'rgba(200,150,42,.18)' : 'transparent',
+                            color: active ? 'var(--gold)' : owned ? 'var(--text-secondary)' : 'var(--text-muted)',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            fontStyle: owned ? 'normal' : 'italic',
+                          }}>
+                          {owned ? '' : '+ '}{e}{active && <span style={{ color: 'var(--gold)', fontSize: 10, marginLeft: 4 }}>reroll 1s</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {/* Skill-specific options */}
               {['Sincerity','Etiquette','Courtier','Temptation','Intimidation'].includes(selectedSkill.name) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
