@@ -639,9 +639,14 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
   const [editingNPCName, setEditingNPCName] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [hideEmpty, setHideEmpty] = useState(true);
+  const [npcSearch, setNpcSearch] = useState('');
   const encActive = encounter?.state === 'active';
   const gmView = isGM && !isPCView;
   const safeNPCs = (npcs || []).filter(Boolean);
+  // Filter by search
+  const searchedNPCs = npcSearch.trim()
+    ? safeNPCs.filter(n => n.name?.toLowerCase().includes(npcSearch.toLowerCase()) || n.school?.toLowerCase().includes(npcSearch.toLowerCase()) || n.faction?.toLowerCase().includes(npcSearch.toLowerCase()))
+    : safeNPCs;
 
   const toggleFaction = name => setOpenFactions(o => ({ ...o, [name]: !o[name] }));
 
@@ -681,6 +686,14 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
       <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>NPC Log</span>
         {gmView && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Add NPCs from the Character tab</span>}
+        {/* Search */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 140, maxWidth: 240 }}>
+          <i className="ti ti-search" style={{ position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input value={npcSearch} onChange={e => setNpcSearch(e.target.value)}
+            placeholder="Search by name, school, faction…"
+            style={{ width: '100%', fontSize: 12, padding: '3px 6px 3px 24px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          {npcSearch && <button onClick={() => setNpcSearch('')} style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>×</button>}
+        </div>
         <label className="chk-row" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 0, cursor: 'pointer' }}>
           <input type="checkbox" checked={hideEmpty} onChange={e => setHideEmpty(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
           Hide empty factions
@@ -697,7 +710,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
 
       {/* ── Grid view — player-friendly cards, name/icon/faction/school/notes ── */}
       {viewMode === 'grid' && (() => {
-        const visibleNPCs = safeNPCs.filter(n => gmView || n.is_visible_to_players);
+        const visibleNPCs = searchedNPCs.filter(n => gmView || n.is_visible_to_players);
         if (visibleNPCs.length === 0) return <Empty icon="ti-users" message="No NPCs visible yet." />;
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
@@ -732,7 +745,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
       })()}
 
       {viewMode === 'list' && FACTIONS_DATA.map(fDef => {
-        const facNPCs = safeNPCs.filter(n => n.faction === fDef.name && !n.character_id);
+        const facNPCs = searchedNPCs.filter(n => n.faction === fDef.name && !n.character_id);
         // Full-sheet NPCs (from characters table) in this faction
         const facFullNpcs = fullNpcs.filter(n => n.faction === fDef.name).map(n => ({ ...n, _isFull: true, is_visible_to_players: true }));
         const allFacNPCs = [...facNPCs, ...facFullNpcs];

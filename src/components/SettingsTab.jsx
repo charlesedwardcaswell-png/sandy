@@ -167,6 +167,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
+  const [disableReroll, setDisableReroll] = useState(false);
 
   React.useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
@@ -177,6 +178,7 @@ export default function SettingsTab({ onWipe = {} }) {
         if (data.settings.setting_urls) setSettingUrls(data.settings.setting_urls);
         if (data.settings.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
         if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2', ...data.settings.round_limits });
+        if (data.settings.disable_reroll !== undefined) setDisableReroll(!!data.settings.disable_reroll);
       }
     });
   }, []);
@@ -184,7 +186,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -429,6 +431,17 @@ export default function SettingsTab({ onWipe = {} }) {
           </div>
         ))}
 
+        {/* Dice roller options */}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Dice Roller Options</div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: '.3rem' }}>
+          <input type="checkbox" checked={disableReroll} onChange={e => setDisableReroll(e.target.checked)}
+            style={{ accentColor: 'var(--gold)', width: 15, height: 15 }} />
+          Disable free Reroll button in dice roller
+        </label>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', lineHeight: 1.5 }}>
+          When checked, the plain Reroll button is hidden. 🍀 Luck reroll remains for characters with the Luck advantage.
+        </div>
+
         {/* Round limits */}
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Round Limits per Encounter Type</div>
         {['Action','Intrigue','Travel','Downtime'].map(t => {
@@ -474,7 +487,7 @@ export default function SettingsTab({ onWipe = {} }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.6rem 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>Export Campaign</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Downloads a .json backup of all game data</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Downloads a .json backup of all game data — characters, NPCs, quests, map pins, sessions, inventory, and all settings including map/setting/token URLs</div>
           </div>
           <button className="btn btn-p btn-sm" onClick={handleExport}>
             <i className="ti ti-download" style={{ fontSize: 13, marginRight: 4 }} />Export
@@ -522,16 +535,6 @@ export default function SettingsTab({ onWipe = {} }) {
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.3rem' }}>GM Password</div>
           <div style={{ fontSize: 13, fontFamily: 'monospace', padding: '.4rem .6rem', background: 'var(--bg-panel)', borderRadius: 4, display: 'inline-block', color: 'var(--text-secondary)' }}>gm1234</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>Change in <code>src/data/constants.js</code> → GM_PASSWORD</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Player Password</div>
-          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-            <input type="text" value={playerPw} onChange={e => { setPlayerPw(e.target.value); setPwSaved(false); }}
-              style={{ flex: 1 }} onKeyDown={e => e.key === 'Enter' && savePlayerPassword()} />
-            <button className="btn btn-p btn-sm" onClick={savePlayerPassword}>{pwSaved ? '✓ Saved' : 'Save'}</button>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>Change in <code>src/components/AuthScreen.jsx</code> → PLAYER_PASSWORD</div>
-          {status && <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: '.4rem' }}>{status}</div>}
         </div>
       </div>
 

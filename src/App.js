@@ -17,7 +17,7 @@ import SettingsTab from './components/SettingsTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
 import DuelPane from './components/DuelPane';
-import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID, POISON_EMPHASES } from './data/constants';
+import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID, POISON_EMPHASES, SAHIR_DISCIPLINES, COKALOI_CATEGORIES } from './data/constants';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
@@ -242,15 +242,18 @@ export default function App() {
   ];
   const jinnSummonerRef = useRef(null); // called with bonus when Jinn Summoning spell succeeds
   const [jinnSummonBonus, setJinnSummonBonus] = useState(null);
+  const [spellResultModal, setSpellResultModal] = useState(null); // { spellName, total, raises, desc }
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicUrl, setMusicUrlState] = useState('');
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
+  const [disableReroll, setDisableReroll] = useState(false);
 
   // Load music URL and jinn art URL from games settings on mount
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.music_url) setMusicUrlState(data.settings.music_url);
       if (data?.settings?.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
+      if (data?.settings?.disable_reroll !== undefined) setDisableReroll(!!data.settings.disable_reroll);
     });
   }, []);
 
@@ -595,6 +598,16 @@ export default function App() {
     // Standard healing: Stamina + Insight Rank wounds recovered per day
     if (d > campaignDay || (d === 1 && campaignDay === 7)) {
       applyPassiveHealing(safeChars, true);
+      // Reset Luck uses for all characters at the start of a new day
+      safeChars.forEach(char => {
+        const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+        if (luckAdv && luckAdv.current_uses !== undefined && luckAdv.current_uses < (luckAdv.rank || 1)) {
+          const updatedAdvs = (char.advantages || []).map(a =>
+            (a.name || '').startsWith('Luck') ? { ...a, current_uses: a.rank || 1 } : a
+          );
+          handleUpdateChar(char.id, { advantages: updatedAdvs });
+        }
+      });
       push('ti-sun', `Day ${day}, Week ${week} — morning healing applied`);
     }
   };
@@ -621,7 +634,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v109.1</span>
+        <span className="hdr-game">The Tool — v110</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
@@ -1047,14 +1060,69 @@ export default function App() {
       )}
 
       {/* Global Dice Modal — accessible from any tab */}
+      {/* Spell result pane — shown after successful spell cast */}
+      {spellResultModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 350, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-panel)', border: '2px solid rgba(160,100,220,.6)', borderRadius: 10, padding: '1.75rem', maxWidth: 420, width: '90%', boxShadow: '0 0 32px rgba(160,100,220,.25)' }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.12em', color: '#c0a0e0', marginBottom: '.25rem' }}>
+              ✦ Spell Cast — {spellResultModal.charName}
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#d0b0f0', marginBottom: '.5rem' }}>{spellResultModal.spellName}</div>
+            <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--green)' }}>{spellResultModal.total}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Roll Total</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)' }}>{spellResultModal.raises}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Raises</div>
+              </div>
+            </div>
+            {spellResultModal.desc && (
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.25rem', padding: '.75rem', background: 'rgba(160,100,220,.08)', borderRadius: 6, border: '1px solid rgba(160,100,220,.2)' }}>
+                {spellResultModal.desc}
+              </div>
+            )}
+            {spellResultModal.raises > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--gold)', marginBottom: '1rem', fontStyle: 'italic' }}>
+                {spellResultModal.raises} raise{spellResultModal.raises !== 1 ? 's' : ''} — discuss effect with GM
+              </div>
+            )}
+            <button className="btn btn-p" onClick={() => setSpellResultModal(null)} style={{ width: '100%' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {globalModal && (
         <DiceModal
           context={globalModal}
           onClose={() => setGlobalModal(null)}
           onLogEvent={push}
-          onResult={(result, damage) => {
+          disableReroll={disableReroll}
+          onLuckUsed={() => {
+            // Decrement Luck uses on character when Luck reroll is spent
+            const char = globalModal?.character;
+            if (!char) return;
+            const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+            if (!luckAdv) return;
+            const luckRank = luckAdv.rank || 1;
+            const usesLeft = luckAdv.current_uses !== undefined ? luckAdv.current_uses : luckRank;
+            const newUses = Math.max(0, usesLeft - 1);
+            const updatedAdvs = (char.advantages || []).map(a =>
+              (a.name || '').startsWith('Luck') ? { ...a, current_uses: newUses } : a
+            );
+            handleUpdateChar(char.id, { advantages: updatedAdvs });
+            push('ti-clover', `${char.name} used Luck (${newUses} uses remaining)`);
+          }}
+          onResult={(resultObj, damage) => {
+            // DiceModal passes full result object {total, success, margin, tn, raises, flatMod}
+            const result = typeof resultObj === 'object' ? resultObj.total : resultObj;
+            const resultSuccess = typeof resultObj === 'object' ? resultObj.success : (result >= (globalModal.tn || 15));
+            const resultRaises = typeof resultObj === 'object' ? resultObj.raises : Math.max(0, Math.floor((result - (globalModal.tn || 15)) / 5));
             const banner = {
-              success: result >= (globalModal.tn || 15),
+              success: resultSuccess,
               total: result,
               tn: globalModal.tn || 15,
               skillName: globalModal.skill || '',
@@ -1064,9 +1132,9 @@ export default function App() {
             // ── Medicine (Wound Treatment) heal ──────────────────────────────
             if (globalModal?.isMedicineHeal && globalModal?.healTargetId) {
               const target = safeChars.find(c => c.id === globalModal.healTargetId);
-              if (target && result >= 15) {
+              if (target && resultSuccess) {
                 // Success: roll healing dice (base 1kX, raises add more rolled dice, keep 1)
-                const raises = Math.max(0, Math.floor((result - 15) / 5));
+                const raises = resultRaises;
                 const medicineSkill = (globalModal.character?.skills || []).find(s => s.name === 'Medicine');
                 const skillRank = medicineSkill?.rank || 1;
                 // Mastery bonuses: R3 +1k0, R5 +1k1
@@ -1089,8 +1157,8 @@ export default function App() {
             }
             // ── Skill outcomes ────────────────────────────────────────────────
             const od = globalModal?.skillOutcomeData;
-            const success = result >= (globalModal.tn || 15);
-            const raises = success ? Math.floor((result - (globalModal.tn || 15)) / 5) : 0;
+            const success = resultSuccess;
+            const raises = resultSuccess ? resultRaises : 0;
             if (od && success) {
               // Medicine — roll healing dice and apply to patient
               if (od.medicine && od.medicinePatientId) {
@@ -1171,6 +1239,20 @@ export default function App() {
               setJinnSummonBonus({ spellName: od.spellName, bonus: summoning1Bonus, characterId: od.characterId });
               if (jinnSummonerRef.current) jinnSummonerRef.current(summoning1Bonus);
               push('ti-star', `${globalModal.character?.name || 'Sahir'} cast ${od.spellName} — Jinn Summoner opened`);
+            }
+            // ── Spell result pane ─────────────────────────────────────────────
+            if (od?.spellName && success && !od.isJinnSummoning) {
+              // Find spell description from SAHIR_DISCIPLINES or COKALOI_CATEGORIES
+              let spellDesc = '';
+              (SAHIR_DISCIPLINES || []).forEach(disc => disc.types.forEach(t => t.spells.forEach(s => {
+                if (s.name === od.spellName) spellDesc = s.effect || s.desc || '';
+              })));
+              if (!spellDesc) {
+                (COKALOI_CATEGORIES || []).forEach(cat => (cat.spells || cat.blessings || cat.curses || []).forEach(s => {
+                  if (s.name === od.spellName) spellDesc = s.effect || s.desc || '';
+                }));
+              }
+              setSpellResultModal({ spellName: od.spellName, total: result, raises, desc: spellDesc, charName: globalModal.character?.name || '' });
             }
             // Apply damage to target if attack
             if (damage !== null && damage !== undefined && globalModal?.targetId) {

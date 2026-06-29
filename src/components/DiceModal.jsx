@@ -118,7 +118,7 @@ function computeBonuses(character, skillName, isAttack, isDamage, currentStance)
 }
 
 // ── Dice Modal ────────────────────────────────────────────────────────────────
-export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
+export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, disableReroll = false }) {
   const [phase, setPhase] = useState('setup');
   const [raises, setRaises] = useState([]);
   const [useVoid, setUseVoid] = useState(false);
@@ -138,6 +138,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
   const hasEmphasis = skillEmphases.length > 0;
   const [useEmphasis, setUseEmphasis] = useState(hasEmphasis); // auto-checked if applicable
   const [rerolledOnes, setRerolledOnes] = useState([]); // indices of dice that had 1s rerolled
+  const [showAdvanced, setShowAdvanced] = useState(false); // collapsed by default
 
   const isAttack = context?.isAttack || false;
   const dmgDR = context?.dr || '3k2';
@@ -292,150 +293,48 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
         </div>
 
         {phase === 'setup' && (<>
-          {/* Bonus notes from stance/mastery/emphasis */}
-          {(context?.bonusNotes?.length > 0 || context?.freeRaises > 0) && (
-            <div className="modal-section">
-              <span className="modal-label">Active Bonuses</span>
-              <div style={{ background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>
-                {(context.bonusNotes || []).map((note, i) => (
-                  <div key={i} style={{ fontSize: 12, color: 'var(--gold-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <i className="ti ti-star" style={{ fontSize: 11 }} />{note}
-                  </div>
-                ))}
-                {context.freeRaises > 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 2 }}>
-                    <i className="ti ti-arrow-up" style={{ fontSize: 11, marginRight: 4 }} />{context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} already applied (TN effectively {(context?.tn || 15) - context.freeRaises * 5})
-                  </div>
-                )}
-                {woundTNPenalty > 0 && (
-                  <div style={{ fontSize: 11, color: 'var(--red)', display: 'flex', alignItems: 'center' }}>
-                    <i className="ti ti-heart-broken" style={{ fontSize: 11, marginRight: 4 }} />Wound penalty: +{woundTNPenalty} TN applied to this roll
-                  </div>
-                )}
-              </div>
+          {/* ── Always visible: key info ── */}
+
+          {/* Wound penalty alert */}
+          {woundTNPenalty > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--red)', padding: '4px 8px', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.3)', borderRadius: 4, marginBottom: '.5rem' }}>
+              <i className="ti ti-heart-broken" style={{ fontSize: 11 }} />Wound penalty +{woundTNPenalty} TN already included in TN above
             </div>
           )}
 
-          {/* TN breakdown (the total itself is shown at top) */}
-          <div className="modal-section">
-            <span className="modal-label">Target Number Calculation</span>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-              Base {context?.tn || 15}{raises.length > 0 ? ` + ${raises.length * 5} from raises` : ''}{manualFreeRaises > 0 ? ` − ${manualFreeRaises * 5} from manual free raise${manualFreeRaises > 1 ? 's' : ''}` : ''} = <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{tn}</span>
+          {/* Free Raises summary — brief */}
+          {((context?.freeRaises || 0) > 0 || (context?.bonusNotes?.length || 0) > 0) && (
+            <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.4rem', lineHeight: 1.5 }}>
+              {context.freeRaises > 0 && <span>✦ {context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} (TN −{context.freeRaises * 5}) </span>}
+              {(context.bonusNotes || []).map((n, i) => <span key={i} style={{ marginRight: 6 }}>· {n}</span>)}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '.4rem' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Free Raise <span style={{ color: 'var(--green)', fontSize: 10 }}>(reduces TN by 5 — already earned from a technique/effect)</span></span>
-              <button className="trait-btn" onClick={() => setManualFreeRaises(n => Math.max(0, n - 1))} disabled={manualFreeRaises === 0}>−</button>
-              <span style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{manualFreeRaises}</span>
-              <button className="trait-btn" onClick={() => setManualFreeRaises(n => n + 1)}>+</button>
-            </div>
-          </div>
+          )}
 
-          {/* Dice pool — adjustable */}
-          <div className="modal-section">
-            <span className="modal-label">Dice Pool</span>
+          {/* Dice pool — always visible */}
+          <div className="modal-section" style={{ paddingBottom: '.4rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)' }}>
                 {rollCount}k{keepCount}
-                {useVoid && <span style={{ fontSize: 14, color: 'var(--gold)', marginLeft: 8 }}>(+1k1 Void)</span>}
+                {useVoid && <span style={{ fontSize: 14, color: 'var(--gold)', marginLeft: 8 }}>(Void)</span>}
               </div>
-              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Adjust:</span>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Roll</span>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="rep-btn" onClick={() => setExtraRoll(r => r - 1)}>−</button>
-                    <span style={{ fontSize: 13, minWidth: 16, textAlign: 'center', color: extraRoll !== 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{extraRoll >= 0 ? '+' : ''}{extraRoll}</span>
-                    <button className="rep-btn" onClick={() => setExtraRoll(r => r + 1)}>+</button>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Keep</span>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="rep-btn" onClick={() => setExtraKeep(k => k - 1)}>−</button>
-                    <span style={{ fontSize: 13, minWidth: 16, textAlign: 'center', color: extraKeep !== 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{extraKeep >= 0 ? '+' : ''}{extraKeep}</span>
-                    <button className="rep-btn" onClick={() => setExtraKeep(k => k + 1)}>+</button>
-                  </div>
-                </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {context?.skill} · TN {tn}
+                {context?.ring && <span> · {context.ring} {context.ringVal}</span>}
               </div>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              {context?.skill} ({context?.ring || 'Ring'} {context?.ringVal || '?'})
             </div>
           </div>
 
-          {/* Flat modifier */}
+          {/* Raises — always visible */}
           <div className="modal-section">
-            <span className="modal-label">Flat Modifier <span style={{ fontSize: 11, fontWeight: 400 }}>(added to total after keeping)</span></span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-              <button className="rep-btn" onClick={() => setFlatMod(m => m - 1)}>−</button>
-              <span style={{ fontSize: 20, fontWeight: 600, color: flatMod !== 0 ? 'var(--gold)' : 'var(--text-muted)', minWidth: 32, textAlign: 'center' }}>{flatMod >= 0 ? '+' : ''}{flatMod}</span>
-              <button className="rep-btn" onClick={() => setFlatMod(m => m + 1)}>+</button>
-              {flatMod !== 0 && <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { setFlatMod(0); setModApplied(null); }}>Reset</button>}
-            </div>
-            {modApplied && <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 3, fontStyle: 'italic' }}>Applied from: {modApplied}</div>}
-          </div>
-
-          {/* Technique + Advantage Bonuses Panel */}
-          {(bonuses.auto.length > 0 || bonuses.conditional.length > 0) && (
-            <div className="modal-section">
-              <span className="modal-label">Technique & Advantage Bonuses</span>
-
-              {/* Auto-applied bonuses */}
-              {bonuses.auto.length > 0 && (
-                <div style={{ marginBottom: bonuses.conditional.length > 0 ? '.5rem' : 0 }}>
-                  {bonuses.auto.map((note, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '3px 6px', background: 'rgba(160,100,220,.1)', border: '1px solid rgba(160,100,220,.3)', borderRadius: 3, marginBottom: 3, color: '#c0a0e8' }}>
-                      <i className="ti ti-sparkles" style={{ fontSize: 11, flexShrink: 0 }} />
-                      <span style={{ flex: 1 }}>{note}</span>
-                      <span style={{ fontSize: 10, color: 'rgba(160,100,220,.6)' }}>auto</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Conditional bonuses — player toggles */}
-              {bonuses.conditional.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Click to activate if condition applies:</div>
-                  {bonuses.conditional.map((c, i) => {
-                    const active = activeConditionals.includes(i);
-                    return (
-                      <div key={i} onClick={() => toggleConditional(i)}
-                        style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, padding: '4px 7px',
-                          background: active ? 'rgba(160,100,220,.15)' : 'rgba(107,78,40,.08)',
-                          border: `1px solid ${active ? 'rgba(160,100,220,.5)' : 'var(--border)'}`,
-                          borderRadius: 4, marginBottom: 3, cursor: 'pointer', userSelect: 'none',
-                        }}>
-                        <span style={{ fontSize: 14, lineHeight: 1.1, color: active ? '#c0a0e8' : 'var(--text-muted)' }}>{active ? '☑' : '☐'}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ color: active ? '#c0a0e8' : 'var(--text-secondary)' }}>{c.note}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 1 }}>{c.condition}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {(techRolled !== 0 || techKept !== 0 || techFreeRaises !== 0) && (
-                <div style={{ fontSize: 11, color: '#c0a0e8', marginTop: '.35rem' }}>
-                  Total from techniques: {techRolled > 0 ? `+${techRolled} rolled` : ''}{techKept > 0 ? ` +${techKept} kept` : ''}{techFreeRaises > 0 ? ` +${techFreeRaises} Free Raise${techFreeRaises > 1 ? 's' : ''}` : ''}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Raises */}
-          <div className="modal-section">
-            <span className="modal-label">Raises Declared <span style={{ fontSize: 11, fontWeight: 400, color: '#c84030' }}>(each raise adds +5 TN — harder to succeed, but more effect on success)</span></span>
+            <span className="modal-label">Raises <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>+5 TN each — harder but more effect</span></span>
             <div style={{ display: 'flex', flexWrap: 'wrap' }}>
               {RAISE_OPTIONS.map(r => (
                 <button key={r} className={`raise-btn ${raises.includes(r) ? 'sel' : ''}`} onClick={() => toggleRaise(r)}>{r}</button>
               ))}
             </div>
             {isAttack && (
-              <div style={{ marginTop: '.5rem' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Attack Maneuvers:</div>
+              <div style={{ marginTop: '.4rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.2rem' }}>Maneuvers (cost 1 raise each):</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                   {ATTACK_MANEUVERS.map(r => (
                     <button key={r} className={`raise-btn ${raises.includes(r) ? 'sel' : ''}`} onClick={() => toggleRaise(r)}>{r}</button>
@@ -445,23 +344,8 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             )}
           </div>
 
-          {/* Void */}
-                    {/* Emphasis — re-roll 1s if character has an emphasis for this skill */}
-          {hasEmphasis && (
-            <div className="modal-section">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={useEmphasis} onChange={e => setUseEmphasis(e.target.checked)}
-                  style={{ accentColor: 'var(--gold)', width: 16, height: 16 }} />
-                <span style={{ fontSize: 14 }}>
-                  <strong style={{ color: 'var(--gold)' }}>Emphasis applies</strong>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>
-                    ({skillEmphases.join(', ')}) — re-roll any kept 1s
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
-<div className="modal-section">
+          {/* Void — always visible */}
+          <div className="modal-section" style={{ paddingTop: '.25rem', paddingBottom: '.25rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>
               <input type="checkbox" checked={useVoid} onChange={e => setUseVoid(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               Spend Void Point (+1k1)
@@ -471,9 +355,146 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             </label>
           </div>
 
-          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+          {/* Emphasis — visible when applicable */}
+          {hasEmphasis && (
+            <div className="modal-section" style={{ paddingTop: '.25rem', paddingBottom: '.25rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={useEmphasis} onChange={e => setUseEmphasis(e.target.checked)}
+                  style={{ accentColor: 'var(--gold)', width: 15, height: 15 }} />
+                <span style={{ fontSize: 13 }}>
+                  <strong style={{ color: 'var(--gold)' }}>Emphasis</strong>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>
+                    ({skillEmphases.join(', ')}) — re-roll kept 1s
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
+          {/* ── Advanced section toggle ── */}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: '.35rem', paddingTop: '.35rem' }}>
+            <button onClick={() => setShowAdvanced(v => !v)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className={`ti ti-chevron-${showAdvanced ? 'up' : 'down'}`} style={{ fontSize: 11 }} />
+              {showAdvanced ? 'Hide' : 'Show'} advanced options
+              {(bonuses.auto.length > 0 || bonuses.conditional.length > 0 || extraRoll !== 0 || extraKeep !== 0 || flatMod !== 0 || manualFreeRaises > 0) && (
+                <span style={{ fontSize: 10, color: 'var(--gold)', marginLeft: 4 }}>●</span>
+              )}
+            </button>
+          </div>
+
+          {showAdvanced && (<>
+            {/* Active bonuses from context */}
+            {(context?.bonusNotes?.length > 0 || context?.freeRaises > 0) && (
+              <div className="modal-section">
+                <span className="modal-label">Active Bonuses</span>
+                <div style={{ background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 4, padding: '.4rem .6rem' }}>
+                  {(context.bonusNotes || []).map((note, i) => (
+                    <div key={i} style={{ fontSize: 11, color: 'var(--gold-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <i className="ti ti-star" style={{ fontSize: 10 }} />{note}
+                    </div>
+                  ))}
+                  {context.freeRaises > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: 2 }}>
+                      {context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} applied (TN −{context.freeRaises * 5})
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TN breakdown */}
+            <div className="modal-section">
+              <span className="modal-label">TN Breakdown</span>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                Base {context?.tn || 15}{raises.length > 0 ? ` + ${raises.length * 5} raises` : ''}{woundTNPenalty > 0 ? ` + ${woundTNPenalty} wounds` : ''}{manualFreeRaises > 0 ? ` − ${manualFreeRaises * 5} free raises` : ''} = <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{tn}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '.3rem' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Manual Free Raise:</span>
+                <button className="rep-btn" onClick={() => setManualFreeRaises(n => Math.max(0, n - 1))} disabled={manualFreeRaises === 0}>−</button>
+                <span style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{manualFreeRaises}</span>
+                <button className="rep-btn" onClick={() => setManualFreeRaises(n => n + 1)}>+</button>
+              </div>
+            </div>
+
+            {/* Dice pool adjuster */}
+            <div className="modal-section">
+              <span className="modal-label">Dice Pool Adjuster</span>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+Roll</span>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="rep-btn" onClick={() => setExtraRoll(r => r - 1)}>−</button>
+                    <span style={{ fontSize: 13, minWidth: 16, textAlign: 'center', color: extraRoll !== 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{extraRoll >= 0 ? '+' : ''}{extraRoll}</span>
+                    <button className="rep-btn" onClick={() => setExtraRoll(r => r + 1)}>+</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+Keep</span>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="rep-btn" onClick={() => setExtraKeep(k => k - 1)}>−</button>
+                    <span style={{ fontSize: 13, minWidth: 16, textAlign: 'center', color: extraKeep !== 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{extraKeep >= 0 ? '+' : ''}{extraKeep}</span>
+                    <button className="rep-btn" onClick={() => setExtraKeep(k => k + 1)}>+</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Flat +</span>
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <button className="rep-btn" onClick={() => setFlatMod(m => m - 1)}>−</button>
+                    <span style={{ fontSize: 13, minWidth: 20, textAlign: 'center', color: flatMod !== 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{flatMod >= 0 ? '+' : ''}{flatMod}</span>
+                    <button className="rep-btn" onClick={() => setFlatMod(m => m + 1)}>+</button>
+                    {flatMod !== 0 && <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 4px' }} onClick={() => { setFlatMod(0); setModApplied(null); }}>✕</button>}
+                  </div>
+                  {modApplied && <div style={{ fontSize: 10, color: 'var(--gold-dim)', fontStyle: 'italic' }}>{modApplied}</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* Technique + Advantage Bonuses */}
+            {(bonuses.auto.length > 0 || bonuses.conditional.length > 0) && (
+              <div className="modal-section">
+                <span className="modal-label">Technique & Advantage Bonuses</span>
+                {bonuses.auto.length > 0 && (
+                  <div style={{ marginBottom: bonuses.conditional.length > 0 ? '.5rem' : 0 }}>
+                    {bonuses.auto.map((note, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '3px 6px', background: 'rgba(160,100,220,.1)', border: '1px solid rgba(160,100,220,.3)', borderRadius: 3, marginBottom: 3, color: '#c0a0e8' }}>
+                        <i className="ti ti-sparkles" style={{ fontSize: 10, flexShrink: 0 }} />
+                        <span style={{ flex: 1 }}>{note}</span>
+                        <span style={{ fontSize: 9, color: 'rgba(160,100,220,.6)' }}>auto</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {bonuses.conditional.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Click to activate if condition applies:</div>
+                    {bonuses.conditional.map((c, i) => {
+                      const active = activeConditionals.includes(i);
+                      return (
+                        <div key={i} onClick={() => toggleConditional(i)}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, padding: '4px 7px',
+                            background: active ? 'rgba(160,100,220,.15)' : 'rgba(107,78,40,.08)',
+                            border: `1px solid ${active ? 'rgba(160,100,220,.5)' : 'var(--border)'}`,
+                            borderRadius: 4, marginBottom: 3, cursor: 'pointer', userSelect: 'none',
+                          }}>
+                          <span style={{ fontSize: 13, lineHeight: 1.1, color: active ? '#c0a0e8' : 'var(--text-muted)' }}>{active ? '☑' : '☐'}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: active ? '#c0a0e8' : 'var(--text-secondary)' }}>{c.note}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 1 }}>{c.condition}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>)}
+
+          {/* Roll button */}
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
             <button className="btn btn-p btn-lg" onClick={doRoll}>
-              <i className="ti ti-dice" style={{ marginRight: 4 }} /> Roll {rollCount}k{keepCount}{flatMod !== 0 ? ` ${flatMod >= 0 ? '+' : ''}${flatMod}` : ''}
+              <i className="ti ti-dice" style={{ marginRight: 4 }} /> Roll {rollCount}k{keepCount}{flatMod !== 0 ? ` ${flatMod >= 0 ? '+' : ''}${flatMod}` : ''} vs TN {tn}
             </button>
             <button className="btn" onClick={onClose}>Cancel</button>
           </div>
@@ -527,9 +548,31 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent }) {
             }}>
               Best {keepCount}
             </button>
-            <button className="btn btn-sm" onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); }}>
+            <button className="btn btn-sm" onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); }}
+              style={{ display: disableReroll ? 'none' : undefined }}>
               <i className="ti ti-refresh" /> Reroll
             </button>
+            {/* Luck reroll — only for characters with Luck advantage and uses remaining */}
+            {(() => {
+              const char = context?.character;
+              if (!char) return null;
+              const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+              if (!luckAdv) return null;
+              const luckRank = luckAdv.rank || 1;
+              const usesLeft = luckAdv.current_uses !== undefined ? luckAdv.current_uses : luckRank;
+              if (usesLeft <= 0) return null;
+              return (
+                <button className="btn btn-sm" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}
+                  title={`Luck: reroll keeping higher result (${usesLeft} use${usesLeft !== 1 ? 's' : ''} remaining)`}
+                  onClick={() => {
+                    setDice(rollAllDice(rollCount));
+                    setKept(new Set());
+                    if (onLuckUsed) onLuckUsed();
+                  }}>
+                  🍀 Luck ({usesLeft})
+                </button>
+              );
+            })()}
           </div>
         </>)}
 

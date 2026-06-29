@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
@@ -291,7 +291,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         };
 
         return (
-          <div className="card" style={{ maxWidth: 480 }}>
+          <div className="card" style={{ maxWidth: 540 }}>
             <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {npc.name}
               <ScrollLore title={`${npc.name} — ${npc.school} Techniques`} text={combinedLore} />
@@ -302,13 +302,100 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             <div style={{ fontSize: 12, color: npc.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)', marginBottom: '.75rem' }}>
               {npc.is_visible_to_players ? '● Visible to players' : '○ Hidden from players'}
             </div>
+
+            {/* ── Stats block ── */}
+            {(() => {
+              const rank = npc.rank || 1;
+              const defaultRing = rank + 1;
+              const bt = sd?.base_traits || {};
+              const rings = {
+                Air: bt.Air || defaultRing, Earth: bt.Earth || defaultRing,
+                Fire: bt.Fire || defaultRing, Water: bt.Water || defaultRing, Void: bt.Void || 2,
+              };
+              const traits = {
+                Reflexes: bt.Reflexes || rings.Air, Awareness: bt.Awareness || rings.Air,
+                Stamina: bt.Stamina || rings.Earth, Willpower: bt.Willpower || rings.Earth,
+                Agility: bt.Agility || rings.Fire, Intelligence: bt.Intelligence || rings.Fire,
+                Strength: bt.Strength || rings.Water, Perception: bt.Perception || rings.Water,
+              };
+              const armorTN = 5 + (traits.Reflexes * 5);
+              const initiative = `${traits.Reflexes + (rank || 1)}k${rings.Air}`;
+              const woundsPerLevel = rings.Earth * 2;
+              return (
+                <div style={{ marginBottom: '.75rem' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Stats (approx. Rank {rank})</div>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: 12 }}>
+                    {Object.entries(rings).map(([ring, val]) => (
+                      <div key={ring} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>{val}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{ring}</div>
+                      </div>
+                    ))}
+                    <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1rem', display: 'flex', gap: '1rem' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{armorTN}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Armor TN</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{initiative}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Initiative</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{woundsPerLevel}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Wounds/level</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Equipment / Weapons ── */}
+            {(sd?.equipment || []).length > 0 && (
+              <div style={{ marginBottom: '.75rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Starting Equipment</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {sd.equipment.map((item, i) => {
+                    const w = WEAPONS_LIST.find(x => x.name === item);
+                    return (
+                      <span key={i} style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, background: w ? 'rgba(200,64,48,.1)' : 'rgba(107,78,40,.1)', border: `1px solid ${w ? 'rgba(200,64,48,.3)' : 'var(--border)'}`, color: w ? '#e07050' : 'var(--text-secondary)' }}>
+                        {item}{w?.dr ? ` (${w.dr})` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Skills ── */}
+            {(sd?.skills || []).length > 0 && (
+              <div style={{ marginBottom: '.75rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>School Skills (Rank {npc.rank || 1})</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {sd.skills.map((s, i) => (
+                    <span key={i} style={{ fontSize: 12, padding: '2px 7px', borderRadius: 4, background: 'rgba(200,150,42,.08)', border: '1px solid rgba(200,150,42,.25)', color: 'var(--gold-dim)' }}>
+                      {s} {npc.rank || 1}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Techniques ── */}
             {npcTechniques.length > 0 && (
-              <div style={{ marginBottom: '.5rem' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>Techniques</div>
+              <div style={{ marginBottom: '.75rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Techniques</div>
                 {npcTechniques.map(t => (
-                  <div key={t.rank} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                    <span style={{ color: 'var(--gold-dim)', fontSize: 12, minWidth: 20, marginTop: 1 }}>R{t.rank}</span>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: 13, flex: 1 }}>{t.text}</span>
+                  <div key={t.rank} style={{ padding: '4px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: 'var(--gold-dim)', fontSize: 11, minWidth: 20 }}>R{t.rank}</span>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500 }}>{t.text}</span>
+                    </div>
+                    {TECHNIQUE_DESCRIPTIONS[t.text] && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, marginLeft: 26, lineHeight: 1.5 }}>
+                        {TECHNIQUE_DESCRIPTIONS[t.text]}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -651,77 +738,98 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
           {/* Skills */}
           <div className="card">
             <div className="card-title">Skills <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>(new rank × 2 XP · emphasis: 2/4/6… XP)</span></div>
-            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-              {(char.skills || []).map(s => {
-                const cartKey = `skill_${s.name}`;
-                const pending = cart[cartKey];
-                const displayRank = pending ? pending.to : s.rank;
-                const nextCost = skillXpCost(displayRank);
+            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+              {Object.entries(SKILL_CATEGORIES).map(([cat, catSkills]) => {
+                // Build full list: all category skills + character's custom skills in this category
+                const customInCat = (char.skills || []).filter(sk => {
+                  const n = sk.name;
+                  return !catSkills.includes(n) && (
+                    (cat === 'Lore' && n.startsWith('Lore:')) ||
+                    (cat === 'Craft' && n.startsWith('Craft:')) ||
+                    (cat === 'Perform' && n.startsWith('Perform:'))
+                  );
+                }).map(sk => sk.name);
+                const allSkillNames = [...catSkills.filter(s => !s.endsWith('[Custom]')), ...customInCat];
                 return (
-                  <React.Fragment key={s.name}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', borderBottom: 'none' }}>
-                    <span className={`skill-nm ${s.school ? 'sc' : ''}`} style={{ flex: 1, fontSize: 12 }}>{s.name}</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: pending ? 'var(--green)' : 'var(--gold)', minWidth: 18, textAlign: 'center' }}>{displayRank}</span>
-                    {displayRank < 10 && (
-                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }}
-                        onClick={() => addSkillToCart(s.name, s.rank)} title={`${nextCost} XP`}>
-                        +1 ({nextCost}xp)
-                      </button>
-                    )}
-                    {pending && <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removeFromCart(cartKey)}>✕</button>}
-                  </div>
-                  {/* Emphases — show owned + XP purchase option */}
-                  <div style={{ paddingLeft: '.5rem', paddingBottom: 2 }}>
-                    {(s.emphases || []).map(e => {
-                      const cartKey = `emph_${s.name}|||${e}`;
+                  <div key={cat} style={{ marginBottom: '.5rem' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', padding: '2px 0', borderBottom: '1px solid var(--border)', marginBottom: '.2rem' }}>{cat}</div>
+                    {allSkillNames.map(sName => {
+                      const s = (char.skills || []).find(x => x.name === sName);
+                      const cartKey = `skill_${sName}`;
+                      const pending = cart[cartKey];
+                      const currentRank = s?.rank || 0;
+                      const displayRank = pending ? pending.to : currentRank;
+                      const nextCost = skillXpCost(displayRank);
+                      const isSchool = s?.school || false;
                       return (
-                        <span key={e} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: cart[cartKey] ? 'rgba(40,160,80,.15)' : 'rgba(200,150,42,.12)', border: `1px solid ${cart[cartKey] ? 'var(--green-dim)' : 'rgba(200,150,42,.3)'}`, color: cart[cartKey] ? 'var(--green)' : 'var(--gold-dim)', marginRight: 3 }}>
-                          {e}
-                        </span>
+                        <React.Fragment key={sName}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '2px 0' }}>
+                            <span className={`skill-nm ${isSchool ? 'sc' : ''}`} style={{ flex: 1, fontSize: 12, color: currentRank > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                              {sName}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: pending ? 'var(--green)' : currentRank > 0 ? 'var(--gold)' : 'var(--border)', minWidth: 18, textAlign: 'center' }}>
+                              {displayRank || '–'}
+                            </span>
+                            {displayRank < 10 && (
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }}
+                                onClick={() => addSkillToCart(sName, currentRank)} title={`${nextCost} XP`}>
+                                +1 ({nextCost}xp)
+                              </button>
+                            )}
+                            {pending && <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removeFromCart(cartKey)}>✕</button>}
+                          </div>
+                          {/* Emphases — show owned + XP purchase option */}
+                          {currentRank > 0 && (
+                          <div style={{ paddingLeft: '.5rem', paddingBottom: 2 }}>
+                            {(s?.emphases || []).map(e => {
+                              const emphCartKey = `emph_${sName}|||${e}`;
+                              return (
+                                <span key={e} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: cart[emphCartKey] ? 'rgba(40,160,80,.15)' : 'rgba(200,150,42,.12)', border: `1px solid ${cart[emphCartKey] ? 'var(--green-dim)' : 'rgba(200,150,42,.3)'}`, color: cart[emphCartKey] ? 'var(--green)' : 'var(--gold-dim)', marginRight: 3 }}>
+                                  {e}
+                                </span>
+                              );
+                            })}
+                            {/* XP emphasis purchase — from predefined list only */}
+                            {(() => {
+                              const ownedEmphases = s?.emphases || [];
+                              const allowedEmphases = SKILL_EMPHASES[sName] || [];
+                              const pendingEmphases = Object.values(cart).filter(i => i.type === 'emphasis' && i.key.startsWith(sName + '|||')).map(i => i.to);
+                              const allOwned = [...ownedEmphases, ...pendingEmphases];
+                              const available = allowedEmphases.filter(e => !allOwned.includes(e));
+                              const emphasisCap = currentRank >= 10 ? 99 : currentRank >= 7 ? 6 : currentRank >= 5 ? 5 : currentRank >= 3 ? 3 : 1;
+                              const atCap = allOwned.length >= emphasisCap;
+                              const nextEmphCost = (allOwned.length + 1) * 2;
+                              if (available.length === 0 && allowedEmphases.length === 0) return null;
+                              return (
+                                <div style={{ marginTop: 2 }}>
+                                  {atCap && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>Max emphases at Rank {currentRank}</span>}
+                                  {!atCap && available.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 1 }}>
+                                      <span style={{ fontSize: 9, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>{nextEmphCost}xp:</span>
+                                      {available.map(emp => {
+                                        const emphCartKey2 = `emph_${sName}|||${emp}`;
+                                        const inCart = !!cart[emphCartKey2];
+                                        return (
+                                          <button key={emp} onClick={() => {
+                                            if (inCart) { setCart(c => { const n = {...c}; delete n[emphCartKey2]; return n; }); }
+                                            else { setCart(c => ({ ...c, [emphCartKey2]: { type: 'emphasis', key: `${sName}|||${emp}`, cost: nextEmphCost, label: `${sName}: ${emp} (emphasis)`, from: '', to: emp } })); }
+                                          }}
+                                            style={{ fontSize: 9, padding: '1px 4px', borderRadius: 8, border: `1px solid ${inCart ? 'var(--green)' : 'rgba(200,150,42,.3)'}`, background: inCart ? 'rgba(40,160,80,.15)' : 'transparent', color: inCart ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                            {inCart ? '✓ ' : '+ '}{emp}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          )}
+                        </React.Fragment>
                       );
                     })}
-                    {/* XP emphasis purchase — from predefined list only */}
-                    {(() => {
-                      const ownedEmphases = s.emphases || [];
-                      const allowedEmphases = SKILL_EMPHASES[s.name] || [];
-                      const pendingEmphases = Object.values(cart).filter(i => i.type === 'emphasis' && i.key.startsWith(s.name + '|||')).map(i => i.to);
-                      const allOwned = [...ownedEmphases, ...pendingEmphases];
-                      const available = allowedEmphases.filter(e => !allOwned.includes(e));
-                      // Rank cap: R1=1, R3=3, R5=5, R7=6, R10=unlimited
-                      const emphasisCap = s.rank >= 10 ? 99 : s.rank >= 7 ? 6 : s.rank >= 5 ? 5 : s.rank >= 3 ? 3 : 1;
-                      const atCap = allOwned.length >= emphasisCap;
-                      // XP cost doubles per emphasis: 1st=2, 2nd=4, 3rd=6...
-                      const nextCost = (allOwned.length + 1) * 2;
-                      if (available.length === 0 && allowedEmphases.length === 0) return null;
-                      return (
-                        <div style={{ marginTop: 3 }}>
-                          {atCap && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>Max emphases at Rank {s.rank}</span>}
-                          {!atCap && available.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
-                              <span style={{ fontSize: 9, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>{nextCost}xp:</span>
-                              {available.map(emp => {
-                                const cartKey = `emph_${s.name}|||${emp}`;
-                                const inCart = !!cart[cartKey];
-                                return (
-                                  <button key={emp} onClick={() => {
-                                    if (inCart) {
-                                      setCart(c => { const n = {...c}; delete n[cartKey]; return n; });
-                                    } else {
-                                      setCart(c => ({ ...c, [cartKey]: { type: 'emphasis', key: `${s.name}|||${emp}`, cost: nextCost, label: `${s.name}: ${emp} (emphasis)`, from: '', to: emp } }));
-                                    }
-                                  }}
-                                    style={{ fontSize: 9, padding: '1px 5px', borderRadius: 8, border: `1px solid ${inCart ? 'var(--green)' : 'rgba(200,150,42,.3)'}`, background: inCart ? 'rgba(40,160,80,.15)' : 'transparent', color: inCart ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                    {inCart ? '✓ ' : '+ '}{emp}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
-                  </React.Fragment>
                 );
               })}
             </div>
@@ -769,6 +877,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [pendingRankUp, setPendingRankUp] = useState(false);
   const [showSocialRef, setShowSocialRef] = useState(null); // 'integrity' | 'reputation' | 'status'
+  const [skillTraitOverride, setSkillTraitOverride] = useState({}); // skillName -> trait key override
 
   const insight = calcInsight(char);
   const insightRank = insightRankFor(insight);
@@ -1337,6 +1446,43 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
       <div className="g2">
       {/* Left column — Skills prominent */}
       <div>
+        {/* Active Conditions (from xp_log with type='condition') */}
+        {(() => {
+          const conditions = (char.xp_log || []).filter(e => e.type === 'condition');
+          if (conditions.length === 0) return null;
+          return (
+            <div className="card" style={{ marginBottom: '.75rem' }}>
+              <div className="card-title">⚠ Active Conditions</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {conditions.map((cond, ci) => {
+                  const note = cond.note || '';
+                  const effectKey = Object.keys(STATUS_EFFECT_DEFS).find(k => note.toLowerCase().includes(k.toLowerCase()));
+                  const def = STATUS_EFFECT_DEFS[effectKey] || STATUS_EFFECT_DEFS[note];
+                  return (
+                    <span key={ci}
+                      title={def ? `${def.desc}\nWears off: ${def.wearOff}` : note}
+                      style={{ fontSize: 12, padding: '3px 8px', borderRadius: 10, background: 'rgba(200,64,48,.15)', border: '1px solid rgba(200,64,48,.4)', color: 'var(--red)', cursor: canEdit ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      onClick={canEdit ? () => {
+                        const allConds = (char.xp_log || []).filter(e => e.type === 'condition');
+                        const idx = allConds.indexOf(cond);
+                        const newLog = (char.xp_log || []).filter((e, j) => {
+                          if (e.type !== 'condition') return true;
+                          const condIdx = allConds.indexOf(e);
+                          return condIdx !== idx;
+                        });
+                        update('xp_log', newLog);
+                      } : undefined}>
+                      {def?.icon && <span>{def.icon}</span>}
+                      <span>{note}</span>
+                      {canEdit && <span style={{ fontSize: 10, opacity: 0.6 }}>×</span>}
+                    </span>
+                  );
+                })}
+              </div>
+              {canEdit && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Hover for details · Click to remove</div>}
+            </div>
+          );
+        })()}
         {/* Skills */}
         <div className="card">
           <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1392,7 +1538,36 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         ))}
                       </span>
                       <SkillDots rank={s.rank} />
-                      {/* Technique glow badges */}
+                      {/* Sample roll — click to cycle through traits */}
+                      {(() => {
+                        const baseName = s.name.split(':')[0].trim();
+                        const traitInfo = SKILL_TRAIT_MAP[s.name] || SKILL_TRAIT_MAP[baseName];
+                        if (!traitInfo) return null;
+                        // Build list of all traits the player might use for this skill
+                        const TRAIT_RING = {
+                          reflexes: 'air', awareness: 'air', stamina: 'earth', willpower: 'earth',
+                          agility: 'fire', intelligence: 'fire', strength: 'water', perception: 'water', void: 'void',
+                        };
+                        const defaultTrait = traitInfo.trait.toLowerCase();
+                        const activeTrait = skillTraitOverride[s.name] || defaultTrait;
+                        const ringKey = TRAIT_RING[activeTrait] || traitInfo.ring.toLowerCase();
+                        const traitVal = char[activeTrait] || 2;
+                        const ringVal = char[ringKey] || 2;
+                        const roll = s.rank + traitVal;
+                        const keep = ringVal;
+                        // Clickable: cycles through all 9 traits
+                        const allTraits = Object.keys(TRAIT_RING);
+                        const idx = allTraits.indexOf(activeTrait);
+                        const nextTrait = allTraits[(idx + 1) % allTraits.length];
+                        return (
+                          <span
+                            onClick={() => setSkillTraitOverride(o => ({ ...o, [s.name]: nextTrait }))}
+                            title={`${roll}k${keep} (${activeTrait} / ${ringKey}) — click to change trait`}
+                            style={{ fontSize: 10, color: activeTrait !== defaultTrait ? 'var(--gold)' : 'var(--text-muted)', marginLeft: 2, whiteSpace: 'nowrap', cursor: 'pointer', borderBottom: '1px dashed var(--border)' }}>
+                            {roll}k{keep}
+                          </span>
+                        );
+                      })()}
                       {techBadges.map(techName => (
                         <span key={techName} title={TECHNIQUE_DESCRIPTIONS[techName] || techName} style={{
                           fontSize: 9, padding: '1px 5px', borderRadius: 8,
@@ -1493,10 +1668,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               <span style={{ color: e.amount > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{e.amount > 0 ? `+${e.amount}` : e.amount} XP</span> — {e.reason}
             </div>
           ))}
-          {/* Spend XP button — visible to players when they have XP */}
-          {!isGM && xpAvail > 0 && (
-            <button className="btn btn-p" style={{ width: '100%', marginTop: '.5rem' }} onClick={() => setShowXpPanel(true)}>
-              <i className="ti ti-coins" style={{ marginRight: 6 }} />Spend {xpAvail} XP
+          {/* Spend XP button — always visible to players for their own character */}
+          {(char.id === myCharId) && (
+            <button className="btn btn-p" style={{ width: '100%', marginTop: '.5rem', opacity: xpAvail <= 0 ? 0.5 : 1 }} onClick={() => setShowXpPanel(true)}>
+              <i className="ti ti-coins" style={{ marginRight: 6 }} />
+              {xpAvail > 0 ? `Spend ${xpAvail} XP` : `XP Spender (${xpAvail} available)`}
             </button>
           )}
           {/* GM grant XP */}
@@ -1606,6 +1782,28 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   </span>
                 )}
                 {e.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr}</span>}
+                {/* Weapon sample roll: Str+WeaponDice kStr for melee (STR k STR), or Agi+rank k Fire for finesse */}
+                {e.dr && (() => {
+                  const wData = WEAPONS_LIST.find(w => w.name === e.name);
+                  const skillName = e.skill || wData?.skill;
+                  const charSkill = (char.skills || []).find(s => s.name === skillName);
+                  const rank = charSkill?.rank || 0;
+                  // Determine trait: Strength for heavy/bows, Agility for swords/knives
+                  const isStrWeapon = ['Heavy Weapons','Chain Weapons','Staves','Brawling'].includes(skillName);
+                  const isArchery = skillName === 'Archery';
+                  const traitKey = isStrWeapon ? 'strength' : 'agility';
+                  const ringKey = isStrWeapon ? 'water' : 'fire';
+                  const traitVal = char[traitKey] || 2;
+                  const ringVal = char[ringKey] || 2;
+                  const rollDice = rank + traitVal;
+                  const keepDice = ringVal;
+                  if (!skillName || rank === 0) return null;
+                  return (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>
+                      {rollDice}k{keepDice}
+                    </span>
+                  );
+                })()}
                 {canEdit && isGM && e.dr && (
                   <select value={e.quality || 'standard'} onChange={ev => {
                     const eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, quality: ev.target.value } : x);
@@ -1773,6 +1971,24 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
                       </div>
                       {adv?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{adv.desc}</div>}
+                      {/* Luck tracking — pip tracker */}
+                      {(a.name || '').startsWith('Luck') && (() => {
+                        const luckRank = a.rank || 1;
+                        const usesLeft = a.current_uses !== undefined ? a.current_uses : luckRank;
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Uses this session:</span>
+                            <div style={{ display: 'flex', gap: 3 }}>
+                              {Array.from({ length: luckRank }, (_, i) => (
+                                <button key={i} onClick={() => canEdit && updateAdv({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
+                                  style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--gold)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--gold)' : 'transparent', cursor: canEdit ? 'pointer' : 'default', padding: 0 }} />
+                              ))}
+                            </div>
+                            <span style={{ fontSize: 11, color: usesLeft > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{usesLeft}/{luckRank}</span>
+                            {canEdit && <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateAdv({ current_uses: luckRank })}>Reset</button>}
+                          </div>
+                        );
+                      })()}
                       {canEdit
                         ? <textarea value={a.notes || ''} onChange={e => updateAdv({ notes: e.target.value })}
                             placeholder="Personal notes on this advantage…"
@@ -1895,12 +2111,13 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
     return s + Array.from({ length: v - base }, (_, i) => (base + i + 1) * 4).reduce((a, b) => a + b, 0);
   }, 0);
   const skillCost = Object.entries(skills).reduce((s, [, v]) => s + Array.from({ length: v }, (_, i) => i + 1).reduce((a, b) => a + b, 0), 0);
-  const advCost = advantages.reduce((s, a) => s + a.cost, 0);
-  const disCost = disadvantages.reduce((s, d) => s + d.value, 0);
+  const advCost = advantages.reduce((s, a) => s + (a.cost || 0), 0);
+  const disRawTotal = disadvantages.reduce((s, d) => s + (d.value || 0), 0);
+  const disCost = Math.min(disRawTotal, 10); // CP gain capped at 10; can take more disads without further CP
   const cpSpent = traitCost + skillCost + advCost;
   const cpAvailable = TOTAL_CP + disCost;
   const cpRemaining = cpAvailable - cpSpent;
-  const disTotal = disadvantages.reduce((s, d) => s + d.value, 0);
+  const disTotal = disRawTotal; // for display purposes — full total
 
   function adjustTrait(trait, delta) {
     const cur = traits[trait], base = getBaseTraitValue(trait);
@@ -2247,7 +2464,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
         <div>
           <div className="cp-meter">
             <div><div className="cp-val">{cpRemaining}</div><div className="cp-label">CP Remaining</div></div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>Disadvantage cap: {disTotal}/10</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>Disad. CP gained: {Math.min(disTotal, 10)}/10{disTotal > 10 ? ` (${disTotal} total)` : ''}</div>
           </div>
           <div className="g2">
             <div className="card">
@@ -2257,36 +2474,60 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
                   const has = advantages.find(x => x.name === a.name);
                   return (
                     <div key={a.name} className="adv-item">
-                      <span className="adv-cost">{a.cost}</span>
+                      <span className="adv-cost">{has ? (has.cost || a.cost) : a.cost}</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: has ? 'var(--gold)' : 'var(--text-primary)' }}>{a.name}</div>
+                        <div style={{ fontSize: 13, color: has ? 'var(--gold)' : 'var(--text-primary)' }}>{a.name}{has && a.maxRank > 1 ? ` (Rank ${has.rank || 1})` : ''}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.desc}</div>
                       </div>
+                      {a.maxRank > 1 && has ? (
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                          {Array.from({ length: a.maxRank }, (_, ri) => ri + 1).map(r => (
+                            <button key={r} className="btn btn-sm" style={{ fontSize: 11, padding: '1px 6px', background: (has.rank||1) === r ? 'var(--gold)' : 'transparent', color: (has.rank||1) === r ? '#1a1208' : 'var(--text-muted)', borderColor: (has.rank||1) === r ? 'var(--gold)' : 'var(--border)' }}
+                              onClick={() => setAdvantages(p => p.map(x => x.name === a.name ? { ...x, rank: r, cost: (a.costPerRank || a.cost) * r } : x))}>
+                              {r}
+                            </button>
+                          ))}
+                          <button className="btn btn-sm" style={{ color: 'var(--red)', marginLeft: 2 }} onClick={() => setAdvantages(p => p.filter(x => x.name !== a.name))}>✕</button>
+                        </div>
+                      ) : (
                       <button className="btn btn-sm" style={{ color: has ? 'var(--red)' : 'inherit' }}
-                        onClick={() => has ? setAdvantages(p => p.filter(x => x.name !== a.name)) : (a.cost <= cpRemaining && setAdvantages(p => [...p, a]))}>
+                        onClick={() => has ? setAdvantages(p => p.filter(x => x.name !== a.name)) : (a.cost <= cpRemaining && setAdvantages(p => [...p, { ...a, rank: 1 }]))}>
                         {has ? 'Remove' : 'Add'}
                       </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
             <div className="card">
-              <div className="card-title">Disadvantages <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(gain CP, max 10)</span></div>
+              <div className="card-title">Disadvantages <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(gain CP up to 10pts; can exceed 10 without further CP gain)</span></div>
               <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                 {DISADVANTAGES.map(d => {
                   const has = disadvantages.find(x => x.name === d.name);
                   return (
                     <div key={d.name} className="adv-item">
-                      <span className="adv-cost neg">+{d.value}</span>
+                      <span className="adv-cost neg">+{has ? (has.value || d.value) : d.value}</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: has ? 'var(--red)' : 'var(--text-primary)' }}>{d.name}</div>
+                        <div style={{ fontSize: 13, color: has ? 'var(--red)' : 'var(--text-primary)' }}>{d.name}{has && d.maxRank > 1 ? ` (Rank ${has.rank || 1})` : ''}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{d.desc}</div>
                       </div>
+                      {d.maxRank > 1 && has ? (
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                          {Array.from({ length: d.maxRank }, (_, ri) => ri + 1).map(r => (
+                            <button key={r} className="btn btn-sm" style={{ fontSize: 11, padding: '1px 6px', background: (has.rank||1) === r ? 'var(--red)' : 'transparent', color: (has.rank||1) === r ? '#fff' : 'var(--text-muted)', borderColor: (has.rank||1) === r ? 'var(--red)' : 'var(--border)' }}
+                              onClick={() => setDisadvantages(p => p.map(x => x.name === d.name ? { ...x, rank: r, value: (d.costPerRank || d.value) * r } : x))}>
+                              {r}
+                            </button>
+                          ))}
+                          <button className="btn btn-sm" style={{ color: 'var(--gold)', marginLeft: 2 }} onClick={() => setDisadvantages(p => p.filter(x => x.name !== d.name))}>✕</button>
+                        </div>
+                      ) : (
                       <button className="btn btn-sm" style={{ color: has ? 'var(--gold)' : 'inherit' }}
-                        onClick={() => has ? setDisadvantages(p => p.filter(x => x.name !== d.name)) : (disTotal + d.value <= 10 && setDisadvantages(p => [...p, d]))}>
+                        onClick={() => has ? setDisadvantages(p => p.filter(x => x.name !== d.name)) : setDisadvantages(p => [...p, { ...d, rank: 1 }])}>
                         {has ? 'Remove' : 'Add'}
                       </button>
+                      )}
                     </div>
                   );
                 })}

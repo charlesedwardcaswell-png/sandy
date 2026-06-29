@@ -7,6 +7,22 @@ export const WOUND_COLORS = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','
 export const STANCES = ['Attack','Full Attack','Defense','Full Defense','Center'];
 export const NPC_ACTIONS = ['Attack','Move','Full Defense','Draw Weapon','Cast Spell','Use Technique','Pass'];
 export const STATUS_EFFECTS = ['Dazed','Fatigued','Prone','Blinded','Frightened','Stunned','Bleeding','Burning','Grappled'];
+
+// Rich status effect definitions with tooltips and wear-off rules
+export const STATUS_EFFECT_DEFS = {
+  'Dazed':      { icon: '💫', desc: 'Cannot take Complex Actions this round. May still take Simple and Free Actions.', wearOff: 'End of next round', mechanical: 'noComplex' },
+  'Fatigued':   { icon: '😓', desc: '+5 TN penalty to all rolls. After 8 hours of rest, this condition is removed.', wearOff: '8 hours rest', mechanical: 'tn+5' },
+  'Prone':      { icon: '⬇', desc: '+10 TN to be hit by melee; -10 TN to be hit by ranged. Must spend a Simple Action to stand.', wearOff: 'Stand up (Simple Action)', mechanical: null },
+  'Blinded':    { icon: '🙈', desc: '-3k3 to all ranged attacks; -1k1 to melee attacks. Cannot make Perception rolls requiring sight.', wearOff: 'Duration varies (typically 1-3 rounds)', mechanical: 'tn+10' },
+  'Frightened': { icon: '😨', desc: 'Must move away from source of fear on your turn or pass Willpower TN 20. -1k0 to all attack rolls.', wearOff: 'Leave presence of fear source', mechanical: null },
+  'Stunned':    { icon: '⚡', desc: 'Lose your next action (Simple or Complex). This condition is removed after losing the action.', wearOff: 'After losing one action', mechanical: 'noAction' },
+  'Bleeding':   { icon: '🩸', desc: 'Take 2 wounds at the start of each of your turns. Requires a Medicine roll (TN 10) or binding to stop.', wearOff: 'Medicine roll TN 10 or binding', mechanical: 'bleeding' },
+  'Burning':    { icon: '🔥', desc: 'Take 1k1 fire damage at the start of each turn. Spend a Complex Action rolling on the ground or dousing with water to remove.', wearOff: 'Douse or roll (Complex Action)', mechanical: 'burning' },
+  'Grappled':   { icon: '🤼', desc: 'Cannot move or attack with weapons. May only attempt to break free (Contested Strength vs grappler each round).', wearOff: 'Break free (Contested Strength)', mechanical: 'noMove' },
+  'Disarmed':   { icon: '🗡', desc: 'Your weapon has been knocked away. You are fighting unarmed until you recover it (Simple Action).', wearOff: 'Recover weapon (Simple Action)', mechanical: null },
+  'Disguised':  { icon: '🎭', desc: 'Your true identity is concealed. Others must beat your Acting roll total to see through the disguise.', wearOff: 'Varies (GM adjudicates)', mechanical: null },
+  'Hidden':     { icon: '👁', desc: 'You are concealed. Others must beat your Stealth roll total to detect you.', wearOff: 'End of round or when you act offensively', mechanical: null },
+};
 export const RAISE_OPTIONS = ['More Effect','Flashy','Custom (notify GM)'];
 export const ATTACK_MANEUVERS = ['Feint (2)','Knockdown (2)','Disarm (3)','Extra Attack (5)','Called Shot (1-4)','Increased Damage (1+)','Narrative'];
 export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3, Downtime: 2 };
@@ -607,6 +623,90 @@ export const GEAR_DESCRIPTIONS = {
   'Blinding Dust (dose)':    'TN 15 to resist (Reflexes). Target is blinded for 3 rounds.',
 };
 
+
+
+// Maps skill names to their primary trait and ring — used for dice pool display
+export const SKILL_TRAIT_MAP = {
+  // Combat / Bugei
+  'Swordsmanship': { trait: 'Agility', ring: 'Fire' },
+  'Knives': { trait: 'Agility', ring: 'Fire' },
+  'Spears': { trait: 'Agility', ring: 'Fire' },
+  'Polearms': { trait: 'Agility', ring: 'Fire' },
+  'Staves': { trait: 'Agility', ring: 'Fire' },
+  'Heavy Weapons': { trait: 'Agility', ring: 'Fire' },
+  'Chain Weapons': { trait: 'Agility', ring: 'Fire' },
+  'Archery': { trait: 'Reflexes', ring: 'Air' },
+  'Tahaddi': { trait: 'Reflexes', ring: 'Air' },  // Primary = Reflexes for most rolls; Awareness for Assessment
+  'Brawling': { trait: 'Strength', ring: 'Water' },
+  'Defense': { trait: 'Reflexes', ring: 'Air' },
+  'Athletics': { trait: 'Strength', ring: 'Water' },
+  'Battle': { trait: 'Perception', ring: 'Water' },  // Primary = Perception for strategy; correct
+  'Horsemanship': { trait: 'Agility', ring: 'Fire' },
+  'Hunting': { trait: 'Perception', ring: 'Water' },  // Tracking=Perception, Survival=Strength — most common
+  'Intimidation': { trait: 'Awareness', ring: 'Air' },  // Can also use Strength — most common is Awareness
+  'Stealth': { trait: 'Agility', ring: 'Fire' },
+  // High Skills
+  'Calligraphy': { trait: 'Intelligence', ring: 'Fire' },
+  'Courtier': { trait: 'Awareness', ring: 'Air' },
+  'Etiquette': { trait: 'Awareness', ring: 'Air' },
+  'Investigation': { trait: 'Perception', ring: 'Water' },
+  'Medicine': { trait: 'Intelligence', ring: 'Fire' },
+  'Meditation': { trait: 'Void', ring: 'Void' },
+  'Sincerity': { trait: 'Awareness', ring: 'Air' },
+  'Storytelling': { trait: 'Awareness', ring: 'Air' },
+  'Acting': { trait: 'Awareness', ring: 'Air' },
+  'Divination': { trait: 'Awareness', ring: 'Air' },
+  // Merchant Skills
+  'Commerce': { trait: 'Intelligence', ring: 'Fire' },
+  'Temptation': { trait: 'Awareness', ring: 'Air' },
+  'Forgery': { trait: 'Intelligence', ring: 'Fire' },
+  'Spellcraft': { trait: 'Intelligence', ring: 'Fire' },
+  // Low Skills
+  'Sleight of Hand': { trait: 'Agility', ring: 'Fire' },
+  'Gambling': { trait: 'Perception', ring: 'Water' },
+  'Locksmithing': { trait: 'Agility', ring: 'Fire' },
+  // Open skills — default trait
+  'Lore': { trait: 'Intelligence', ring: 'Fire' },
+  'Craft': { trait: 'Intelligence', ring: 'Fire' },
+  'Perform': { trait: 'Awareness', ring: 'Air' },
+};
+
+// Armor TN bonus lookup — matches equipment item names to their TN bonus
+export const ARMOR_TN_BONUS = {
+  'Partial Armor (+3 TN)': 3,
+  'Light Armor (+5 TN)': 5,
+  'Light Armor': 5,
+  'Heavy Armor (+10 TN)': 10,
+  'Heavy Armor': 10,
+  'Riding Armor (+8 TN)': 8,
+  'Riding Armor': 8,
+  'Lorica Segmentata': 5,
+  'Lorica-Segmentata': 5,
+  'Chain Shirt': 5,
+  'Senpet Chain Shirt': 5,
+  'Yodotai Chain Shirt': 7,
+  'Half-Plate': 10,
+  'Ebonite Armor': 5,
+  'Adaga': 0, // shield — handled separately as TN bonus
+};
+
+// Compute armor TN bonus from a character's equipment array
+// Uses the highest armor bonus from equipped (equipped === true) armor items
+export function getArmorBonus(equipment = []) {
+  let best = 0;
+  (equipment || []).forEach(item => {
+    if (!item.equipped) return;
+    const name = item.name || '';
+    // Check direct lookup
+    const direct = ARMOR_TN_BONUS[name];
+    if (direct !== undefined) { best = Math.max(best, direct); return; }
+    // Check for "(+N TN)" pattern in the name
+    const match = name.match(/\(\+(\d+)\s*TN\)/i);
+    if (match) { best = Math.max(best, parseInt(match[1], 10)); }
+  });
+  return best;
+}
+
 // Keep backward compatibility — GEAR_LIST is the name array
 export const GEAR_LIST = GEAR_LIST_NAMES;
 
@@ -711,7 +811,7 @@ export const ADVANTAGES = [
   { name: "Inner Gift", cost: 7, type: "Spiritual", desc: "Possess a mysterious gift (Animal Ken, Empathy, Foresight, Lesser Prophecy, or Spirit Touch). Discuss with GM." },
   { name: "Kharmic Tie", cost: 2, type: "Spiritual", desc: "1-5 pts. Destiny bonded to one person. Once per session per point spent, +1k1 to attack rolls when fighting to protect them." },
   { name: "Languages", cost: 1, type: "Mental", desc: "1 pt: one human language. 3 pts: one non-human language (understand only, limited speech)." },
-  { name: "Luck", cost: 3, type: "Spiritual", desc: "3/6/9 pts. A number of times per session equal to rank, immediately re-roll any one roll, keeping the higher result." },
+  { name: "Luck", cost: 3, type: "Spiritual", maxRank: 3, costPerRank: 3, desc: "3/6/9 pts. A number of times per session equal to rank, immediately re-roll any one roll, keeping the higher result." },
   { name: "Magic Resistance", cost: 2, type: "Spiritual", desc: "2/4/6 pts. Per rank, all elemental spells targeting you have their Casting TN increased by +3." },
   { name: "Naga Ancestry", cost: 7, type: "Spiritual", desc: "May purchase Naga-only Advantages. +1k0 on Social rolls with Naga. May manifest physical signs (GM option)." },
   { name: "Reincarnated", cost: 6, type: "Spiritual", desc: "+1k0 to any three non-School Skills of your choice. Occasional visions/dreams from previous life." },
@@ -754,7 +854,7 @@ export const DISADVANTAGES = [
   { name: "Jealousy", value: 3, type: "Mental", desc: "Obsessed with outperforming a specific individual. Choose one PC or major NPC. You will go to any lengths to best them." },
   { name: "Obtuse", value: 3, type: "Mental", desc: "XP cost to increase any High Skill (other than Investigation or Medicine) is doubled." },
   { name: "Overconfident", value: 3, type: "Mental", desc: "Cannot recognize when a situation is beyond you. Must roll Perception TN 20 to retreat from clearly superior opponents." },
-  { name: "Phobia", value: 2, type: "Mental", desc: "1-3 pts. When confronted with the subject of your phobia, all TNs increase by +5 per point." },
+  { name: "Phobia", value: 1, type: "Mental", maxRank: 3, costPerRank: 1, desc: "1-3 pts. When confronted with the subject of your phobia, all TNs increase by +5 per rank. Mild (1pt) = minor fear; Moderate (2pt) = significant; Severe (3pt) = debilitating." },
   { name: "Soft-Hearted", value: 2, type: "Mental", desc: "Must roll Willpower TN 20 to kill another human. If you do kill, all TNs +10 for one day." },
   { name: "True Love", value: 3, type: "Mental", desc: "When forced to choose between love and duty, must spend a Void Point before choosing duty." },
   // ── Physical ──────────────────────────────────────────────────────────────
@@ -811,7 +911,7 @@ export const DISADVANTAGES = [
   { name: "Sleeper Agent", value: 5, type: "Mental", desc: "Unknown to you, a faction has programmed you with a trigger phrase. Anyone who knows it can command you with up to 5 words." },
   { name: "Touch of the Void", value: 3, type: "Spiritual", desc: "When spending a Void Point, gain +2k1 instead of +1k1 — but must roll Willpower TN 30 or be Dazed for one Round." },
   { name: "Uncentered", value: 2, type: "Spiritual", desc: "Monk only. Cannot learn Void Kiho or take the Void Versatility Advantage." },
-  { name: "Unlucky", value: 2, type: "Spiritual", desc: "2 pts per rank. A number of times per session equal to rank, the GM may force you to re-roll one roll (keeping the second result)." },
+  { name: "Unlucky", value: 2, type: "Spiritual", maxRank: 3, costPerRank: 2, desc: "2 pts per rank (max 3 ranks). A number of times per session equal to rank, the GM may force you to re-roll one roll (keeping the second result)." },
   { name: "Wrath of the Desert", value: 3, type: "Spiritual", desc: "The elemental forces of the sands have turned against you. Choose one Ring element. Spells of that element cast against you confer one Free Raise on the Casting Roll." },
 ];
 

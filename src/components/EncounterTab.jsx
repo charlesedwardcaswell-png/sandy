@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA , FACTION_COLORS } from '../data/constants';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, getArmorBonus } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
@@ -16,7 +16,7 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
   const voidTnBoost = c.voidArmor ? 10 : 0;
-  const armorBonus = pc?.armorBonus || c.armorBonus || 0;
+  const armorBonus = getArmorBonus(pc?.equipment) || pc?.armorBonus || c.armorBonus || 0;
   // Full Defense: adds HALF Defense roll (rounded up) to normal Armor TN
   // Defense stance: adds Air Ring + Defense Skill Rank
   // Full Attack: reduces Armor TN by 10
@@ -916,8 +916,15 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const nextIdx = (activeTurn + 1) % combatants.length;
     const isNewRound = nextIdx === 0;
     const newRound = isNewRound ? (round || 1) + 1 : round || 1;
+    const currentCombatant = combatants[activeTurn];
+    // Center stance carry-over: if ending turn in Center, flag for bonus next turn
+    const centerCarryBonus = currentCombatant?.stance === 'Center' ? (currentCombatant._centerBonus || true) : false;
     let nextCombatants = combatants.map((c, i) => {
       let updated = i === nextIdx ? { ...c, _actionsLeft: { full: 1, simple: 2 } } : c;
+      // Apply Center stance carry-over to the current combatant (they earned it this round)
+      if (i === activeTurn && centerCarryBonus) {
+        updated = { ...updated, _centerBonusPending: true };
+      }
       // On round change: apply pending init boosts and clear per-round void flags
       if (isNewRound) {
         updated = {
@@ -1280,7 +1287,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const entry = {
       session_id: session?.id || null,
       name: setup.name || `Session ${session?.session_number || '?'} — ${setup.setting} — ${setup.type}`,
-      encounter_name: setup.name || '',
       description: setup.desc || '',
       setting: setup.setting,
       encounter_type: setup.type,
@@ -1502,8 +1508,18 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     );
   }
 
-  // ── Setup state ──────────────────────────────────────────────────────────
+  // ── Setup state — GM only ────────────────────────────────────────────────
   if (state === 'setup') {
+    if (!isGM || isPCView) {
+      // Players see a waiting screen while GM sets up
+      return (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+          <i className="ti ti-hourglass" style={{ fontSize: 32, marginBottom: '1rem', display: 'block', color: 'var(--gold)', opacity: 0.5 }} />
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '.5rem' }}>Encounter Starting…</div>
+          <div style={{ fontSize: 13 }}>Your GM is setting up the encounter. Stand by.</div>
+        </div>
+      );
+    }
     return (
       <EncounterBuilder
         mode="live"
@@ -1804,7 +1820,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
-          onPass={advanceTurn}
+          onPass={(freeActionText) => {
+            if (freeActionText && freeActionText !== 'Free Action' && onLogEvent) {
+              onLogEvent('ti-bolt', `${active.name}: ${freeActionText}`);
+            }
+            advanceTurn();
+          }}
           onSpendAction={spendAction}
         />
       )}

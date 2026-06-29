@@ -166,7 +166,13 @@ export function formatDate(ts) {
 export function calcInsight(char) {
   const rings = (char.air||2) + (char.earth||2) + (char.fire||2) + (char.water||2) + (char.void||2);
   const skills = (char.skills||[]).reduce((s, sk) => s + (sk.rank||0), 0);
-  return rings * 10 + skills;
+  // Universal mastery bonuses: Rank 5 = +2 Insight, Rank 10 = +5 additional Insight (per skill)
+  const masteryInsight = (char.skills||[]).reduce((s, sk) => {
+    if ((sk.rank||0) >= 10) return s + 7; // +2 at R5, +5 more at R10 = +7 total
+    if ((sk.rank||0) >= 5)  return s + 2; // +2 at R5
+    return s;
+  }, 0);
+  return rings * 10 + skills + masteryInsight;
 }
 
 export function insightRankFor(insight) {

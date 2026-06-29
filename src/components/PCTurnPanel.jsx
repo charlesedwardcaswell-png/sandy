@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, SKILL_EMPHASES, POISON_EMPHASES } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, SKILL_EMPHASES, POISON_EMPHASES, getArmorBonus } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
@@ -117,7 +117,10 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   // Wound penalties are TN additions per L5R 4th Ed; Strength of the Earth reduces by 3
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasStrengthOfEarth = (character.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
-  const woundPenaltyReduction = hasStrengthOfEarth ? 3 : 0;
+  // City Guard R1 "Trained For War": subtract School Rank from wound penalties
+  const hasCityGuardR1 = Object.values(character.techniques || {}).some(t => t === 'Trained For War');
+  const cityGuardReduction = hasCityGuardR1 ? (character.school_rank || 1) : 0;
+  const woundPenaltyReduction = (hasStrengthOfEarth ? 3 : 0) + cityGuardReduction;
   const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction);
 
   // Drawn weapons and dual-wield penalties — computed at top level for use in roll TN
@@ -154,9 +157,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const stanceKeepBonus = combatant.stance === 'Full Attack' ? 1 : 0; // Full Attack +2k1
   // Center stance: +1k1 + Void Ring on first action (after spending previous round in Center)
   const voidRing = character?.void || combatant.void || 2;
-  const centerExtraRoll = combatant.stance === 'Center' ? (1 + voidRing) : 0;
-  const centerExtraKeep = combatant.stance === 'Center' ? 1 : 0;
-  const centerBonus = combatant.stance === 'Center' ? (character.school_rank || 1) : 0;
+  // _centerBonusPending: set when previous turn was spent in Center stance
+  const hasCenterBonus = !!combatant._centerBonusPending;
+  const centerExtraRoll = hasCenterBonus ? (1 + voidRing) : 0;
+  const centerExtraKeep = hasCenterBonus ? 1 : 0;
+  const centerBonus = combatant.stance === 'Center' ? (character?.school_rank || 1) : 0;
 
   // Skill mastery bonuses (ranks 3, 5, 7)
   const MASTERY_ROLL_BONUS = {
@@ -206,7 +211,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const getTargetTN = (targetId) => {
     const t = targetPool.find(e => e.id === targetId);
     if (!t) return 15;
-    return 5 + (t.reflexes || 2) * 5 + (t.has_armor ? 5 : 0);
+    const tArmor = getArmorBonus(t.equipment || []) || (t.has_armor ? 5 : 0) || t.armorBonus || 0;
+    return 5 + (t.reflexes || 2) * 5 + tArmor;
   };
 
   const handleSkillClick = (skill) => {
@@ -334,7 +340,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             baseKeep: intRing + bonusKeep + voidBonus,
             isSpellcasting: true,
             character,
-            bonusNotes: [...bonusNotesList, ...(spellVoidSpent ? ['+1k Void spent'] : [])],
+            woundPenalty,
+            bonusNotes: [...bonusNotesList, ...(spellVoidSpent ? ['+1k Void spent'] : []), ...(woundPenalty > 0 ? [`+${woundPenalty} TN wound penalty`] : [])],
             freeRaises: spellRaises,
             skillOutcome: 'spell',
             skillOutcomeData: { isJinnSummoning, spellName, characterId: character?.id, insightRank: character?.insight_rank || character?.school_rank || 1 },
@@ -423,8 +430,13 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
       {/* Header with action economy */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.75rem' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: noActionsLeft ? 'var(--text-muted)' : 'var(--gold)' }}>
-          <i className="ti ti-bolt" style={{ marginRight: 5 }} />{character?.name || combatant.name} — {isNPCTurn ? 'NPC Turn' : 'Your Turn'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--gold)', opacity: 0.9 }}>
+            ⚔ YOUR TURN
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: noActionsLeft ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+            {character?.name || combatant.name}
+          </div>
         </div>
         {/* Action Economy Display */}
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
@@ -498,10 +510,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </div>
         {combatant.stance && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>
-            {combatant.stance === 'Full Attack' && '+1k0 attack rolls'}
-            {combatant.stance === 'Full Defense' && 'Full Defense: Defense roll replaces Reflexes×5 for your TN to Be Hit — cannot attack'}
-            {combatant.stance === 'Center' && `+${character.school_rank || 1} flat bonus to first action (School Rank)`}
-            {combatant.stance === 'Water' && 'Move up to Water Ring as a free action'}
+            {combatant.stance === 'Full Attack' && '⚔ +2k1 attack rolls · −10 Armor TN · melee only'}
+            {combatant.stance === 'Full Defense' && '🛡 Defense roll replaces Reflexes×5 for your TN — cannot attack or cast'}
+            {combatant.stance === 'Defense' && `🌬 Air stance: +${(character?.air || character?.reflexes || 2)} Armor TN (Air Ring + Defense rank) — cannot attack`}
+            {combatant.stance === 'Center' && '◉ Forfeiting all actions — bonus applies to your FIRST roll next turn'}
+            {combatant.stance === 'Water' && '💧 Move up to Water Ring as a free action'}
+            {hasCenterBonus && <span style={{ color: 'var(--gold)', fontWeight: 700 }}> ✦ Center bonus ready: +{1 + voidRing}k1 on first roll this turn!</span>}
           </div>
         )}
       </div>
@@ -516,14 +530,37 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
           { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       actionType: 'Full',   color: '#c84030',
-            disabled: combatant.stance === 'Full Defense',
-            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense stance — only Free Actions allowed' : 'Attack (Full Action)' },
-          { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    actionType: 'Full',   color: 'var(--gold)',            title: 'Use a Skill (Full Action)' },
-          { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  actionType: 'Simple', color: 'var(--text-secondary)', title: 'Draw or ready a weapon (Simple Action)' },
+            disabled: ['Full Defense','Defense','Center'].includes(combatant.stance),
+            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense — only Free Actions left'
+                 : combatant.stance === 'Defense' ? 'Defense stance (Air): no attacks — cast spells or use skills instead'
+                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions this round'
+                 : 'Attack (Full Action)' },
+          { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    actionType: 'Full',   color: 'var(--gold)',
+            disabled: ['Full Attack','Full Defense','Center'].includes(combatant.stance),
+            title: combatant.stance === 'Full Attack' ? 'Full Attack: only attack actions allowed'
+                 : combatant.stance === 'Full Defense' ? 'Full Defense: only Free Actions remaining'
+                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions this round'
+                 : 'Use a Skill (Full Action)' },
+          { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  actionType: 'Simple', color: 'var(--text-secondary)',
+            disabled: ['Full Defense','Center'].includes(combatant.stance),
+            title: combatant.stance === 'Full Defense' ? 'Full Defense: only Free Actions remaining'
+                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
+                 : 'Draw or ready a weapon (Simple Action)' },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
-            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
-          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: 'var(--text-muted)',     title: 'Pass — skip your turn' },
-          { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0', hidden: !(character?.spells?.length > 0), title: 'Cast a Spell (Full Action)' },
+            disabled: ['Full Defense','Full Attack','Center'].includes(combatant.stance),
+            title: combatant.stance === 'Full Defense' ? 'Already in Full Defense'
+                 : combatant.stance === 'Full Attack' ? 'Cannot use Full Defense in Full Attack'
+                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
+                 : 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
+          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: noActionsLeft ? 'var(--gold)' : 'var(--text-muted)',     title: 'Pass — skip your turn', glow: noActionsLeft },
+          { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0',
+            hidden: !(character?.spells?.length > 0),
+            disabled: ['Full Attack','Full Defense','Center'].includes(combatant.stance),
+            title: combatant.stance === 'Full Attack' ? 'Cannot cast spells in Full Attack stance'
+                 : combatant.stance === 'Full Defense' ? 'Full Defense uses all actions — no spells'
+                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
+                 : 'Cast a Spell (Full Action)' },
+          { id: 'free',    icon: 'ti-bolt',                  label: 'Free Action',  actionType: 'Free',   color: 'var(--text-muted)',     title: 'Declare a Free Action — speak, spend Void, etc.' },
         ].filter(action => !action.hidden).map(action => (
           <button key={action.id}
             disabled={!!action.disabled}
@@ -554,6 +591,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 setSelectedAction('defend');
               }
               else if (action.id === 'pass') { setSelectedAction(null); if (onPass) onPass(); }
+              else if (action.id === 'free') { setSelectedAction('free'); }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
               else if (action.id === 'spell') { setShowSpellPicker(true); setSelectedAction(null); }
               else {
@@ -570,10 +608,10 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: '.4rem', padding: '.75rem .25rem',
               background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
-              border: `2px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
+              border: `2px solid ${selectedAction === action.id ? action.color : action.glow ? 'var(--gold)' : 'var(--border)'}`,
               borderRadius: 8, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
-              color: selectedAction === action.id ? action.color : 'var(--text-secondary)',
-              boxShadow: selectedAction === action.id ? `0 0 10px ${action.color}44` : 'none',
+              color: selectedAction === action.id ? action.color : action.glow ? 'var(--gold)' : 'var(--text-secondary)',
+              boxShadow: selectedAction === action.id ? `0 0 10px ${action.color}44` : action.glow ? '0 0 12px rgba(200,150,42,.5)' : 'none',
             }}
           >
             <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
@@ -822,6 +860,34 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         <button className="btn btn-p" onClick={() => setShowSkillPicker(true)}>
           <i className="ti ti-list-check" style={{ marginRight: 6 }} /> Choose Skill…
         </button>
+      )}
+
+      {/* Free Action pane */}
+      {selectedAction === 'free' && (
+        <div style={{ padding: '.6rem .75rem', background: 'rgba(100,100,100,.08)', border: '1px solid var(--border)', borderRadius: 5 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
+            Free Action — declare what you're doing (optional):
+          </div>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            <input id="free-action-input" placeholder="e.g. Spend Void, speak a warning, drop item…"
+              style={{ flex: 1, fontSize: 13, padding: '4px 8px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const txt = e.target.value.trim();
+                  if (onPass) onPass(txt || 'Free Action');
+                  setSelectedAction(null);
+                  e.target.value = '';
+                }
+              }}
+            />
+            <button className="btn btn-sm btn-p" onClick={() => {
+              const txt = document.getElementById('free-action-input')?.value?.trim();
+              if (onPass) onPass(txt || 'Free Action');
+              setSelectedAction(null);
+            }}>Log it</button>
+            <button className="btn btn-sm" onClick={() => setSelectedAction(null)}>Cancel</button>
+          </div>
+        </div>
       )}
 
       {/* Draw weapon */}
