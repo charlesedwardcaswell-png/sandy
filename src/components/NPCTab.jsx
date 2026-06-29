@@ -632,7 +632,7 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -686,6 +686,12 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
       <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>NPC Log</span>
         {gmView && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Add NPCs from the Character tab</span>}
+        {/* Refresh button — fallback if realtime isn't enabled */}
+        {onRefetch && (
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={onRefetch} title="Refresh NPC list from server">
+            <i className="ti ti-refresh" style={{ fontSize: 12 }} />
+          </button>
+        )}
         {/* Search */}
         <div style={{ position: 'relative', flex: 1, minWidth: 140, maxWidth: 240 }}>
           <i className="ti ti-search" style={{ position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)', pointerEvents: 'none' }} />

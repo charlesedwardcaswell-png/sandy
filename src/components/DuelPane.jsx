@@ -58,7 +58,9 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
   };
 
   // Void spending: adds +1k1 (one extra rolled, one extra kept)
-  const voidRoll = voidSpent ? rollDice(1)[0] : 0;
+  const [voidRollVal, setVoidRollVal] = React.useState(() => rollDice(1)[0]);
+  // Only re-roll the void die when the player first spends void, not on every render
+  const voidRoll = voidSpent ? voidRollVal : 0;
   const voidBonus = voidSpent ? 1 : 0; // +1k1 means +1 kept die
   const effectiveKept = pool.kept + voidBonus;
   const allDice = voidSpent ? [...dice, voidRoll] : dice;
@@ -78,7 +80,7 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
       {allowVoid && (currentVoid ?? 1) > 0 && (
         <div style={{ marginBottom: '.4rem' }}>
           <button className={`btn btn-sm ${voidSpent ? 'btn-p' : ''}`}
-            onClick={() => { setVoidSpent(v => !v); setKept(new Set()); }}
+            onClick={() => { if (!voidSpent) setVoidRollVal(rollDice(1)[0]); setVoidSpent(v => !v); setKept(new Set()); }}
             style={{ fontSize: 11, borderColor: voidSpent ? '#c0a0e0' : undefined }}>
             {voidSpent ? '✦ Void Spent (+1k1)' : '+ Spend Void (+1k1)'}
           </button>
@@ -149,7 +151,7 @@ function Portrait({ side, duel, showResult }) {
 // ── Main DuelPane ─────────────────────────────────────────────────────────────
 
 // ── RollBlock — must be top-level to prevent dice resetting on re-render ────────
-function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct }) {
+function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, allowVoid = false, currentVoid = 1 }) {
   const hasRolled = rolledValue != null;
   const [isRolling, setIsRolling] = React.useState(false);
   // Reset isRolling when someone else rolls (their result appears)
@@ -163,7 +165,7 @@ function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct }) {
       {hasRolled ? (
         <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{rolledValue}</div>
       ) : isRolling && canAct ? (
-        <DicePicker pool={pool} onConfirm={total => { onRoll(total); setIsRolling(false); }} />
+        <DicePicker pool={pool} allowVoid={allowVoid} currentVoid={currentVoid} onConfirm={total => { onRoll(total); setIsRolling(false); }} />
       ) : canAct ? (
         <button className="btn btn-p" style={{ marginTop: '.25rem' }} onClick={() => setIsRolling(true)}>
           Roll {pool.rolled}k{pool.kept}
@@ -355,6 +357,8 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
               <RollBlock key={side} name={duel[side].name} pool={getAssessPool(side)}
                 rolledValue={duel.assessmentRolls?.[side]}
                 canAct={canAct(side)}
+                allowVoid={true}
+                currentVoid={pc(side)?.current_void ?? pc(side)?.void ?? 1}
                 onRoll={(total) => onUpdate({ assessmentRolls: { ...duel.assessmentRolls, [side]: total } })} />
             ))}
           </div>
@@ -378,7 +382,9 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                         {INTEL_LIST.map(item => {
                           const oppSide = assessmentResult.winner === 'challenger' ? 'defender' : 'challenger';
                           const isRevealed = revealedIntel.includes(item.key);
-                          const canReveal = !isRevealed && revealedIntel.length < assessmentResult.intelCount && isGM;
+                          const winnerSide = assessmentResult.winner;
+                          const isWinnerPlayer = winnerSide && myCharId === duel[winnerSide]?.id;
+                          const canReveal = !isRevealed && revealedIntel.length < assessmentResult.intelCount && (isGM || isWinnerPlayer);
                           const val = getIntelValue(pc(oppSide), item.key);
                           return (
                             <div key={item.key} onClick={() => canReveal && setRevealedIntel(r => [...r, item.key])}
@@ -522,7 +528,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: '.4rem' }}>
-                    TN {pool.tn}{pool.totalRaises > 0 ? ` · ${pool.totalRaises} raise${pool.totalRaises > 1 ? 's' : ''} → +${pool.totalRaises * 5} dmg if hit` : ''}
+                    TN {pool.tn}{pool.totalRaises > 0 ? ` · ${pool.totalRaises} raise${pool.totalRaises > 1 ? 's' : ''} (narrative/maneuver)` : ''}
                   </div>
                   {/* Roll block */}
                   {(() => {

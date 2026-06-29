@@ -542,7 +542,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
         {/* Spell description side panel */}
         <div style={{ width: 200, flexShrink: 0 }}>
           {hoveredSpell ? (
-            <div style={{ position: 'sticky', top: 0, padding: '.6rem .75rem', background: 'var(--bg-panel)', border: `1px solid ${disc.color}55`, borderRadius: 6, borderLeft: `3px solid ${disc.color}` }}>
+            <div style={{ position: 'sticky', top: 0, padding: '.6rem .75rem', background: 'var(--bg-panel)', borderTop: `1px solid ${disc.color}55`, borderRight: `1px solid ${disc.color}55`, borderBottom: `1px solid ${disc.color}55`, borderLeft: `3px solid ${disc.color}`, borderRadius: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: disc.color, marginBottom: '.2rem' }}>{hoveredSpell.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Level {hoveredSpell.level} · TN {hoveredSpell.tn}</div>
               {hoveredSpell.desc && (

@@ -147,7 +147,7 @@ export function buildCharacterFromForm(form) {
     equipment,
     spells: form.selectedSpells || [],
     spell_emphasis: form.spellEmphasis || '',
-    xp_total: 0,
+    xp_total: Math.max(0, form.cpRemaining || 0), // unused CP converts to starting XP
     xp_spent: 0,
     xp_log: [],
     copper: sd.starting_copper || 3,

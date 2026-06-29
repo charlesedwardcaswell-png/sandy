@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
@@ -47,8 +47,10 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       const claimed = myCharId && playerCharsNow.find(c => c.id === myCharId);
       const current = selId && playerCharsNow.find(c => c.id === selId);
       if (!current) {
+        // No valid selection — default to claimed character or first
         setSelId(claimed ? claimed.id : playerCharsNow[0].id);
       }
+      // Do NOT forcibly reset to claimed if user has manually navigated elsewhere
     }
   }, [characters, myCharId]);
 
@@ -244,25 +246,35 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           const rank = npc.rank || 1;
           const sd = SCHOOL_DATA[npc.school];
 
-          // Start with school base traits, then apply rank bonuses
-          const baseTraits = { ...(sd?.base_traits || {}) };
-          // Default ring values: school base or rank+1 approximation
-          const defaultRing = rank + 1;
-          const air   = baseTraits.Air   || defaultRing;
-          const earth = baseTraits.Earth || defaultRing;
-          const fire  = baseTraits.Fire  || defaultRing;
-          const water = baseTraits.Water || defaultRing;
-          const voidR = baseTraits.Void  || 2;
-
-          // Trait bonuses from subfaction/school
-          const startRef = baseTraits.Reflexes   || air;
-          const startAwa = baseTraits.Awareness  || air;
-          const startSta = baseTraits.Stamina    || earth;
-          const startWil = baseTraits.Willpower  || earth;
-          const startAgi = baseTraits.Agility    || fire;
-          const startInt = baseTraits.Intelligence || fire;
-          const startStr = baseTraits.Strength   || water;
-          const startPer = baseTraits.Perception || water;
+          // Build sensible stats from school type and rank
+          // Base: all rings at 2 (standard starting), scaled by rank
+          // School type shifts primary stat emphasis; bonus_trait gets +1
+          const schoolType = sd?.type || 'Warrior';
+          const bonusTrait = sd?.bonus_trait || 'Agility';
+          // Per-rank trait increases by school type (approximate)
+          const rankBonus = Math.max(0, rank - 1); // Rank 1 = no bonus, R2 = +1, etc.
+          // Type-based ring emphasis
+          const typeRings = {
+            'Warrior':  { air: 1, fire: 1, earth: 0, water: 0 },
+            'Sahir':    { air: 1, fire: 1, earth: 0, water: 0 },
+            'Diplomat': { air: 1, fire: 0, earth: 0, water: 1 },
+            'Ninja':    { air: 1, fire: 1, earth: 0, water: 0 },
+          }[schoolType] || { air: 0, fire: 1, earth: 0, water: 0 };
+          const air   = 2 + (typeRings.air   ? Math.ceil(rankBonus * 0.5) : 0);
+          const fire  = 2 + (typeRings.fire  ? Math.ceil(rankBonus * 0.5) : 0);
+          const earth = 2 + Math.floor(rankBonus * 0.3);
+          const water = 2 + (typeRings.water ? Math.ceil(rankBonus * 0.4) : Math.floor(rankBonus * 0.2));
+          const voidR = 2;
+          // Individual traits — start at ring value, bonus_trait gets +1
+          const makeTrait = (ring, traitName) => ring + (bonusTrait === traitName ? 1 : 0);
+          const startRef = makeTrait(air,   'Reflexes');
+          const startAwa = makeTrait(air,   'Awareness');
+          const startSta = makeTrait(earth, 'Stamina');
+          const startWil = makeTrait(earth, 'Willpower');
+          const startAgi = makeTrait(fire,  'Agility');
+          const startInt = makeTrait(fire,  'Intelligence');
+          const startStr = makeTrait(water, 'Strength');
+          const startPer = makeTrait(water, 'Perception');
 
           // Build school skills at rank
           const schoolSkills = (sd?.skills || []).map(s => ({
@@ -303,27 +315,40 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
               {npc.is_visible_to_players ? '● Visible to players' : '○ Hidden from players'}
             </div>
 
-            {/* ── Stats block ── */}
+            {/* ── Stats block — computed same way as Promote ── */}
             {(() => {
               const rank = npc.rank || 1;
-              const defaultRing = rank + 1;
-              const bt = sd?.base_traits || {};
-              const rings = {
-                Air: bt.Air || defaultRing, Earth: bt.Earth || defaultRing,
-                Fire: bt.Fire || defaultRing, Water: bt.Water || defaultRing, Void: bt.Void || 2,
-              };
-              const traits = {
-                Reflexes: bt.Reflexes || rings.Air, Awareness: bt.Awareness || rings.Air,
-                Stamina: bt.Stamina || rings.Earth, Willpower: bt.Willpower || rings.Earth,
-                Agility: bt.Agility || rings.Fire, Intelligence: bt.Intelligence || rings.Fire,
-                Strength: bt.Strength || rings.Water, Perception: bt.Perception || rings.Water,
-              };
-              const armorTN = 5 + (traits.Reflexes * 5);
-              const initiative = `${traits.Reflexes + (rank || 1)}k${rings.Air}`;
-              const woundsPerLevel = rings.Earth * 2;
+              const schoolType = sd?.type || 'Warrior';
+              const bonusTrait = sd?.bonus_trait || 'Agility';
+              const rankBonus = Math.max(0, rank - 1);
+              const typeRings = {
+                'Warrior':  { air: 1, fire: 1, earth: 0, water: 0 },
+                'Sahir':    { air: 1, fire: 1, earth: 0, water: 0 },
+                'Diplomat': { air: 1, fire: 0, earth: 0, water: 1 },
+                'Ninja':    { air: 1, fire: 1, earth: 0, water: 0 },
+              }[schoolType] || { air: 0, fire: 1, earth: 0, water: 0 };
+              const air   = 2 + (typeRings.air   ? Math.ceil(rankBonus * 0.5) : 0);
+              const fire  = 2 + (typeRings.fire  ? Math.ceil(rankBonus * 0.5) : 0);
+              const earth = 2 + Math.floor(rankBonus * 0.3);
+              const water = 2 + (typeRings.water ? Math.ceil(rankBonus * 0.4) : Math.floor(rankBonus * 0.2));
+              const voidR = 2;
+              const bt = (traitName) => (bonusTrait === traitName ? 1 : 0);
+              const reflexes    = air   + bt('Reflexes');
+              const awareness   = air   + bt('Awareness');
+              const stamina     = earth + bt('Stamina');
+              const agility     = fire  + bt('Agility');
+              const intelligence = fire + bt('Intelligence');
+              const strength    = water + bt('Strength');
+              const armorTN = 5 + reflexes * 5;
+              const initPool = `${reflexes + rank}k${air}`;
+              const woundsPerLevel = earth * 2;
+              const rings = { Air: air, Earth: earth, Fire: fire, Water: water, Void: voidR };
               return (
                 <div style={{ marginBottom: '.75rem' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Stats (approx. Rank {rank})</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                    Estimated Stats — {schoolType} Rank {rank}
+                    {bonusTrait && <span style={{ color: 'var(--gold-dim)', marginLeft: 6 }}>Bonus: {bonusTrait}</span>}
+                  </div>
                   <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: 12 }}>
                     {Object.entries(rings).map(([ring, val]) => (
                       <div key={ring} style={{ textAlign: 'center' }}>
@@ -337,12 +362,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Armor TN</div>
                       </div>
                       <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{initiative}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{initPool}</div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Initiative</div>
                       </div>
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{woundsPerLevel}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Wounds/level</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Wounds/lvl</div>
                       </div>
                     </div>
                   </div>
@@ -647,7 +672,14 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
           updates[ringInfo.ring] = Math.min(item.to, otherVal);
         }
       } else if (item.type === 'skill') {
-        updates.skills = (updates.skills || char.skills || []).map(s => s.name === item.key ? { ...s, rank: item.to } : s);
+        const currentSkills = updates.skills || char.skills || [];
+        const exists = currentSkills.some(s => s.name === item.key);
+        if (exists) {
+          updates.skills = currentSkills.map(s => s.name === item.key ? { ...s, rank: item.to } : s);
+        } else {
+          // New skill — add it to the character's skill list
+          updates.skills = [...currentSkills, { name: item.key, rank: item.to, school: false, emphases: [] }];
+        }
       } else if (item.type === 'emphasis') {
         const [skillName, emphasis] = item.key.split('|||');
         updates.skills = (updates.skills || char.skills || []).map(s =>
@@ -878,6 +910,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const [pendingRankUp, setPendingRankUp] = useState(false);
   const [showSocialRef, setShowSocialRef] = useState(null); // 'integrity' | 'reputation' | 'status'
   const [skillTraitOverride, setSkillTraitOverride] = useState({}); // skillName -> trait key override
+  const [expandedSkills, setExpandedSkills] = useState({}); // skillName -> bool
 
   const insight = calcInsight(char);
   const insightRank = insightRankFor(insight);
@@ -895,6 +928,17 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     const projRank = insightRankFor(projInsight);
     if (projRank > (char.school_rank || 1)) setPendingRankUp(true);
   };
+
+  // Equipment slot classification — enforces single-slot rules for worn items
+  const getEquipSlot = (itemName) => {
+    const n = (itemName || '').toLowerCase();
+    if (n.includes('armor') || n.includes('lorica') || n.includes('chain shirt') || n.includes('half-plate') || n.includes('ebonite armor') || n.includes('riding armor') || n.includes('partial armor')) return 'armor';
+    if (n.includes('clothing') || n.includes('clothes') || n.includes('robe') || n.includes('tunic') || n.includes('toga') || n.includes('cloak') || n.includes('outfit') || n.includes('garment') || n.includes('uniform')) return 'clothing';
+    if (n.includes('sandal') || n.includes('boot') || n.includes('shoe') || n.includes('slipper')) return 'footwear';
+    if (n.includes('hat') || n.includes('helm') || n.includes('turban') || n.includes('crown') || n.includes('hood') || n.includes('keffiyeh') || n.includes('headwear') || n.includes('cap') || n.includes('veil')) return 'headwear';
+    return 'accessory'; // accessories: multiple allowed
+  };
+  const SINGLE_SLOT_CATEGORIES = ['armor', 'clothing', 'footwear', 'headwear'];
 
   const toggleEqInUse = (idx) => {
     const eq = [...(char.equipment || [])];
@@ -1308,11 +1352,39 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 </div>
               );
             })()}
-            {/* Armor TN / Init */}
-            <div style={{ marginTop: '.4rem', fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
-              <span>TN <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{5 + (char.reflexes || 2) * 5}</span></span>
-              <span>Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span></span>
-              <span>XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span></span>
+            {/* Armor TN / Init — prominent */}
+            <div style={{ marginTop: '.4rem' }}>
+              {(() => {
+                const baseTN = 5 + (char.reflexes || 2) * 5;
+                const armorBns = getArmorBonus(char.equipment || []);
+                const totalTN = baseTN + armorBns;
+                const equippedArmor = (char.equipment || []).find(e => e.equipped && (ARMOR_TN_BONUS[e.name] !== undefined || e.name?.toLowerCase().includes('armor') || e.name?.toLowerCase().includes('chain') || e.name?.toLowerCase().includes('lorica')));
+                const armorDesc = equippedArmor ? (GEAR_DESCRIPTIONS[equippedArmor.name] || '') : '';
+                return (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{totalTN}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Armor TN</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginTop: 1 }}>
+                        {baseTN} base{armorBns > 0 ? ` + ${armorBns} ${equippedArmor ? equippedArmor.name.split('(')[0].trim() : 'armor'}` : ' (no armor)'}
+                      </div>
+                      {armorDesc && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic', maxWidth: 200, lineHeight: 1.4 }}>{armorDesc}</div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: 4 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -1529,7 +1601,13 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   <div key={s.name}>
                     <div className="skill-row">
                       <span className={`skill-nm ${s.school ? 'sc' : ''}`}>
-                        {s.name}
+                        {SKILL_DESCRIPTIONS[s.name] || SKILL_DESCRIPTIONS[s.name.split(':')[0].trim()] ? (
+                          <span style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                            onClick={() => setExpandedSkills(ex => ({ ...ex, [s.name]: !ex[s.name] }))}>
+                            {s.name}
+                            <i className={`ti ti-chevron-${expandedSkills[s.name] ? 'up' : 'down'}`} style={{ fontSize: 9, color: 'var(--text-muted)', opacity: 0.6 }} />
+                          </span>
+                        ) : s.name}
                         {(s.emphases || []).map(e => (
                           <span key={e} style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 4 }}>
                             ({e}){canEdit && <span style={{ cursor: 'pointer', marginLeft: 2, color: 'var(--text-muted)' }}
@@ -1613,6 +1691,17 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <i className="ti ti-star" style={{ fontSize: 10 }} />R{rank}: {desc}
                       </div>
                     ))}
+                    {/* Skill description — shown when expanded */}
+                    {expandedSkills[s.name] && (() => {
+                      const baseName = s.name.split(':')[0].trim();
+                      const desc = SKILL_DESCRIPTIONS[s.name] || SKILL_DESCRIPTIONS[baseName];
+                      if (!desc) return null;
+                      return (
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', paddingLeft: 16, paddingBottom: 4, lineHeight: 1.5, borderLeft: '2px solid var(--gold-dim)', marginLeft: 4 }}>
+                          {desc}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               });
@@ -1744,10 +1833,23 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
                       <input type="checkbox" checked={e.equipped || false} onChange={() => {
-                        const eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, equipped: !x.equipped } : x);
+                        const slot = getEquipSlot(e.name);
+                        let eq;
+                        if (!e.equipped && SINGLE_SLOT_CATEGORIES.includes(slot)) {
+                          // Equipping: unequip any other item in the same slot first
+                          eq = (char.equipment || []).map((x, xi) =>
+                            xi === i ? { ...x, equipped: true }
+                            : getEquipSlot(x.name) === slot ? { ...x, equipped: false }
+                            : x
+                          );
+                        } else {
+                          eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, equipped: !x.equipped } : x);
+                        }
                         update('equipment', eq);
                       }} style={{ accentColor: 'var(--gold)' }} />
-                      <span style={{ color: 'var(--text-muted)' }}>Equipped</span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Equipped{e.equipped && SINGLE_SLOT_CATEGORIES.includes(getEquipSlot(e.name)) ? ` (${getEquipSlot(e.name)})` : ''}
+                      </span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
                       <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
@@ -1758,10 +1860,27 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         title="Send to Party Inventory"
                         onClick={() => {
                           const item = char.equipment[i];
-                          const eq = (char.equipment || []).filter((_, idx) => idx !== i);
-                          update('equipment', eq);
+                          update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
                           onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
                         }}>→ Party</button>
+                    )}
+                    {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
+                      <select style={{ fontSize: 10, padding: '1px 3px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer' }}
+                        value=""
+                        onChange={ev => {
+                          const targetId = ev.target.value;
+                          if (!targetId) return;
+                          const targetChar = (allChars || []).find(c => c.id === targetId);
+                          if (!targetChar) return;
+                          const item = char.equipment[i];
+                          update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
+                          onUpdate(targetId, { equipment: [...(targetChar.equipment || []), { ...item, equipped: false, inUse: false }] });
+                        }}>
+                        <option value="">→ Player…</option>
+                        {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
                     )}
                     {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
                   </div>
@@ -1775,7 +1894,15 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>In use</span>
                 </label>
-                <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}>{e.name}</span>
+                <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                  title={GEAR_DESCRIPTIONS[e.name] || undefined}>
+                  {e.name}
+                  {GEAR_DESCRIPTIONS[e.name] && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5, fontStyle: 'italic', display: 'block', lineHeight: 1.3 }}>
+                      {GEAR_DESCRIPTIONS[e.name]}
+                    </span>
+                  )}
+                </span>
                 {e.quality && e.quality !== 'standard' && (
                   <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: qualData.label === 'Poor' ? '#2a1a0a' : '#1a2a0a', color: qualData.label === 'Poor' ? '#8a5a30' : '#5a8a30', border: `1px solid ${qualData.label === 'Poor' ? '#4a2a1a' : '#3a6a1a'}` }} title={qualData.desc}>
                     {qualData.label}
@@ -1818,10 +1945,27 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     title="Send to Party Inventory"
                     onClick={() => {
                       const item = char.equipment[i];
-                      const eq = (char.equipment || []).filter((_, idx) => idx !== i);
-                      update('equipment', eq);
-                      onUpdateInventory({ items: [...(partyInventoryItems || []), { name: item.name, qty: 1, category: 'Gear' }] });
+                      update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
+                      onUpdateInventory({ items: [...(partyInventoryItems || []), { name: item.name, qty: 1, category: 'Gear', dr: item.dr || '', skill: item.skill || '' }] });
                     }}>→ Party</button>
+                )}
+                {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
+                  <select style={{ fontSize: 10, padding: '1px 3px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer' }}
+                    value=""
+                    onChange={ev => {
+                      const targetId = ev.target.value;
+                      if (!targetId) return;
+                      const targetChar = (allChars || []).find(c => c.id === targetId);
+                      if (!targetChar) return;
+                      const item = char.equipment[i];
+                      update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
+                      onUpdate(targetId, { equipment: [...(targetChar.equipment || []), { ...item, equipped: false, inUse: false }] });
+                    }}>
+                    <option value="">→ Player…</option>
+                    {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 )}
                 {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
               </div>
@@ -2143,7 +2287,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
   const identityStep = schoolIsSahir ? 7 : 6;
 
   const handleComplete = () => {
-    const charData = buildCharacterFromForm({ faction, subfaction, school, name, playerName, traits, skills, advantages, disadvantages, selectedSpells, spellEmphasis });
+    const charData = buildCharacterFromForm({ faction, subfaction, school, name, playerName, traits, skills, advantages, disadvantages, selectedSpells, spellEmphasis, cpRemaining });
     onComplete({ ...charData, game_id: GAME_ID, is_npc: isNpc, avatar_url: portraitUrl.trim() });
   };
 
@@ -2347,15 +2491,42 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
           <div className="g2">
             <div className="card">
               <div className="card-title">Traits</div>
-              {[...TRAITS, 'Void'].map(t => {
+              {/* Ring labels before trait pairs */}
+              {[...TRAITS, 'Void'].map((t, idx) => {
                 const base = getBaseTraitValue(t), cur = traits[t] || 2;
+                // Compute ring value for this trait
+                const TRAIT_PAIRS = {
+                  'Reflexes': ['Reflexes','Awareness'], 'Awareness': ['Reflexes','Awareness'],
+                  'Stamina': ['Stamina','Willpower'], 'Willpower': ['Stamina','Willpower'],
+                  'Agility': ['Agility','Intelligence'], 'Intelligence': ['Agility','Intelligence'],
+                  'Strength': ['Strength','Perception'], 'Perception': ['Strength','Perception'],
+                };
+                const RING_NAME = { 'Reflexes':'Air','Awareness':'Air','Stamina':'Earth','Willpower':'Earth','Agility':'Fire','Intelligence':'Fire','Strength':'Water','Perception':'Water','Void':'Void' };
+                const pair = TRAIT_PAIRS[t];
+                const ringVal = pair ? Math.min(traits[pair[0]] || 2, traits[pair[1]] || 2) : (traits[t] || 2);
+                const ringName = RING_NAME[t] || '';
+                const isFirstOfPair = !pair || pair[0] === t || t === 'Void';
                 return (
-                  <div key={t} className="trait-row">
-                    <span className="trait-label" style={{ color: cur > base ? 'var(--gold-light)' : 'var(--text-muted)' }}>{t}</span>
-                    <button className="trait-btn" onClick={() => adjustTrait(t, -1)} disabled={cur <= base}>−</button>
-                    <span className="trait-val">{cur}</span>
-                    <button className="trait-btn" onClick={() => adjustTrait(t, 1)} disabled={cur >= base + 2}>+</button>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>base {base}</span>
+                  <div key={t}>
+                    {isFirstOfPair && pair && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0 0 0', marginTop: idx > 0 ? 4 : 0 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 32 }}>{ringName}</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold)', minWidth: 22, textAlign: 'center' }}>{ringVal}</span>
+                      </div>
+                    )}
+                    {t === 'Void' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0 0 0', marginTop: 4 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 32 }}>Void</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: '#a080d0', minWidth: 22, textAlign: 'center' }}>{traits.Void || 2}</span>
+                      </div>
+                    )}
+                    <div className="trait-row" style={{ paddingLeft: 12 }}>
+                      <span className="trait-label" style={{ color: cur > base ? 'var(--gold-light)' : 'var(--text-muted)' }}>{t}</span>
+                      <button className="trait-btn" onClick={() => adjustTrait(t, -1)} disabled={cur <= base}>−</button>
+                      <span className="trait-val">{cur}</span>
+                      <button className="trait-btn" onClick={() => adjustTrait(t, 1)} disabled={cur >= base + 2}>+</button>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>base {base}</span>
+                    </div>
                   </div>
                 );
               })}

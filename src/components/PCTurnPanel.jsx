@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, SKILL_EMPHASES, POISON_EMPHASES, getArmorBonus } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
@@ -6,18 +6,26 @@ import SpellConstellation from './SpellConstellation';
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [] }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [selectedWeapon, setSelectedWeapon] = useState(null);
   const [skillCategory, setSkillCategory] = useState('combat');
   const [allowFriendly, setAllowFriendly] = useState(false);
-  const [showSkillPicker, setShowSkillPicker] = useState(false); // full-screen skill overlay
-  const [showSpellPicker, setShowSpellPicker] = useState(false); // full-screen spell overlay
+  const [showSkillPicker, setShowSkillPicker] = useState(false);
+  const [showSpellPicker, setShowSpellPicker] = useState(false);
   const [selectedSpell, setSelectedSpell] = useState(null);
   const [pendingSpell, setPendingSpell] = useState(null);
   const [spellVoidSpent, setSpellVoidSpent] = useState(false);
+  const [stanceConfirmed, setStanceConfirmed] = useState(false);
+  // Reset stance confirmation each time it becomes a new person's turn
+  const combatantId = combatant?.id;
+  useEffect(() => {
+    if (!combatantId) return;
+    setStanceConfirmed(false);
+    setSelectedAction(null);
+  }, [combatantId]);
   const [spellRaises, setSpellRaises] = useState(0);
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
@@ -58,12 +66,20 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 if (action.disabled) return;
                 if (action.id === 'pass') { if (onPass) onPass(); }
                 else if (action.id === 'defend') {
-                  onStanceChange('Full Defense');
+                  const defSkill = (character?.skills || []).find(s => s.name === 'Defense')?.rank || 0;
+                  const agility = combatant.agility || character?.agility || 2;
+                  const reflexes = combatant.reflexes || character?.reflexes || 2;
                   onRoll({
-                    skill: 'Defense (Full Defense)', tn: 5,
-                    baseRoll: (combatant.agility || 2) + 1,
-                    baseKeep: combatant.agility || 2,
-                    resultLabel: 'Half this result (round up) added to normal Armor TN until next Turn.',
+                    skill: 'Defense (Full Defense)',
+                    tn: 5,
+                    baseRoll: reflexes + defSkill,
+                    baseKeep: agility,
+                    woundPenalty,
+                    resultLabel: 'Half this result (round up) added to your base Armor TN until your next Turn.',
+                    bonusNotes: defSkill > 0 ? [`Defense Skill Rank ${defSkill} added to pool`] : [],
+                    onComplete: (total) => {
+                      onStanceChange('Full Defense', total);
+                    },
                   });
                   if (onSpendAction) onSpendAction('full');
                   setSelectedAction('defend');
@@ -101,6 +117,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   dr: combatant.dr || '3k2',
                   targetName: enemies.find(e => e.id === selectedTarget)?.name,
                   targetId: selectedTarget,
+                  woundPenalty,
                 });
                 onSpendAction && onSpendAction('full');
               }}>
@@ -118,7 +135,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasStrengthOfEarth = (character.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
   // City Guard R1 "Trained For War": subtract School Rank from wound penalties
-  const hasCityGuardR1 = Object.values(character.techniques || {}).some(t => t === 'Trained For War');
+  const hasCityGuardR1 = character && Object.values(character.techniques || {}).some(t => t === 'Trained For War');
   const cityGuardReduction = hasCityGuardR1 ? (character.school_rank || 1) : 0;
   const woundPenaltyReduction = (hasStrengthOfEarth ? 3 : 0) + cityGuardReduction;
   const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction);
@@ -290,7 +307,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (onSpendAction) onSpendAction('full');
   };
 
-  const stanceChosen = !!combatant.stance;
+  const stanceChosen = stanceConfirmed;
 
   const actions = actionsLeft || { full: 1, simple: 2 };
   const noActionsLeft = actions.full <= 0 && actions.simple <= 0;
@@ -474,12 +491,19 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         )}
       </div>
 
-      {/* ── Step 1: Stance — always visible, prominent ── */}
-      <div style={{ marginBottom: '.75rem' }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>
-          Choose Stance
-        </div>
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+      {/* ── Step 1: Stance — large when no stance, compact after ── */}
+      <div style={{ marginBottom: stanceChosen ? '.5rem' : '1rem' }}>
+        {!stanceChosen && (
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)', textAlign: 'center', marginBottom: '.6rem', letterSpacing: '.05em' }}>
+            Choose Your Stance
+          </div>
+        )}
+        {stanceChosen && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.25rem' }}>
+            Stance
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: stanceChosen ? '.3rem' : '.5rem', flexWrap: 'wrap', justifyContent: stanceChosen ? 'flex-start' : 'center' }}>
           {STANCES.map(s => {
             const isActive = combatant.stance === s;
             const stanceColors = {
@@ -493,15 +517,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             const col = stanceColors[s] || 'var(--gold)';
             return (
               <button key={s}
-                onClick={() => { onStanceChange(s); setSelectedAction(null); }}
+                onClick={() => { onStanceChange(s); setSelectedAction(null); setStanceConfirmed(true); }}
                 style={{
-                  padding: '6px 14px', borderRadius: 5, fontFamily: 'inherit', cursor: 'pointer',
-                  fontSize: 14, fontWeight: isActive ? 700 : 400,
+                  padding: stanceChosen ? '4px 10px' : '10px 18px',
+                  borderRadius: 5, fontFamily: 'inherit', cursor: 'pointer',
+                  fontSize: stanceChosen ? 12 : 15, fontWeight: isActive ? 700 : (stanceChosen ? 400 : 500),
                   background: isActive ? col + '33' : 'var(--bg-panel)',
                   border: `2px solid ${isActive ? col : 'var(--border)'}`,
                   color: isActive ? col : 'var(--text-muted)',
                   boxShadow: isActive ? `0 0 10px ${col}55` : 'none',
-                  transition: 'all .15s',
+                  transition: 'all .2s',
+                  flex: stanceChosen ? undefined : '1 1 calc(33% - .5rem)',
+                  minWidth: stanceChosen ? undefined : 90,
                 }}>
                 {s}
               </button>
@@ -511,10 +538,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         {combatant.stance && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>
             {combatant.stance === 'Full Attack' && '⚔ +2k1 attack rolls · −10 Armor TN · melee only'}
-            {combatant.stance === 'Full Defense' && '🛡 Defense roll replaces Reflexes×5 for your TN — cannot attack or cast'}
-            {combatant.stance === 'Defense' && `🌬 Air stance: +${(character?.air || character?.reflexes || 2)} Armor TN (Air Ring + Defense rank) — cannot attack`}
+            {combatant.stance === 'Full Defense' && '🛡 Defense roll result ÷2 (round up) added to base Armor TN — only Free Actions remain'}
+            {combatant.stance === 'Defense' && (() => {
+              const airRing = character?.air || 2;
+              const defSkillRank = (character?.skills || []).find(s => s.name === 'Defense')?.rank || combatant.defenseSkillRank || 0;
+              const bonus = airRing + defSkillRank;
+              const baseTN = 5 + (character?.reflexes || combatant.reflexes || 2) * 5;
+              return `🌬 Air stance: +${bonus} Armor TN (Air ${airRing}${defSkillRank > 0 ? ` + Defense Skill ${defSkillRank}` : ''}) = TN ${baseTN + bonus} — cannot attack`;
+            })()}
+            {combatant.stance === 'Attack' && '💧 Attack stance — no restrictions'}
             {combatant.stance === 'Center' && '◉ Forfeiting all actions — bonus applies to your FIRST roll next turn'}
-            {combatant.stance === 'Water' && '💧 Move up to Water Ring as a free action'}
             {hasCenterBonus && <span style={{ color: 'var(--gold)', fontWeight: 700 }}> ✦ Center bonus ready: +{1 + voidRing}k1 on first roll this turn!</span>}
           </div>
         )}
@@ -546,6 +579,13 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             title: combatant.stance === 'Full Defense' ? 'Full Defense: only Free Actions remaining'
                  : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
                  : 'Draw or ready a weapon (Simple Action)' },
+          { id: 'move',    icon: 'ti-run',                   label: 'Move',
+            actionType: combatant.stance === 'Full Attack' ? 'Free' : 'Simple',
+            color: '#4a90d0',
+            disabled: combatant.stance === 'Center',
+            title: combatant.stance === 'Center' ? 'Center stance forfeits all actions'
+                 : combatant.stance === 'Full Attack' ? `Full Attack: move up to Water Ring (${character?.water || combatant.water || 2}) squares free — toward enemies only (no action cost)`
+                 : `Move up to Water Ring (${character?.water || combatant.water || 2}) squares (Simple Action — can do twice)` },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
             disabled: ['Full Defense','Full Attack','Center'].includes(combatant.stance),
             title: combatant.stance === 'Full Defense' ? 'Already in Full Defense'
@@ -582,6 +622,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   baseRoll: agl + defRank,
                   baseKeep: agl,
                   character,
+                  woundPenalty,
                   resultLabel: 'Defense roll result replaces your Reflexes×5 — new Armor TN = 5 + armor + this roll',
                   onComplete: (result) => {
                     onStanceChange('Full Defense', result ?? 10);
@@ -592,6 +633,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               }
               else if (action.id === 'pass') { setSelectedAction(null); if (onPass) onPass(); }
               else if (action.id === 'free') { setSelectedAction('free'); }
+              else if (action.id === 'move') {
+                setSelectedAction('move');
+                // Full Attack: movement is free (no action cost)
+                if (combatant.stance !== 'Full Attack') { if (onSpendAction) onSpendAction('simple'); }
+                if (onMoveAction) onMoveAction();
+              }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
               else if (action.id === 'spell') { setShowSpellPicker(true); setSelectedAction(null); }
               else {
@@ -862,14 +909,71 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </button>
       )}
 
+      {/* Move action pane */}
+      {selectedAction === 'move' && (() => {
+        const waterRing = character?.water || combatant.water || 2;
+        const movesUsed = combatant._movesUsed || 0;
+        const isFullAttack = combatant.stance === 'Full Attack';
+        const maxMoves = isFullAttack ? 1 : 2;
+        const onGrid = combatant.gridX !== undefined;
+        return (
+          <div style={{ padding: '.6rem .75rem', background: 'rgba(74,144,208,.08)', border: '1px solid rgba(74,144,208,.3)', borderRadius: 5 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#4a90d0', marginBottom: '.35rem' }}>
+              🏃 Move — up to {waterRing} square{waterRing !== 1 ? 's' : ''}
+              {isFullAttack && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>(free — toward enemies only)</span>}
+            </div>
+            {onGrid ? (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Glowing squares show your movement range. Click or drag your token to move.
+                {movesUsed >= maxMoves && <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 3 }}>Movement used for this turn.</div>}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                Grid is not active — movement is narrative. Describe where you move to the GM.
+              </div>
+            )}
+            <button className="btn btn-sm" style={{ marginTop: '.4rem' }} onClick={() => setSelectedAction(null)}>Done</button>
+          </div>
+        );
+      })()}
+
       {/* Free Action pane */}
       {selectedAction === 'free' && (
         <div style={{ padding: '.6rem .75rem', background: 'rgba(100,100,100,.08)', border: '1px solid var(--border)', borderRadius: 5 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
             Free Action — declare what you're doing (optional):
           </div>
+          {/* Quick free actions */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.5rem' }}>
+            {/* Unequip / drop weapon */}
+            {combatant.drawnWeapon && combatant.drawnWeapon !== 'Unarmed (1k1)' && (
+              <button className="btn btn-sm" style={{ fontSize: 12 }}
+                onClick={() => {
+                  if (onDrawWeapon) onDrawWeapon(null);
+                  if (onPass) onPass(`${combatant.name} drops/sheathes ${combatant.drawnWeapon.split(' (')[0]}`);
+                  setSelectedAction(null);
+                }}>
+                <i className="ti ti-sword-off" style={{ fontSize: 11, marginRight: 3 }} />
+                Drop / Sheathe {combatant.drawnWeapon.split(' (')[0]}
+              </button>
+            )}
+            <button className="btn btn-sm" style={{ fontSize: 12 }}
+              onClick={() => {
+                if (onPass) onPass(`${combatant.name} speaks briefly`);
+                setSelectedAction(null);
+              }}>
+              💬 Speak
+            </button>
+            <button className="btn btn-sm" style={{ fontSize: 12 }}
+              onClick={() => {
+                if (onPass) onPass(`${combatant.name} goes prone`);
+                setSelectedAction(null);
+              }}>
+              ⬇ Go Prone
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-            <input id="free-action-input" placeholder="e.g. Spend Void, speak a warning, drop item…"
+            <input id="free-action-input" placeholder="or type something custom…"
               style={{ flex: 1, fontSize: 13, padding: '4px 8px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'inherit' }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {

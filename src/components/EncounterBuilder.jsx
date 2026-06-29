@@ -58,6 +58,7 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
   const [faction, setFaction] = useState('');
   const [school, setSchool] = useState('');
   const [rank, setRank] = useState(1);
+  const [logSel, setLogSel] = useState('');
   const factions = Object.keys(NPC_BY_FACTION);
   const schools = faction ? NPC_BY_FACTION[faction] || [] : [];
 
@@ -75,33 +76,42 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
     setSchool(''); setFaction(''); setRank(1);
   };
 
+  const addFromLog = () => {
+    if (!logSel) return;
+    const n = (npcsFromLog || []).find(x => x.id === logSel);
+    if (!n) return;
+    onAdd({
+      id: 'npc_log_' + n.id + '_' + Date.now(),
+      name: n.name,
+      school: n.school, rank: n.rank || 1, faction: n.faction,
+      dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
+      reflexes: (n.traits?.Reflexes) || (n.rank || 1) + 1,
+      agility: (n.traits?.Agility) || (n.rank || 1) + 1,
+      air: (n.rings?.Air) || (n.rank || 1),
+      fire: (n.rings?.Fire) || (n.rank || 1),
+      wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
+    });
+    setLogSel('');
+  };
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+      {/* From NPC Log — dropdown */}
       {npcsFromLog && npcsFromLog.length > 0 && (
-        <div style={{ marginBottom: '.5rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem' }}>From NPC Log:</div>
-          <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '.3rem', alignItems: 'center' }}>
+          <select value={logSel} onChange={e => setLogSel(e.target.value)} style={{ fontSize: 12, flex: 1 }}>
+            <option value="">From NPC Log…</option>
             {npcsFromLog.map(n => (
-              <button key={n.id} className="btn btn-sm" style={{ fontSize: 12 }} onClick={() => onAdd({
-                id: 'npc_log_' + n.id + '_' + Date.now(),
-                name: n.name,
-                school: n.school, rank: n.rank || 1, faction: n.faction,
-                dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
-                reflexes: (n.traits?.Reflexes) || (n.rank || 1) + 1,
-                agility: (n.traits?.Agility) || (n.rank || 1) + 1,
-                air: (n.rings?.Air) || (n.rank || 1),
-                fire: (n.rings?.Fire) || (n.rank || 1),
-                wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
-              })}>
-                <i className="ti ti-user" style={{ fontSize: 12 }} /> {n.name}
-              </button>
+              <option key={n.id} value={n.id}>{n.name} — {n.faction} Rank {n.rank || 1}</option>
             ))}
-          </div>
+          </select>
+          <button className="btn btn-sm btn-p" disabled={!logSel} onClick={addFromLog} style={{ fontSize: 12 }}>Add</button>
         </div>
       )}
+      {/* From Library — faction/school/rank dropdowns */}
       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); }} style={{ fontSize: 12 }}>
-          <option value="">Faction</option>
+          <option value="">From Library…</option>
           {factions.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         {faction && (
@@ -115,7 +125,7 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
             {Array.from({ length: 5 }, (_, i) => <option key={i + 1} value={i + 1}>R{i + 1}</option>)}
           </select>
         )}
-        <button className="btn btn-sm btn-p" disabled={!school} onClick={add} style={{ fontSize: 12 }}>{label}</button>
+        {school && <button className="btn btn-sm btn-p" onClick={add} style={{ fontSize: 12 }}>{label}</button>}
       </div>
     </div>
   );

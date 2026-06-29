@@ -17,10 +17,10 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
   const pc = pcs?.[c.id];
   const voidTnBoost = c.voidArmor ? 10 : 0;
   const armorBonus = getArmorBonus(pc?.equipment) || pc?.armorBonus || c.armorBonus || 0;
-  // Full Defense: adds HALF Defense roll (rounded up) to normal Armor TN
+  // Full Defense: Defense roll result adds half (rounded up) to base Armor TN
   // Defense stance: adds Air Ring + Defense Skill Rank
   // Full Attack: reduces Armor TN by 10
-  const fullDefBonus = c.stance === 'Full Defense' ? Math.ceil((c.fullDefenseBonus ?? 10) / 2) : 0;
+  const fullDefBonus = c.stance === 'Full Defense' ? Math.ceil((c.fullDefenseBonus ?? 0) / 2) : 0;
   const defenseStanceBonus = c.stance === 'Defense' ? ((c.air || 2) + (c.defenseSkillRank || 0)) : 0;
   const fullAttackPenalty = c.stance === 'Full Attack' ? -10 : 0;
   // Jinn protection: "+TN to Be Hit = highest Ring"
@@ -64,6 +64,11 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
     <div className={cardClass}>
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderBottom: '1px solid var(--border)', background: isActive ? 'rgba(200,150,42,.08)' : 'transparent' }}>
+        {/* Initiative — left of icon */}
+        <div style={{ textAlign: 'center', flexShrink: 0, minWidth: 28 }}>
+          <div style={{ fontSize: isActive ? 20 : 15, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{c.init}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>init</div>
+        </div>
         <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
           {avatarUrl
             ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
@@ -74,7 +79,16 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {c.name}
+              {isNPC && isGM ? (
+                <input
+                  defaultValue={c.name}
+                  onBlur={e => { const v = e.target.value.trim(); if (v && v !== c.name && onApplyStatus) onApplyStatus(c.id, '__rename__', v); }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ fontSize: 13, fontWeight: 600, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', width: '100%', padding: '1px 0', fontFamily: 'inherit' }}
+                />
+              ) : (
+                <span>{c.name}</span>
+              )}
             </div>
             {isNPC && (() => {
               const sd = SCHOOL_DATA[c.school];
@@ -110,10 +124,6 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
             })}
           </div>
         </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: isActive ? 22 : 16, fontWeight: 700, color: 'var(--gold)' }}>{c.init}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>init</div>
-        </div>
       </div>
 
       {/* Bottom row - weapon + armor TN + void */}
@@ -126,7 +136,7 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         </span>
         {/* Armor TN — shows boost if void spent */}
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginLeft: 4 }}
-          title={c.stance === 'Full Defense' ? `Full Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + half(${c.fullDefenseBonus ?? 10} Defense roll) = ${armorTN}` : c.stance === 'Defense' ? `Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + ${(c.air||2)} Air + ${c.defenseSkillRank||0} Defense Skill = ${armorTN}` : `TN to Be Hit: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor${c.stance === 'Full Attack' ? ' −10 (Full Attack)' : ''} = ${armorTN}`}>
+          title={c.stance === 'Full Defense' ? `Full Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + half(${c.fullDefenseBonus ?? 0} Defense roll) = ${armorTN}` : c.stance === 'Defense' ? `Defense: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor + ${(c.air||2)} Air + ${c.defenseSkillRank||0} Defense = ${armorTN}` : `TN to Be Hit: 5 + ${(c.reflexes||2)}×5 + ${armorBonus} armor${c.stance === 'Full Attack' ? ' −10 (Full Attack)' : ''} = ${armorTN}`}>
           TN <span style={{ color: c.voidArmor ? '#6aba60' : (c.stance === 'Full Defense' ? '#4a8a40' : 'var(--text-primary)') }}>{armorTN}</span>
           {c.stance === 'Full Defense' && <span style={{ fontSize: 10, color: '#4a8a40', marginLeft: 2 }}>🛡</span>}
           {c.voidArmor && <span style={{ fontSize: 10, color: '#6aba60', marginLeft: 2 }}>⬡</span>}
@@ -315,12 +325,97 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
 function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing }) {
   const [selected, setSelected] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
-  const [localPing, setLocalPing] = useState(null); // { x, y, fromX, fromY, ts }
+  const [localPing, setLocalPing] = useState(null);
+  const [dragging, setDragging] = useState(null);   // { id, startX, startY }
+  const [dragPos, setDragPos] = useState(null);      // { svgX, svgY } current drag position in SVG coords
+  const svgRef = React.useRef(null);
+
+  const getSVGCoords = (e) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const scaleX = W / rect.width;
+    const scaleY = W / rect.height;
+    return {
+      svgX: (e.clientX - rect.left) * scaleX,
+      svgY: (e.clientY - rect.top) * scaleY,
+      gridX: Math.floor(((e.clientX - rect.left) * scaleX) / CELL),
+      gridY: Math.floor(((e.clientY - rect.top) * scaleY) / CELL),
+    };
+  };
+
+  const handleTokenMouseDown = (e, id) => {
+    if (!canMoveToken(id)) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const coords = getSVGCoords(e);
+    if (!coords) return;
+    setDragging({ id });
+    setDragPos({ svgX: coords.svgX, svgY: coords.svgY });
+    setSelected(null);
+  };
+
+  const handleSVGMouseMove = (e) => {
+    const coords = getSVGCoords(e);
+    if (!coords) return;
+    if (dragging) {
+      setDragPos({ svgX: coords.svgX, svgY: coords.svgY });
+      if (coords.gridX >= 0 && coords.gridX < gridSize && coords.gridY >= 0 && coords.gridY < gridSize) {
+        setHoverCell({ x: coords.gridX, y: coords.gridY });
+      }
+    } else if (selected) {
+      if (coords.gridX >= 0 && coords.gridX < gridSize && coords.gridY >= 0 && coords.gridY < gridSize) {
+        setHoverCell({ x: coords.gridX, y: coords.gridY });
+      }
+    }
+  };
+
+  const handleSVGMouseUp = (e) => {
+    if (!dragging) return;
+    const coords = getSVGCoords(e);
+    if (coords && coords.gridX >= 0 && coords.gridX < gridSize && coords.gridY >= 0 && coords.gridY < gridSize) {
+      const occupied = combatants.some(c => c.id !== dragging.id && c.gridX === coords.gridX && c.gridY === coords.gridY);
+      if (!occupied) {
+        onMove(dragging.id, coords.gridX, coords.gridY);
+      }
+    }
+    setDragging(null);
+    setDragPos(null);
+    setHoverCell(null);
+  };
+
+  // Compute movement range cells for the active combatant
+  const moveRangeCells = React.useMemo(() => {
+    if (!active || !isMyTurn) return new Set();
+    const pc = pcsMap[active.id];
+    const waterRing = pc?.water || active.water || 2;
+    const movesUsed = active._movesUsed || 0;
+    // Base range = waterRing squares per move already used, plus 1 free square
+    const range = waterRing * (movesUsed + 1);
+    if (active.gridX === undefined || active.gridY === undefined) return new Set();
+    const cells = new Set();
+    // BFS up to `range` squares (using Chebyshev distance for 8-directional movement)
+    for (let dx = -range; dx <= range; dx++) {
+      for (let dy = -range; dy <= range; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const dist = Math.max(Math.abs(dx), Math.abs(dy)); // Chebyshev distance
+        if (dist <= range) {
+          const nx = active.gridX + dx;
+          const ny = active.gridY + dy;
+          if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+            cells.add(`${nx},${ny}`);
+          }
+        }
+      }
+    }
+    return cells;
+  }, [active, isMyTurn, pcsMap, gridSize]);
 
   const handleDblClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / CELL);
-    const y = Math.floor((e.clientY - rect.top) / CELL);
+    const scaleX = (gridSize * CELL) / rect.width;
+    const scaleY = (gridSize * CELL) / rect.height;
+    const x = Math.floor(((e.clientX - rect.left) * scaleX) / CELL);
+    const y = Math.floor(((e.clientY - rect.top) * scaleY) / CELL);
     if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) return;
     // Find the pinging player's token
     const myToken = combatants.find(c => c.id === myCharId);
@@ -383,23 +478,21 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <ShiftBtn dx={-1} dy={0} icon="←" />
 
-        <svg width={W} height={W}
-          style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: selected ? 'crosshair' : 'default', display: 'block', overflow: 'visible' }}
+        <svg ref={svgRef} width={W} height={W}
+          style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: dragging ? 'grabbing' : selected ? 'crosshair' : 'default', display: 'block', overflow: 'hidden', userSelect: 'none' }}
           onClick={e => {
+            if (dragging) return; // ignore clicks during drag
             if (!selected) return;
             const rect = e.currentTarget.getBoundingClientRect();
-            const x = Math.floor((e.clientX - rect.left) / CELL);
-            const y = Math.floor((e.clientY - rect.top) / CELL);
+            const scaleX = W / rect.width;
+            const scaleY = W / rect.height;
+            const x = Math.floor(((e.clientX - rect.left) * scaleX) / CELL);
+            const y = Math.floor(((e.clientY - rect.top) * scaleY) / CELL);
             handleCellClick(x, y);
           }}
-          onMouseMove={e => {
-            if (!selected) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = Math.floor((e.clientX - rect.left) / CELL);
-            const y = Math.floor((e.clientY - rect.top) / CELL);
-            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) setHoverCell({ x, y });
-          }}
-          onMouseLeave={() => setHoverCell(null)}
+          onMouseMove={handleSVGMouseMove}
+          onMouseUp={handleSVGMouseUp}
+          onMouseLeave={() => { setHoverCell(null); if (dragging) { setDragging(null); setDragPos(null); } }}
           onDoubleClick={handleDblClick}>
 
           {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
@@ -418,6 +511,18 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
               return <rect key={`${x}-${y}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2} fill="rgba(200,150,42,.08)" rx="2" />;
             })
           )}
+
+          {/* Movement range glow — shows reachable squares on active PC's turn */}
+          {!selected && isMyTurn && moveRangeCells.size > 0 && Array.from(moveRangeCells).map(key => {
+            const [x, y] = key.split(',').map(Number);
+            const occupied = combatants.some(c => c.id !== active?.id && c.gridX === x && c.gridY === y);
+            return (
+              <rect key={`move-${key}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2}
+                fill={occupied ? 'rgba(200,64,48,.12)' : 'rgba(74,144,208,.18)'}
+                stroke={occupied ? 'rgba(200,64,48,.3)' : 'rgba(74,144,208,.4)'}
+                strokeWidth="0.5" rx="2" />
+            );
+          })}
 
           {/* Trail line — from selected token's current position to hovered cell */}
           {/* Grid pings — dashed line from token + animated circle */}
@@ -471,7 +576,10 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             const shortName = c.name.length > 7 ? c.name.slice(0, 6) + '…' : c.name;
             const clipId = `tok-${c.id.replace(/[^a-z0-9]/gi, '')}`;
             return (
-              <g key={c.id} style={{ cursor: 'pointer' }} onClick={e => handleTokenClick(e, c.id)}>
+              <g key={c.id}
+                style={{ cursor: canMoveToken(c.id) ? (dragging?.id === c.id ? 'grabbing' : 'grab') : 'default', opacity: dragging?.id === c.id ? 0.35 : 1 }}
+                onClick={e => { if (!dragging) handleTokenClick(e, c.id); }}
+                onMouseDown={e => handleTokenMouseDown(e, c.id)}>
                 {isActive && <circle cx={cx} cy={cy} r={r + 6} fill={color} opacity="0.2" />}
                 {isActive && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke={color} strokeWidth="1.5" opacity="0.6" />}
                 {isSelected && <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="3,2" />}
@@ -503,6 +611,38 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
               </g>
             );
           })}
+          {/* Drag ghost — follows cursor */}
+          {dragging && dragPos && (() => {
+            const dragCombatant = combatants.find(c => c.id === dragging.id);
+            if (!dragCombatant) return null;
+            const color = getTokenColor(dragCombatant);
+            const r = 13;
+            const snapX = Math.floor(dragPos.svgX / CELL) * CELL + CELL / 2;
+            const snapY = Math.floor(dragPos.svgY / CELL) * CELL + CELL / 2;
+            const pc = pcsMap[dragging.id];
+            const tokenUrl = (pc?.token_url || '').trim();
+            const avatarType = pc?.avatar_type || 'warrior';
+            const clipId = `drag-ghost-${dragging.id.replace(/[^a-z0-9]/gi, '')}`;
+            return (
+              <g style={{ pointerEvents: 'none', opacity: 0.85 }}>
+                {/* Snap highlight on destination cell */}
+                <rect x={snapX - CELL / 2 + 1} y={snapY - CELL / 2 + 1} width={CELL - 2} height={CELL - 2}
+                  fill="rgba(200,150,42,.2)" stroke="rgba(200,150,42,.8)" strokeWidth="1.5" rx="3" />
+                {/* Ghost token at cursor */}
+                <circle cx={dragPos.svgX} cy={dragPos.svgY} r={r + 1} fill="rgba(200,150,42,.2)" stroke="var(--gold)" strokeWidth="2" />
+                <circle cx={dragPos.svgX} cy={dragPos.svgY} r={r} fill="#1a1208" />
+                {tokenUrl ? (
+                  <>
+                    <defs><clipPath id={clipId}><circle cx={dragPos.svgX} cy={dragPos.svgY} r={r} /></clipPath></defs>
+                    <image href={tokenUrl} x={dragPos.svgX - r} y={dragPos.svgY - r} width={r * 2} height={r * 2}
+                      clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice" />
+                  </>
+                ) : (
+                  <SilhouetteToken type={avatarType} cx={dragPos.svgX} cy={dragPos.svgY} r={r} color={color} />
+                )}
+              </g>
+            );
+          })()}
         </svg>
 
         <ShiftBtn dx={1} dy={0} icon="→" />
@@ -761,7 +901,7 @@ function DuelInitiator({ combatants, pcsMap, onStart }) {
 }
 
 // ── Add Enemy mid-encounter — explicit always-visible controls ─────────────
-function AddEnemy({ npcsFromLog, onAdd }) {
+function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   const [faction, setFaction] = useState('');
   const [school, setSchool] = useState('');
   const [rank, setRank] = useState(1);
@@ -806,29 +946,63 @@ function AddEnemy({ npcsFromLog, onAdd }) {
         </select>
         <button className="btn btn-sm btn-d" disabled={!school} onClick={spawn} style={{ flexShrink: 0 }}>+ Spawn</button>
       </div>
-      {/* Log NPCs */}
+      {/* Log NPCs — dropdown */}
       {npcsFromLog && npcsFromLog.length > 0 && (
-        <div style={{ marginTop: '.35rem', display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-          {npcsFromLog.map(n => (
-            <button key={n.id} className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => onAdd({
-              id: 'npc_log_' + n.id + '_' + Date.now(),
-              name: n.name, school: n.school, rank: n.rank || 1, faction: n.faction,
-              dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
-              reflexes: n.traits?.Reflexes || (n.rank || 1) + 1,
-              agility: n.traits?.Agility || (n.rank || 1) + 1,
-              air: n.rings?.Air || (n.rank || 1), fire: n.rings?.Fire || (n.rank || 1),
-              wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
-            })}>
-              + {n.name}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '.3rem', marginTop: '.35rem', alignItems: 'center' }}>
+          <select defaultValue="" style={{ fontSize: 12, flex: 1 }}
+            onChange={e => {
+              const n = npcsFromLog.find(x => x.id === e.target.value);
+              if (!n) return;
+              onAdd({
+                id: 'npc_log_' + n.id + '_' + Date.now(),
+                name: n.name, school: n.school, rank: n.rank || 1, faction: n.faction,
+                dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
+                reflexes: n.traits?.Reflexes || (n.rank || 1) + 1,
+                agility: n.traits?.Agility || (n.rank || 1) + 1,
+                air: n.rings?.Air || (n.rank || 1), fire: n.rings?.Fire || (n.rank || 1),
+                wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
+              });
+              e.target.value = '';
+            }}>
+            <option value="">+ From NPC Log…</option>
+            {npcsFromLog.map(n => (
+              <option key={n.id} value={n.id}>{n.name} — {n.faction} R{n.rank || 1}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {/* Full NPCs (promoted characters) — dropdown */}
+      {fullNpcs && fullNpcs.length > 0 && (
+        <div style={{ display: 'flex', gap: '.3rem', marginTop: '.35rem', alignItems: 'center' }}>
+          <select defaultValue="" style={{ fontSize: 12, flex: 1 }}
+            onChange={e => {
+              const n = fullNpcs.find(x => x.id === e.target.value);
+              if (!n) return;
+              const ref = n.reflexes || 2;
+              const agi = n.agility || 2;
+              onAdd({
+                id: 'npc_full_' + n.id + '_' + Date.now(),
+                name: n.name, school: n.school, rank: n.insight_rank || n.school_rank || 1, faction: n.faction,
+                reflexes: ref, agility: agi, air: n.air || 2, fire: n.fire || 2,
+                earth: n.earth || 2, water: n.water || 2, void: n.void || 2,
+                dr: n.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
+                drawnWeapon: n.current_weapon || 'Longsword (3k2)',
+                wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
+              });
+              e.target.value = '';
+            }}>
+            <option value="">+ From Full NPCs…</option>
+            {fullNpcs.map(n => (
+              <option key={n.id} value={n.id}>{n.name} — {n.school} R{n.insight_rank || n.school_rank || 1}</option>
+            ))}
+          </select>
         </div>
       )}
     </div>
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
   const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
@@ -870,6 +1044,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const pcCombatants = participants.map((pc, i) => {
       const col = 2;
       const row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.length / 2) + i));
+      const ref = pc.reflexes || 2;
+      const ir = pc.insight_rank || pc.school_rank || 1;
+      const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
+      const sorted = [...dice].sort((a,b) => b - a);
+      const baseInit = sorted.slice(0, ref).reduce((s,d) => s + d, 0);
       return {
         id: pc.id, name: pc.name, type: 'pc',
         school: pc.school, faction: pc.faction,
@@ -881,13 +1060,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || '#c8962a',
         wound: getWoundRank(pc.current_wounds, pc.max_wounds),
         stance: 'Attack',
-        init: (() => {
-          const ref = pc.reflexes || 2;
-          const ir = pc.insight_rank || pc.school_rank || 1;
-          const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
-          const sorted = [...dice].sort((a,b) => b - a);
-          return sorted.slice(0, ref).reduce((s,d) => s + d, 0);
-        })(),
+        init: baseInit,
+        _initRolled: false, // players can reroll their own initiative
         dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
         drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
         statusEffects: [], _action: null,
@@ -902,6 +1076,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       return {
         ...n, wound: n.wound || 0, stance: 'Attack',
         init: Math.floor(Math.random() * 10) + 4 + (n.rank || 1),
+        _initRolled: true,
         statusEffects: [], _action: null,
         gridX: col, gridY: row, startX: col, startY: row,
       };
@@ -920,7 +1095,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     // Center stance carry-over: if ending turn in Center, flag for bonus next turn
     const centerCarryBonus = currentCombatant?.stance === 'Center' ? (currentCombatant._centerBonus || true) : false;
     let nextCombatants = combatants.map((c, i) => {
-      let updated = i === nextIdx ? { ...c, _actionsLeft: { full: 1, simple: 2 } } : c;
+      let updated = i === nextIdx ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0 } : c;
       // Apply Center stance carry-over to the current combatant (they earned it this round)
       if (i === activeTurn && centerCarryBonus) {
         updated = { ...updated, _centerBonusPending: true };
@@ -1003,7 +1178,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     };
   };
 
-  const applyStatus = (id, effect) => {
+  const applyStatus = (id, effect, value) => {
+    // Special: __rename__ renames the combatant
+    if (effect === '__rename__' && value) {
+      upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, name: value } : x) });
+      return;
+    }
     const c = combatants.find(x => x.id === id);
     upEnc({
       combatants: combatants.map(x => x.id === id ? { ...x, statusEffects: [...(x.statusEffects || []).filter(e => e !== effect), effect] } : x),
@@ -1060,22 +1240,27 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   };
 
   const handleRollResult = (result, damage) => {
+    // Capture all modal values BEFORE clearing — setModal(null) causes re-render
+    // and subsequent references to `modal` would read stale null
+    const capturedModal = modal;
     setModal(null);
+    if (!capturedModal) return;
+
     // Track skill usage
-    if (modal?.skill && onLogSkill) onLogSkill(modal.skill);
+    if (capturedModal.skill && onLogSkill) onLogSkill(capturedModal.skill);
 
     // Broadcast result to all players via encounter state
     const banner = {
-      charName: modal?.character?.name || active?.name || '',
-      skillName: modal?.skill || 'Roll',
+      charName: capturedModal.character?.name || active?.name || '',
+      skillName: capturedModal.skill || 'Roll',
       total: result?.total ?? result,
-      tn: modal?.tn,
-      success: result?.success ?? (typeof result === 'number' ? result >= (modal?.tn || 15) : false),
+      tn: capturedModal.tn,
+      success: result?.success ?? (typeof result === 'number' ? result >= (capturedModal.tn || 15) : false),
       ts: Date.now(),
     };
-    if (damage !== null && damage !== undefined && modal?.targetId) {
+    if (damage !== null && damage !== undefined && capturedModal.targetId) {
       playDamage();
-      const target = combatants.find(c => c.id === modal.targetId);
+      const target = combatants.find(c => c.id === capturedModal.targetId);
       // Apply void damage reduction if player spent void for it
       let woundDelta = Math.ceil(damage / 5);
       if (target?.voidReduceDamage && target?.type === 'pc') {
@@ -1097,10 +1282,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       } : banner;
 
       upEnc({
-        combatants: combatants.map(c => c.id === modal.targetId
+        combatants: combatants.map(c => c.id === capturedModal.targetId
           ? { ...c, wound: Math.min(7, c.wound + woundDelta), voidReduceDamage: false }
           : c),
-        dmgBanner: { attackerName: active?.name, targetId: modal.targetId, damage, result: result?.total ?? result },
+        dmgBanner: { attackerName: active?.name, targetId: capturedModal.targetId, damage, result: result?.total ?? result },
         rollBanner: bannerWithDmg,
         ...(sb ? { statusBanner: sb } : {}),
       });
@@ -1118,11 +1303,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     }
 
     // Auto-track Stealth and Perception rolls as persistent status conditions
-    const skillName = modal?.skill || '';
+    const skillName = capturedModal.skill || '';
     const rollTotal = result?.total ?? (typeof result === 'number' ? result : null);
     if (rollTotal !== null && (skillName === 'Stealth' || skillName.startsWith('Perception'))) {
       const label = `${skillName}: ${rollTotal}`;
-      const targetId = modal?.combatantId || active?.id;
+      const targetId = capturedModal.combatantId || active?.id;
       if (targetId) {
         upEnc({
           combatants: combatants.map(c => {
@@ -1136,16 +1321,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     }
 
     // Apply maneuver effects from raises
-    if (result?.success && result?.raises?.length > 0 && modal?.targetId) {
+    if (result?.success && result?.raises?.length > 0 && capturedModal.targetId) {
       const maneuvers = result.raises;
-      // Feint is a separate full action, not a raise on a normal attack
-      // It's handled when the attacker declares the whole attack as a Feint
       const RAISE_COST = { 'Feint (2)': 2, 'Knockdown (2)': 2, 'Disarm (3)': 3, 'Extra Attack (5)': 5, 'Called Shot': 1 };
-
-      // Count how many raises were declared
       const totalRaises = result.raises.length;
-
-      // Check which maneuvers are affordable given raises
       let raisesSpent = 0;
       const effects = [];
 
@@ -1162,73 +1341,56 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
         effects.forEach(effect => {
           if (effect === 'Knockdown (2)') {
-            // Contested Strength + Insight Rank vs Earth + Insight Rank
-            const attackerStr = modal?.character?.strength || 2;
-            const attackerIR = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
-            const target = combatants.find(c => c.id === modal.targetId);
+            const attackerStr = capturedModal.character?.strength || 2;
+            const attackerIR = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
+            const target = combatants.find(c => c.id === capturedModal.targetId);
             const defEarth = target?.earth || 2;
-            const defIR = attackerIR; // approximate same rank
-            // Roll both sides
+            const defIR = attackerIR;
             const atkRolls = Array.from({length: attackerStr + attackerIR}, () => Math.ceil(Math.random()*10));
             const defRolls = Array.from({length: defEarth + defIR}, () => Math.ceil(Math.random()*10));
             const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
             const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defEarth).reduce((s,d)=>s+d,0);
             if (atkTotal > defTotal) {
-              newCombatants = newCombatants.map(c => c.id === modal.targetId
+              newCombatants = newCombatants.map(c => c.id === capturedModal.targetId
                 ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Prone'), 'Prone'] }
                 : c);
-              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} is Prone`);
+              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown — Contested Strength: ${atkTotal} vs ${defTotal} — ${capturedModal.targetName || 'target'} is Prone`);
             } else {
-              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown resisted — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} stays standing`);
+              onLogEvent && onLogEvent('ti-arrow-down', `Knockdown resisted — ${atkTotal} vs ${defTotal}`);
             }
           }
-          if (effect === 'Stun_UNUSED') {
-            newCombatants = newCombatants.map(c => c.id === modal.targetId
-              ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Stunned'), 'Stunned'] }
-              : c);
-            onLogEvent && onLogEvent('ti-circle-x', `Stun — ${modal.targetName || 'target'} loses their next action`);
-          }
           if (effect === 'Feint (2)') {
-            // 4th Ed Feint (2 raises): bonus damage = half the margin of success, capped at Insight Rank × 5
-            // Margin = roll total - Armor TN (already with the 2 raise cost baked in)
             const margin = result?.margin || 0;
-            const insightRank = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
+            const insightRank = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
             const feintBonus = Math.min(Math.floor(margin / 2), insightRank * 5);
             if (feintBonus > 0) {
               onLogEvent && onLogEvent('ti-eye-off', `Feint — +${feintBonus} bonus damage (half of ${margin} margin, max ${insightRank * 5})`);
             }
-            // The bonus damage is informational — damage was already rolled
-            // Show it on the ticker so the GM can note it
           }
           if (effect === 'Disarm (3)') {
-            // Disarm: only 2k1 damage (override), contested Strength to determine if weapon drops
-            const attackerStr = modal?.character?.strength || 2;
-            const target = combatants.find(c => c.id === modal.targetId);
+            const attackerStr = capturedModal.character?.strength || 2;
+            const target = combatants.find(c => c.id === capturedModal.targetId);
             const defStr = target?.strength || 2;
             const defIR = target?.insight_rank || 1;
-            const atkIR = modal?.character?.insight_rank || modal?.character?.school_rank || 1;
+            const atkIR = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
             const atkRolls = Array.from({length: attackerStr + atkIR}, () => Math.ceil(Math.random()*10));
             const defRolls = Array.from({length: defStr + defIR}, () => Math.ceil(Math.random()*10));
             const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
             const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defStr).reduce((s,d)=>s+d,0);
             if (atkTotal > defTotal) {
-              newCombatants = newCombatants.map(c => c.id === modal.targetId
+              newCombatants = newCombatants.map(c => c.id === capturedModal.targetId
                 ? { ...c, drawnWeapon: null, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
                 : c);
-              onLogEvent && onLogEvent('ti-sword-off', `Disarm — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} drops weapon! (Disarm deals 2k1 damage only)`);
+              onLogEvent && onLogEvent('ti-sword-off', `Disarm — ${atkTotal} vs ${defTotal} — ${capturedModal.targetName || 'target'} drops weapon!`);
             } else {
-              onLogEvent && onLogEvent('ti-sword-off', `Disarm resisted — Contested Strength: ${atkTotal} vs ${defTotal} — ${modal.targetName || 'target'} keeps weapon`);
+              onLogEvent && onLogEvent('ti-sword-off', `Disarm resisted — ${atkTotal} vs ${defTotal}`);
             }
           }
           if (effect === 'Extra Attack (5)') {
-            // Grant attacker an extra full action
-            const attackerId = modal?.combatantId || active?.id;
-            if (attackerId) {
-              newCombatants = newCombatants.map((c, i) => i === activeTurn
-                ? { ...c, _actionsLeft: { ...(c._actionsLeft || { full: 0, simple: 0 }), full: (c._actionsLeft?.full || 0) + 1 } }
-                : c);
-              onLogEvent && onLogEvent('ti-sword', `Extra Attack — ${modal?.character?.name || 'Attacker'} may make an additional attack!`);
-            }
+            newCombatants = newCombatants.map((c, i) => i === activeTurn
+              ? { ...c, _actionsLeft: { ...(c._actionsLeft || { full: 0, simple: 0 }), full: (c._actionsLeft?.full || 0) + 1 } }
+              : c);
+            onLogEvent && onLogEvent('ti-sword', `Extra Attack — ${capturedModal.character?.name || 'Attacker'} may make an additional attack!`);
           }
         });
 
@@ -1237,7 +1399,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     }
 
     // Fire onComplete callback if present (e.g. Full Defense stance change after roll)
-    if (modal?.onComplete) modal.onComplete(result?.total ?? result);
+    if (capturedModal.onComplete) capturedModal.onComplete(result?.total ?? result);
   };
 
   const handleStanceChange = (id, stance, fullDefenseBonus) => {
@@ -1606,6 +1768,62 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         )}
       </div>
 
+      {/* ── Initiative roll panel — shown to each player at start of round 1 ── */}
+      {state === 'active' && round === 1 && (() => {
+        // Find my combatant
+        const myCombatant = combatants.find(c => c.id === myCharId);
+        const myPC = pcsMap[myCharId];
+        if (!myCombatant || !myPC || myCombatant._initRolled) return null;
+        if (isGM && !isPCView) return null; // GM has already set NPC inits
+
+        const ref = myPC.reflexes || 2;
+        const ir = myPC.insight_rank || myPC.school_rank || 1;
+        const voidLeft = myPC.current_void ?? myPC.void ?? 2;
+
+        const rollInit = (voidSpend = false) => {
+          const bonus = voidSpend ? 10 : 0;
+          const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
+          const sorted = [...dice].sort((a,b) => b - a);
+          const base = sorted.slice(0, ref).reduce((s,d) => s + d, 0);
+          const total = base + bonus;
+          const newCombatants = combatants
+            .map(c => c.id === myCharId ? { ...c, init: total, _initRolled: true } : c)
+            .sort((a, b) => b.init - a.init);
+          // Only reset activeTurn if no one has acted yet (all _initRolled false or this is the first)
+          const anyoneActed = combatants.some(c => c._actionsLeft?.full < 1 || c._actionsLeft?.simple < 2);
+          upEnc({ combatants: newCombatants, ...(anyoneActed ? {} : { activeTurn: 0 }) });
+          if (voidSpend) onUpdateCharacter(myCharId, { current_void: Math.max(0, voidLeft - 1) });
+          onLogEvent && onLogEvent('ti-dice', `${myCombatant.name} Initiative: ${total}${voidSpend ? ' (Void +10)' : ''} (${ref + ir}k${ref})`);
+        };
+
+        return (
+          <div style={{ background: 'rgba(200,150,42,.08)', border: '2px solid var(--gold-dim)', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '.75rem' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: '.35rem' }}>
+              🎲 Roll Initiative — {myCombatant.name}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
+              Pool: {ref + ir}k{ref} (Reflexes {ref} + Insight Rank {ir})
+              <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>Current: <span style={{ color: 'var(--gold)' }}>{myCombatant.init}</span> (auto-rolled)</span>
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+              <button className="btn btn-p" onClick={() => rollInit(false)}>
+                <i className="ti ti-dice" style={{ marginRight: 4 }} />Roll {ref + ir}k{ref}
+              </button>
+              {voidLeft > 0 && (
+                <button className="btn" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }} onClick={() => rollInit(true)}
+                  title="Spend 1 Void Point to add +10 to Initiative roll">
+                  ⬡ Spend Void (+10) — {voidLeft} left
+                </button>
+              )}
+              <button className="btn btn-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}
+                onClick={() => upEnc({ combatants: combatants.map(c => c.id === myCharId ? { ...c, _initRolled: true } : c) })}>
+                Keep auto-roll ({myCombatant.init})
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Round limit warning */}
       {roundLimit && (round || 1) >= roundLimit - 1 && (
         <div className={`round-warn ${(round || 1) >= roundLimit ? 'danger' : 'warn'}`}>
@@ -1772,7 +1990,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             )}
             {/* Reinforce mid-encounter */}
             {isGM && !isPCView && (
-              <AddEnemy npcsFromLog={npcsFromLog} onAdd={npc => {
+              <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
                 const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + (npc.reflexes || 3), statusEffects: [], _action: null };
                 upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
               }} />
@@ -1799,7 +2017,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               <span className="stance-badge" style={{ fontSize: 10 }}>{c.stance === 'Full Attack' ? 'F.Atk' : c.stance === 'Full Defense' ? 'F.Def' : c.stance}</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', width: 24, textAlign: 'right' }}>{c.init}</span>
               {isGM && !isPCView && (
-                <div style={{ display: 'flex', gap: 2 }}>
+                <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} title="Lower initiative by 1"
+                    onClick={() => upEnc({ combatants: [...combatants.map((x, xi) => xi === i ? { ...x, init: Math.max(1, (x.init || 1) - 1) } : x)].sort((a,b) => b.init - a.init) })}>−</button>
+                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} title="Raise initiative by 1"
+                    onClick={() => upEnc({ combatants: [...combatants.map((x, xi) => xi === i ? { ...x, init: (x.init || 1) + 1 } : x)].sort((a,b) => b.init - a.init) })}>+</button>
                   <button className="btn btn-sm btn-d" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, 1)}>+W</button>
                   <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, -1)}>−W</button>
                 </div>
@@ -1817,9 +2039,18 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           enemies={enemies}
           allies={party.filter(c => c.id !== active.id)}
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
+          showGrid={showGrid}
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
+          onMoveAction={() => {
+            // Track moves used and activate grid if not already visible
+            const movesUsed = (active._movesUsed || 0) + 1;
+            upEnc({
+              combatants: combatants.map(c => c.id === active.id ? { ...c, _movesUsed: movesUsed } : c),
+              showGrid: true, // auto-open grid when moving
+            });
+          }}
           onPass={(freeActionText) => {
             if (freeActionText && freeActionText !== 'Free Action' && onLogEvent) {
               onLogEvent('ti-bolt', `${active.name}: ${freeActionText}`);

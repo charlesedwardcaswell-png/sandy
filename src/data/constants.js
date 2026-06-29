@@ -625,6 +625,52 @@ export const GEAR_DESCRIPTIONS = {
 
 
 
+
+// Standard uses for each skill — shown in expandable skill rows on character sheet
+export const SKILL_DESCRIPTIONS = {
+  // Bugei (Combat)
+  'Swordsmanship':   'Attack with swords and scimitars. Roll Agility/Swordsmanship vs target Armor TN. Damage: weapon DR.',
+  'Knives':          'Attack with knives, daggers, and thrown blades. Off-hand knife at −10 TN unless you have the 3-rank mastery.',
+  'Spears':          'Attack with spears, polearms with spear heads. Extra reach; +5 TN vs mounted foes at close range.',
+  'Polearms':        'Attack with polearms (glaives, naginata). +1k0 damage vs mounted opponents at R5.',
+  'Staves':          'Attack with staves and walking sticks. Two-handed; opponents gain no armor bonus at R3.',
+  'Heavy Weapons':   'Attack with maces, mauls, hammers. Requires Strength 3+. Same Strength bonus to damage as an axe.',
+  'Archery':         'Ranged attacks with bows. Cannot be used in Full Attack stance. Range = Strength × weapon range.',
+  'Brawling':        'Unarmed strikes. DR = Strength k1. At R3: may grapple as Complex Action.',
+  'Defense':         'Used for Full Defense action. Roll Agility/Defense (TN 5); half result replaces your Reflexes×5 for Armor TN. With Shield emphasis: doubles shield TN bonus in Full Defense.',
+  'Athletics':       'Climbing, running, jumping, swimming. Roll Strength/Athletics. Also used for resisting fatigue and environmental hazards.',
+  'Battle':          'Battlefield awareness, tactics, troop command. Perception/Battle to read tactical situations, direct groups, or resist Fear in mass combat.',
+  'Horsemanship':    'Ride and fight from horseback. Required for Full Attack or Full Defense while mounted.',
+  'Hunting':         'Tracking (Perception), Survival (Strength), or Trapping (Agility). Free Raise on Survival rolls in desert at R3.',
+  'Intimidation':    'Frighten, coerce, or dominate through force of personality or physical menace. Contested vs Willpower.',
+  'Stealth':         'Move silently, hide, or shadow a target. Roll vs opponent Perception. Result becomes TN to detect you.',
+  'Tahaddi':         'Used in knife-duels (Tahaddi). Assessment: Awareness/Tahaddi. Strike: Reflexes/Tahaddi vs TN 5 + opponent defenses.',
+  // High Skills
+  'Calligraphy':     'Write beautifully; encode/decode ciphers. Intelligence/Calligraphy. Cipher emphasis required to write or read coded messages.',
+  'Courtier':        'Navigate court politics, read motivations, spread rumors. Awareness/Courtier vs TN 15. Manipulation emphasis for subtle information.',
+  'Divination':      'Foretell future events. Awareness/Divination vs TN 15 (once/day). Spend Void for an additional attempt.',
+  'Etiquette':       'Behave correctly in social situations, avoid offense. Awareness/Etiquette. Political Maneuvering emphasis for formal positions.',
+  'Games':           'Play strategy games (chess, dice, etc.). Intelligence/Games. Gambling: Perception/Games for wagering.',
+  'Investigation':   'Find clues, interrogate, track. Perception/Investigation. Notice emphasis for passive observation.',
+  'Lore':            'Knowledge of a specific subject. Intelligence/Lore. See sub-skills (Lore: Law, Theology, etc.).',
+  'Medicine':        'Treat wounds and disease. Intelligence/Medicine vs TN 15 for field treatment. Success heals 1k1 Wounds.',
+  'Meditation':      'Recover Void Points. Void/Meditation vs TN 20. Success restores 2 Void Points (4 at R5).',
+  'Perform':         'Entertain an audience. Roll varies by type: Singing (Awareness), Dancing (Agility), Oratory (Awareness).',
+  'Sincerity':       'Convince others you speak truly (Honesty) or deceive (Deceit). Awareness/Sincerity contested.',
+  'Storytelling':    'Captivate, inspire, or boast. Awareness/Storytelling. Boasting about an ally: success raises their Reputation.',
+  // Low Skills
+  'Acting':          'Impersonate or disguise. Awareness/Acting vs TN to see through. Result becomes TN for others to pierce the disguise.',
+  'Commerce':        'Trade, appraisal, haggling. Intelligence/Commerce. Appraisal emphasis: assess item value accurately.',
+  'Sleight of Hand': 'Pick pockets, conceal items, card tricks. Agility/Sleight of Hand vs Perception.',
+  'Gambling':        'Games of chance. Perception/Commerce (Gambling). Contested against other gamblers.',
+  'Forgery':         'Create false documents. Intelligence/Forgery. Roll result = TN to detect the forgery.',
+  'Locksmithing':    'Open locks without keys. Agility/Locksmithing vs TN set by lock quality.',
+  // Spellcasting
+  'Spellcraft':      'Cast Sahir spells. Intelligence/Spellcraft vs spell TN. Bonus dice for Discipline emphasis. Mastery 3: Free Raise on all spells.',
+  // Other
+  'Temptation':      'Seduce, bribe, or entice. Awareness/Temptation vs target Will. Seduction emphasis for romantic coercion.',
+};
+
 // Maps skill names to their primary trait and ring — used for dice pool display
 export const SKILL_TRAIT_MAP = {
   // Combat / Bugei

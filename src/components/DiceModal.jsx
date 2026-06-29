@@ -198,8 +198,21 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const rollAllDice = (n) => Array.from({ length: n }, rollOneDie);
 
   const doRoll = () => {
-    const newDice = rollAllDice(rollCount);
+    let newDice = rollAllDice(rollCount);
+    const onesRerolled = [];
+    // Emphasis: reroll any 1s before player selects dice to keep
+    if (useEmphasis && hasEmphasis) {
+      newDice = newDice.map((d, i) => {
+        if (d.total === 1) {
+          onesRerolled.push(i);
+          const rerolled = rollOneDie();
+          return { ...rerolled, wasOne: true }; // mark for display
+        }
+        return d;
+      });
+    }
     setDice(newDice);
+    setRerolledOnes(onesRerolled);
     setKept(new Set());
     setRollResult(null);
     setPhase('rolling');
@@ -212,28 +225,6 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   };
 
   const confirmRoll = () => {
-    // If emphasis applies, re-roll any kept 1s first
-    if (useEmphasis && hasEmphasis) {
-      const onesIdx = [...kept].filter(i => dice[i].total === 1);
-      if (onesIdx.length > 0) {
-        const newDice = [...dice];
-        onesIdx.forEach(i => { newDice[i] = rollOneDie(); });
-        setDice(newDice);
-        setRerolledOnes(onesIdx);
-        // Brief delay then finalize with new dice
-        setTimeout(() => {
-          const total = [...kept].reduce((s, i) => s + newDice[i].total, 0) + flatMod;
-          const success = total >= tn;
-          const result = { total, success, margin: total - tn, tn, raises, flatMod };
-          setRollResult(result);
-          setRerolledOnes([]);
-          if (success) playSuccess(); else playFailure();
-          if (result.success && context?.isAttack) { setPhase('damage'); setDmgDice(rollAllDice(dmgRoll)); }
-          else { setPhase('done'); if (onResult) onResult(result); }
-        }, 800);
-        return; // early return — result set in timeout
-      }
-    }
     const total = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
     const success = total >= tn;
     const result = { total, success, margin: total - tn, tn, raises, flatMod };
@@ -507,11 +498,12 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dice.map((d, i) => (
                 <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleKeep(i)}
-                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
-                  style={rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
+                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
+                  style={d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
                   {d.total}
                   {d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
-                  {rerolledOnes.includes(i) && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
+                  {d.wasOne && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★1↺</span>}
+                  {rerolledOnes.includes(i) && !d.exploded && !d.wasOne && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
                   {kept.has(i) && <span className="die-lbl">✓</span>}
                 </div>
               ))}

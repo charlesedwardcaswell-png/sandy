@@ -18,6 +18,7 @@ import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
 import DuelPane from './components/DuelPane';
 import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID, POISON_EMPHASES, SAHIR_DISCIPLINES, COKALOI_CATEGORIES } from './data/constants';
+import { getWoundRank } from './lib/utils';
 import {
   useCharacters, useActiveSession, useNPCs, useQuests,
   useMapPins, useFactionReputation, useEncounterLog,
@@ -25,6 +26,145 @@ import {
 } from './hooks/useSupabase';
 
 // ── Book Reference Dropdown ────────────────────────────────────────────────────
+// ── Quick Rules Reference ────────────────────────────────────────────────────
+const RULES_SECTIONS = [
+  {
+    title: 'Roll & Keep', icon: 'ti-dice',
+    content: [
+      { h: 'Basic Mechanic', t: 'Roll a number of d10s equal to your Roll stat, keep a number equal to your Keep stat, sum the kept dice. Beat the Target Number (TN) to succeed.' },
+      { h: 'Explosions', t: 'Any die showing 10 explodes — roll it again and add. Chains indefinitely.' },
+      { h: 'Raises', t: 'Before rolling, declare Raises. Each adds +5 to the TN but adds effect on success. Max raises = Void Ring.' },
+      { h: 'Free Raises', t: 'Reduce effective TN by 5 without extra effort. From techniques or advantages.' },
+      { h: 'Emphasis', t: 'Reroll any 1s in your pool before selecting which dice to keep.' },
+    ]
+  },
+  {
+    title: 'Combat Procedure', icon: 'ti-sword',
+    content: [
+      { h: 'Round Structure', t: '1) Declare Stance. 2) Roll Initiative (Reflexes + 1k1, keep 1). 3) Act in Initiative order. Each combatant gets 1 Full Action + 1 Simple Action.' },
+      { h: 'Attacking', t: 'Roll Agility + Weapon Skill, keep Agility. Beat target Armor TN (5 + Reflexes×5 + armor bonus). On hit, roll weapon damage.' },
+      { h: 'Damage', t: 'Roll weapon DR (e.g. 3k2). Every 5 points = 1 Wound Level applied to target.' },
+      { h: 'Actions', t: 'Full: Attack, Cast Spell, Full Defense, Complex Skill. Simple: Draw, Move, Stand. Free: Speak, Drop item, Spend Void.' },
+    ]
+  },
+  {
+    title: 'Stances', icon: 'ti-shield',
+    content: [
+      { h: 'Attack (Water)', t: 'Default. No restrictions — attack, cast, use skills, move freely.' },
+      { h: 'Full Attack (Fire)', t: '+2k1 to attacks, −10 Armor TN. Melee only. No spells or non-combat skills. Move only toward enemies.' },
+      { h: 'Defense (Air)', t: 'Cannot attack. Everything else allowed. Adds Air Ring + Defense Rank to Armor TN.' },
+      { h: 'Full Defense (Earth)', t: 'Roll Agility/Defense (TN 5). Half result added to Armor TN until next turn. Only Free Actions after.' },
+      { h: 'Center (Void)', t: 'Forfeit all actions. Next round: +1k1 + Void Ring on first roll, +10 to Initiative.' },
+    ]
+  },
+  {
+    title: 'Wounds & Healing', icon: 'ti-heart',
+    content: [
+      { h: 'Wound Levels', t: 'Healthy → Nicked (+3 TN) → Grazed (+5) → Hurt (+10) → Injured (+15) → Crippled (+20) → Down (incap).' },
+      { h: 'Wounds per Level', t: 'Earth Ring × 2 wounds per level. Out level = Earth Ring × 5.' },
+      { h: 'Recovery', t: 'Morning: recover Stamina + Insight Rank wounds. Medicine (TN 15): restore 1k1 wounds.' },
+      { h: 'Penalties', t: 'Wound TN penalty applies to ALL rolls — attacks, spells, social, everything.' },
+    ]
+  },
+  {
+    title: 'Gaining Ranks', icon: 'ti-trending-up',
+    content: [
+      { h: 'Thresholds', t: 'Rank 2: 150 · Rank 3: 175 · Rank 4: 200 · Rank 5: 225 · Rank 6: 250 · +25 per rank after.' },
+      { h: 'Insight', t: '(Sum of all Ring values × 10) + total Skill ranks. Rank 5 in any skill = +2 Insight. Rank 10 = +5 more.' },
+      { h: 'XP Costs', t: 'Traits: new rank × 4. Skills: new rank × 2. Emphases: 2 XP, then 4, 6, 8…' },
+      { h: 'Rank 6+', t: 'School has no more techniques. Take Rank 1 of another school to continue.' },
+    ]
+  },
+  {
+    title: 'Spellcasting', icon: 'ti-sparkles',
+    content: [
+      { h: 'Casting', t: 'Roll Intelligence/Spellcraft vs spell TN. No spell slots — cast any known spell any number of times. Wound penalties apply.' },
+      { h: 'Sahir', t: 'Five Disciplines: Binding, Corruption, Divination, Sorcery, Summoning. Buy spell levels with XP.' },
+      { h: 'Cokaloi', t: "Ra'Shari Diviners only. Blessings and Curses — different mechanic from Sahir." },
+      { h: 'Raises', t: 'Increases spell effect, duration, or area. GM adjudicates based on spell type.' },
+    ]
+  },
+  {
+    title: 'Tahaddi Duel', icon: 'ti-activity',
+    content: [
+      { h: 'Assessment', t: 'Both roll Awareness/Tahaddi vs TN (10 + opponent Insight Rank × 5). Winner gains intel. Win by 10+ = +1k1 on Focus.' },
+      { h: 'Focus', t: 'Both roll Void/Tahaddi. Win by 5+ = strike first + Free Raises. Less than 5 margin = Kharmic Strike (simultaneous).' },
+      { h: 'Strike', t: 'Roll Reflexes/Tahaddi vs opponent Armor TN. Raises = narrative/maneuver, not flat damage.' },
+      { h: 'Scorpion Strike', t: 'Loser of Focus who still beats Armor TN on Strike still deals damage.' },
+    ]
+  },
+  {
+    title: 'Void Points', icon: 'ti-hexagon',
+    content: [
+      { h: 'Spending', t: 'Before a roll: +1k1 to your dice pool. As a Free Action in combat: add Void Ring to Armor TN until next turn.' },
+      { h: 'Initiative', t: 'Spend before rolling Initiative to add +10 to your Initiative total that round.' },
+      { h: 'Recovery', t: 'Recover 1 per scene naturally. Meditate (Void/Meditation TN 20) = +2 VP (4 at Rank 5).' },
+      { h: 'Restrictions', t: 'Cannot spend Void on Raises for the same roll. Ashalan cannot spend Void at all.' },
+    ]
+  },
+];
+
+function RulesDropdown() {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} title="Quick Rules Reference" style={{
+        background: 'none', border: '1px solid var(--border)', borderRadius: 5,
+        color: open ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer',
+        padding: '3px 8px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4,
+      }}>
+        <i className="ti ti-help" style={{ fontSize: 14 }} />
+        <span style={{ fontSize: 11 }}>Rules</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 500,
+          background: 'var(--bg-panel)', border: '1px solid var(--border)',
+          borderRadius: 7, boxShadow: '0 8px 32px rgba(0,0,0,.7)',
+          width: 340, maxHeight: '82vh', overflowY: 'auto' }}>
+          <div style={{ padding: '.5rem .75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-help" style={{ color: 'var(--gold)', fontSize: 14 }} />
+            <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: 13 }}>Quick Rules Reference</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>LBS 4th Ed</span>
+          </div>
+          {RULES_SECTIONS.map((sec, si) => (
+            <div key={si} style={{ borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+              <div onClick={() => setExpanded(expanded === si ? null : si)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '.4rem .75rem', cursor: 'pointer',
+                  background: expanded === si ? 'rgba(200,150,42,.07)' : 'transparent' }}>
+                <i className={"ti " + sec.icon} style={{ fontSize: 13, color: expanded === si ? 'var(--gold)' : 'var(--text-muted)', flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: expanded === si ? 'var(--gold)' : 'var(--text-primary)' }}>{sec.title}</span>
+                <i className={"ti " + (expanded === si ? 'ti-chevron-up' : 'ti-chevron-down')} style={{ fontSize: 11, color: 'var(--text-muted)' }} />
+              </div>
+              {expanded === si && (
+                <div style={{ padding: '.35rem .75rem .6rem 1.25rem', borderTop: '1px solid rgba(107,78,40,.15)' }}>
+                  {sec.content.map((item, ii) => (
+                    <div key={ii} style={{ marginBottom: '.5rem' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold-dim)', marginBottom: 2 }}>{item.h}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{item.t}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          <div style={{ padding: '.4rem .75rem', fontSize: 10, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+            Condensed — see Rulebook for full rules
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BookDropdown() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -288,6 +428,27 @@ export default function App() {
   const [viewCharId, setViewCharId] = useState(null);
   const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
 
+  // Compute wound penalty for any character — applies to ALL rolls
+  const computeWoundPenalty = (char) => {
+    if (!char) return 0;
+    const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
+    const woundRank = getWoundRank(char.current_wounds, char.max_wounds, char.earth);
+    const rawPenalty = WOUND_TN_PENALTY[woundRank] || 0;
+    if (rawPenalty === 0) return 0;
+    // Reductions: Strength of the Earth advantage (-3), City Guard R1 Trained For War (-school_rank)
+    const hasSotE = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
+    const hasCityGuard = Object.values(char.techniques || {}).some(t => t === 'Trained For War');
+    const reduction = (hasSotE ? 3 : 0) + (hasCityGuard ? (char.school_rank || 1) : 0);
+    return Math.max(0, rawPenalty - reduction);
+  };
+
+  // Wrapper that automatically injects woundPenalty for the rolling character
+  const openRoll = (ctx) => {
+    const rollingChar = ctx.character || safeChars.find(c => c.id === myCharId);
+    const woundPenalty = ctx.woundPenalty !== undefined ? ctx.woundPenalty : computeWoundPenalty(rollingChar);
+    setGlobalModal({ ...ctx, woundPenalty });
+  };
+
   // My character — stored in localStorage, player picks once
   const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
 
@@ -381,11 +542,9 @@ export default function App() {
     localStorage.setItem('sandy_my_char_id', id);
     setMyCharId(id);
     const char = characters.find(c => c.id === id);
-    if (char) {
-      push('ti-user-check', `Playing as ${char.name}`, { gmOnly: true });
-      if (playerUsername) updateCharacter(id, { player_name: playerUsername });
-    }
+    if (char) push('ti-user-check', `Playing as ${char.name}`, { gmOnly: true });
   };
+
 
   // Coin jingle via Web Audio API (no external file)
   const playCoinJingle = () => {
@@ -426,8 +585,6 @@ export default function App() {
   const unclaimCharacter = (id) => {
     localStorage.removeItem('sandy_my_char_id');
     setMyCharId(null);
-    // Clear player_name from the character
-    updateCharacter(id, { player_name: null });
     push('ti-user-off', 'Character unclaimed', { gmOnly: true });
   };
 
@@ -634,8 +791,66 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v110</span>
+        <span className="hdr-game">The Tool — v116</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
+        {/* Void Points display — player sees own VP; GM sees all PCs */}
+        {isPlayer && (() => {
+          const myChar = safeChars.find(c => c.id === myCharId);
+          if (!myChar) return null;
+          const cur = myChar.current_void ?? myChar.void ?? 2;
+          const max = myChar.void || 2;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VOID</span>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {Array.from({ length: max }).map((_, i) => (
+                  <span key={i} style={{ fontSize: 14, color: i < cur ? 'var(--gold)' : 'var(--border)', lineHeight: 1 }}>◆</span>
+                ))}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{cur}/{max}</span>
+            </div>
+          );
+        })()}
+        {(isGM && !isPCView) && (() => {
+          const pcs = safeChars.filter(c => !c.is_npc);
+          if (pcs.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VP</span>
+              {pcs.map(char => {
+                const cur = char.current_void ?? char.void ?? 2;
+                const max = char.void || 2;
+                const pct = max > 0 ? cur / max : 0;
+                const col = pct === 0 ? 'var(--red)' : pct < 0.5 ? 'var(--gold-dim)' : 'var(--gold)';
+                return (
+                  <div key={char.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>{char.name.split(' ')[0]}</span>
+                    <span style={{ fontSize: 12, color: col, lineHeight: 1, fontWeight: 600 }}>{cur}/{max}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+        {isPCView && (() => {
+          const pcs = safeChars.filter(c => !c.is_npc);
+          if (pcs.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VP</span>
+              {pcs.map(char => {
+                const cur = char.current_void ?? char.void ?? 2;
+                const max = char.void || 2;
+                return (
+                  <div key={char.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>{char.name.split(' ')[0]}</span>
+                    <span style={{ fontSize: 12, color: 'var(--gold)', lineHeight: 1, fontWeight: 600 }}>{cur}/{max}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
@@ -654,6 +869,7 @@ export default function App() {
             <input type="checkbox" checked={isPCView} onChange={e => setIsPCView(e.target.checked)} /> PC View
           </label>
         )}
+        <RulesDropdown />
         <BookDropdown />
         {musicUrl && (
           <button onClick={() => {
@@ -715,6 +931,22 @@ export default function App() {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
             <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
           </div>
+          {/* Rest Everyone — morning healing + void restore */}
+          <button className="btn btn-sm" title="Rest Everyone: apply morning healing (Stamina + Rank wounds) and restore all Void Points to max"
+            style={{ borderColor: 'var(--gold-dim)', color: 'var(--gold)', marginLeft: 8 }}
+            onClick={() => {
+              const pcs = safeChars.filter(c => !c.is_npc);
+              applyPassiveHealing(pcs, true);
+              pcs.forEach(char => {
+                const maxVoid = char.void || 2;
+                if ((char.current_void || 0) !== maxVoid) {
+                  handleUpdateChar(char.id, { current_void: maxVoid });
+                }
+              });
+              push('ti-moon', `Rest — morning healing applied, all Void Points restored (${pcs.length} characters)`);
+            }}>
+            <i className="ti ti-moon" style={{ fontSize: 12 }} /> Rest Everyone
+          </button>
           <div style={{ flex: 1 }} />
           {!session
             ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => {
@@ -763,7 +995,7 @@ export default function App() {
             }}
             onUpdateInventory={updateInventory}
             partyInventoryItems={inventory?.items || []}
-            onRoll={(ctx) => setGlobalModal({ ...ctx })}
+            onRoll={(ctx) => openRoll(ctx)}
             jinnSummonerRef={jinnSummonerRef}
             jinnSummonBonus={jinnSummonBonus}
             onJinnSummonDone={() => setJinnSummonBonus(null)}
@@ -778,6 +1010,7 @@ export default function App() {
             encounter={encounter}
             setEncounter={handleSetEncounter}
             npcsFromLog={npcs.filter(Boolean).filter(n => n.is_visible_to_players || isGM)}
+            fullNpcs={safeChars.filter(c => c.is_npc)}
             onUpdateCharacter={handleUpdateChar}
             onAddEncounterEntry={addEncounterEntry}
             onLogSkill={logSkillUse}
@@ -806,6 +1039,7 @@ export default function App() {
             onUpdateNPC={handleUpdateNPC}
             onDeleteNPC={deleteNPC}
             onUpdateRep={handleUpdateRep}
+            onRefetch={refetchNpcs}
             encounter={encounter}
             setEncounter={handleSetEncounter}
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
@@ -868,8 +1102,13 @@ export default function App() {
             onLogEvent={push}
             shopOpen={shopOpen}
             onPurchase={handlePurchase}
-            onRoll={(ctx) => setGlobalModal({ ...ctx })}
+            onRoll={(ctx) => openRoll(ctx)}
             myCharId={myCharId}
+            myGrantedActions={(encounter?.grantedActions || {})[myCharId] || 0}
+            onSpendGrantedAction={() => {
+              const cur = (encounter?.grantedActions || {})[myCharId] || 0;
+              handleSetEncounter(e => ({ ...e, grantedActions: { ...(e.grantedActions || {}), [myCharId]: Math.max(0, cur - 1) } }));
+            }}
             onToggleShopOpen={gmView ? () => {
               const opening = !encounter?.shopOpen;
               handleSetEncounter(e => ({ ...e, shopOpen: opening }));
@@ -1284,7 +1523,7 @@ export default function App() {
             enemies={enemies}
             allies={safeChars.filter(c => c.id !== myCharId)}
             allCharacters={safeChars}
-            onRoll={(ctx) => setGlobalModal({ ...ctx, character: myChar })}
+            onRoll={(ctx) => openRoll({ ...ctx, character: myChar })}
             onStanceChange={(stance) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, stance } : c) }))}
             onDrawWeapon={(weapon) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, drawnWeapon: weapon } : c) }))}
             onPass={() => handleSetEncounter(e => ({ ...e, activeTurn: e.activeTurn + 1 }))}

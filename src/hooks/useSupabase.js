@@ -310,7 +310,7 @@ export function useNPCs() {
     setNpcs(prev => prev.filter(n => n.id !== id));
   };
 
-  // Real-time
+  // Real-time subscription
   useEffect(() => {
     const sub = supabase
       .channel('npcs_' + GAME_ID)
@@ -323,6 +323,12 @@ export function useNPCs() {
       .subscribe();
     return () => supabase.removeChannel(sub);
   }, []);
+
+  // Polling fallback — re-fetch every 15s so players see new NPCs even if realtime isn't enabled
+  useEffect(() => {
+    const interval = setInterval(() => fetch(), 15000);
+    return () => clearInterval(interval);
+  }, [fetch]);
 
   return { npcs, loading, createNPC, updateNPC, deleteNPC, refetch: fetch };
 }
