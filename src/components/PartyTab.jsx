@@ -20,7 +20,44 @@ function ItemIcon({ category }) {
   return <i className={`ti ${icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
 }
 
-export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId }) {
+// Faction row with a collapsible free-text notes field — casual party-wide tracking, editable by anyone,
+// not gated to GM-only like the NPC GM Notes field. Saves on blur to avoid per-keystroke realtime resets.
+function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes }) {
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState(savedNotes);
+  React.useEffect(() => { setDraft(savedNotes); }, [savedNotes]);
+  const hasNotes = savedNotes.trim().length > 0;
+
+  return (
+    <div style={{ borderBottom: '1px solid rgba(107,78,40,.12)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem' }}>
+        <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <FacIcon name={fDef.name} size={12} />
+        </div>
+        <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 13 }}>{fDef.name}</span>
+        {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
+        <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 14, minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
+        {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>}
+        <span style={{ fontSize: 12, color: repColor(rep), minWidth: 42 }}>{repLabel(rep)}</span>
+        <button onClick={() => setExpanded(e => !e)}
+          title={hasNotes ? 'View/edit party notes' : 'Add a party note'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: hasNotes ? 'var(--gold)' : 'var(--text-muted)', padding: '2px 4px', flexShrink: 0 }}>
+          <i className={`ti ${hasNotes ? 'ti-note-filled' : 'ti-note'}`} style={{ fontSize: 14 }} />
+        </button>
+      </div>
+      {expanded && (
+        <div style={{ padding: '0 .25rem .5rem 2rem' }}>
+          <textarea value={draft} onChange={e => setDraft(e.target.value)}
+            onBlur={() => { if (draft !== savedNotes) onUpdateRepNotes(fDef.name, draft); }}
+            placeholder="Party notes — what we know, who to trust, debts owed..."
+            style={{ width: '100%', minHeight: 50, fontSize: 12, padding: '.4rem .5rem', resize: 'vertical', boxSizing: 'border-box' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId, onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -60,11 +97,12 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
       : { name: item.name, equipped: false, inUse: false }
     ];
     onUpdateCharacter(charId, { equipment: newEq });
+    onLogEvent && onLogEvent('ti-arrow-right', `${item.name} → Party Inventory to ${char.name}`);
     setSendToChar(s => { const n = { ...s }; delete n[idx]; return n; });
   };
 
   const pcChars = (characters || []).filter(c => !c.is_npc);
-  const items = inventory.items || [];
+  const items = (inventory.items || []).filter(Boolean); // defensive: drop any stray null/undefined entries
   const magicItems = items.filter(i => i.is_magic);
   const normalItems = items.filter(i => !i.is_magic);
 
@@ -134,6 +172,67 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
           )}
         </div>
 
+        {/* Water supply — only shown in drought mode */}
+        {waterDroughtEnabled && (
+          <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#3a80c0', marginBottom: '.75rem' }}>
+              <i className="ti ti-droplet" style={{ marginRight: 6 }} />Party Water Supply
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.5rem' }}>
+                {/* GM-only controls to set party water level */}
+                {isGM && onSetPartyWater && (
+                  <button className="btn btn-sm" onClick={() => onSetPartyWater(Math.max(0, partyWater - 1))} disabled={partyWater <= 0}>−</button>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: partyWater <= 2 ? '#c84030' : '#3a80c0' }}>
+                    {partyWater} {partyWater === 1 ? 'unit' : 'units'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {partyWater === 0 ? 'No water — dehydration risk' : partyWater <= 2 ? 'Running low' : 'Adequate supply'}
+                  </div>
+                </div>
+                {isGM && onSetPartyWater && (
+                  <button className="btn btn-sm" onClick={() => onSetPartyWater(partyWater + 1)}>+</button>
+                )}
+              </div>
+              {/* Per-character water — click to take from party supply */}
+              <div style={{ marginTop: '.5rem', borderTop: '1px solid rgba(107,78,40,.15)', paddingTop: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                  Character water (tap to take from supply, max 5 per person):
+                </div>
+                {characters.filter(c => !c.is_npc).map(char => {
+                  const units = char.water_units ?? 0;
+                  const isMe = char.id === myCharId;
+                  const canTake = partyWater > 0 && units < 5 && onTakeWater;
+                  return (
+                    <div key={char.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '3px 0' }}>
+                      <span style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>{char.name}</span>
+                      {/* Water pip dots */}
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < units ? '#3a80c0' : 'var(--border)' }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11, color: units <= 1 ? '#c84030' : 'var(--text-muted)', minWidth: 16, textAlign: 'center' }}>{units}</span>
+                      {(isGM || isMe) && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ fontSize: 10, padding: '1px 6px', opacity: canTake ? 1 : 0.4 }}
+                          disabled={!canTake}
+                          title={!canTake ? (partyWater <= 0 ? 'No party water left' : units >= 5 ? 'Already full' : '') : 'Take 1 from party supply'}
+                          onClick={() => onTakeWater(char.id)}>
+                          Take
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Faction standing */}
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
@@ -142,17 +241,10 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
           <div className="card">
             {FACTIONS_DATA.map(fDef => {
               const rep = reps[fDef.name]?.reputation ?? 0;
+              const savedNotes = reps[fDef.name]?.notes ?? '';
               return (
-                <div key={fDef.name} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem', borderBottom: '1px solid rgba(107,78,40,.12)' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <FacIcon name={fDef.name} size={12} />
-                  </div>
-                  <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 13 }}>{fDef.name}</span>
-                  {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
-                  <span style={{ fontWeight: 600, color: repColor(rep), fontSize: 14, minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
-                  {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>}
-                  <span style={{ fontSize: 12, color: repColor(rep), minWidth: 42 }}>{repLabel(rep)}</span>
-                </div>
+                <FactionRow key={fDef.name} fDef={fDef} rep={rep} savedNotes={savedNotes}
+                  gmView={gmView} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} />
               );
             })}
           </div>
@@ -179,7 +271,7 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
             <i className="ti ti-coin" style={{ color: 'var(--gold)', fontSize: 18 }} />
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{inventory.copper ?? 0}</span>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper</span>
-            {(gmView || myCharId) && (
+            {gmView && (
               <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
                 <input type="number" placeholder="±" value={copperDelta} onChange={e => setCopperDelta(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && applyCopper()} style={{ width: 60, fontSize: 12, padding: '2px 4px' }} />

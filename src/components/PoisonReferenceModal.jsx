@@ -31,7 +31,7 @@ export default function PoisonReferenceModal({ onClose }) {
               <div key={i} onClick={() => setSelected(i)}
                 style={{ padding: '.4rem .6rem', borderRadius: 4, marginBottom: 3, cursor: 'pointer',
                   background: selected === i ? (p.color + '33') : 'var(--bg-panel)',
-                  border: `1px solid ${selected === i ? p.color : 'var(--border)'}`,
+                  borderRight: `1px solid ${selected === i ? p.color : 'var(--border)'}`, borderTop: `1px solid ${selected === i ? p.color : 'var(--border)'}`, borderBottom: `1px solid ${selected === i ? p.color : 'var(--border)'}`,
                   borderLeft: `3px solid ${p.color}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: selected === i ? p.color : 'var(--text-primary)' }}>{p.name}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.method}</div>
@@ -41,7 +41,7 @@ export default function PoisonReferenceModal({ onClose }) {
               <div key={i} onClick={() => setSelected(i)}
                 style={{ padding: '.4rem .6rem', borderRadius: 4, marginBottom: 3, cursor: 'pointer',
                   background: selected === i ? (p.color + '33') : 'var(--bg-panel)',
-                  border: `1px solid ${selected === i ? p.color : 'var(--border)'}`,
+                  borderRight: `1px solid ${selected === i ? p.color : 'var(--border)'}`, borderTop: `1px solid ${selected === i ? p.color : 'var(--border)'}`, borderBottom: `1px solid ${selected === i ? p.color : 'var(--border)'}`,
                   borderLeft: `3px solid ${p.color}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: selected === i ? p.color : 'var(--text-primary)' }}>{p.name}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.delivery.slice(0, 40)}</div>

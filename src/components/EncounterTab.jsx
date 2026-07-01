@@ -1,15 +1,112 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, getArmorBonus } from '../data/constants';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, getArmorBonus } from '../data/constants';
 import { supabase } from '../lib/supabase';
-import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore } from './UI';
-import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel } from '../lib/utils';
-import DiceModal from './DiceModal';
+import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore, triggerVoidSwirl, WeaponIcon, ArmorIcon, getWeaponIconType } from './UI';
+import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques } from '../lib/utils';
+import DiceModal, { computeBonuses } from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
 import EncounterBuilder, { NPCPicker, NPC_BY_FACTION, generateGroup } from './EncounterBuilder';
 import { playDamage } from '../lib/sounds';
 
+// ── Contested Roll resolution panel ──────────────────────────────────────────
+function ContestedRollPanel({ cr, myCharId, isGM, onRoll, onClose }) {
+  const { sideA, sideB, winner } = cr;
+  const resolved = winner !== null;
+
+  const SideBlock = ({ side, sideKey }) => {
+    const isMine = side.id === myCharId;
+    const canRoll = (isMine || isGM) && side.rolled === null;
+    return (
+      <div style={{ flex: 1, textAlign: 'center', padding: '.5rem', borderRadius: 6,
+        background: winner === sideKey ? 'rgba(74,138,64,.15)' : 'transparent',
+        border: winner === sideKey ? '1px solid var(--green)' : '1px solid transparent' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{side.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{side.skillName}</div>
+        {side.rolled !== null ? (
+          <div style={{ fontSize: 24, fontWeight: 900, color: winner === sideKey ? 'var(--green)' : 'var(--text-secondary)' }}>
+            {side.rolled}
+          </div>
+        ) : canRoll ? (
+          <button className="btn btn-sm btn-p" onClick={() => onRoll(sideKey)}>
+            <i className="ti ti-dice" style={{ marginRight: 4 }} />Roll
+          </button>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Waiting…</div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{
+      background: 'rgba(74,154,200,.08)', border: '2px solid #4a9ac8', borderRadius: 8,
+      padding: '.75rem 1rem', marginBottom: '.75rem',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#60b0d8', marginBottom: '.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span><i className="ti ti-scale" style={{ marginRight: 5 }} />Contested Roll</span>
+        {isGM && <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={onClose}>{resolved ? 'Dismiss' : 'Cancel'}</button>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+        <SideBlock side={sideA} sideKey="sideA" />
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>vs</div>
+        <SideBlock side={sideB} sideKey="sideB" />
+      </div>
+      {resolved && (
+        <div style={{ textAlign: 'center', marginTop: '.6rem', fontSize: 13, fontWeight: 700, color: winner === 'tie' ? 'var(--gold)' : 'var(--green)' }}>
+          {winner === 'tie' ? '— Tie —' : `${cr[winner].name} wins by ${Math.abs(sideA.rolled - sideB.rolled)}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function CombatantVoidMenu({ c, currentVoid, maxVoid, onVoidDefense }) {
+  const [open, setOpen] = useState(false);
+  if (currentVoid <= 0 && !c.pendingInitBoost && !c.voidReduceDamage && !c.voidArmor) return null;
+  return (
+    <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: 26, height: 26, borderRadius: '50%', background: '#000', border: '2px solid rgba(200,150,42,.5)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 8, fontWeight: 700, letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, boxShadow: open ? '0 0 8px rgba(200,150,42,.4)' : 'none' }}>
+        VOID
+      </button>
+      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{currentVoid} left</span>
+      {c.pendingInitBoost && <span style={{ fontSize: 10, color: 'var(--gold-dim)' }}>+10 init next round</span>}
+      {c.voidReduceDamage && <span style={{ fontSize: 10, color: '#6aba60' }}>Absorb ready</span>}
+      {c.voidArmor && <span style={{ fontSize: 10, color: '#6aba60' }}>+10 TN active</span>}
+      {open && (
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 4, background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '.5rem', width: 220, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold)', marginBottom: '.4rem', display: 'flex', justifyContent: 'space-between' }}>
+            Spend a Void Point
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+          </div>
+          <button className="btn btn-sm" style={{ width: '100%', fontSize: 11, marginBottom: 4, opacity: c.voidArmor || currentVoid <= 0 ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60', justifyContent: 'flex-start' }}
+            disabled={!!c.voidArmor || currentVoid <= 0}
+            onClick={(e) => { triggerVoidSwirl(e); onVoidDefense(c.id, 'armor'); setOpen(false); }}
+            title="Free Action — add +10 to your Armor TN until your next turn">
+            ⬡ +10 Armor TN
+          </button>
+          <button className="btn btn-sm" style={{ width: '100%', fontSize: 11, marginBottom: 4, opacity: c.voidReduceDamage || currentVoid <= 0 ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60', justifyContent: 'flex-start' }}
+            disabled={!!c.voidReduceDamage || currentVoid <= 0}
+            onClick={(e) => { triggerVoidSwirl(e); onVoidDefense(c.id, 'damage'); setOpen(false); }}
+            title={`When taking wounds, reduce damage received by your Void Ring (${maxVoid})`}>
+            ⬡ Reduce damage by {maxVoid}
+          </button>
+          <button className="btn btn-sm" style={{ width: '100%', fontSize: 11, opacity: c.pendingInitBoost || currentVoid <= 0 ? 0.5 : 1, borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)', justifyContent: 'flex-start' }}
+            disabled={!!c.pendingInitBoost || currentVoid <= 0}
+            onClick={(e) => { triggerVoidSwirl(e); onVoidDefense(c.id, 'initiative'); setOpen(false); }}
+            title="Spend at the start of a round before Initiative — adds +10 and reorders the cards">
+            ⬡ +10 Initiative
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0 }) {
   const isNPC = c.type === 'npc';
   const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
@@ -23,9 +120,12 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
   const fullDefBonus = c.stance === 'Full Defense' ? Math.ceil((c.fullDefenseBonus ?? 0) / 2) : 0;
   const defenseStanceBonus = c.stance === 'Defense' ? ((c.air || 2) + (c.defenseSkillRank || 0)) : 0;
   const fullAttackPenalty = c.stance === 'Full Attack' ? -10 : 0;
-  // Jinn protection: "+TN to Be Hit = highest Ring"
-  const jinnTNBonus = (pc?.is_npc && pc?.faction === 'Jinn' && Object.values(pc?.techniques || {}).some(t => typeof t === 'string' && t.includes('+TN to Be Hit = highest Ring')))
-    ? Math.max(pc.air || 2, pc.earth || 2, pc.fire || 2, pc.water || 2) : 0;
+  // Jinn protection: "+TN to Be Hit = highest Ring" — check the combatant itself, not pcsMap. Spawned NPC
+  // combatant ids (e.g. 'npc_full_<realId>_<timestamp>') never match the real character id pcsMap is keyed
+  // by, so a pcsMap lookup here always silently returned undefined for any actual spawned Jinn. The combatant
+  // object already carries techniques/faction/rings directly from the spawn fix, so check those instead.
+  const jinnTNBonus = (c.faction === 'Jinn' && Object.values(c?.techniques || {}).some(t => typeof t === 'string' && t.includes('+TN to Be Hit = highest Ring')))
+    ? Math.max(c.air || 2, c.earth || 2, c.fire || 2, c.water || 2) : 0;
   const armorTN = c.stance === 'Full Defense'
     ? 5 + (c.reflexes || 2) * 5 + armorBonus + fullDefBonus + voidTnBoost + jinnTNBonus
     : 5 + (c.reflexes || 2) * 5 + armorBonus + defenseStanceBonus + fullAttackPenalty + voidTnBoost + jinnTNBonus;
@@ -64,27 +164,42 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
     <div className={cardClass}>
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem .6rem', borderBottom: '1px solid var(--border)', background: isActive ? 'rgba(200,150,42,.08)' : 'transparent' }}>
+        {/* Swap sides — GM only */}
+        {isGM && !isPCView && onSwapSide && (
+          <button onClick={onSwapSide} title={isNPC ? '← Move to Party side' : '→ Move to Enemy side'}
+            style={{ flexShrink: 0, fontSize: 13, padding: '1px 5px', background: 'transparent', border: `1px solid ${isNPC ? '#4a8a40' : '#8a3030'}`, borderRadius: 4, color: isNPC ? '#6aba60' : '#c84030', cursor: 'pointer', lineHeight: 1 }}>
+            {isNPC ? '←' : '→'}
+          </button>
+        )}
         {/* Initiative — left of icon */}
         <div style={{ textAlign: 'center', flexShrink: 0, minWidth: 28 }}>
-          <div style={{ fontSize: isActive ? 20 : 15, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{c.init}</div>
+          {(() => { const enlarged = isActive || isMyChar;
+          return <>
+          <div style={{ fontSize: enlarged ? 20 : 15, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{c.init}</div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>init</div>
+          </>;})()}
         </div>
-        <div style={{ width: isActive ? 36 : 28, height: isActive ? 46 : 36, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
+        {(() => { const enlarged = isActive || isMyChar;
+          const pw = Math.round((enlarged ? 36 : 28) * portraitScale);
+          const ph = Math.round((enlarged ? 46 : 36) * portraitScale);
+          return (
+        <div style={{ width: pw, height: ph, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
           {avatarUrl
             ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
             : null}
-          <Silhouette type={avatarType} size={isActive ? 28 : 22} color={avatarColor}
+          <Silhouette type={avatarType} size={Math.round((enlarged ? 28 : 22) * portraitScale)} color={avatarColor}
             style={{ display: avatarUrl ? 'none' : undefined }} />
         </div>
+        );})()}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ fontSize: isActive ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: (isActive || isMyChar) ? 14 : 12, fontWeight: 600, color: isActive ? 'var(--gold)' : isMyChar ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {isNPC && isGM ? (
                 <input
                   defaultValue={c.name}
                   onBlur={e => { const v = e.target.value.trim(); if (v && v !== c.name && onApplyStatus) onApplyStatus(c.id, '__rename__', v); }}
                   onClick={e => e.stopPropagation()}
-                  style={{ fontSize: 13, fontWeight: 600, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', width: '100%', padding: '1px 0', fontFamily: 'inherit' }}
+                  style={{ fontSize: 13, fontWeight: 600, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', width: '100%', padding: '1px 0', fontFamily: 'inherit' }}
                 />
               ) : (
                 <span>{c.name}</span>
@@ -128,7 +243,26 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
 
       {/* Bottom row - weapon + armor TN + void */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.3rem .6rem', fontSize: 12, color: 'var(--text-muted)' }}>
-        <i className="ti ti-sword" style={{ fontSize: 13 }} />
+        {/* Up to 2 weapon icons (dual-wield), or 1 + bare-hand fallback. Two-handed weapons show alone. */}
+        {(() => {
+          const weapons = c.drawnWeapons?.length > 0 ? c.drawnWeapons : (c.drawnWeapon ? [c.drawnWeapon] : []);
+          if (weapons.length === 0) {
+            return <i className="ti ti-hand-stop" style={{ fontSize: 13 }} title="Unarmed" />;
+          }
+          return (
+            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+              {weapons.slice(0, 2).map((w, wi) => {
+                const iconType = getWeaponIconType(w);
+                const wName = w.split(' (')[0];
+                return iconType
+                  ? <WeaponIcon key={wi} type={iconType} size={16} color={avatarColor} />
+                  : <i key={wi} className="ti ti-sword" style={{ fontSize: 13 }} title={wName} />;
+              })}
+            </div>
+          );
+        })()}
+        {/* Armor icon — shown whenever the character has any armor bonus equipped */}
+        {armorBonus > 0 && <ArmorIcon size={15} color={avatarColor} />}
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {c.drawnWeapons?.length > 1
             ? c.drawnWeapons.map(w => w.split(' (')[0]).join(' + ')
@@ -150,38 +284,16 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
         )}
       </div>
 
-      {/* Void defense buttons — player's own card only, any time during combat */}
-      {isMyChar && !isNPC && onVoidDefense && currentVoid > 0 && (
-        <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: '100%', marginBottom: 2 }}>Spend Void ({currentVoid} left):</span>
-          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.voidArmor ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60' }}
-            disabled={!!c.voidArmor || currentVoid <= 0}
-            onClick={() => onVoidDefense(c.id, 'armor')}
-            title="+10 Armor TN this round">
-            ⬡ +10 TN
-          </button>
-          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.voidReduceDamage ? 0.5 : 1, borderColor: '#6aba60', color: '#6aba60' }}
-            disabled={!!c.voidReduceDamage || currentVoid <= 0}
-            onClick={() => onVoidDefense(c.id, 'damage')}
-            title={`Reduce next wound rank gain by your Void Ring (${maxVoid})`}>
-            ⬡ -{maxVoid} Wounds
-          </button>
-          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: c.pendingInitBoost ? 0.5 : 1, borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
-            disabled={!!c.pendingInitBoost || currentVoid <= 0}
-            onClick={() => onVoidDefense(c.id, 'initiative')}
-            title="+10 Initiative — applies on next round change">
-            ⬡ +10 Init
-          </button>
-          {c.pendingInitBoost && <span style={{ fontSize: 10, color: 'var(--gold-dim)', alignSelf: 'center' }}>+10 next round</span>}
-          {c.voidReduceDamage && <span style={{ fontSize: 10, color: '#6aba60', alignSelf: 'center' }}>Absorb ready</span>}
-        </div>
+      {/* Void spend menu — player's own card only, any time during combat */}
+      {isMyChar && !isNPC && onVoidDefense && (
+        <CombatantVoidMenu c={c} currentVoid={currentVoid} maxVoid={maxVoid} onVoidDefense={onVoidDefense} />
       )}
 
       {/* GM controls */}
       {isGM && !isPCView && (
         <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, 1)}>+W</button>
-          <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, -1)}>−W</button>
+          <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, 1)} title="Apply 1 wound point">+1 W</button>
+          <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, -1)} title="Remove 1 wound point">−1 W</button>
           <select style={{ fontSize: 11, padding: '1px 4px', flex: 1 }} value="" onChange={e => { if (e.target.value) onApplyStatus(c.id, e.target.value); e.target.value = ''; }}>
             <option value="">+ Status</option>
             {STATUS_EFFECTS.map(e => <option key={e} value={e}>{e}</option>)}
@@ -211,13 +323,11 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
 function VoidButton() {
   const [open, setOpen] = useState(false);
   const VOID_USES = [
-    { icon: 'ti-dice', label: '+1k1 to any roll', desc: 'Spend before rolling. Adds one die rolled and one die kept to any roll.' },
-    { icon: 'ti-shield', label: '+10 Armor TN', desc: 'Spend as a Free Action to add +10 to your Armor TN until your next turn.' },
-    { icon: 'ti-heart', label: 'Reduce damage', desc: 'When taking wounds, spend to reduce damage received by your Void Ring.' },
-    { icon: 'ti-bolt', label: '+10 Initiative', desc: 'Spend at the start of a round before rolling Initiative to add +10 to your Initiative roll.' },
-    { icon: 'ti-star', label: '+2k1 (some techniques)', desc: 'Certain school techniques upgrade Void spend to +2k1 instead of +1k1.' },
-    { icon: 'ti-eye', label: 'Negate one attack (Defense R5)', desc: 'Defense Rank 5 Mastery: spend Void as a Free Action to negate one attack per round.' },
-    { icon: 'ti-compass', label: 'Center Stance bonus', desc: 'After spending a round in Center Stance (forfeiting all actions), your first action next round gains +1k1 plus your Void Ring as bonus dice. Also +10 to Initiative that round.' },
+    { icon: 'ti-dice', label: '+1k1 to any roll', desc: 'Spend before rolling. Adds one die rolled and one die kept to any roll. Handled inside the dice roller itself.' },
+    { icon: 'ti-shield', label: '+10 Armor TN', desc: 'Spend as a Free Action to add +10 to your Armor TN until your next turn. Click the VOID circle on your card any time.' },
+    { icon: 'ti-heart', label: 'Reduce damage', desc: 'When taking wounds, spend to reduce damage received by your Void Ring. Click the VOID circle on your card any time.' },
+    { icon: 'ti-bolt', label: '+10 Initiative', desc: 'Spend at the start of a round before rolling Initiative to add +10 to your Initiative roll and reorder the cards. Click the VOID circle on your card any time.' },
+    { icon: 'ti-eye', label: 'Negate one attack (Defense R5)', desc: 'Defense Rank 5 Mastery: spend Void as a Free Action to negate one attack per round. Not yet clickable — ask the GM to resolve this for now.' },
   ];
   return (
     <div style={{ position: 'relative' }}>
@@ -254,7 +364,7 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][wR] || 'Healthy';
   const pc = pcsMap[c.id];
-  const avatarColor = pc?.avatar_color || c.avatar_color || '#c8962a';
+  const avatarColor = pc?.avatar_color || c.avatar_color || FACTION_COLORS[pc?.faction || c.faction] || '#c8962a';
   const avatarType = pc?.avatar_type || c.avatar_type || 'warrior';
   const avatarUrl = (pc?.avatar_url || c.avatar_url || '').trim();
   const granted = grantedActions[c.id] || 0;
@@ -262,7 +372,7 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
 
   return (
     <div style={{
-      background: 'var(--bg-panel)', border: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
+      background: 'var(--bg-panel)', borderRight: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`, borderTop: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`, borderBottom: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
       borderLeft: `3px solid ${isMyChar ? avatarColor : '#4a8a40'}`,
       borderRadius: 6, padding: '.75rem', width: 160, position: 'relative',
       boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
@@ -374,7 +484,10 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
     const coords = getSVGCoords(e);
     if (coords && coords.gridX >= 0 && coords.gridX < gridSize && coords.gridY >= 0 && coords.gridY < gridSize) {
       const occupied = combatants.some(c => c.id !== dragging.id && c.gridX === coords.gridX && c.gridY === coords.gridY);
-      if (!occupied) {
+      // Players (not GM) can only move their own active token into a currently-highlighted range cell
+      const isOwnActiveToken = !isGM && dragging.id === myCharId && dragging.id === active?.id;
+      const inRange = isGM || !isOwnActiveToken || moveRangeCells.has(`${coords.gridX},${coords.gridY}`);
+      if (!occupied && inRange) {
         onMove(dragging.id, coords.gridX, coords.gridY);
       }
     }
@@ -383,24 +496,22 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
     setHoverCell(null);
   };
 
-  // Compute movement range cells for the active combatant
-  const moveRangeCells = React.useMemo(() => {
-    if (!active || !isMyTurn) return new Set();
-    const pc = pcsMap[active.id];
-    const waterRing = pc?.water || active.water || 2;
-    const movesUsed = active._movesUsed || 0;
-    // Base range = waterRing squares per move already used, plus 1 free square
-    const range = waterRing * (movesUsed + 1);
-    if (active.gridX === undefined || active.gridY === undefined) return new Set();
+  // Custom grid distance — diagonal movement costs 2 steps, not 1 (unlike standard Chebyshev distance)
+  const gridDistance = (dx, dy) => {
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    const diagonalSteps = Math.min(adx, ady);
+    const straightSteps = Math.max(adx, ady) - diagonalSteps;
+    return diagonalSteps * 2 + straightSteps;
+  };
+
+  const cellsWithinRange = (originX, originY, range) => {
     const cells = new Set();
-    // BFS up to `range` squares (using Chebyshev distance for 8-directional movement)
     for (let dx = -range; dx <= range; dx++) {
       for (let dy = -range; dy <= range; dy++) {
         if (dx === 0 && dy === 0) continue;
-        const dist = Math.max(Math.abs(dx), Math.abs(dy)); // Chebyshev distance
-        if (dist <= range) {
-          const nx = active.gridX + dx;
-          const ny = active.gridY + dy;
+        if (gridDistance(dx, dy) <= range) {
+          const nx = originX + dx;
+          const ny = originY + dy;
           if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
             cells.add(`${nx},${ny}`);
           }
@@ -408,7 +519,48 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
       }
     }
     return cells;
+  };
+
+  // Three-tier movement range for the active combatant on their own turn:
+  //   Red    = default single 5ft move, not yet used this turn (waterRing steps)
+  //   Orange = range reachable after the first Move action has been used (2× waterRing)
+  //   Yellow = range reachable via a second simple-action move (3× waterRing) — max for the turn
+  // Each tier is the FULL range from the token's current position, not additive rings, since a player
+  // can still choose to move less than their max allotted steps.
+  const moveRangeTiers = React.useMemo(() => {
+    if (!active || !isMyTurn) return { free: new Set(), move1: new Set(), move2: new Set(), maxRange: 0 };
+    const pc = pcsMap[active.id];
+    const waterRing = pc?.water || active.water || 2;
+    const movesUsed = active._movesUsed || 0;
+    // Use starting position for range, not current — player can end turn anywhere within total range
+    const originX = active.startX !== undefined ? active.startX : active.gridX;
+    const originY = active.startY !== undefined ? active.startY : active.gridY;
+    if (originX === undefined || originY === undefined) return { free: new Set(), move1: new Set(), move2: new Set(), maxRange: 0 };
+
+    // 1-square free zone is always available (no action cost)
+    const freeZone = cellsWithinRange(originX, originY, 1);
+    if (movesUsed === 0) {
+      // Before Move action — only free 1-square zone shown
+      return { free: freeZone, move1: new Set(), move2: new Set(), maxRange: 1 };
+    } else if (movesUsed === 1) {
+      // Move used once — show 1-free + Water Ring additional (subtract free from move1 to avoid overlap)
+      const totalMove1 = cellsWithinRange(originX, originY, 1 + waterRing);
+      const move1 = new Set([...totalMove1].filter(k => !freeZone.has(k)));
+      return { free: freeZone, move1, move2: new Set(), maxRange: 1 + waterRing };
+    } else {
+      // Move used twice — full range: 1 + 2×Water Ring
+      const totalMove2 = cellsWithinRange(originX, originY, 1 + waterRing * 2);
+      const totalMove1 = cellsWithinRange(originX, originY, 1 + waterRing);
+      const move1 = new Set([...totalMove1].filter(k => !freeZone.has(k)));
+      const move2 = new Set([...totalMove2].filter(k => !totalMove1.has(k)));
+      return { free: freeZone, move1, move2, maxRange: 1 + waterRing * 2 };
+    }
   }, [active, isMyTurn, pcsMap, gridSize]);
+
+  const moveRangeCells = React.useMemo(() => {
+    const { free, move1, move2 } = moveRangeTiers;
+    return new Set([...free, ...move1, ...move2]);
+  }, [moveRangeTiers]);
 
   const handleDblClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -443,6 +595,9 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
     if (!canMoveToken(selected)) return;
     const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
     if (occupied) return;
+    // Players (not GM) can only move their own active token into a currently-highlighted range cell
+    const isOwnActiveToken = !isGM && selected === myCharId && selected === active?.id;
+    if (isOwnActiveToken && !moveRangeCells.has(`${x},${y}`)) return;
     onMove(selected, x, y);
     setSelected(null);
     setHoverCell(null);
@@ -504,25 +659,48 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
             </g>
           ))}
 
-          {selected && Array.from({ length: gridSize }, (_, y) =>
-            Array.from({ length: gridSize }, (_, x) => {
-              const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
-              if (occupied) return null;
-              return <rect key={`${x}-${y}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2} fill="rgba(200,150,42,.08)" rx="2" />;
-            })
-          )}
+          {selected && (() => {
+            const selToken = combatants.find(c => c.id === selected);
+            if (!selToken || selToken.gridX === undefined) return null;
+            // Cap the glow to a reasonable radius around the selected token instead of lighting
+            // every empty cell on the board — keeps this cheap to render at large grid sizes (24/36/48)
+            const GLOW_RADIUS = Math.min(gridSize, 10);
+            const cells = [];
+            for (let dy = -GLOW_RADIUS; dy <= GLOW_RADIUS; dy++) {
+              for (let dx = -GLOW_RADIUS; dx <= GLOW_RADIUS; dx++) {
+                const x = selToken.gridX + dx, y = selToken.gridY + dy;
+                if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) continue;
+                const occupied = combatants.some(c => c.gridX === x && c.gridY === y);
+                if (occupied) continue;
+                cells.push(
+                  <rect key={`${x}-${y}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2} fill="rgba(200,150,42,.08)" rx="2" />
+                );
+              }
+            }
+            return cells;
+          })()}
 
-          {/* Movement range glow — shows reachable squares on active PC's turn */}
-          {!selected && isMyTurn && moveRangeCells.size > 0 && Array.from(moveRangeCells).map(key => {
-            const [x, y] = key.split(',').map(Number);
-            const occupied = combatants.some(c => c.id !== active?.id && c.gridX === x && c.gridY === y);
-            return (
-              <rect key={`move-${key}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2}
-                fill={occupied ? 'rgba(200,64,48,.12)' : 'rgba(74,144,208,.18)'}
-                stroke={occupied ? 'rgba(200,64,48,.3)' : 'rgba(74,144,208,.4)'}
-                strokeWidth="0.5" rx="2" />
+          {/* Movement range glow — three tiers: free (always 1sq, teal), move1 (after Move action, blue), move2 (after Move Again, purple) */}
+          {!selected && isMyTurn && (() => {
+            const tierStyle = {
+              free:  { fill: 'rgba(40,180,140,.15)',  stroke: 'rgba(40,180,140,.5)',  label: 'Free' },
+              move1: { fill: 'rgba(74,144,208,.18)',  stroke: 'rgba(74,144,208,.5)',  label: '1 Action' },
+              move2: { fill: 'rgba(140,80,200,.18)',  stroke: 'rgba(140,80,200,.5)',  label: '2 Actions' },
+            };
+            return ['free', 'move1', 'move2'].flatMap(tier =>
+              Array.from(moveRangeTiers[tier]).map(key => {
+                const [x, y] = key.split(',').map(Number);
+                const occupied = combatants.some(c => c.id !== active?.id && c.gridX === x && c.gridY === y);
+                const style = tierStyle[tier];
+                return (
+                  <rect key={`move-${tier}-${key}`} x={x * CELL + 1} y={y * CELL + 1} width={CELL - 2} height={CELL - 2}
+                    fill={occupied ? 'rgba(200,64,48,.12)' : style.fill}
+                    stroke={occupied ? 'rgba(200,64,48,.3)' : style.stroke}
+                    strokeWidth="0.5" rx="2" />
+                );
+              })
             );
-          })}
+          })()}
 
           {/* Trail line — from selected token's current position to hovered cell */}
           {/* Grid pings — dashed line from token + animated circle */}
@@ -900,7 +1078,70 @@ function DuelInitiator({ combatants, pcsMap, onStart }) {
   );
 }
 
-// ── Add Enemy mid-encounter — explicit always-visible controls ─────────────
+// ── Contested Roll tool ──────────────────────────────────────────────────────
+// Lightweight opposed-roll resolver — distinct from the heavier multi-phase Tahaddi Duel.
+// GM picks two characters and a skill (or flat trait) for each side; each side rolls through
+// the normal dice roller so Void spend and technique bonuses apply automatically.
+function ContestedRollInitiator({ combatants, pcsMap, onStart }) {
+  const [open, setOpen] = useState(false);
+  const [sideAId, setSideAId] = useState('');
+  const [sideBId, setSideBId] = useState('');
+  const [skillA, setSkillA] = useState('');
+  const [skillB, setSkillB] = useState('');
+  const list = combatants.filter(c => c.id && c.name);
+
+  // Build the list of skills a character actually has, for the picker
+  const skillsFor = (id) => {
+    const c = pcsMap[id] || list.find(x => x.id === id);
+    return (c?.skills || []).map(s => s.name);
+  };
+
+  return (
+    <>
+      <button className="btn btn-sm" style={{ borderColor: '#4a9ac8', color: '#60b0d8' }} onClick={() => setOpen(o => !o)}>
+        ⚖ Contested Roll
+      </button>
+      {open && (
+        <div style={{
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+          background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8,
+          padding: '1.25rem', zIndex: 400, minWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,.8)',
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontWeight: 700, color: '#60b0d8', marginBottom: '.75rem', fontSize: 15 }}>⚖ Contested Roll</div>
+          {[
+            { label: 'Side A', id: sideAId, setId: setSideAId, skill: skillA, setSkill: setSkillA, exclude: sideBId },
+            { label: 'Side B', id: sideBId, setId: setSideBId, skill: skillB, setSkill: setSkillB, exclude: sideAId },
+          ].map(side => (
+            <div key={side.label} style={{ marginBottom: '.6rem' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{side.label}</div>
+              <select value={side.id} onChange={e => { side.setId(e.target.value); side.setSkill(''); }} style={{ width: '100%', marginBottom: 4 }}>
+                <option value="">— Select character —</option>
+                {list.filter(c => c.id !== side.exclude).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {side.id && (
+                <select value={side.skill} onChange={e => side.setSkill(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">— Select skill —</option>
+                  {skillsFor(side.id).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem' }}>
+            <button className="btn btn-p" style={{ flex: 1 }} disabled={!sideAId || !sideBId || !skillA || !skillB}
+              onClick={() => {
+                const a = list.find(x => x.id === sideAId);
+                const b = list.find(x => x.id === sideBId);
+                if (a && b) { onStart(a, skillA, b, skillB); setOpen(false); setSideAId(''); setSideBId(''); setSkillA(''); setSkillB(''); }
+              }}>Begin</button>
+            <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
 function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   const [faction, setFaction] = useState('');
   const [school, setSchool] = useState('');
@@ -916,6 +1157,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
         id: 'npc_' + Date.now() + '_' + i,
         name: count > 1 ? `${school} ${i + 1}` : school,
         school, rank, faction,
+        techniques: deriveTechniques(school, rank),
         dr: rank >= 3 ? '4k2' : '3k2',
         drawnWeapon: rank >= 3 ? 'Longsword (4k2)' : 'Longsword (3k2)',
         reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
@@ -956,6 +1198,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
               onAdd({
                 id: 'npc_log_' + n.id + '_' + Date.now(),
                 name: n.name, school: n.school, rank: n.rank || 1, faction: n.faction,
+                techniques: deriveTechniques(n.school, n.rank || 1),
                 dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
                 reflexes: n.traits?.Reflexes || (n.rank || 1) + 1,
                 agility: n.traits?.Agility || (n.rank || 1) + 1,
@@ -983,6 +1226,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
               onAdd({
                 id: 'npc_full_' + n.id + '_' + Date.now(),
                 name: n.name, school: n.school, rank: n.insight_rank || n.school_rank || 1, faction: n.faction,
+                techniques: (n.techniques && Object.keys(n.techniques).length > 0) ? n.techniques : deriveTechniques(n.school, n.insight_rank || n.school_rank || 1),
                 reflexes: ref, agility: agi, air: n.air || 2, fire: n.fire || 2,
                 earth: n.earth || 2, water: n.water || 2, void: n.void || 2,
                 dr: n.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
@@ -1002,10 +1246,15 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters }) {
-  const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round, rollBanner } = encounter;
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0 }) {
+  const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
   const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
+  // Disarm weapon choice — set when a successful Disarm hits a dual-wielding target,
+  // requiring the attacker to pick which weapon to take
+  const [disarmChoice, setDisarmChoice] = useState(null);
+  // Roll result banner — local only, never broadcast, so only the rolling player sees their own result flash
+  const [rollBanner, setRollBanner] = useState(null);
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [view, setView] = useState('columns');
   const [compact, setCompact] = useState(false);
@@ -1014,14 +1263,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const setShowGrid = (val) => upEnc({ showGrid: typeof val === 'function' ? val(showGrid) : val });
   const [settingUrls, setSettingUrls] = useState({});
   const [customRoundLimits, setCustomRoundLimits] = useState({});
-  const GRID_SIZE = 12;
+  const GRID_SIZE = setup?.gridSize || 24;
 
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.setting_urls) setSettingUrls(data.settings.setting_urls);
       if (data?.settings?.round_limits) setCustomRoundLimits(data.settings.round_limits);
     });
-  }, []); // 12×12 cells
+  }, []);
   const [npcTargets, setNpcTargets] = useState({}); // npcId -> action
   const [targeting, setTargeting] = useState(null);
   const [popup, setPopup] = useState(null);
@@ -1029,16 +1278,126 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const upEnc = patch => setEncounter(e => ({ ...e, ...patch }));
   const pcsMap = Object.fromEntries(characters.map(c => [c.id, c]));
 
+  // ── Contested Roll tool ────────────────────────────────────────────────────
+  const startContestedRoll = (charA, skillNameA, charB, skillNameB) => {
+    const makeSide = (c, skillName) => {
+      const full = pcsMap[c.id] || c;
+      const skill = (full.skills || []).find(s => s.name === skillName);
+      const mapping = SKILL_TRAIT_MAP[skillName] || { trait: 'Agility', ring: 'Fire' };
+      const traitKey = mapping.trait.toLowerCase();
+      const ringKey = mapping.ring.toLowerCase();
+      return {
+        id: c.id, name: c.name, skillName,
+        traitKey, ringKey,
+        rolled: null, // filled in once this side rolls
+      };
+    };
+    upEnc({ contestedRoll: {
+      sideA: makeSide(charA, skillNameA),
+      sideB: makeSide(charB, skillNameB),
+      winner: null,
+      ts: Date.now(),
+    }});
+    onLogEvent && onLogEvent('ti-scale', `Contested Roll: ${charA.name} (${skillNameA}) vs ${charB.name} (${skillNameB})`);
+  };
+
+  const rollContestedSide = (side) => {
+    const cr = encounter.contestedRoll;
+    if (!cr) return;
+    const sideData = cr[side];
+    const full = pcsMap[sideData.id];
+    if (!full || !onGlobalRoll) return;
+    const skill = (full.skills || []).find(s => s.name === sideData.skillName);
+    const traitVal = full[sideData.traitKey] || 2;
+    const ringVal = full[sideData.ringKey] || 2;
+    onGlobalRoll({
+      skill: sideData.skillName,
+      skillRank: skill?.rank || 0,
+      ring: sideData.ringKey.charAt(0).toUpperCase() + sideData.ringKey.slice(1),
+      ringVal,
+      baseRoll: (skill?.rank || 0) + traitVal,
+      baseKeep: ringVal,
+      tn: 5, // contested rolls don't use a fixed TN — total is compared directly between sides
+      character: full,
+      currentVoid: full.current_void,
+      label: `Contested Roll — ${sideData.skillName}`,
+      onComplete: (total) => {
+        setEncounter(e => {
+          const cur = e.contestedRoll;
+          if (!cur) return e;
+          const updated = { ...cur, [side]: { ...cur[side], rolled: total } };
+          // Once both sides have rolled, determine the winner
+          if (updated.sideA.rolled !== null && updated.sideB.rolled !== null) {
+            updated.winner = updated.sideA.rolled === updated.sideB.rolled ? 'tie'
+              : (updated.sideA.rolled > updated.sideB.rolled ? 'sideA' : 'sideB');
+            if (onLogEvent) {
+              const margin = Math.abs(updated.sideA.rolled - updated.sideB.rolled);
+              onLogEvent('ti-scale', updated.winner === 'tie'
+                ? `Contested Roll — tie! ${updated.sideA.rolled} vs ${updated.sideB.rolled}`
+                : `Contested Roll — ${updated[updated.winner].name} wins (${updated.sideA.rolled} vs ${updated.sideB.rolled}, margin ${margin})`);
+            }
+          }
+          return { ...e, contestedRoll: updated };
+        });
+      },
+    });
+  };
+
   const active = combatants[activeTurn % Math.max(1, combatants.length)];
   const enemies = combatants.filter(c => c.type === 'npc');
   const party = combatants.filter(c => c.type === 'pc');
   const isMyTurn = active?.id === myCharId;
 
   // ── Actions ─────────────────────────────────────────────────────────────
+  // ── Training Dummy ──────────────────────────────────────────────────────────
+  // Reuses the exact same real combat interface as a normal encounter (stances, maneuvers, raises, void,
+  // everything) — just against a single infinite-health dummy, with logging and persistence suppressed.
+  // App.js wraps onLogEvent/onUpdateCharacter with no-ops whenever encounter.trainingSession is true.
+  const startTrainingSession = (charId) => {
+    const pc = pcsMap[charId];
+    if (!pc) return;
+    const G = 24;
+    const centerY = Math.floor(G / 2);
+    const pcCombatant = {
+      id: pc.id, name: pc.name, type: 'pc',
+      school: pc.school, faction: pc.faction,
+      reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
+      earth: pc.earth || 2, water: pc.water || 2, strength: pc.strength || 2,
+      insight_rank: pc.insight_rank || pc.school_rank || 1,
+      defenseSkillRank: (pc.skills || []).find(s => s.name === 'Defense')?.rank || 0,
+      void: pc.void || 2, current_void: pc.current_void ?? pc.void ?? 2,
+      avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || FACTION_COLORS[pc.faction] || '#c8962a',
+      wound: 0, stance: 'Attack', init: 99, _initRolled: true,
+      dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
+      drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
+      statusEffects: [], _action: null,
+      gridX: 2, gridY: centerY, startX: 2, startY: centerY,
+    };
+    const dummyCombatant = {
+      id: 'training_dummy', name: 'Training Dummy', type: 'npc',
+      faction: 'Creatures', sub: 'Construct',
+      earth: 5, water: 2, fire: 2, air: 2, strength: 2, void: 0,
+      wound: 0, stance: 'Attack', init: 1, _initRolled: true,
+      statusEffects: [], _action: null,
+      infiniteHealth: true, // damage is never actually applied to this combatant
+      gridX: G - 3, gridY: centerY, startX: G - 3, startY: centerY,
+    };
+    upEnc({
+      state: 'active', trainingSession: true,
+      setup: { type: 'Action', setting: 'Training', name: 'Training Dummy', gridSize: G },
+      combatants: [pcCombatant, dummyCombatant],
+      activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null,
+    });
+  };
+
+  const endTrainingSession = () => {
+    upEnc({ state: 'idle', trainingSession: false, combatants: [], activeTurn: 0, dmgBanner: null });
+  };
+
   const beginEncounter = (s) => {
-    const participantIds = s.participantIds || characters.map(c => c.id);
-    const participants = characters.filter(c => participantIds.includes(c.id));
-    const G = 12; // GRID_SIZE
+    const participantIds = s.participantIds || characters.filter(c => !c.is_npc).map(c => c.id);
+    const participants = characters.filter(c => participantIds.includes(c.id) && !c.is_npc);
+    const G = s.gridSize || 24;
     const centerY = Math.floor(G / 2);
 
     const pcCombatants = participants.map((pc, i) => {
@@ -1057,7 +1416,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         insight_rank: pc.insight_rank || pc.school_rank || 1,
         defenseSkillRank: (pc.skills || []).find(s => s.name === 'Defense')?.rank || 0,
         void: pc.void || 2, current_void: pc.current_void ?? pc.void ?? 2,
-        avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || '#c8962a',
+        avatar_url: pc.avatar_url || '', avatar_type: pc.avatar_type || 'warrior', avatar_color: pc.avatar_color || FACTION_COLORS[pc.faction] || '#c8962a',
         wound: getWoundRank(pc.current_wounds, pc.max_wounds),
         stance: 'Attack',
         init: baseInit,
@@ -1083,7 +1442,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     });
 
     const all = [...pcCombatants, ...npcCombatants].sort((a, b) => b.init - a.init);
-    upEnc({ state: 'active', setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null });
+    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null });
     setNpcTargets({});
   };
 
@@ -1095,7 +1454,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     // Center stance carry-over: if ending turn in Center, flag for bonus next turn
     const centerCarryBonus = currentCombatant?.stance === 'Center' ? (currentCombatant._centerBonus || true) : false;
     let nextCombatants = combatants.map((c, i) => {
-      let updated = i === nextIdx ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0 } : c;
+      let updated = i === nextIdx
+        ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0,
+            // Refresh startX/Y to current position at start of each turn — range is measured from here
+            startX: c.gridX !== undefined ? c.gridX : c.startX,
+            startY: c.gridY !== undefined ? c.gridY : c.startY }
+        : c;
       // Apply Center stance carry-over to the current combatant (they earned it this round)
       if (i === activeTurn && centerCarryBonus) {
         updated = { ...updated, _centerBonusPending: true };
@@ -1170,7 +1534,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       type: 'wound',
       charName: combatant.name,
       avatarUrl: (pc?.avatar_url || combatant.avatar_url || '').trim(),
-      avatarColor: pc?.avatar_color || combatant.avatar_color || '#c8962a',
+      avatarColor: pc?.avatar_color || combatant.avatar_color || FACTION_COLORS[pc?.faction || combatant.faction] || '#c8962a',
       label: WOUND_LABELS[newWound] || 'Unknown',
       sublabel: newWound > 0 ? `Wound Penalty ${WOUND_PENALTY[newWound]}` : 'Back to Healthy',
       color: WOUND_COLORS[newWound] || '#4a8a40',
@@ -1191,7 +1555,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         type: 'condition',
         charName: c.name,
         avatarUrl: (pcsMap[id]?.avatar_url || c.avatar_url || '').trim(),
-        avatarColor: pcsMap[id]?.avatar_color || c.avatar_color || '#c8962a',
+        avatarColor: pcsMap[id]?.avatar_color || c.avatar_color || FACTION_COLORS[pcsMap[id]?.faction || c.faction] || '#c8962a',
         label: effect.toUpperCase(),
         sublabel: null,
         color: '#c8782a',
@@ -1208,34 +1572,30 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const gmWound = (id, delta) => {
     const c = combatants.find(x => x.id === id);
     if (!c) return;
-    const newWound = Math.max(0, Math.min(7, c.wound + delta));
     if (delta > 0) playDamage();
-    const extra = (c.type === 'pc' && delta > 0 && newWound !== c.wound)
-      ? { statusBanner: makeWoundBanner(c, newWound) }
-      : {};
-    upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWound } : x), ...extra });
-    if (extra.statusBanner) setTimeout(() => upEnc({ statusBanner: null }), 4000);
+
     if (c.type === 'pc') {
+      // PCs: adjust the real current_wounds point total by 1 (or whatever delta is passed),
+      // then derive the displayed wound rank from that — instead of jumping ranks directly.
       const pc = pcsMap[id];
-      if (pc) {
-        // Wounds: Healthy=Earth×5, then each rank=Earth×2, Out=Earth×5
-        // Cumulative thresholds: [0, E×5, E×5+E×2, E×5+E×2×2, ...]
-        const earth = pc.earth || 2;
-        const healthyBuf = earth * 5;
-        const rankBuf = earth * 2;
-        // woundMap[rank] = total wounds at START of that rank
-        const woundMap = [
-          0,                                    // Healthy
-          healthyBuf,                           // Nicked
-          healthyBuf + rankBuf,                 // Grazed
-          healthyBuf + rankBuf * 2,             // Hurt
-          healthyBuf + rankBuf * 3,             // Injured
-          healthyBuf + rankBuf * 4,             // Crippled
-          healthyBuf + rankBuf * 5,             // Down
-          healthyBuf + rankBuf * 6,             // Out (Earth×5 more)
-        ];
-        onUpdateCharacter(id, { current_wounds: Math.round(woundMap[newWound] || 0) });
-      }
+      const earth = pc?.earth || c.earth || 2;
+      const maxWounds = earth * 5 + earth * 2 * 6; // Healthy buffer + 6 ranks of Earth×2
+      const curWounds = pc?.current_wounds ?? 0;
+      const newWoundPoints = Math.max(0, Math.min(maxWounds, curWounds + delta));
+      const newWoundRank = getWoundRank(newWoundPoints, maxWounds, earth);
+      const rankChanged = newWoundRank !== c.wound;
+
+      const extra = (delta > 0 && rankChanged)
+        ? { statusBanner: makeWoundBanner(c, newWoundRank) }
+        : {};
+      upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWoundRank } : x), ...extra });
+      if (extra.statusBanner) setTimeout(() => upEnc({ statusBanner: null }), 4000);
+      if (pc) onUpdateCharacter(id, { current_wounds: newWoundPoints });
+    } else {
+      // NPCs/monsters: no current_wounds field tracked on a character row, so adjust
+      // the encounter-state wound rank directly by single steps (existing simpler model).
+      const newWound = Math.max(0, Math.min(7, c.wound + delta));
+      upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWound } : x) });
     }
   };
 
@@ -1283,23 +1643,25 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
       upEnc({
         combatants: combatants.map(c => c.id === capturedModal.targetId
-          ? { ...c, wound: Math.min(7, c.wound + woundDelta), voidReduceDamage: false }
+          ? (c.infiniteHealth ? c : { ...c, wound: Math.min(7, c.wound + woundDelta), voidReduceDamage: false })
           : c),
         dmgBanner: { attackerName: active?.name, targetId: capturedModal.targetId, damage, result: result?.total ?? result },
-        rollBanner: bannerWithDmg,
         ...(sb ? { statusBanner: sb } : {}),
       });
+      setRollBanner(bannerWithDmg);
       if (sb) setTimeout(() => upEnc({ statusBanner: null }), 4000);
     } else {
-      upEnc({ rollBanner: banner });
+      setRollBanner(banner);
     }
     // Auto-clear banner after 5 seconds
-    setTimeout(() => upEnc({ rollBanner: null }), 5000);
+    setTimeout(() => setRollBanner(null), 5000);
 
-    // Spend void if used
+    // Spend void if used — deduct however many Void Points were actually spent this roll
+    // (attack-roll enhancement and sword-damage enhancement are separate spends, can both occur)
     if (result?.usedVoid && active?.type === 'pc') {
       const pc = pcsMap[active.id];
-      if (pc) onUpdateCharacter(active.id, { current_void: Math.max(0, (pc.current_void || 0) - 1) });
+      const spend = result?.voidSpentCount || 1;
+      if (pc) onUpdateCharacter(active.id, { current_void: Math.max(0, (pc.current_void || 0) - spend) });
     }
 
     // Auto-track Stealth and Perception rolls as persistent status conditions
@@ -1323,7 +1685,23 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     // Apply maneuver effects from raises
     if (result?.success && result?.raises?.length > 0 && capturedModal.targetId) {
       const maneuvers = result.raises;
-      const RAISE_COST = { 'Feint (2)': 2, 'Knockdown (2)': 2, 'Disarm (3)': 3, 'Extra Attack (5)': 5, 'Called Shot': 1 };
+      // Corrected per L5R 4th Edition core rules. Feint has no fixed cost — its cost equals however
+      // many raises were spent on it (read directly from the maneuver string count, since Feint can't
+      // be selected multiple times via the button UI — see DiceModal note). Increased Damage tiers are
+      // handled the same way: each tier IS its own cost.
+      const RAISE_COST = {
+        'Feint (2)': 2,
+        'Guard (0)': 0,
+        'Knockdown — Biped (2)': 2,
+        'Knockdown — Quadruped (4)': 4,
+        'Disarm (3)': 3,
+        'Extra Attack (5)': 5,
+        'Called Shot — Limb (1)': 1,
+        'Called Shot — Hand/Foot (2)': 2,
+        'Called Shot — Head (3)': 3,
+        'Called Shot — Eye/Ear/Finger (4)': 4,
+        'Narrative (1)': 1,
+      };
       const totalRaises = result.raises.length;
       let raisesSpent = 0;
       const effects = [];
@@ -1333,6 +1711,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         if (raisesSpent + cost <= totalRaises) {
           raisesSpent += cost;
           effects.push(m);
+        } else if (onLogEvent) {
+          onLogEvent('ti-alert-triangle', `${m} not applied — insufficient raises (needs ${cost}, ${totalRaises - raisesSpent} available)`);
         }
       });
 
@@ -1340,16 +1720,13 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         let newCombatants = [...combatants];
 
         effects.forEach(effect => {
-          if (effect === 'Knockdown (2)') {
+          if (effect === 'Knockdown — Biped (2)' || effect === 'Knockdown — Quadruped (4)') {
             const attackerStr = capturedModal.character?.strength || 2;
-            const attackerIR = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
             const target = combatants.find(c => c.id === capturedModal.targetId);
-            const defEarth = target?.earth || 2;
-            const defIR = attackerIR;
-            const atkRolls = Array.from({length: attackerStr + attackerIR}, () => Math.ceil(Math.random()*10));
-            const defRolls = Array.from({length: defEarth + defIR}, () => Math.ceil(Math.random()*10));
-            const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
-            const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defEarth).reduce((s,d)=>s+d,0);
+            const defStr = target?.strength || pcsMap[capturedModal.targetId]?.strength || 2;
+            // Plain Contested Strength roll, per L5R 4E core rules — no Insight Rank or Earth involved
+            const atkTotal = rollExplodingKeep(attackerStr, attackerStr);
+            const defTotal = rollExplodingKeep(defStr, defStr);
             if (atkTotal > defTotal) {
               newCombatants = newCombatants.map(c => c.id === capturedModal.targetId
                 ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Prone'), 'Prone'] }
@@ -1359,31 +1736,31 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               onLogEvent && onLogEvent('ti-arrow-down', `Knockdown resisted — ${atkTotal} vs ${defTotal}`);
             }
           }
-          if (effect === 'Feint (2)') {
-            const margin = result?.margin || 0;
-            const insightRank = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
-            const feintBonus = Math.min(Math.floor(margin / 2), insightRank * 5);
-            if (feintBonus > 0) {
-              onLogEvent && onLogEvent('ti-eye-off', `Feint — +${feintBonus} bonus damage (half of ${margin} margin, max ${insightRank * 5})`);
-            }
-          }
           if (effect === 'Disarm (3)') {
+            // L5R 4E: a successful Disarm deals only a flat 2k1 damage (already applied via DiceModal's
+            // damage phase override), then a plain Contested Strength roll determines if the weapon drops.
+            // If the target is dual-wielding, the attacker chooses which weapon.
             const attackerStr = capturedModal.character?.strength || 2;
             const target = combatants.find(c => c.id === capturedModal.targetId);
-            const defStr = target?.strength || 2;
-            const defIR = target?.insight_rank || 1;
-            const atkIR = capturedModal.character?.insight_rank || capturedModal.character?.school_rank || 1;
-            const atkRolls = Array.from({length: attackerStr + atkIR}, () => Math.ceil(Math.random()*10));
-            const defRolls = Array.from({length: defStr + defIR}, () => Math.ceil(Math.random()*10));
-            const atkTotal = [...atkRolls].sort((a,b)=>b-a).slice(0,attackerStr).reduce((s,d)=>s+d,0);
-            const defTotal = [...defRolls].sort((a,b)=>b-a).slice(0,defStr).reduce((s,d)=>s+d,0);
+            const defStr = target?.strength || pcsMap[capturedModal.targetId]?.strength || 2;
+            const atkTotal = rollExplodingKeep(attackerStr, attackerStr);
+            const defTotal = rollExplodingKeep(defStr, defStr);
             if (atkTotal > defTotal) {
-              newCombatants = newCombatants.map(c => c.id === capturedModal.targetId
-                ? { ...c, drawnWeapon: null, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
-                : c);
-              onLogEvent && onLogEvent('ti-sword-off', `Disarm — ${atkTotal} vs ${defTotal} — ${capturedModal.targetName || 'target'} drops weapon!`);
+              const targetWeapons = target?.drawnWeapons?.length > 0 ? target.drawnWeapons : (target?.drawnWeapon ? [target.drawnWeapon] : []);
+              if (targetWeapons.length > 1) {
+                // Multiple weapons — attacker must choose which to disarm
+                setDisarmChoice({ targetId: capturedModal.targetId, weapons: targetWeapons, attackerName: capturedModal.character?.name, targetName: capturedModal.targetName });
+                onLogEvent && onLogEvent('ti-sword-off', `Disarm — Contested Strength: ${atkTotal} vs ${defTotal} — ${capturedModal.character?.name} chooses which weapon to disarm from ${capturedModal.targetName}`);
+              } else if (targetWeapons.length === 1) {
+                newCombatants = newCombatants.map(c => c.id === capturedModal.targetId
+                  ? { ...c, drawnWeapon: null, drawnWeapons: [], statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
+                  : c);
+                onLogEvent && onLogEvent('ti-sword-off', `Disarm — Contested Strength: ${atkTotal} vs ${defTotal} — ${capturedModal.targetName || 'target'} drops their weapon!`);
+              } else {
+                onLogEvent && onLogEvent('ti-sword-off', `Disarm — ${capturedModal.targetName || 'target'} has no weapon to drop.`);
+              }
             } else {
-              onLogEvent && onLogEvent('ti-sword-off', `Disarm resisted — ${atkTotal} vs ${defTotal}`);
+              onLogEvent && onLogEvent('ti-sword-off', `Disarm resisted — Contested Strength: ${atkTotal} vs ${defTotal}`);
             }
           }
           if (effect === 'Extra Attack (5)') {
@@ -1391,6 +1768,21 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               ? { ...c, _actionsLeft: { ...(c._actionsLeft || { full: 0, simple: 0 }), full: (c._actionsLeft?.full || 0) + 1 } }
               : c);
             onLogEvent && onLogEvent('ti-sword', `Extra Attack — ${capturedModal.character?.name || 'Attacker'} may make an additional attack!`);
+          }
+          if (effect.startsWith('Called Shot')) {
+            const location = effect.includes('Eye/Ear/Finger') ? 'eye, ear, finger, or similarly small part'
+              : effect.includes('Head') ? 'Head'
+              : effect.includes('Hand/Foot') ? 'Hand/Foot'
+              : 'Limb';
+            onLogEvent && onLogEvent('ti-target-arrow', `Called Shot — ${capturedModal.character?.name || 'Attacker'} targets the ${location} of ${capturedModal.targetName || 'the target'}. No bonus damage; GM adjudicates narrative/mechanical effect — may sever, destroy, or knock loose items held there.`);
+          }
+          if (effect === 'Feint (2)') {
+            // Bonus damage already applied directly to the damage roll inside DiceModal's confirmDamage —
+            // nothing further to resolve here, just log it.
+            onLogEvent && onLogEvent('ti-eye-off', `Feint — ${capturedModal.character?.name || 'Attacker'} catches ${capturedModal.targetName || 'the target'} off guard.`);
+          }
+          if (effect === 'Guard (0)') {
+            onLogEvent && onLogEvent('ti-shield', `Guard — ${capturedModal.character?.name || 'Attacker'} dedicates this turn to protecting an ally. (GM: apply +10 TN to the guarded ally and −5 TN to ${capturedModal.character?.name || 'this character'} manually until their next turn.)`);
           }
         });
 
@@ -1407,6 +1799,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       ? { ...c, stance, fullDefenseBonus: stance === 'Full Defense' ? (fullDefenseBonus ?? 10) : undefined }
       : c
     ) });
+    // Keep character.current_stance in sync — DiceModal reads this to apply stance-gated technique bonuses
+    if (pcsMap[id]) onUpdateCharacter(id, { current_stance: stance });
   };
 
   const handleDrawWeapon = (id, weapon) => {
@@ -1428,9 +1822,27 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   const handleNPCAttack = (npcId, targetId) => {
     const npc = combatants.find(c => c.id === npcId);
-    const dice = rollN(3).sort((a, b) => b - a);
-    const kept = dice.slice(0, 2);
-    const dmg = kept.reduce((s, d) => s + d, 0);
+    // Apply the same automatic technique bonuses a PC of this school/rank would get — but only the
+    // AUTO-APPLIED ones. voidOnly and other manually-confirmed bonuses are never included here since NPCs
+    // don't get Void-spend choices; computeBonuses already routes those into a separate conditional bucket
+    // that's simply never read for NPC attacks, so they're excluded for free.
+    const npcChar = {
+      techniques: npc?.techniques || {}, school_rank: npc?.rank || 1, advantages: [],
+      is_npc: true, faction: npc?.faction, current_stance: npc?.stance,
+      air: npc?.air, earth: npc?.earth, fire: npc?.fire, water: npc?.water,
+    };
+    // isDamage:true alongside isAttack:true — NPCs use one combined roll for both attack and damage (no
+    // separate damage phase like PCs have), so DAMAGE-tagged bonuses (e.g. Jinn's "Damage bonus = highest
+    // Ring") need to fold into this same single roll, not just ATTACK-tagged ones.
+    const bonuses = computeBonuses(npcChar, 'ATTACK', true, true, npc?.stance);
+    // Full Attack stance bonus — same +2k1 every PC gets in that stance, applied here for parity
+    const stanceRolled = npc?.stance === 'Full Attack' ? 2 : 0;
+    const stanceKept = npc?.stance === 'Full Attack' ? 1 : 0;
+    const totalRolled = 3 + bonuses.extraRolled + stanceRolled;
+    const totalKept = Math.min(2 + bonuses.extraKept + stanceKept, totalRolled);
+    const dice = rollN(totalRolled).sort((a, b) => b - a);
+    const kept = dice.slice(0, totalKept);
+    const dmg = kept.reduce((s, d) => s + d, 0) + (bonuses.extraFlat || 0);
     playDamage();
     upEnc({
       combatants: combatants.map(c => c.id === targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(dmg / 5)) } : c),
@@ -1481,6 +1893,21 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             {session ? 'No encounter active — downtime / between scenes' : 'No session active'}
           </div>
 
+          {/* Training Dummy — players can practice rolls any time between encounters, even with no
+              session active. Zero real consequences: no logs, no persistent character changes, infinite
+              health target. GM starting a real encounter force-ends any active training session. */}
+          {!isGM && myCharId && !encounter.trainingSession && (
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <button className="btn" style={{ borderColor: '#8a6a30', color: '#d0a050' }}
+                onClick={() => startTrainingSession(myCharId)}>
+                <i className="ti ti-target-arrow" style={{ marginRight: 5 }} />Train Against Dummy
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Practice rolls freely — nothing is logged, nothing persists
+              </div>
+            </div>
+          )}
+
           {isGM && !isPCView && session && characters.length >= 2 && (
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               <DuelInitiator
@@ -1490,7 +1917,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   const makeSide = (c) => ({
                     id: c.id, name: c.name, school: c.school || '',
                     avatarUrl: (c.avatar_url || '').trim(),
-                    avatarColor: c.avatar_color || '#c8962a',
+                    avatarColor: c.avatar_color || FACTION_COLORS[c.faction] || '#c8962a',
                     avatarType: c.avatar_type || 'warrior',
                     void: c.void || 2, reflexes: c.reflexes || 2, skills: c.skills || [],
                   });
@@ -1501,10 +1928,22 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   }});
                 }}
               />
+              {' '}
+              <ContestedRollInitiator
+                combatants={characters.map(c => ({ ...c, type: 'pc' }))}
+                pcsMap={pcsMap}
+                onStart={startContestedRoll}
+              />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                Initiate a Tahaddi duel outside combat — blocks all players until resolved
+                Initiate a Tahaddi duel, or a quick Contested Roll for any opposed check
               </div>
             </div>
+          )}
+
+          {/* Contested Roll resolution panel — shown to GM and both participants until resolved */}
+          {encounter.contestedRoll && (
+            <ContestedRollPanel cr={encounter.contestedRoll} myCharId={myCharId} isGM={isGM && !isPCView}
+              onRoll={rollContestedSide} onClose={() => upEnc({ contestedRoll: null })} />
           )}
 
           {characters.length === 0 ? (
@@ -1536,7 +1975,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                       onClick={() => { if (isGM && !isPCView) setActiveNpcId(prev => prev === n.id ? null : n.id); }}
                       style={{
                         position: 'relative', background: 'var(--bg-panel)',
-                        border: `1px solid ${activeNpcId === n.id ? 'var(--gold)' : 'var(--border)'}`,
+                        borderRight: `1px solid ${activeNpcId === n.id ? 'var(--gold)' : 'var(--border)'}`, borderTop: `1px solid ${activeNpcId === n.id ? 'var(--gold)' : 'var(--border)'}`, borderBottom: `1px solid ${activeNpcId === n.id ? 'var(--gold)' : 'var(--border)'}`,
                         borderLeft: `3px solid ${wColor}`, borderRadius: 6, padding: '.6rem .75rem', minWidth: 140,
                         cursor: (isGM && !isPCView) ? 'pointer' : 'default',
                         boxShadow: activeNpcId === n.id ? '0 0 10px rgba(200,150,42,.3)' : 'none',
@@ -1578,33 +2017,37 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--red)', marginTop: '.5rem' }}>Start a session first</div>
         )}
 
-        {/* Player action panel — always available between encounters */}
-        {!isGM && myCharId && (() => {
-          const myChar = characters.find(c => c.id === myCharId);
-          if (!myChar) return null;
-          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: myChar.current_stance || 'Attack', drawnWeapon: myChar.current_weapon || null, dr: '3k2', current_void: myChar.current_void };
-          return (
-            <PCTurnPanel
-              combatant={fakeCombatant}
-              character={myChar}
-              enemies={[]}
-              allies={[]}
-              onRoll={ctx => setModal({ ...ctx, character: myChar })}
-              onStanceChange={(stance) => {
-                onUpdateCharacter(myChar.id, { current_stance: stance });
-              }}
-              onDrawWeapon={() => {}}
-              onPass={null}
-            />
-          );
-        })()}
+
 
         {/* Granted action roll panel — GM-granted extra actions */}
         {(() => {
           const myGranted = grantedActions[myCharId] || 0;
           const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
           if (!myGranted || !myChar) return null;
-          const fakeCombatant = { id: myChar.id, name: myChar.name, type: 'pc', stance: 'Attack', drawnWeapon: null, dr: '3k2', current_void: myChar.current_void };
+          // Build drawnWeapon from character's actually-wielded equipment
+          const wieldedWeapons = (myChar.equipment || []).filter(e => e.dr && e.inUse);
+          const drawnWeapon = wieldedWeapons.length > 0
+            ? `${wieldedWeapons[0].name} (${wieldedWeapons[0].dr})`
+            : null;
+          const drawnWeapons = wieldedWeapons.map(e => `${e.name} (${e.dr})`);
+          const fakeCombatant = {
+            id: myChar.id, name: myChar.name, type: 'pc', stance: myChar.current_stance || 'Attack',
+            drawnWeapon, drawnWeapons,
+            dr: wieldedWeapons[0]?.dr || '3k2',
+            current_void: myChar.current_void,
+            void: myChar.void || 2,
+          };
+          const handleDrawWeapon = (weaponList) => {
+            // weaponList is an array of "Name (dr)" strings, or null to clear
+            const list = Array.isArray(weaponList) ? weaponList : (weaponList ? [weaponList] : []);
+            const wieldedNames = list.map(w => w.split(' (')[0]);
+            const eq = (myChar.equipment || []).map(e => ({
+              ...e,
+              inUse: e.dr ? wieldedNames.includes(e.name) : e.inUse,
+            }));
+            const newCurrentWeapon = list.length > 0 ? list[0] : null;
+            onUpdateCharacter(myChar.id, { equipment: eq, current_weapon: newCurrentWeapon });
+          };
           return (
             <div style={{ border: '3px solid var(--gold)', borderRadius: 8, padding: '2px', marginTop: '1rem', boxShadow: '0 0 12px rgba(200,150,42,.3)' }}>
               <div style={{ background: 'rgba(200,150,42,.1)', borderRadius: '4px 4px 0 0', padding: '4px 10px', fontSize: 11, color: 'var(--gold)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>
@@ -1615,8 +2058,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 character={myChar}
                 enemies={[]}
                 onRoll={ctx => setModal({ ...ctx, character: myChar })}
-                onStanceChange={() => {}}
-                onDrawWeapon={() => {}}
+                onStanceChange={(stance) => onUpdateCharacter(myChar.id, { current_stance: stance })}
+                onDrawWeapon={handleDrawWeapon}
+                onUpdateCharacter={onUpdateCharacter}
                 onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
                 onSpendAction={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
               />
@@ -1715,6 +2159,101 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         />
       )}
 
+      {/* Roll result banner — local only, shown just to the player who rolled */}
+      {rollBanner && (() => {
+        const b = rollBanner;
+        if (Date.now() - (b.ts || 0) > 5000) return null;
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 400,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: b.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
+            pointerEvents: 'none',
+            animation: 'resultFade 5s forwards',
+          }}>
+            {(b.charName || b.skillName) && (
+              <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: b.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
+                {[b.charName, b.skillName].filter(Boolean).join(' — ')}
+              </div>
+            )}
+            <div style={{
+              fontSize: 'clamp(72px, 14vw, 130px)',
+              fontWeight: 900, lineHeight: 1,
+              color: b.success ? '#6aba60' : '#e06050',
+              textShadow: b.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
+              letterSpacing: '-0.02em',
+            }}>
+              {b.success ? 'SUCCESS' : '✗'}
+            </div>
+            {b.total !== undefined && b.tn !== undefined && (
+              <div style={{ fontSize: 24, color: b.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
+                {b.total} vs TN {b.tn}
+              </div>
+            )}
+            {b.success && b.damage !== undefined && (
+              <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
+                  {b.damage} damage → {b.targetName}
+                </div>
+                {b.newWoundLabel && (
+                  <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
+                    {b.oldWoundLabel} → <span style={{ color: '#e03030' }}>{b.newWoundLabel}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Disarm weapon choice — attacker picks which of the target's weapons to take when dual-wielding */}
+      {disarmChoice && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setDisarmChoice(null)}>
+          <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--gold)', borderRadius: 8, padding: '1.25rem', minWidth: 280, boxShadow: '0 8px 40px rgba(0,0,0,.8)' }}>
+            <div style={{ fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', fontSize: 15 }}>
+              <i className="ti ti-sword-off" style={{ marginRight: 6 }} />Choose Weapon to Disarm
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.75rem' }}>
+              {disarmChoice.attackerName} disarms {disarmChoice.targetName} — which weapon?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {disarmChoice.weapons.map((w, i) => (
+                <button key={i} className="btn" onClick={() => {
+                  const remaining = disarmChoice.weapons.filter((_, wi) => wi !== i);
+                  const newPrimary = remaining[0] || null;
+                  const dr = newPrimary?.match(/\((\dk\d)\)/)?.[1] || '1k1';
+                  upEnc({ combatants: combatants.map(c => c.id === disarmChoice.targetId
+                    ? { ...c, drawnWeapon: newPrimary, drawnWeapons: remaining, dr: remaining.length > 0 ? dr : '1k1', statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Disarmed'), 'Disarmed'] }
+                    : c) });
+                  onLogEvent && onLogEvent('ti-sword-off', `${disarmChoice.targetName} drops ${w.split(' (')[0]}!`);
+                  setDisarmChoice(null);
+                }}>
+                  {w.split(' (')[0]}
+                </button>
+              ))}
+              <button className="btn btn-sm" onClick={() => setDisarmChoice(null)} style={{ marginTop: 4 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Training Dummy banner — unmistakable indicator, with an End Training control any player can use
+          since the normal End Encounter button is GM-only */}
+      {encounter.trainingSession && (
+        <div style={{
+          background: 'rgba(140,100,40,.15)', border: '2px solid #8a6a30', borderRadius: 6,
+          padding: '.5rem .75rem', marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <i className="ti ti-target-arrow" style={{ fontSize: 16, color: '#d0a050' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#d0a050' }}>Training Session</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Nothing here is logged or saved — practice freely.</div>
+          </div>
+          <button className="btn btn-sm" onClick={endTrainingSession}>End Training</button>
+        </div>
+      )}
+
       {/* Turn banner */}
       <div className="turn-banner">
         <div>
@@ -1749,7 +2288,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               const makeSide = (c) => ({
                 id: c.id, name: c.name, school: c.school || '',
                 avatarUrl: (pcsMap[c.id]?.avatar_url || c.avatar_url || '').trim(),
-                avatarColor: pcsMap[c.id]?.avatar_color || c.avatar_color || '#c8962a',
+                avatarColor: pcsMap[c.id]?.avatar_color || c.avatar_color || FACTION_COLORS[pcsMap[c.id]?.faction || c.faction] || '#c8962a',
                 avatarType: pcsMap[c.id]?.avatar_type || c.avatar_type || 'warrior',
                 void: pcsMap[c.id]?.void || c.void || 2,
                 reflexes: pcsMap[c.id]?.reflexes || c.reflexes || 2,
@@ -1761,12 +2300,19 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 focusRevealed: false, strikeRolls: {}, winner: null,
               }});
             }} />
+            <ContestedRollInitiator combatants={combatants} pcsMap={pcsMap} onStart={startContestedRoll} />
             <button className="btn btn-sm" onClick={stepBackTurn} title="Step back one turn (GM correction)">← Back</button>
             <button className="btn btn-p btn-sm" onClick={advanceTurn}>End Turn →</button>
             <button className="btn btn-sm btn-d" onClick={endEncounter}>End Encounter</button>
           </>
         )}
       </div>
+
+      {/* Contested Roll resolution panel — shown to GM and both participants until resolved */}
+      {encounter.contestedRoll && (
+        <ContestedRollPanel cr={encounter.contestedRoll} myCharId={myCharId} isGM={isGM && !isPCView}
+          onRoll={rollContestedSide} onClose={() => upEnc({ contestedRoll: null })} />
+      )}
 
       {/* ── Initiative roll panel — shown to each player at start of round 1 ── */}
       {state === 'active' && round === 1 && (() => {
@@ -1803,7 +2349,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
               Pool: {ref + ir}k{ref} (Reflexes {ref} + Insight Rank {ir})
-              <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>Current: <span style={{ color: 'var(--gold)' }}>{myCombatant.init}</span> (auto-rolled)</span>
             </div>
             <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
               <button className="btn btn-p" onClick={() => rollInit(false)}>
@@ -1815,10 +2360,36 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   ⬡ Spend Void (+10) — {voidLeft} left
                 </button>
               )}
-              <button className="btn btn-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}
-                onClick={() => upEnc({ combatants: combatants.map(c => c.id === myCharId ? { ...c, _initRolled: true } : c) })}>
-                Keep auto-roll ({myCombatant.init})
-              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Waiting on initiative — overlay shown to GM and to players who've already rolled ── */}
+      {state === 'active' && round === 1 && (() => {
+        const pcCombatants = combatants.filter(c => c.type === 'pc');
+        const waitingOn = pcCombatants.filter(c => !c._initRolled);
+        if (waitingOn.length === 0) return null;
+        // Don't show this to a player who is themselves still waiting to roll — they already see their own roll prompt
+        const myCombatant = combatants.find(c => c.id === myCharId);
+        const iAmWaiting = myCombatant && !myCombatant._initRolled && !(isGM && !isPCView);
+        if (iAmWaiting) return null;
+        return (
+          <div style={{
+            position: 'fixed', top: 70, right: 16, zIndex: 350,
+            background: 'var(--bg-panel)', border: '2px solid var(--gold-dim)', borderRadius: 8,
+            padding: '.65rem .85rem', minWidth: 220, maxWidth: 280, boxShadow: '0 4px 24px rgba(0,0,0,.7)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: '.4rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="ti ti-dice" style={{ fontSize: 13 }} /> Waiting on Initiative
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {waitingOn.map(c => (
+                <div key={c.id} style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold-dim)', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  {c.name}
+                </div>
+              ))}
             </div>
           </div>
         );
@@ -1900,7 +2471,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 targeting={null}
                 onSetTarget={null}
                 compact={compact}
+                portraitScale={portraitScale}
                 onVoidDefense={handleVoidDefense}
+                onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
               />
             ))}
           </div>
@@ -1969,10 +2542,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 onRemoveStatus={removeStatus}
                 targeting={targeting}
                 compact={compact}
+                portraitScale={portraitScale}
                 onSetTarget={(npcId, action) => {
                   handleSetNPCAction(npcId, action);
                   if (action === 'Attack') setTargeting(npcId);
                 }}
+                onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
               />
             ))}
             {/* NPC attack target selection */}
@@ -2022,8 +2597,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                     onClick={() => upEnc({ combatants: [...combatants.map((x, xi) => xi === i ? { ...x, init: Math.max(1, (x.init || 1) - 1) } : x)].sort((a,b) => b.init - a.init) })}>−</button>
                   <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} title="Raise initiative by 1"
                     onClick={() => upEnc({ combatants: [...combatants.map((x, xi) => xi === i ? { ...x, init: (x.init || 1) + 1 } : x)].sort((a,b) => b.init - a.init) })}>+</button>
-                  <button className="btn btn-sm btn-d" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, 1)}>+W</button>
-                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, -1)}>−W</button>
+                  <button className="btn btn-sm btn-d" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, 1)} title="Apply 1 wound point">+1W</button>
+                  <button className="btn btn-sm" style={{ padding: '1px 4px', fontSize: 11 }} onClick={() => gmWound(c.id, -1)} title="Remove 1 wound point">−1W</button>
                 </div>
               )}
             </div>

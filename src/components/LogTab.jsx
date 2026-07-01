@@ -4,7 +4,7 @@ import { formatDate } from '../lib/utils';
 import EncounterBuilder from './EncounterBuilder';
 
 // ── LogTab ────────────────────────────────────────────────────────────────────
-export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, npcsFromLog, skillLog, eventLog = [] }) {
+export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
   const [expandedSession, setExpandedSession] = useState({});
   const [showBuilderFor, setShowBuilderFor] = useState(null);
   const [newSessionTitle, setNewSessionTitle] = useState('');
@@ -196,8 +196,34 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                           {recap.loot && <RecapRow label="Loot / Rewards" value={recap.loot} />}
                           {recap.changes && <RecapRow label="Character Changes" value={recap.changes} />}
                         </>)}
+                        {/* Full archived event timeline for this closed session — dice rolled, equipment
+                            changes, spells cast, everything that was logged while it was live. Previously
+                            this data was saved to event_log but never displayed once a session closed. */}
+                        {s.events && s.events.length > 0 && (
+                          <div style={{ marginTop: '.6rem' }}>
+                            <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
+                              Full Event Log <span style={{ fontWeight: 400, textTransform: 'none' }}>({s.events.length} events)</span>
+                            </div>
+                            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1, border: '1px solid var(--border)', borderRadius: 4, padding: '.3rem' }}>
+                              {s.events.map((e, i) => (
+                                <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px', borderBottom: i < s.events.length - 1 ? '1px solid rgba(107,78,40,.1)' : 'none' }}>
+                                  <i className={`ti ${e.icon || 'ti-point'}`} style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }} />
+                                  <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{e.text}</span>
+                                  <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
+                                    {e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* GM Notes & Player Notes — live-editable on any session, active or archived.
+                        GM Notes is GM-only (private prep/secrets); Player Notes is collaborative,
+                        visible and editable by everyone. */}
+                    <SessionNotesSection session={s} isGM={isGM} onUpdateSessionRecap={onUpdateSessionRecap} />
 
                     {/* Past encounters */}
                     {sessionEncounters.length > 0 && (
@@ -326,6 +352,44 @@ function RecapRow({ label, value }) {
     <div style={{ marginBottom: '.4rem' }}>
       <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{value}</div>
+    </div>
+  );
+}
+
+// GM Notes (private, GM-only) and Player Notes (collaborative, everyone) for a single session.
+// Both live inside the session's recap JSON blob, merge-patched on blur to avoid per-keystroke saves.
+function SessionNotesSection({ session, isGM, onUpdateSessionRecap }) {
+  let recap = {};
+  try { recap = JSON.parse(session.recap || '{}'); } catch { recap = {}; }
+  const [gmDraft, setGmDraft] = useState(recap.gmNotes || '');
+  const [playerDraft, setPlayerDraft] = useState(recap.playerNotes || '');
+  React.useEffect(() => { setGmDraft(recap.gmNotes || ''); }, [recap.gmNotes]);
+  React.useEffect(() => { setPlayerDraft(recap.playerNotes || ''); }, [recap.playerNotes]);
+
+  if (!onUpdateSessionRecap) return null;
+
+  return (
+    <div style={{ marginBottom: '.6rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+      {isGM && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.25rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <i className="ti ti-lock" style={{ fontSize: 11 }} /> GM Notes <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(private — only you see this)</span>
+          </div>
+          <textarea value={gmDraft} onChange={e => setGmDraft(e.target.value)}
+            onBlur={() => { if (gmDraft !== (recap.gmNotes || '')) onUpdateSessionRecap(session.id, { gmNotes: gmDraft }); }}
+            placeholder="Secrets, hooks, what's coming next..."
+            style={{ width: '100%', minHeight: 50, fontSize: 12, padding: '.4rem .5rem', resize: 'vertical', boxSizing: 'border-box', background: 'rgba(160,40,40,.04)', borderColor: 'rgba(160,40,40,.25)' }} />
+        </div>
+      )}
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.25rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <i className="ti ti-users" style={{ fontSize: 11 }} /> Player Notes <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(everyone can edit)</span>
+        </div>
+        <textarea value={playerDraft} onChange={e => setPlayerDraft(e.target.value)}
+          onBlur={() => { if (playerDraft !== (recap.playerNotes || '')) onUpdateSessionRecap(session.id, { playerNotes: playerDraft }); }}
+          placeholder="What we remember, theories, things to follow up on..."
+          style={{ width: '100%', minHeight: 50, fontSize: 12, padding: '.4rem .5rem', resize: 'vertical', boxSizing: 'border-box' }} />
+      </div>
     </div>
   );
 }

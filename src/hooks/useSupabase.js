@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 
@@ -126,6 +126,20 @@ export function useActiveSession() {
     setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, is_active: false, closed_at: new Date().toISOString() } : s));
   };
 
+  // Merge-patch a session's recap JSON — used for live GM Notes / Player Notes editing on any session
+  // (active or archived), separate from the one-time end-of-session recap form.
+  const updateSessionRecap = async (sessionId, patch) => {
+    const target = allSessions.find(s => s.id === sessionId) || session;
+    if (!target) return;
+    let current = {};
+    try { current = JSON.parse(target.recap || '{}'); } catch { current = {}; }
+    const merged = { ...current, ...patch };
+    const newRecapStr = JSON.stringify(merged);
+    await supabase.from('sessions').update({ recap: newRecapStr }).eq('id', sessionId);
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, recap: newRecapStr } : s));
+    if (session?.id === sessionId) setSession(prev => ({ ...prev, recap: newRecapStr }));
+  };
+
   const saveEncounter = async (sessionId, encounterState) => {
     if (!sessionId) return;
     await supabase.from('sessions').update({ encounter_data: encounterState }).eq('id', sessionId);
@@ -168,7 +182,7 @@ export function useActiveSession() {
       .sort((a, b) => a.session_number - b.session_number));
   };
 
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: fetch };
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -474,7 +488,30 @@ export function useFactionReputation() {
     }
   };
 
-  return { reps, loading, updateRep, refetch: fetch };
+  // Free-text party notes per faction — casual tracking, editable by any player, not gated like GM notes
+  const updateRepNotes = async (faction, notes) => {
+    const current = reps[faction];
+    if (current) {
+      const { data, error } = await supabase
+        .from('faction_reputation')
+        .update({ notes, updated_at: new Date().toISOString() })
+        .eq('id', current.id)
+        .select()
+        .single();
+      if (error) { console.error('updateRepNotes failed:', error.message); return; }
+      setReps(prev => ({ ...prev, [faction]: data }));
+    } else {
+      const { data, error } = await supabase
+        .from('faction_reputation')
+        .insert({ game_id: GAME_ID, faction, reputation: 0, notes })
+        .select()
+        .single();
+      if (error) { console.error('updateRepNotes insert failed:', error.message); return; }
+      setReps(prev => ({ ...prev, [faction]: data }));
+    }
+  };
+
+  return { reps, loading, updateRep, updateRepNotes, refetch: fetch };
 }
 
 // ── Encounter Log ─────────────────────────────────────────────────────────────
@@ -514,6 +551,8 @@ export function useGroupInventory() {
   const [inventory, setInventory] = useState({ copper: 0, items: [] });
   const [inventoryId, setInventoryId] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Keep a ref to the latest inventoryId so the realtime callback can access it
+  const inventoryIdRef = useRef(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -525,6 +564,7 @@ export function useGroupInventory() {
     if (data) {
       setInventory({ copper: data.copper, items: data.items || [] });
       setInventoryId(data.id);
+      inventoryIdRef.current = data.id;
     } else {
       // Create default inventory record
       const { data: created } = await supabase
@@ -534,6 +574,7 @@ export function useGroupInventory() {
         .single();
       if (created) {
         setInventoryId(created.id);
+        inventoryIdRef.current = created.id;
       }
     }
     setLoading(false);
@@ -541,14 +582,36 @@ export function useGroupInventory() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  // Realtime subscription — keeps all clients in sync
+  useEffect(() => {
+    const sub = supabase
+      .channel('group_inventory_' + GAME_ID)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_inventory', filter: `game_id=eq.${GAME_ID}` },
+        payload => {
+          setInventory({ copper: payload.new.copper, items: payload.new.items || [] });
+        })
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
+
   const updateInventory = async (updates) => {
-    const newState = { ...inventory, ...updates };
-    setInventory(newState);
-    if (inventoryId) {
+    // Always fetch fresh state from DB before writing to avoid overwriting concurrent changes
+    const { data: fresh } = await supabase
+      .from('group_inventory')
+      .select('*')
+      .eq('game_id', GAME_ID)
+      .maybeSingle();
+    const base = fresh || { copper: 0, items: [] };
+    const newState = { ...base, ...updates, game_id: GAME_ID };
+    // Final safety net — never persist null/undefined entries in the items array, regardless of caller
+    const cleanItems = (newState.items || []).filter(Boolean);
+    setInventory({ copper: newState.copper, items: cleanItems });
+    const id = inventoryIdRef.current || inventoryId;
+    if (id) {
       await supabase
         .from('group_inventory')
-        .update({ ...newState, updated_at: new Date().toISOString() })
-        .eq('id', inventoryId);
+        .update({ copper: newState.copper, items: cleanItems, updated_at: new Date().toISOString() })
+        .eq('id', id);
     }
   };
 

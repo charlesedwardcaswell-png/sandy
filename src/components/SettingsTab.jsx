@@ -168,6 +168,8 @@ export default function SettingsTab({ onWipe = {} }) {
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
   const [disableReroll, setDisableReroll] = useState(false);
+  const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
+  const [portraitScale, setPortraitScale] = useState(1.0);
 
   React.useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
@@ -179,6 +181,8 @@ export default function SettingsTab({ onWipe = {} }) {
         if (data.settings.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
         if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', Downtime: '2', ...data.settings.round_limits });
         if (data.settings.disable_reroll !== undefined) setDisableReroll(!!data.settings.disable_reroll);
+        if (data.settings.water_drought_enabled !== undefined) setWaterDroughtEnabled(!!data.settings.water_drought_enabled);
+        if (data.settings.portrait_scale !== undefined) setPortraitScale(data.settings.portrait_scale || 1.0);
       }
     });
   }, []);
@@ -186,7 +190,7 @@ export default function SettingsTab({ onWipe = {} }) {
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, portrait_scale: portraitScale } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -440,6 +444,31 @@ export default function SettingsTab({ onWipe = {} }) {
         </label>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', lineHeight: 1.5 }}>
           When checked, the plain Reroll button is hidden. 🍀 Luck reroll remains for characters with the Luck advantage.
+        </div>
+
+        {/* Water drought (optional, hidden from players unless enabled) */}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Optional Mechanics</div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: '.3rem' }}>
+          <input type="checkbox" checked={waterDroughtEnabled} onChange={e => setWaterDroughtEnabled(e.target.checked)}
+            style={{ accentColor: 'var(--gold)', width: 15, height: 15 }} />
+          Water Drought mechanic
+        </label>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', lineHeight: 1.5 }}>
+          When enabled, every time advance consumes water per player. Completely invisible to players when off.
+        </div>
+
+        {/* Portrait size adjuster */}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem', marginTop: '.75rem', fontWeight: 600 }}>Character Portraits</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '.3rem' }}>
+          <span style={{ fontSize: 13, minWidth: 90 }}>Portrait size:</span>
+          <input type="range" min="0.5" max="2.5" step="0.1"
+            value={portraitScale}
+            onChange={e => setPortraitScale(parseFloat(e.target.value))}
+            style={{ flex: 1, accentColor: 'var(--gold)' }} />
+          <span style={{ fontSize: 13, color: 'var(--gold)', minWidth: 36, textAlign: 'right' }}>{portraitScale.toFixed(1)}×</span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', lineHeight: 1.5 }}>
+          Scales character portraits globally — affects both the character sheet and encounter combatant cards. Save to apply.
         </div>
 
         {/* Round limits */}

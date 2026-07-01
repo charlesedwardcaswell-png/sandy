@@ -24,8 +24,23 @@ export const STATUS_EFFECT_DEFS = {
   'Hidden':     { icon: '👁', desc: 'You are concealed. Others must beat your Stealth roll total to detect you.', wearOff: 'End of round or when you act offensively', mechanical: null },
 };
 export const RAISE_OPTIONS = ['More Effect','Flashy','Custom (notify GM)'];
-export const ATTACK_MANEUVERS = ['Feint (2)','Knockdown (2)','Disarm (3)','Extra Attack (5)','Called Shot (1-4)','Increased Damage (1+)','Narrative'];
-export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3, Downtime: 2 };
+// L5R 4th Edition core rules (the authoritative maneuver text, confirmed against the actual rulebook).
+// Called Shot and Increased Damage are split into individual selectable tiers since their costs are
+// variable, not flat; Knockdown has two distinct versions depending on the target's leg count.
+export const ATTACK_MANEUVERS = [
+  'Feint (2)',                      // Bonus damage = half margin over Armor TN after raises, max 5x Insight Rank
+  'Guard (0)',                      // Simple Action, not an attack roll — handled separately, not a raise spend
+  'Knockdown — Biped (2)',
+  'Knockdown — Quadruped (4)',
+  'Disarm (3)',                      // Flat 2k1 damage, then Contested Strength roll
+  'Extra Attack (5)',
+  'Called Shot — Limb (1)',
+  'Called Shot — Hand/Foot (2)',
+  'Called Shot — Head (3)',
+  'Called Shot — Eye/Ear/Finger (4)',
+  'Narrative (1)',
+];
+export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3 };
 export const TRAITS = ['Reflexes','Awareness','Stamina','Willpower','Agility','Intelligence','Strength','Perception'];
 
 // ── Full skill list ───────────────────────────────────────────────────────────
@@ -66,40 +81,70 @@ export const OPEN_SKILLS = ['Lore','Craft','Perform'];
 
 // Suggested emphases per skill — used in skill picker and Craft: Poison inventory outcome
 export const SKILL_EMPHASES = {
-  'Medicine': ['Antidotes','Disease','Herbalism','Nonhuman Medicine','Wound Treatment'],
-  'Sleight of Hand': ['Conceal','Escape','Pick Pockets','Prestidigitation'],
-  'Investigation': ['Notice','Interrogation','Tracking'],
-  'Stealth': ['Hiding','Sneaking','Shadowing'],
-  'Acting': ['Disguise','Impersonation','Performance'],
-  'Commerce': ['Appraisal','Haggling','Forgery'],
-  'Hunting': ['Survival','Tracking','Trapping'],
-  'Knives': ['Jambiya','Throwing'],
-  'Swordsmanship': ['Scimitar','Longsword','Khadja'],
-  'Archery': ['Composite Bow','Short Bow'],
-  'Divination': ['Astrology','Prophecy','Omens'],
-  'Storytelling': ['Epic Poetry','Legends','Oral History'],
+  // ── Bugei (Martial) Skills ────────────────────────────────────────────────
+  'Athletics':       ['Climbing', 'Running', 'Swimming', 'Throwing'],
+  'Battle':          ['Mass Combat', 'Skirmish'],
+  'Defense':         [], // no emphases per rulebook
+  'Horsemanship':    ['Camels', 'Horses'], // LBS adaptation: Rokugani/Utaku specific mounts replaced
+  'Hunting':         ['Survival', 'Tracking', 'Trailblazing'],
+  'Tahaddi':         ['Assessment', 'Focus'], // LBS name for Iaijutsu
+  'Brawling':        ['Grappling', 'Improvised Weapons', 'Strikes'], // LBS name for Jiujutsu; Martial Arts → Strikes
+
+  // Weapon skills
+  'Archery':         ['Composite Bow', 'Short Bow', 'Standard Bow'], // LBS name for Kyujutsu
+  'Chain Weapons':   ['Kusarigama', 'Manrikigusari'],
+  'Heavy Weapons':   ['War Axe', 'Mace', 'War Club', 'Tetsubo'],
+  'Knives':          ['Jambiya', 'Kindjal', 'Knife', 'Throwing Knife'],
+  'Polearms':        ['Khadja', 'Naginata', 'Bisento', 'Glaive'],
+  'Spears':          ['Spear', 'Lance', 'Pilum'],
+  'Staves':          ['Staff', 'Bo', 'Fighting Staff'],
+  'Swordsmanship':   ['Scimitar', 'Longsword', 'Shortsword', 'Gladius', 'Khopesh', 'Sayf-Saghir'], // LBS name for Kenjutsu
+
+  // ── High Skills ───────────────────────────────────────────────────────────
+  'Acting':          ['Disguise', 'Faction', 'Profession'], // LBS: Clan → Faction
+  'Calligraphy':     ['Cipher', 'High Rokugani'],
+  'Courtier':        ['Gossip', 'Manipulation', 'Rhetoric'],
+  'Divination':      ['Astrology', 'Cokaloi', 'Omens'], // Cokaloi = Ra'Shari divination stones
+  'Etiquette':       ['Bureaucracy', 'Conversation', 'Courtesy'],
+  'Investigation':   ['Interrogation', 'Notice', 'Search'],
+  'Meditation':      ['Fasting', 'Void Recovery'],
+  'Medicine':        ['Antidotes', 'Disease', 'Herbalism', 'Nonhuman Medicine', 'Wound Treatment'],
+  'Perform: Dancing':['Folk Dance', 'Ritual Dance', 'Sword Dance'],
+  'Perform: Singing':['Epic', 'Lament', 'Sacred'],
+  'Perform: Oratory':['Debate', 'Narration', 'Recitation'],
+  'Sincerity':       ['Deceit', 'Honesty'],
+  'Spellcraft':      ['Importune', 'Spell Research'],
+  'Storytelling':    ['Epic Poetry', 'Legends', 'Oral History'],
+  'Tea Ceremony':    [], // no emphases per rulebook
+
+  // ── Merchant Skills ───────────────────────────────────────────────────────
+  'Animal Handling': ['Camels', 'Dogs', 'Falcons', 'Horses'],
+  'Commerce':        ['Appraisal', 'Haggling', 'Mathematics'],
+  'Engineering':     ['Construction', 'Siege'],
+  'Sailing':         ['Knot-work', 'Navigation'],
+
+  // ── Low Skills ────────────────────────────────────────────────────────────
+  'Forgery':         ['Artwork', 'Documents', 'Personal Seals'],
+  'Intimidation':    ['Bullying', 'Control', 'Torture'],
+  'Sleight of Hand': ['Conceal', 'Escape', 'Pick Pockets', 'Prestidigitation'],
+  'Stealth':         ['Ambush', 'Shadowing', 'Sneaking', 'Spell Casting'],
+  'Temptation':      ['Bribery', 'Seduction'],
+
+  // ── Craft sub-skills ──────────────────────────────────────────────────────
   'Craft: Poison': [
-    'Generic Poison',
-    'Dripping Poison',
-    'Wish You Dead',
-    'Fire Biter',
-    'Night Milk',
-    'Hot Madness',
-    'Stolen Breath',
-    'Kirei-ko',
-    'Fauntei Shi',
-    'Snake Venom',
-    'Scorpion Venom',
-    'Poison Powder',
-    'Crafted Powder',
+    'Generic Poison', 'Dripping Poison', 'Wish You Dead', 'Fire Biter',
+    'Night Milk', 'Hot Madness', 'Stolen Breath', 'Kirei-ko', 'Fauntei Shi',
+    'Snake Venom', 'Scorpion Venom', 'Poison Powder', 'Crafted Powder',
   ],
-  'Craft: Weaponsmith': ['Swords','Knives','Polearms','Bows'],
-  'Craft: Armorsmith': ['Light Armor','Heavy Armor','Shields'],
-  'Perform: Dancing': ['Folk Dance','Sword Dance','Ritual Dance'],
-  'Perform: Singing': ['Lament','Epic','Sacred'],
-  'Lore: Theology': ['Senpet Gods','Ivory Kingdoms','Ra\'Shari Beliefs'],
-  'Lore: Underworld': ['Smuggling','Assassination','Fencing'],
-  'Lore: Undead': ['Ghuls','Khadi','Necromancy'],
+  'Craft: Weaponsmith': ['Swords', 'Knives', 'Polearms', 'Bows'],
+  'Craft: Armorsmith':  ['Light Armor', 'Heavy Armor', 'Shields'],
+
+  // ── Lore sub-skills ───────────────────────────────────────────────────────
+  'Lore: Theology':    ['Senpet Gods', 'Ivory Kingdoms', "Ra'Shari Beliefs", 'Ebonite Faith'],
+  'Lore: Underworld':  ['Smuggling', 'Assassination', 'Fencing'],
+  'Lore: Undead':      ['Ghuls', 'Khadi', 'Necromancy'],
+  'Lore: Burning Sands':['Desert Survival', 'Trade Routes', 'Settlements'],
+  'Lore: History':     ['Ancient Empires', 'The Awakening', 'Bloodsword Wars'],
 };
 
 // Craft: Poison emphasis → inventory item data
@@ -172,7 +217,7 @@ export const FACTION_COLORS = {
   'Merchants':          '#c8962a', // Gold — commerce
   'Rogues / Foreigners':'#7a5030', // Bronze — outsiders
   'Independent':        '#4a8a40', // Jade — free agents
-  'Creatures':          '#c85080', // Rose — non-human
+  'Creatures':          '#707078', // Ash grey — monsters and beasts
 };
 
 
@@ -530,7 +575,7 @@ export const SCHOOL_DATA = {
   'Senpet Legionnaire': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Reflexes', skills:['Battle','Defense','Hunting','Swordsmanship','Lore: Theology','Athletics','Spears'], techniques:{1:'Divine Insight',2:'Divine Strength',3:'Divine Retribution',4:'The Gods Protect Me',5:'The Gods Guide my Hand'}, equipment:['Khopesh','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
   'Senpet Charioteer': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Archery','Battle','Horsemanship','Swordsmanship','Lore: Theology','Defense','Athletics'], techniques:{1:'Ride Into Battle',2:'Swift Volley',3:'Speed is my Armor',4:'Ruthless Advance',5:'Deadly Strike'}, equipment:['Khopesh','Composite Bow','Chain Shirt','Sandals'], starting_copper:5 },
   'Senpet Sahir': { faction:'Senpet', type:'Sahir', integrity:3.5, bonus_trait:'Intelligence', skills:['Defense','Medicine','Meditation','Spellcraft','Lore: Theology','Battle','Lore: History'], techniques:{1:'By the Grace of the Gods'}, equipment:['Sandals','Tunic','Traveling Pack'], starting_copper:5 },
-  'Yodotai Legionnaire': { faction:'Yodotai', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Battle','Defense','Horsemanship','Lore: Yodotai History','Spears','Swordsmanship','Athletics'], techniques:{1:'Tortoise Formation',2:'In Close Quarters',3:'Deadly Strike',4:'Wedge Formation',5:'With My Brothers'}, equipment:['Gladius','Pilum','Lorica Segmentata','Sandals','Tunic'], starting_copper:5 },
+  'Yodotai Legionnaire': { faction:'Yodotai', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Battle','Defense','Horsemanship','Lore: Yodotai History','Spears','Swordsmanship','Athletics'], techniques:{1:'Tortoise Formation',2:'In Close Quarters',3:'Deadly Strike (Legionnaire)',4:'Wedge Formation',5:'With My Brothers'}, equipment:['Gladius','Pilum','Lorica Segmentata','Sandals','Tunic'], starting_copper:5 },
   'Yodotai Mercenary': { faction:'Yodotai', type:'Diplomat', integrity:3.5, bonus_trait:'Reflexes', skills:['Intimidation','Defense','Etiquette','Spears','Swordsmanship','Sincerity','Battle'], techniques:{1:'Importance of Speed',2:'Stranger in a Foreign Land',3:'Unfriendly Glare',4:'Combat Diplomacy',5:'Hoplon Bash'}, equipment:['Gladius','Pilum','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
   'Ebonite Templar': { faction:'Ebonites', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Defense','Investigation','Lore: Law','Lore: Theology','Swordsmanship','Lore: Ebonites','Athletics'], techniques:{1:'Tapping the Inner Strength',2:'By Thy Will',3:'The Ebon Hand',4:'By Word Or By Sword',5:'Will of the Stone'}, equipment:['Longsword','Knife','Light Armor','Sturdy Clothing'], starting_copper:10 },
   'Jani': { faction:'Jackals', type:'Warrior', integrity:1.5, bonus_trait:'Agility', skills:['Athletics','Brawling','Knives','Acting','Assassin Ranged Weapons','Staves','Lore: Underworld'], techniques:{1:'Quicker Than the Eye',2:'What the Eye Sees, What the Ear Hears',3:'Strike Quickly, Strike True',4:'Seen and Not Noticed',5:'Blinding Speed'}, equipment:['Knife','Light Armor','Street Clothes'], starting_copper:1 },
@@ -545,11 +590,11 @@ export const SCHOOL_DATA = {
 // size: 'small' (-5 off-hand), 'medium' (-10 off-hand), 'large' (-15 off-hand, two-handed)
 // twoHanded: true = cannot be used with another weapon in off-hand
 export const WEAPONS_LIST = [
-  { name:'Longsword',    dr:'3k2', skill:'Swordsmanship', price:'15c', size:'large',  twoHanded:false, special:'Void: +1 kept dmg' },
-  { name:'Scimitar',     dr:'4k2', skill:'Swordsmanship', price:'20c', size:'medium', twoHanded:false, special:'Void: +1 kept dmg' },
-  { name:'Shortsword',   dr:'2k2', skill:'Swordsmanship', price:'7c',  size:'medium', twoHanded:false, special:'Void: +1 kept dmg' },
-  { name:'Gladius',      dr:'2k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, special:'Yodotai' },
-  { name:'Khopesh',      dr:'3k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, special:'Senpet; +Str to rolled dice like an axe' },
+  { name:'Longsword',    dr:'3k2', skill:'Swordsmanship', price:'15c', size:'large',  twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Scimitar',     dr:'4k2', skill:'Swordsmanship', price:'20c', size:'medium', twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Shortsword',   dr:'2k2', skill:'Swordsmanship', price:'7c',  size:'medium', twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Gladius',      dr:'2k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, special:'Yodotai sword: Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Khopesh',      dr:'3k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, special:'Senpet sword: +Str to rolled dice like an axe; Void spend gives +1 kept die on damage (once per roll)' },
   { name:'Knife',        dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Jambiya',      dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Kindjal',      dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
@@ -576,6 +621,8 @@ export const GEAR_LIST_NAMES = [
   'Generic Poison (dose)','Fire Biter (dose)','Night Milk (dose)','Snake Venom (dose)',
   'Spider Venom (dose)','Wish You Dead (dose)','Stolen Breath (dose)','Hot Madness (dose)',
   'Poison Powder (dose)','Blinding Dust (dose)',
+  // Mounts & stable supplies
+  'Camel','Horse','Saddle','Saddlebags','Feed (1 week)','Bridle and Reins','Hitching Post Fee (1 night)',
 ];
 
 // Gear descriptions for tooltips — keyed by name
@@ -621,6 +668,43 @@ export const GEAR_DESCRIPTIONS = {
   'Hot Madness (dose)':      'TN 20 to resist. Target suffers hallucinations; all TNs +10 for 1 hour.',
   'Poison Powder (dose)':    'Inhaled contact poison, TN 15. Generic effects as Generic Poison but faster acting.',
   'Blinding Dust (dose)':    'TN 15 to resist (Reflexes). Target is blinded for 3 rounds.',
+  // Mounts & stable supplies
+  'Camel':                   'Riding animal and beast of burden, common throughout the Burning Sands. Can go long periods without water. Bad-tempered. Requires Horsemanship (Camel emphasis) to ride well. Stats: Earth 3, Water 3, Strength 6.',
+  'Horse':                   'Not native to the Burning Sands — a status symbol for wealthy citizens. Faster than a camel but needs more water and care. Requires Horsemanship to ride well. Stats: Earth 3, Agility 3, Strength 5.',
+  'Saddle':                  'Required to ride any mount in combat or for extended travel without penalty. One per mount.',
+  'Saddlebags':              'Doubles the carrying capacity of a mounted character without slowing the mount.',
+  'Feed (1 week)':           'One week of proper feed for a single mount. Mounts denied feed grow weak and unreliable.',
+  'Bridle and Reins':        'Basic tack required for directing and controlling a mount.',
+  'Hitching Post Fee (1 night)': 'Stabling fee to board and water a mount overnight at a stables or inn.',
+};
+
+// Full rulebook entries for the magnifying-glass reference modal — richer than GEAR_DESCRIPTIONS above,
+// includes flavor text and special rules paraphrased from the source material (never verbatim quotes, per
+// copyright limits). Not every item has an entry yet — items without one fall back to the short
+// GEAR_DESCRIPTIONS line only. Fill in more entries as items come up in play.
+export const GEAR_FULL_ENTRY = {
+  'Longsword': 'A full-length blade, either straight or gently curved at the tip depending on the maker\'s '
+    + 'culture and taste. Built as a slashing and stabbing weapon, but equally suited to overhand cleaving and '
+    + 'chopping strikes. Like all swords, the wielder may spend a single Void Point to roll and keep one extra '
+    + 'die on a damage roll made with it, once per damage roll.',
+  'Scimitar': 'A heavy, curved blade descended from ancient Senpet design, built for powerful slashing attacks '
+    + 'rather than precision thrusts — noticeably harder-hitting than a longsword. Like all swords, the wielder '
+    + 'may spend a single Void Point to roll and keep one extra die on a damage roll made with it, once per '
+    + 'damage roll.',
+  'Shortsword': 'Shorter than the longsword and typically straight-bladed, the shortsword is most effective '
+    + 'used with an upward or overhand thrust — its narrow point can find a fatal gap in an opponent\'s armor. '
+    + 'Like all swords, the wielder may spend a single Void Point to roll and keep one extra die on a damage '
+    + 'roll made with it, once per damage roll.',
+  'Spear': 'A six-to-eight-foot weapon used two-handed on foot or one-handed while mounted, common across many '
+    + 'cultures of the Burning Sands. A basic, utilitarian weapon frequently issued to conscripts and used by '
+    + 'both the Senpet and the Medinaat al-Salaam City Guard. Deals additional damage when the wielder is '
+    + 'mounted, and can be thrown.',
+  'Lance': 'A mounted weapon whose damage jumps significantly if the rider charges in a straight line and '
+    + 'attacks in the same round. Awkward and penalized if used in close melee while mounted, and badly '
+    + 'penalized if used on foot at all. Shatters if it ever inflicts more than 30 Wounds in a single attack.',
+  'Staff': 'Simple to make and easy to wield, the staff is a common weapon among the lower classes, criminals, '
+    + 'and wanderers alike. Sahir frequently carry one, since even a peaceful scholar finds a six-foot stick '
+    + 'handy on the road.',
 };
 
 
@@ -1221,6 +1305,7 @@ export const TECHNIQUE_DESCRIPTIONS = {
   'Rite of Assassination': 'At the beginning of each day, you may nominate a target as subject to your Rite of Assassination. You gain a bonus to your Armor TN equal to your Stealth Skill Ranks; this bonus is doubled against the target of your Rite while facing them in combat or in Tahaddi Duels.',
   'Let Him Bleed': 'Attacking a lone opponent or the target of your Rite of Assassination is a Simple Action for you.',
   'Blood Calls for Blood': 'When facing a lone opponent or the target of your Rite, you gain a bonus to all Attack and Contested Rolls equal to your Stealth Skill, and your Raises on Attack Rolls are no longer limited in any way.',
+  'Swifter Than Life Itself': 'Once per day, when ambushing an opponent, facing a lone opponent, or facing the target of your Rite of Assassination, you may switch your Initiative Score with theirs at the end of the Initiative Stage. Techniques and Advantages may not be used to switch Initiative back.',
   'Swifter Than Life Itself': "Once per day when ambushing an opponent, facing a lone opponent, or facing the target of your Rite, you may switch your Initiative Score with your opponent's at the end of the Initiative Stage.",
 
   // ── Assassin Keeper ────────────────────────────────────────────────────
@@ -1272,6 +1357,7 @@ export const TECHNIQUE_DESCRIPTIONS = {
   // ── Yodotai Legionnaire ────────────────────────────────────────────────
   'Tortoise Formation': "You do not receive penalties to your Attack Rolls from carrying any type of Yodotai shield. You receive a bonus to your Armor TN equal to your Insight Rank while using a scutum in the Full Defense Stance. As a Free Action you may spend a Void Point to grant this bonus to all allies using scutum within 10' for a number of rounds equal to your Class Rank.",
   'In Close Quarters': "In any round you switch from Full Defense to Full Attack Stance you gain +1k0 to Attack Rolls. As a Free Action you may spend a Void Point to grant this bonus to allies within 10' wielding a gladius who made the same switch this round.",
+  'Deadly Strike (Legionnaire)': 'You may make attacks with Yodotai and Warrior weapons as a Simple Action for you.',
   'Wedge Formation': 'While in the Attack Stance you gain Reduction equal to your Class Rank. If you make a Complex Action attack against an opponent in the Full Defense Stance you may ignore the Full Defense Armor TN benefit, instead calculating their Armor TN as if they were in the Attack Stance.',
   'With My Brothers': "You no longer need to spend Void to grant the benefits of your Rank 1 and 2 Class Techniques to your allies and the range is extended to 30'. All allies wielding Yodotai weapons within 30' also add +1k0 to their Damage Rolls.",
 
@@ -1690,7 +1776,7 @@ export const TECHNIQUE_ROLL_BONUSES = {
 
   // ── City Guard ────────────────────────────────────────────────────────────────
   'Trained For War': [
-    { skills: ['Athletics','Battle','Defense','INITIATIVE'], rolled: 1, kept: 1, voidOnly: true, note: '+2k1 (not +1k1) when spending Void on class skills' },
+    { skills: ['Athletics','Battle','Defense','INITIATIVE'], rolled: 1, kept: 0, voidOnly: true, note: '+1k0 (combines with your Void spend for +2k1 total)' },
     { skills: ['Defense','Sincerity','Etiquette','Courtier','SOCIAL'], conditional: 'Add School Rank to resist Fear/Intimidation/Temptation', note: '+Rank to contested social resistance rolls' },
     { skills: ['WOUNDPENALTY'], conditional: 'Subtract School Rank from Wound TN penalties', note: '-Rank to Wound TN penalties' },
   ],
@@ -1743,9 +1829,11 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Upstanding Citizen': [
     { skills: ['Commerce','Sincerity','Temptation'], rolled: 2, kept: 0, conditional: 'Opponent declared Raises', note: '+2k0 if opponent declared Raises on contested Commerce/Sincerity/Temptation' },
   ],
-  'An Eye for a Deal': [
-    { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], flat: null, voidOnly: true, conditional: 'Non-weapon skill Void spend — add School Rank to total', note: 'Add School Rank to total when spending Void on non-weapon skills' },
-  ],
+  'An Eye for a Deal': [], // manual — FIXED a real bug: previously had flat:null, which evaluates to 0 via
+    // the (bonus.flat || 0) fallback, meaning this entry silently did NOTHING despite looking automated. The
+    // actual rule adds the character's Class Rank (a dynamic value) to the Void-spend bonus — same "needs
+    // dynamic skill/rank-based bonus support" gap as Senpet Charioteer's Deadly Strike. Marked manual until
+    // that system enhancement exists, rather than leaving a fake zero-value "working" entry.
   'Silver Tongued Devil': [
     { skills: ['Commerce','Sincerity','Temptation','Courtier','Etiquette'], rolled: 1, kept: 0, conditional: 'Reroll Sincerity as Commerce on failure (once)', note: 'May reroll failed Sincerity as Commerce; +1k0 social rolls (cumulative)' },
   ],
@@ -1754,9 +1842,11 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Qabal Agent ───────────────────────────────────────────────────────────────
-  'No One of Import': [
-    { skills: ['Sincerity'], rolled: 0, kept: 0, flat: -1, conditional: 'Opponent rolls to detect your lies — they suffer -1k0', note: 'Opponents suffer -1k0 to detect-lying rolls against you' },
-  ],
+  'No One of Import': [], // manual — FIXED a real bug: previously tagged skills:['Sincerity'] with flat:-1,
+    // which would incorrectly apply a -1 PENALTY to the technique-holder's own Sincerity roll if toggled.
+    // The actual rule debuffs an OPPONENT's separate roll to detect lying (-1k0) — a different character's
+    // roll this character never makes — which the bonus system has no hook for (always modifies the current
+    // roller's own roll). Also grants a Mastery 1 Control Spell, handled by the spell system. Marked manual.
   'A Good Excuse': [
     { skills: ['Sincerity'], rolled: 2, kept: 0, note: '+2k0 Sincerity (Deceit)' },
   ],
@@ -1766,6 +1856,8 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'The Ordered Bolthole': [
     { skills: ['Stealth'], rolled: 2, kept: 0, note: '+2k0 Stealth' },
   ],
+  'Pillar of the Community': [], // manual/GM-adjudicated — spell grant + Void-spend reactive defense, no
+    // automated dice hook exists for either piece. Full description already shown via TECHNIQUE_DESCRIPTIONS.
 
   // ── Ashalan Blood-Sworn ────────────────────────────────────────────────────────
   'Blessed by the Crystal': [
@@ -1777,6 +1869,10 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'To Fight for the Future': [
     { skills: ['ATTACK'], simpleAction: true, note: 'Making an attack is a Simple Action' },
   ],
+  'Your Blood is My Blood': [], // manual — reactive damage redirect to self for a guarded ally, no
+    // "redirect wounds to another combatant" hook exists in the damage application system
+  'One is Never Truly Alone': [], // manual — conditional Strength+5 and extra Wound Rank based on battlefield
+    // positioning (surrounded 3+ sides / no allies within 300'), no positional-state tracking exists
 
   // ── Ashalan Heart-Seekers ──────────────────────────────────────────────────────
   'Truth is My Ally': [
@@ -1789,10 +1885,12 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['SPELLCASTING','Spellcraft'], conditional: 'Counter a spell: Intelligence/Spellcraft vs TN = Spellcasting roll', note: 'May counter spells with Intelligence/Spellcraft; +2×Rank Armor TN bonus' },
     { skills: ['ARMORNBONUS'], conditional: '+2×School Rank to Armor TN always', note: '+2×Rank Armor TN' },
   ],
-  'Bane of the Khadi': [
+  'Bane of the Heartless': [
     { skills: ['ATTACK'], simpleAction: true, conditional: 'With an Ashalan weapon (khadja, scimitar)', note: 'Attacks with Ashalan weapons are Simple Actions' },
     { skills: ['ATTACK'], conditional: 'Special attack: 3 Raises — opponent suffers +30 TN penalty and Water Ring reduced by Rank', note: '3-Raise special: opponent +30 TN, Water Ring -Rank for Rank rounds' },
   ],
+  'My Will is My Fortress': [], // manual — TN increase to resist mind-affecting effects; no generic "resist
+    // mental effect" roll type exists to attach a bonus to
 
   // ── Assassin Slayer ────────────────────────────────────────────────────────────
   'All Shadows Walk in the Light': [
@@ -1808,6 +1906,7 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Blood Calls for Blood': [
     { skills: ['ATTACK'], conditional: 'vs lone/Rite target: add Stealth Skill rank as rolled bonus dice; Raises unlimited', note: '+Stealth rank rolled dice to Attack; unlimited Raises vs lone/Rite target' },
   ],
+  'Swifter Than Life Itself': [], // manual — once-per-day Initiative swap with a chosen opponent, no automated hook
 
   // ── Assassin Keeper ────────────────────────────────────────────────────────────
   "The Keeper's Courage": [
@@ -1822,6 +1921,8 @@ export const TECHNIQUE_ROLL_BONUSES = {
   "The Keeper's Art": [
     { skills: ['ATTACK'], rolled: 0, kept: 0, freeRaises: 1, conditional: '1 Free Raise on Attack vs Dazed opponent to Fatigue them', note: '+1 Free Raise vs Dazed targets to inflict Fatigued' },
   ],
+  'By the Force of Will Alone': [], // manual — target-selection reactive ability (forces opponent Void cost in
+    // Full Defense; ignores target's Armor TN bonuses in Full Attack), no opponent-targeting hook in bonus system
 
   // ── Ra\'Shari Knife-Fighter ─────────────────────────────────────────────────────
   'The Endless Dance': [
@@ -1888,12 +1989,17 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['INITIATIVE'], rolled: 1, kept: 0, conditional: 'While mounted on chariot', note: '+1k0 Initiative when mounted on chariot' },
     { skills: ['ARMORBONUS'], voidOnly: true, conditional: 'Add Lore: Theology rank to Armor TN bonus when spending Void (mounted/Full Attack)', note: '+Theology rank to Armor TN void-spend bonus (mounted/Full Attack)' },
   ],
+  'Swift Volley': [], // manual — conditional defense from taking 2 simple-action moves (enemies in Full
+    // Attack can't target you; +5 TN to spells against you) — no per-round movement-choice state is tracked
   'Ruthless Advance': [
     { skills: ['ATTACK'], rolled: 3, kept: 0, voidOnly: true, stances: ['Full Attack'], conditional: 'Mounted on chariot OR Full Attack stance', note: '+3k0 Attack until Reactions Stage (Void, mounted/Full Attack)' },
   ],
   'Speed is my Armor': [
     { skills: ['ATTACK'], simpleAction: true, conditional: 'While mounted on chariot OR in Full Attack stance', note: 'Attacks are Simple Actions while mounted or in Full Attack' },
   ],
+  'Deadly Strike': [], // manual — once-per-skirmish Void spend for bonus damage dice equal to Lore: Theology
+    // rank; needs dynamic skill-rank-based bonus support, which the static rolled/kept number format doesn't
+    // have yet. Candidate for a future system enhancement (function-based bonus values).
 
   // ── Ebonite Templar ────────────────────────────────────────────────────────────
   'Tapping the Inner Strength': [
@@ -1935,6 +2041,8 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Necromancer ────────────────────────────────────────────────────────────────
+  'Initiate of Undeath': [], // manual — spell grant (3 Mastery Levels of Ghul Creation/Death, cast per day
+    // equal to Earth Ring) plus Soul Jar crafting — handled by spell system, not a dice modifier
   'Master of Undeath and Death': [
     { skills: ['CONTESTED'], rolled: 2, kept: 0, conditional: 'Contested rolls involving Willpower', note: '+2k0 on Contested Willpower rolls' },
   ],
@@ -1944,10 +2052,12 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Leader of Undead': [
     { skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'Undead allies only (not self)', note: 'Undead under your control get +1k0 Attack/Damage' },
   ],
+  'Agent of Death': [], // manual — clarifies undead-control ownership (your undead obey until dismissed or
+    // stolen by another Necromancer; non-Necromancers can't take control) — not a dice modifier
 
   // ── Kabir ─────────────────────────────────────────────────────────────────────
   'Rotting the Foundation': [
-    { skills: ['Acting','Forgery','Gambling','Stealth','Lore: Underworld','Knives','Brawling','Sleight of Hand'], rolled: 2, kept: 2, voidOnly: true, note: '+2k2 (not +1k1) when spending Void on Low skills' },
+    { skills: ['Acting','Forgery','Gambling','Stealth','Lore: Underworld','Knives','Brawling','Sleight of Hand'], rolled: 1, kept: 1, voidOnly: true, note: '+2k2 total when spending Void on Low skills — adds +1k1 on top of base Void +1k1' },
   ],
   'A Honeyed Tongue': [
     { skills: ['Etiquette','Storytelling','Courtier','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Etiquette/Storytelling/Courtier/Sincerity (Deceit)' },
@@ -2019,14 +2129,22 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Wedge Formation': [
     { skills: ['REDUCTION'], conditional: 'Attack Stance: Reduction = School Rank', note: 'Gain Reduction equal to Rank in Attack Stance' },
   ],
+  'With My Brothers': [], // manual — ally aura (+1k0 Damage to allies within 30' wielding Yodotai weapons),
+    // no ally-radius aura system exists to apply bonuses to OTHER characters' rolls
 
   // ── Yodotai Mercenary ────────────────────────────────────────────────────────
+  'Importance of Speed': [], // manual — shield TN penalty reduction + movement as if Water Ring were 1 higher;
+    // no shield-carry-penalty tracking or movement-ring-override hook exists
   'Stranger in a Foreign Land': [
     { skills: ['Battle','Intimidation','Courtier'], rolled: 1, kept: 0, note: '+1k0 Battle/Intimidation/Courtier' },
   ],
   'Unfriendly Glare': [
     { skills: ['ATTACK'], simpleAction: true, conditional: 'Warrior and Yodotai weapons', note: 'Attacks with warrior/Yodotai weapons are Simple Actions' },
   ],
+  'Combat Diplomacy': [], // manual — contested roll to learn an opponent's Advantage/Disadvantage, plus a
+    // conditional Void-spend Free Raise on first meeting someone — both outside the standard roll-bonus shape
+  'Hoplon Bash': [], // manual — a whole new shield-bash attack type (Agility/Brawling vs Armor TN, 1k2 damage
+    // + forces a Knockdown), not a modifier to an existing roll
 
   // ── Yodotai Berserker ─────────────────────────────────────────────────────────
   'Deadly Strike (Berserker)': [
@@ -2047,7 +2165,7 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Balance':              [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Intimidation or Temptation', note: '+1k0 when adding Integrity to resist Intimidation/Temptation (Balance)' }],
   'Clear Thinker':        [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'Contested Roll when being manipulated', note: '+1k0 Contested Rolls when being manipulated (Clear Thinker)' }],
   'Dangerous Beauty':     [{ skills: ['Temptation'], rolled: 1, kept: 0, conditional: 'vs members of opposite sex', note: '+1k0 Temptation vs opposite sex (Dangerous Beauty)' }],
-  'Daredevil':            [{ skills: ['Athletics'], rolled: 3, kept: 1, voidOnly: true, note: '+3k1 (not +1k1) when spending Void on Athletics (Daredevil)' }],
+  'Daredevil':            [{ skills: ['Athletics'], rolled: 2, kept: 0, voidOnly: true, note: '+3k1 total when spending Void on Athletics (Daredevil) — adds +2 rolled on top of base Void +1k1' }],
   'Friend of the Elements': [{ skills: ['TRAIT'], freeRaises: 1, conditional: 'chosen Ring trait rolls only', note: 'Free Raise on Trait Rolls of chosen Ring (Friend of the Elements)' }],
   'Friendly Kami':        [{ skills: ['Spellcraft'], rolled: 1, kept: 1, conditional: 'Sense, Commune, or Summon of chosen element', note: '+1k1 casting Sense/Commune/Summon of chosen element (Friendly Kami)' }],
   'Hands of Stone':       [{ skills: ['DAMAGE'], rolled: 0, kept: 1, conditional: 'unarmed attacks only', note: '+0k1 unarmed Damage (Hands of Stone)' }],
@@ -2066,13 +2184,13 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Blessed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Stamina considered one rank higher for Wounds and healing', note: 'Stamina +1 for Wound Ranks (Keeper of Years Blessing)' }],
   'Stolen Identity':      [{ skills: ['Acting'], freeRaises: 2, conditional: 'when using alternate identity', note: '2 Free Raises on Acting when using stolen identity (Stolen Identity)' }],
   'Strength of the Earth': [{ skills: ['ALL'], flat: 3, conditional: 'reduces wound TN penalty only — already coded in wound system', note: 'Wound TN penalties reduced by 3 (Strength of the Earth)' }],
-  'Touch of the Void':    [{ skills: ['ALL'], rolled: 1, kept: 1, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 (not +1k1) when spending Void — risk Dazed (Touch of the Void)' }],
+  'Touch of the Void':    [{ skills: ['ALL'], rolled: 1, kept: 0, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 total when spending Void — risk Dazed (Touch of the Void) — adds +1 rolled on top of base Void +1k1' }],
   'Virtuous':             [{ skills: ['ALL'], flat: 0, conditional: 'Integrity/Honor bonus only', note: '+1 starting Integrity Rank (Virtuous)' }],
   'Voice':                [{ skills: ['PERFORM'], rolled: 1, kept: 1, conditional: 'voice-based Perform only', note: '+1k1 voice-based Perform (Singing, Oratory, etc.) (Voice)' }],
   'Wary':                 [{ skills: ['Investigation'], rolled: 1, kept: 1, conditional: 'vs Stealth (Ambush) only', note: '+1k1 Investigation (Notice) vs Stealth (Ambush) (Wary)' }],
 
   // ── Paragon variants ──────────────────────────────────────────────────────
-  'Paragon of Compassion':  [{ skills: ['ALL'], rolled: 2, kept: 2, voidOnly: true, conditional: 'helping someone of lower Status', note: '+2k2 (not +1k1) when spending Void to help someone lower than you (Paragon of Compassion)' }],
+  'Paragon of Compassion':  [{ skills: ['ALL'], rolled: 1, kept: 1, voidOnly: true, conditional: 'helping someone of lower Status', note: '+2k2 total when spending Void to help someone lower than you (Paragon of Compassion) — adds +1k1 on top of base Void +1k1' }],
   'Paragon of Courage':     [{ skills: ['SOCIAL','Defense'], rolled: 1, kept: 1, conditional: 'resisting Intimidation or Fear', note: '+1k1 to resist Intimidation or Fear (Paragon of Courage)' }],
   'Paragon of Courtesy':    [{ skills: ['Etiquette'], rolled: 2, kept: 0, conditional: 'avoiding embarrassment or giving offense', note: '+2k0 Etiquette to avoid embarrassment (Paragon of Courtesy)' }],
   'Paragon of Honesty':     [{ skills: ['Sincerity'], rolled: 1, kept: 1, conditional: 'Honesty — honest speech', note: '+1k1 Sincerity (Honesty) (Paragon of Honesty)' }],
@@ -2092,3 +2210,14 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Ambidextrous':    [{ skills: ['ATTACK'], flat: -5, conditional: 'dual wield only — reduces off-hand penalty from -10 to -5', note: 'Dual-wield off-hand penalty -5 instead of -10 (Ambidextrous)' }],
   'Chosen by the Oracles': [{ skills: ['RING'], rolled: 1, kept: 1, conditional: 'chosen Ring only', note: '+1k1 all rolls using chosen Ring (Chosen by the Oracles)' }],
 };
+
+// Automation status for a technique, used to show players whether a technique's effects apply
+// automatically in the dice roller, or need to be handled manually with the GM:
+//   'auto'    — has at least one real dice-modifying bonus entry, applies automatically when relevant
+//   'manual'  — has an entry but it's deliberately empty (e.g. spell grants, reactive abilities with no
+//               dice-roll hook) — by design, not an oversight. Full effect described in TECHNIQUE_DESCRIPTIONS.
+//   'missing' — no entry exists yet at all — audit in progress, not yet reviewed
+export function getTechniqueAutomationStatus(techName) {
+  if (!(techName in TECHNIQUE_ROLL_BONUSES)) return 'missing';
+  return TECHNIQUE_ROLL_BONUSES[techName].length === 0 ? 'manual' : 'auto';
+}

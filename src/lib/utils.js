@@ -24,6 +24,22 @@ export function rollN(n) {
   return Array.from({ length: n }, () => Math.floor(Math.random() * 10) + 1);
 }
 
+// Roll XkY with exploding 10s and return the summed total — used for behind-the-scenes opposed rolls
+// (shopkeeper haggling, Disarm contests, etc.) where a full interactive dice modal isn't appropriate.
+export function rollExplodingKeep(rolled, kept) {
+  const dice = Array.from({ length: Math.max(1, rolled) }, () => {
+    let total = Math.floor(Math.random() * 10) + 1;
+    let cur = total;
+    while (cur === 10) {
+      cur = Math.floor(Math.random() * 10) + 1;
+      total += cur;
+    }
+    return total;
+  });
+  dice.sort((a, b) => b - a);
+  return dice.slice(0, Math.max(1, Math.min(kept, dice.length))).reduce((s, v) => s + v, 0);
+}
+
 export function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -64,6 +80,19 @@ export function getArchetype(school) {
   if (d.type === 'Diplomat') return 'courtier';
   if (d.type === 'Ninja') return 'warrior';
   return 'warrior';
+}
+
+// Build a { rank: techniqueName } map for a school+rank, the same shape character.techniques uses for PCs —
+// shared by CharacterTab's NPC sheet view and EncounterTab's NPC combatant spawning, so any NPC (Library or
+// Full) with a school+rank gets the same technique set a PC of that school/rank would have.
+export function deriveTechniques(school, rank) {
+  const sd = SCHOOL_DATA[school];
+  const techs = {};
+  if (!sd?.techniques) return techs;
+  for (let r = 1; r <= (rank || 1); r++) {
+    if (sd.techniques[r]) techs[r] = sd.techniques[r];
+  }
+  return techs;
 }
 
 // ── Map helpers ───────────────────────────────────────────────────────────────

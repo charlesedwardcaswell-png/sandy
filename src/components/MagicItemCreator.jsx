@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { WEAPONS_LIST } from '../data/constants';
 
 const RARITIES = [
   { key: 'uncommon',  label: 'Uncommon',  color: '#4a7a40', glow: '#4a7a4066' },
@@ -51,6 +52,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
   const [name, setName] = useState('');
   const [rarity, setRarity] = useState('rare');
   const [itemType, setItemType] = useState('Weapon');
+  const [baseWeapon, setBaseWeapon] = useState(''); // name from WEAPONS_LIST, or '' for non-weapons/custom
   const [dr, setDr] = useState('');
   const [effect, setEffect] = useState('');
   const [description, setDescription] = useState('');
@@ -58,6 +60,29 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
   const [saving, setSaving] = useState(false);
 
   const rarityData = RARITIES.find(r => r.key === rarity) || RARITIES[0];
+  const baseWeaponData = WEAPONS_LIST.find(w => w.name === baseWeapon);
+
+  // Selecting a base weapon auto-fills its real DR and skill — keeps magic weapons mechanically grounded
+  const handleBaseWeaponSelect = (weaponName) => {
+    setBaseWeapon(weaponName);
+    const w = WEAPONS_LIST.find(x => x.name === weaponName);
+    if (w) {
+      setDr(w.dr || '');
+      if (!name.trim()) setName(weaponName); // pre-fill name if empty, GM can still rename
+    }
+  };
+
+  // Base cost: weapon's real price if linked, otherwise a flat fallback by rarity (for non-weapon items)
+  const FALLBACK_BASE_PRICE = { uncommon: 10, rare: 20, legendary: 50, artifact: 100 };
+  const parseBasePrice = (priceStr) => {
+    if (!priceStr || priceStr === '—') return FALLBACK_BASE_PRICE[rarity] || 20;
+    const match = String(priceStr).match(/(\d+(?:\.\d+)?)/);
+    return match ? parseFloat(match[1]) : (FALLBACK_BASE_PRICE[rarity] || 20);
+  };
+  const basePrice = baseWeaponData ? parseBasePrice(baseWeaponData.price) : (FALLBACK_BASE_PRICE[rarity] || 20);
+  // Magic markup on top of the base item's real cost — scales with rarity
+  const RARITY_MARKUP_MULT = { uncommon: 2, rare: 4, legendary: 10, artifact: 25 };
+  const estimatedShopPrice = Math.round(basePrice * (RARITY_MARKUP_MULT[rarity] || 4));
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -66,6 +91,9 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
       name: name.trim(),
       rarity,
       item_type: itemType,
+      base_item: baseWeaponData ? baseWeaponData.name : undefined,
+      skill: baseWeaponData ? baseWeaponData.skill : undefined,
+      base_price: basePrice,
       dr: dr.trim() || undefined,
       effect: effect.trim(),
       description: description.trim(),
@@ -117,18 +145,44 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
             style={{ width: '100%', boxSizing: 'border-box' }} autoFocus />
         </div>
 
-        {/* Type + DR row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.75rem' }}>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Type</label>
-            <select value={itemType} onChange={e => setItemType(e.target.value)} style={{ width: '100%' }}>
-              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        {/* Type */}
+        <div style={{ marginBottom: '.75rem' }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Type</label>
+          <select value={itemType} onChange={e => { setItemType(e.target.value); if (e.target.value !== 'Weapon') { setBaseWeapon(''); setDr(''); } }} style={{ width: '100%' }}>
+            {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {/* Base weapon picker — only for Weapon type. Grounds the magic item in a real weapon's stats. */}
+        {itemType === 'Weapon' && (
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+              Base Weapon <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(determines DR, skill, and base cost)</span>
+            </label>
+            <select value={baseWeapon} onChange={e => handleBaseWeaponSelect(e.target.value)} style={{ width: '100%' }}>
+              <option value="">— custom / not a standard weapon —</option>
+              {WEAPONS_LIST.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dr}, {w.skill})</option>)}
             </select>
+            {baseWeaponData && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Base: {baseWeaponData.dr} damage · {baseWeaponData.skill} · {baseWeaponData.price !== '—' ? baseWeaponData.price : 'priceless'}
+                {baseWeaponData.special && <span> · {baseWeaponData.special}</span>}
+              </div>
+            )}
           </div>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Damage (if weapon, e.g. 3k2)</label>
-            <input value={dr} onChange={e => setDr(e.target.value)} placeholder="e.g. 3k2" style={{ width: '100%', boxSizing: 'border-box' }} />
-          </div>
+        )}
+
+        {/* DR — auto-filled from base weapon, editable for custom weapons or to reflect magic alterations */}
+        <div style={{ marginBottom: '.75rem' }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Damage (if weapon, e.g. 3k2)</label>
+          <input value={dr} onChange={e => setDr(e.target.value)} placeholder="e.g. 3k2" style={{ width: '100%', boxSizing: 'border-box' }} />
+        </div>
+
+        {/* Base cost — shown so GM knows what shop price will be derived from */}
+        <div style={{ marginBottom: '.75rem', padding: '.5rem .65rem', background: 'var(--bg-panel)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted)' }}>
+          Base item cost: <strong style={{ color: 'var(--gold-dim)' }}>{basePrice} copper</strong>
+          {' '}→ estimated shop price at {rarityData.label}: <strong style={{ color: 'var(--gold)' }}>{estimatedShopPrice} copper</strong>
+          {!baseWeaponData && itemType === 'Weapon' && <span> (no base weapon selected — using rarity fallback)</span>}
         </div>
 
         {/* Effect */}

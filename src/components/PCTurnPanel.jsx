@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, SKILL_EMPHASES, POISON_EMPHASES, getArmorBonus } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, getArmorBonus } from '../data/constants';
 import { getWoundRank } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
@@ -265,16 +265,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
+    const stanceKeep = isAttack ? stanceKeepBonus : 0;
+
     onRoll({
       skill: selectedSkill.name,
       ring: pool.ringKey,
       ringVal: pool.ringVal,
       baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0) + qualityRollBonus,
-      baseKeep: pool.keep + qualityKeepBonus,
-      baseKeep: pool.keep,
+      baseKeep: pool.keep + stanceKeep + qualityKeepBonus,
       tn,
       isAttack,
       dr: combatant.dr || '3k2',
+      weaponName: combatant.drawnWeapon ? combatant.drawnWeapon.split(' (')[0] : null,
       targetName: target?.name || skillTarget || null,
       targetId: selectedTarget,
       currentVoid: character?.current_void,
@@ -505,14 +507,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         )}
         <div style={{ display: 'flex', gap: stanceChosen ? '.3rem' : '.5rem', flexWrap: 'wrap', justifyContent: stanceChosen ? 'flex-start' : 'center' }}>
           {STANCES.map(s => {
-            const isActive = combatant.stance === s;
+            const isActive = stanceConfirmed && combatant.stance === s;
             const stanceColors = {
-              'Attack': '#c8962a',
-              'Full Attack': '#c84030',
-              'Defense': '#4a8a40',
-              'Full Defense': '#2a6a30',
-              'Center': '#8050c8',
-              'Water': '#4a8aaa',
+              'Attack':      '#c8962a', // gold — standard, balanced
+              'Full Attack': '#c84030', // red — aggressive, fire
+              'Defense':     '#4a8a40', // green — earth, steady
+              'Full Defense':'#2a6a30', // deep green — earthen fortress
+              'Center':      '#8050c8', // purple — void, stillness
+              'Water':       '#3a80c0', // blue — water, movement
             };
             const col = stanceColors[s] || 'var(--gold)';
             return (
@@ -522,9 +524,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   padding: stanceChosen ? '4px 10px' : '10px 18px',
                   borderRadius: 5, fontFamily: 'inherit', cursor: 'pointer',
                   fontSize: stanceChosen ? 12 : 15, fontWeight: isActive ? 700 : (stanceChosen ? 400 : 500),
-                  background: isActive ? col + '33' : 'var(--bg-panel)',
-                  border: `2px solid ${isActive ? col : 'var(--border)'}`,
-                  color: isActive ? col : 'var(--text-muted)',
+                  background: isActive ? col + '33' : col + '11',
+                  border: `2px solid ${isActive ? col : col + '55'}`,
+                  color: isActive ? col : col + 'aa',
                   boxShadow: isActive ? `0 0 10px ${col}55` : 'none',
                   transition: 'all .2s',
                   flex: stanceChosen ? undefined : '1 1 calc(33% - .5rem)',
@@ -563,50 +565,33 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
           { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       actionType: 'Full',   color: '#c84030',
-            disabled: ['Full Defense','Defense','Center'].includes(combatant.stance),
-            title: combatant.stance === 'Full Defense' ? 'Cannot attack in Full Defense — only Free Actions left'
-                 : combatant.stance === 'Defense' ? 'Defense stance (Air): no attacks — cast spells or use skills instead'
-                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions this round'
-                 : 'Attack (Full Action)' },
+            hidden: ['Full Defense','Defense','Center'].includes(combatant.stance),
+            title: 'Attack (Full Action)' },
           { id: 'skill',   icon: 'ti-list-check',           label: 'Use Skill',    actionType: 'Full',   color: 'var(--gold)',
-            disabled: ['Full Attack','Full Defense','Center'].includes(combatant.stance),
-            title: combatant.stance === 'Full Attack' ? 'Full Attack: only attack actions allowed'
-                 : combatant.stance === 'Full Defense' ? 'Full Defense: only Free Actions remaining'
-                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions this round'
-                 : 'Use a Skill (Full Action)' },
+            hidden: ['Full Attack','Full Defense','Center'].includes(combatant.stance),
+            title: 'Use a Skill (Full Action)' },
           { id: 'draw',    icon: 'ti-hand-stop',            label: 'Draw Weapon',  actionType: 'Simple', color: 'var(--text-secondary)',
-            disabled: ['Full Defense','Center'].includes(combatant.stance),
-            title: combatant.stance === 'Full Defense' ? 'Full Defense: only Free Actions remaining'
-                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
-                 : 'Draw or ready a weapon (Simple Action)' },
-          { id: 'move',    icon: 'ti-run',                   label: 'Move',
-            actionType: combatant.stance === 'Full Attack' ? 'Free' : 'Simple',
-            color: '#4a90d0',
-            disabled: combatant.stance === 'Center',
-            title: combatant.stance === 'Center' ? 'Center stance forfeits all actions'
-                 : combatant.stance === 'Full Attack' ? `Full Attack: move up to Water Ring (${character?.water || combatant.water || 2}) squares free — toward enemies only (no action cost)`
-                 : `Move up to Water Ring (${character?.water || combatant.water || 2}) squares (Simple Action — can do twice)` },
+            hidden: ['Full Defense','Center'].includes(combatant.stance),
+            title: 'Draw or ready a weapon (Simple Action)' },
+          { id: 'move',    icon: 'ti-run',                   label: combatant._movesUsed >= 1 ? 'Move Again' : 'Move',
+            actionType: 'Simple',
+            color: combatant._movesUsed >= 1 ? '#6a50d0' : '#4a90d0',
+            hidden: combatant.stance === 'Center' || combatant._movesUsed >= 2,
+            title: combatant._movesUsed >= 1
+                 ? `Move Again — adds another Water Ring (${character?.water || combatant.water || 2}) squares to your range (2nd Simple Action)`
+                 : `Move — adds Water Ring (${character?.water || combatant.water || 2}) squares to your range (Simple Action). You always have 1 free square without this.` },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
-            disabled: ['Full Defense','Full Attack','Center'].includes(combatant.stance),
-            title: combatant.stance === 'Full Defense' ? 'Already in Full Defense'
-                 : combatant.stance === 'Full Attack' ? 'Cannot use Full Defense in Full Attack'
-                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
-                 : 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
+            hidden: ['Full Defense','Full Attack','Center','Attack'].includes(combatant.stance),
+            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
           { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: noActionsLeft ? 'var(--gold)' : 'var(--text-muted)',     title: 'Pass — skip your turn', glow: noActionsLeft },
           { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0',
-            hidden: !(character?.spells?.length > 0),
-            disabled: ['Full Attack','Full Defense','Center'].includes(combatant.stance),
-            title: combatant.stance === 'Full Attack' ? 'Cannot cast spells in Full Attack stance'
-                 : combatant.stance === 'Full Defense' ? 'Full Defense uses all actions — no spells'
-                 : combatant.stance === 'Center' ? 'Center stance forfeits all actions'
-                 : 'Cast a Spell (Full Action)' },
+            hidden: !(character?.spells?.length > 0) || ['Full Attack','Full Defense','Center'].includes(combatant.stance),
+            title: 'Cast a Spell (Full Action)' },
           { id: 'free',    icon: 'ti-bolt',                  label: 'Free Action',  actionType: 'Free',   color: 'var(--text-muted)',     title: 'Declare a Free Action — speak, spend Void, etc.' },
         ].filter(action => !action.hidden).map(action => (
           <button key={action.id}
-            disabled={!!action.disabled}
             title={action.title || action.label}
             onClick={() => {
-              if (action.disabled) return;
               if (action.id === 'defend') {
                 // Clicking Full Defense: switch to stance AND immediately roll
                 onStanceChange('Full Defense');
@@ -758,6 +743,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       tn: getTargetTN(selectedTarget) + (dualWieldPenalty || 0),
                       isAttack: true,
                       dr: selectedWeapon.dr,
+                      weaponName: selectedWeapon.name,
                       targetName: targetPool.find(e => e.id === selectedTarget)?.name,
                       targetId: selectedTarget,
                       currentVoid: character.current_void,
@@ -802,12 +788,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   id="manual-tn-input"
                   style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
               </div>
-              {/* Emphasis selector — free raise when applicable */}
+              {/* Emphasis selector — free raise when applicable. Only shows emphases the character
+                  actually has — previously also suggested unowned emphases, which was confusing. */}
               {(() => {
                 const skillObj = (character?.skills || []).find(s => s.name === selectedSkill.name);
-                const ownedEmphases = skillObj?.emphases || [];
-                const suggestedEmphases = (SKILL_EMPHASES[selectedSkill.name] || []).filter(e => !ownedEmphases.includes(e));
-                const emphases = [...ownedEmphases, ...suggestedEmphases];
+                const emphases = skillObj?.emphases || [];
                 if (emphases.length === 0) return null;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
@@ -817,18 +802,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       None
                     </button>
                     {emphases.map(e => {
-                      const owned = ownedEmphases.includes(e);
                       const active = selectedEmphasis === e;
                       return (
                         <button key={e} onClick={() => setSelectedEmphasis(active ? null : e)}
                           style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10,
-                            border: `1px solid ${active ? 'var(--gold)' : owned ? 'var(--gold-dim)' : 'var(--border)'}`,
+                            border: `1px solid ${active ? 'var(--gold)' : 'var(--gold-dim)'}`,
                             background: active ? 'rgba(200,150,42,.18)' : 'transparent',
-                            color: active ? 'var(--gold)' : owned ? 'var(--text-secondary)' : 'var(--text-muted)',
+                            color: active ? 'var(--gold)' : 'var(--text-secondary)',
                             cursor: 'pointer', fontFamily: 'inherit',
-                            fontStyle: owned ? 'normal' : 'italic',
                           }}>
-                          {owned ? '' : '+ '}{e}{active && <span style={{ color: 'var(--gold)', fontSize: 10, marginLeft: 4 }}>reroll 1s</span>}
+                          {e}{active && <span style={{ color: 'var(--gold)', fontSize: 10, marginLeft: 4 }}>reroll 1s</span>}
                         </button>
                       );
                     })}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS } from '../data/constants';
-import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore } from './UI';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, getTechniqueAutomationStatus } from '../data/constants';
+import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore, WeaponIcon, ArmorIcon, getWeaponIconType, RulebookEntryButton } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
 import { MagicItemBadge } from './MagicItemCreator';
@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0 }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -126,6 +126,9 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onUpdateInventory={onUpdateInventory}
             partyInventoryItems={partyInventoryItems}
             onRoll={onRoll} allChars={characters}
+            waterDroughtEnabled={waterDroughtEnabled}
+            portraitScale={portraitScale}
+            onLogEvent={onLogEvent}
           />
         )}
         {jinnOpen && (
@@ -415,6 +418,18 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: 'var(--gold-dim)', fontSize: 11, minWidth: 20 }}>R{t.rank}</span>
                       <span style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500 }}>{t.text}</span>
+                      {(() => {
+                        const status = getTechniqueAutomationStatus(t.text);
+                        if (status === 'auto') return null;
+                        if (status === 'manual') return (
+                          <i className="ti ti-hand-stop" style={{ fontSize: 11, color: 'var(--gold-dim)' }}
+                            title="Not automated — this NPC's effect needs to be handled manually. Applies to attack rolls automatically where possible; this one doesn't." />
+                        );
+                        return (
+                          <i className="ti ti-help-circle" style={{ fontSize: 11, color: 'var(--text-muted)' }}
+                            title="Not yet reviewed — may not be reflected in NPC attack rolls." />
+                        );
+                      })()}
                     </div>
                     {TECHNIQUE_DESCRIPTIONS[t.text] && (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, marginLeft: 26, lineHeight: 1.5 }}>
@@ -462,7 +477,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
       })()}
       {view === 'sheet' && !selNpcId && (
         char
-          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} onRoll={onRoll} allChars={characters} />
+          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} onRoll={onRoll} allChars={characters} waterDroughtEnabled={waterDroughtEnabled} portraitScale={portraitScale} onLogEvent={onLogEvent} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
       )}
 
@@ -900,7 +915,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 }
 
 // ── Character Sheet ───────────────────────────────────────────────────────────
-function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems, onRoll, allChars }) {
+function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems, onRoll, allChars, waterDroughtEnabled, portraitScale = 1.0, onLogEvent }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasSotESheet = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
@@ -1164,24 +1179,41 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         return null;
       })()}
 
-      {/* ── Top card: Name/Avatar + Rings + Wounds ── */}
+      {/* ── Top card: Portrait + Name/Avatar + Rings + Status/Wounds ── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
 
-          {/* Name block — top left */}
+          {/* Portrait column — large, scaleable by GM setting */}
+          {avatarUrl && !imgError ? (
+            <div
+              style={{
+                width: Math.round(110 * portraitScale), height: Math.round(150 * portraitScale),
+                borderRadius: 6, border: `2px solid ${avatarColor}66`,
+                overflow: 'hidden', flexShrink: 0, cursor: canEdit ? 'pointer' : 'default', position: 'relative',
+                transition: 'width .2s, height .2s',
+              }}
+              onClick={() => canEdit && setShowAvatarPicker(p => !p)}>
+              <img src={avatarUrl} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgError(true)} />
+              {canEdit && <div style={{ position: 'absolute', bottom: 3, right: 4, fontSize: 10, color: avatarColor, background: 'rgba(0,0,0,.5)', borderRadius: 3, padding: '1px 3px' }}>✏</div>}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: Math.round(110 * portraitScale), height: Math.round(150 * portraitScale),
+                borderRadius: 6, border: `2px solid ${avatarColor}66`,
+                background: 'var(--bg-panel)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, overflow: 'hidden', cursor: canEdit ? 'pointer' : 'default', position: 'relative',
+                transition: 'width .2s, height .2s',
+              }}
+              onClick={() => canEdit && setShowAvatarPicker(p => !p)}>
+              <Silhouette type={avatarType} size={Math.round(60 * portraitScale)} color={avatarColor} />
+              {canEdit && <div style={{ position: 'absolute', bottom: 3, right: 4, fontSize: 10, color: avatarColor, background: 'rgba(0,0,0,.5)', borderRadius: 3, padding: '1px 3px' }}>✏</div>}
+            </div>
+          )}
+
+          {/* Name block — top left, shares row with portrait */}
           <div style={{ minWidth: 160, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.4rem' }}>
-              <div
-                style={{ width: 40, height: 52, borderRadius: 4, background: 'var(--bg-panel)', border: `2px solid ${avatarColor}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: canEdit ? 'pointer' : 'default', position: 'relative' }}
-                onClick={() => canEdit && setShowAvatarPicker(p => !p)}>
-                {avatarUrl && !imgError ? (
-                  <img src={avatarUrl} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgError(true)} />
-                ) : (
-                  <Silhouette type={avatarType} size={32} color={avatarColor} />
-                )}
-                {canEdit && <div style={{ position: 'absolute', bottom: 1, right: 1, fontSize: 9, color: avatarColor }}>✏</div>}
-              </div>
-              <div>
+            <div style={{ marginBottom: '.4rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
                   <button className={`btn btn-sm ${canEdit ? 'btn-p' : ''}`} style={{ fontSize: 10, padding: '1px 5px' }} onClick={onToggleEdit}>
@@ -1226,7 +1258,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   )}
                 </div>
               </div>
-            </div>
             {/* Avatar picker */}
             {showAvatarPicker && canEdit && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>
@@ -1278,80 +1309,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, marginBottom: '.3rem' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{char.school} · {char.faction}</span>
             </div>
-            {/* Wounds — tabular layout matching 4th Ed character sheet */}
-            {(() => {
-              const earth = char.earth || char.stamina || 2;
-              const healthyTotal = earth * 5;
-              const rankTotal = earth * 2;
-              const hasSotE = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
-              const soteReduction = hasSotE ? 3 : 0;
-              const WOUND_RANKS = [
-                { label: 'Healthy',  penalty: '+0',                                    total: healthyTotal, color: '#4a8a40' },
-                { label: 'Nicked',   penalty: `+${Math.max(0, 3  - soteReduction)}`,  total: rankTotal,    color: '#8a8a30' },
-                { label: 'Grazed',   penalty: `+${Math.max(0, 5  - soteReduction)}`,  total: rankTotal,    color: '#a87830' },
-                { label: 'Hurt',     penalty: `+${Math.max(0, 10 - soteReduction)}`,  total: rankTotal,    color: '#c86030' },
-                { label: 'Injured',  penalty: `+${Math.max(0, 15 - soteReduction)}`,  total: rankTotal,    color: '#c84030' },
-                { label: 'Crippled', penalty: `+${Math.max(0, 20 - soteReduction)}`,  total: rankTotal,    color: '#a02828' },
-                { label: 'Down',     penalty: `+${Math.max(0, 40 - soteReduction)}`,  total: rankTotal,    color: '#801818' },
-                { label: 'Out',      penalty: '—',                                     total: earth * 5,    color: '#600010' },
-              ];
-              // Cumulative thresholds
-              const thresholds = WOUND_RANKS.reduce((acc, r, i) => {
-                acc.push((acc[i - 1] || 0) + r.total);
-                return acc;
-              }, []);
-              const current = char.current_wounds || 0;
-              return (
-                <div style={{ marginTop: '.25rem', border: `1px solid ${woundColor}44`, borderRadius: 4, overflow: 'hidden', fontSize: 11 }}>
-                  {/* Header */}
-                  <div style={{ display: 'flex', background: 'rgba(0,0,0,.3)', padding: '2px 4px', gap: 2, borderBottom: '1px solid rgba(107,78,40,.3)' }}>
-                    <span style={{ flex: 2, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9, letterSpacing: '.05em' }}>Wound Level</span>
-                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Pen.</span>
-                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Total</span>
-                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Curr.</span>
-                  </div>
-                  {WOUND_RANKS.map((r, i) => {
-                    const rankStart = i === 0 ? 0 : thresholds[i - 1];
-                    const rankEnd = thresholds[i];
-                    const woundsInRank = Math.max(0, Math.min(current - rankStart, r.total));
-                    const isActive = current > rankStart && current <= rankEnd;
-                    const isPast = current > rankEnd;
-                    return (
-                      <div key={r.label} style={{
-                        display: 'flex', alignItems: 'center', gap: 2, padding: '2px 4px',
-                        background: isActive ? `${r.color}22` : isPast ? `${r.color}11` : 'transparent',
-                        borderBottom: '1px solid rgba(107,78,40,.1)',
-                        borderLeft: isActive ? `3px solid ${r.color}` : '3px solid transparent',
-                      }}>
-                        <span style={{ flex: 2, color: isActive ? r.color : isPast ? r.color + 'aa' : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
-                          {r.label} {isActive && woundPenalty > 0 ? <span style={{ fontSize: 9 }}>⚠</span> : ''}
-                        </span>
-                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)' }}>{r.penalty}</span>
-                        <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)' }}>{r.total}</span>
-                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
-                          {isActive ? woundsInRank : isPast ? r.total : 0}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {/* Wound controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px', background: 'rgba(0,0,0,.15)', borderTop: '1px solid rgba(107,78,40,.2)' }}>
-                    <span style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)' }}>
-                      Total: <strong style={{ color: woundColor }}>{current}</strong> / {thresholds[thresholds.length - 1]}
-                    </span>
-                    {canEdit && (
-                      <>
-                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--green)' }}
-                          onClick={() => update('current_wounds', Math.max(0, current - 1))}>− Heal</button>
-                        <button className="btn btn-sm btn-d" style={{ fontSize: 10, padding: '1px 5px' }}
-                          onClick={() => update('current_wounds', current + 1)}>+ Wound</button>
-                      </>
-                    )}
-                  </div>
-
-                </div>
-              );
-            })()}
             {/* Armor TN / Init — prominent */}
             <div style={{ marginTop: '.4rem' }}>
               {(() => {
@@ -1462,7 +1419,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       })
                     )}
 
-                    {/* Void dots below void orb — big, black when spent */}
+                    {/* Void dots below void orb — big, black when spent.
+                        GM-only: players cannot directly add/remove Void Points — only Recovery,
+                        GM action, or the Meditation skill should change this. */}
                     {char.void && (() => {
                       const vr = rings.find(r => r.key === 'Void');
                       const R = 12;
@@ -1476,8 +1435,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                             fill={filled ? '#111' : 'transparent'}
                             stroke={filled ? '#555' : RING_COLORS.Void + '88'}
                             strokeWidth={2}
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => update('current_void', filled ? i : i + 1)} />
+                            style={{ cursor: isGM ? 'pointer' : 'default' }}
+                            onClick={isGM ? () => update('current_void', filled ? i : i + 1) : undefined} />
                         );
                       });
                     })()}
@@ -1488,29 +1447,108 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           </div>
 
           {/* ── Social Stats — top right column ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90, order: 3 }}>
             {[
               { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
               { label: 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation' },
               { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
-            ].map(({ label, value, color, borderColor, key, isDecimal }) => (
+              // Water units — only shown in drought mode; GM can edit, players see their own
+              ...(waterDroughtEnabled && !char.is_npc ? [{ label: 'Water', value: char.water_units ?? 0, color: '#3a80c0', borderColor: '#2a60a0', key: 'water_units', isWater: true }] : []),
+            ].map(({ label, value, color, borderColor, key, isDecimal, isWater }) => (
               <div key={key} style={{ textAlign: 'center', background: 'var(--bg-panel)', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '4px 12px', width: '100%' }}>
                 <div
-                  style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1, cursor: 'pointer' }}
-                  title={`Click to view ${label} reference table`}
-                  onClick={() => setShowSocialRef(key)}
+                  style={{ fontSize: 28, fontWeight: 900, color: isWater && value <= 1 ? '#c84030' : color, lineHeight: 1, cursor: isWater ? 'default' : 'pointer' }}
+                  title={isWater ? `Water units on hand (max 5)` : `Click to view ${label} reference table`}
+                  onClick={() => !isWater && setShowSocialRef(key)}
                 >
-                  {isDecimal ? (Number(value) || 0).toFixed(1) : (value || 0)}
+                  {isWater
+                    ? <span style={{ display: 'flex', gap: 2, justifyContent: 'center', paddingTop: 4 }}>
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i < value ? color : 'var(--border)' }} />
+                        ))}
+                      </span>
+                    : (isDecimal ? (Number(value) || 0).toFixed(1) : (value || 0))}
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: 1 }}>{label} <span style={{ color: borderColor, opacity: 0.6 }}>?</span></div>
-                {canEdit && isGM && (
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: isWater ? 5 : 1 }}>{label}{!isWater && <span style={{ color: borderColor, opacity: 0.6 }}> ?</span>}</div>
+                {canEdit && isGM && !isWater && (
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
                     <button className="rep-btn" onClick={() => update(key, Math.max(0, +(value || 0) - (isDecimal ? 0.5 : 1)))}>−</button>
                     <button className="rep-btn" onClick={() => update(key, +(value || 0) + (isDecimal ? 0.5 : 1))}>+</button>
                   </div>
                 )}
+                {isWater && canEdit && isGM && (
+                  <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
+                    <button className="rep-btn" onClick={() => update('water_units', Math.max(0, (value || 0) - 1))}>−</button>
+                    <button className="rep-btn" onClick={() => update('water_units', Math.min(5, (value || 0) + 1))}>+</button>
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+
+          {/* ── Wounds chart — LEFT of status block ── */}
+          <div style={{ flexShrink: 0, minWidth: 200, maxWidth: 260, order: 2 }}>
+            {(() => {
+              const earth = char.earth || char.stamina || 2;
+              const healthyTotal = earth * 5;
+              const rankTotal = earth * 2;
+              const hasSotE = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
+              const soteReduction = hasSotE ? 3 : 0;
+              const WRANKS = [
+                { label: 'Healthy',  penalty: '+0',                                    total: healthyTotal, color: '#4a8a40' },
+                { label: 'Nicked',   penalty: `+${Math.max(0, 3  - soteReduction)}`,  total: rankTotal,    color: '#8a8a30' },
+                { label: 'Grazed',   penalty: `+${Math.max(0, 5  - soteReduction)}`,  total: rankTotal,    color: '#a87830' },
+                { label: 'Hurt',     penalty: `+${Math.max(0, 10 - soteReduction)}`,  total: rankTotal,    color: '#c86030' },
+                { label: 'Injured',  penalty: `+${Math.max(0, 15 - soteReduction)}`,  total: rankTotal,    color: '#c84030' },
+                { label: 'Crippled', penalty: `+${Math.max(0, 20 - soteReduction)}`,  total: rankTotal,    color: '#a02828' },
+                { label: 'Down',     penalty: `+${Math.max(0, 40 - soteReduction)}`,  total: rankTotal,    color: '#801818' },
+                { label: 'Out',      penalty: '—',                                     total: earth * 5,    color: '#600010' },
+              ];
+              const thresholds = WRANKS.reduce((acc, r, i) => { acc.push((acc[i - 1] || 0) + r.total); return acc; }, []);
+              const current = char.current_wounds || 0;
+              return (
+                <div style={{ border: `1px solid ${woundColor}44`, borderRadius: 4, overflow: 'hidden', fontSize: 11 }}>
+                  <div style={{ display: 'flex', background: 'rgba(0,0,0,.3)', padding: '2px 4px', gap: 2, borderBottom: '1px solid rgba(107,78,40,.3)' }}>
+                    <span style={{ flex: 2, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9, letterSpacing: '.05em' }}>Wound Level</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Pen.</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Total</span>
+                    <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9 }}>Curr.</span>
+                  </div>
+                  {WRANKS.map((r, i) => {
+                    const rankStart = i === 0 ? 0 : thresholds[i - 1];
+                    const rankEnd = thresholds[i];
+                    const woundsInRank = Math.max(0, Math.min(current - rankStart, r.total));
+                    const isActive = current > rankStart && current <= rankEnd;
+                    const isPast = current > rankEnd;
+                    return (
+                      <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '2px 4px', background: isActive ? `${r.color}22` : isPast ? `${r.color}11` : 'transparent', borderBottom: '1px solid rgba(107,78,40,.1)', borderLeft: isActive ? `3px solid ${r.color}` : '3px solid transparent' }}>
+                        <span style={{ flex: 2, color: isActive ? r.color : isPast ? r.color + 'aa' : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
+                          {r.label} {isActive && woundPenalty > 0 ? <span style={{ fontSize: 9 }}>⚠</span> : ''}
+                        </span>
+                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)' }}>{r.penalty}</span>
+                        <span style={{ width: 28, textAlign: 'center', color: 'var(--text-muted)' }}>{r.total}</span>
+                        <span style={{ width: 28, textAlign: 'center', color: isActive ? r.color : 'var(--text-muted)', fontWeight: isActive ? 700 : 400 }}>
+                          {isActive ? woundsInRank : isPast ? r.total : 0}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px', background: 'rgba(0,0,0,.15)', borderTop: '1px solid rgba(107,78,40,.2)' }}>
+                    <span style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)' }}>
+                      Total: <strong style={{ color: woundColor }}>{current}</strong> / {thresholds[thresholds.length - 1]}
+                    </span>
+                    {canEdit && (
+                      <>
+                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--green)' }}
+                          onClick={() => update('current_wounds', Math.max(0, current - 1))}>− Heal</button>
+                        <button className="btn btn-sm btn-d" style={{ fontSize: 10, padding: '1px 5px' }}
+                          onClick={() => update('current_wounds', current + 1)}>+ Wound</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -1861,7 +1899,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         onClick={() => {
                           const item = char.equipment[i];
                           update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                          onUpdateInventory({ items: [...(partyInventoryItems || []), { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
+                          onUpdateInventory({ items: [...(partyInventoryItems || []).filter(Boolean), { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
+                          onLogEvent && onLogEvent('ti-arrow-left', `${item.name} → ${char.name} to Party Inventory`);
                         }}>→ Party</button>
                     )}
                     {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
@@ -1875,6 +1914,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           const item = char.equipment[i];
                           update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
                           onUpdate(targetId, { equipment: [...(targetChar.equipment || []), { ...item, equipped: false, inUse: false }] });
+                          onLogEvent && onLogEvent('ti-gift', `${item.name} → ${char.name} gave to ${targetChar.name}`);
                         }}>
                         <option value="">→ Player…</option>
                         {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => (
@@ -1888,14 +1928,59 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               );
             }
             const qualData = ITEM_QUALITIES[e.quality || 'standard'] || ITEM_QUALITIES.standard;
+            const isWeapon = !!e.dr;
+            const isArmor = getEquipSlot(e.name) === 'armor';
+            const canToggleWield = isWeapon || isArmor;
+            // Player can wield/wear their own gear even without full edit mode
+            const canWield = canEdit || (myCharId === char.id);
             return (
               <div key={i} className="eq-row">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer' }} title="Mark as currently equipped/wielded">
-                  <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>In use</span>
-                </label>
-                <span style={{ flex: 1, color: e.inUse ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                {/* Wield/Wear status indicator */}
+                {canToggleWield && (
+                  <button
+                    onClick={() => {
+                      if (isWeapon) {
+                        // Wield: set inUse; unwield: clear inUse. Also update current_weapon.
+                        const nowWielded = !e.inUse;
+                        const eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, inUse: nowWielded } : x);
+                        const wielded = eq.filter(x => x.dr && x.inUse);
+                        const currentWeapon = wielded.length > 0
+                          ? `${wielded[0].name} (${wielded[0].dr})`
+                          : null;
+                        onUpdate(char.id, { equipment: eq, current_weapon: currentWeapon });
+                      } else {
+                        // Armor: toggle equipped
+                        const nowWorn = !e.equipped;
+                        const eq = (char.equipment || []).map((x, xi) => {
+                          if (xi === i) return { ...x, equipped: nowWorn, inUse: nowWorn };
+                          // Unequip other armor if wearing new one
+                          if (nowWorn && getEquipSlot(x.name) === 'armor') return { ...x, equipped: false, inUse: false };
+                          return x;
+                        });
+                        onUpdate(char.id, { equipment: eq });
+                      }
+                    }}
+                    style={{
+                      flexShrink: 0, fontSize: 10, padding: '1px 6px', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
+                      background: (isWeapon ? e.inUse : e.equipped) ? 'rgba(200,150,42,.15)' : 'transparent',
+                      border: `1px solid ${(isWeapon ? e.inUse : e.equipped) ? 'var(--gold)' : 'var(--border)'}`,
+                      color: (isWeapon ? e.inUse : e.equipped) ? 'var(--gold)' : 'var(--text-muted)',
+                      pointerEvents: canWield ? 'auto' : 'none', opacity: canWield ? 1 : 0.5,
+                    }}
+                    title={isWeapon ? (e.inUse ? 'Currently wielding — click to sheathe' : 'Click to wield') : (e.equipped ? 'Currently worn — click to remove' : 'Click to wear')}
+                  >
+                    {isWeapon
+                      ? (e.inUse ? '⚔ Wielding' : 'Wield')
+                      : (e.equipped ? '🛡 Worn' : 'Wear')}
+                  </button>
+                )}
+                <span style={{ flex: 1, color: (isWeapon ? e.inUse : isArmor ? e.equipped : true) ? 'var(--text-primary)' : 'var(--text-muted)' }}
                   title={GEAR_DESCRIPTIONS[e.name] || undefined}>
+                  {isWeapon && (() => {
+                    const iconType = getWeaponIconType(e.name);
+                    return iconType ? <WeaponIcon type={iconType} size={14} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} /> : null;
+                  })()}
+                  {isArmor && <ArmorIcon size={13} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} />}
                   {e.name}
                   {GEAR_DESCRIPTIONS[e.name] && (
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5, fontStyle: 'italic', display: 'block', lineHeight: 1.3 }}>
@@ -1903,12 +1988,23 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     </span>
                   )}
                 </span>
+                <RulebookEntryButton itemName={e.name} />
                 {e.quality && e.quality !== 'standard' && (
                   <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: qualData.label === 'Poor' ? '#2a1a0a' : '#1a2a0a', color: qualData.label === 'Poor' ? '#8a5a30' : '#5a8a30', border: `1px solid ${qualData.label === 'Poor' ? '#4a2a1a' : '#3a6a1a'}` }} title={qualData.desc}>
                     {qualData.label}
                   </span>
                 )}
-                {e.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr}</span>}
+                {e.dr && (() => {
+                  const wData = WEAPONS_LIST.find(w => w.name === e.name);
+                  const skillName = e.skill || wData?.skill;
+                  const isRanged = ['Archery', 'Throwing'].includes(skillName);
+                  const str = char.strength || 2;
+                  // Melee weapons add Strength to damage dice
+                  const drDisplay = (!isRanged && str > 0)
+                    ? <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr} <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{str}k0</span></span>
+                    : <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr}</span>;
+                  return drDisplay;
+                })()}
                 {/* Weapon sample roll: Str+WeaponDice kStr for melee (STR k STR), or Agi+rank k Fire for finesse */}
                 {e.dr && (() => {
                   const wData = WEAPONS_LIST.find(w => w.name === e.name);
@@ -1946,7 +2042,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     onClick={() => {
                       const item = char.equipment[i];
                       update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                      onUpdateInventory({ items: [...(partyInventoryItems || []), { name: item.name, qty: 1, category: 'Gear', dr: item.dr || '', skill: item.skill || '' }] });
+                      onUpdateInventory({ items: [...(partyInventoryItems || []).filter(Boolean), { name: item.name, qty: 1, category: 'Gear', dr: item.dr || '', skill: item.skill || '' }] });
+                      onLogEvent && onLogEvent('ti-arrow-left', `${item.name} → ${char.name} to Party Inventory`);
                     }}>→ Party</button>
                 )}
                 {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
@@ -2043,7 +2140,21 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 ) : (
                   <>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{currentTech}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {currentTech}
+                        {(() => {
+                          const status = getTechniqueAutomationStatus(currentTech);
+                          if (status === 'auto') return null; // no icon needed — works automatically, no clutter
+                          if (status === 'manual') return (
+                            <i className="ti ti-hand-stop" style={{ fontSize: 12, color: 'var(--gold-dim)' }}
+                              title="This technique's effects aren't automated in the dice roller — handle it manually with the GM. Its full effect is described below." />
+                          );
+                          return (
+                            <i className="ti ti-help-circle" style={{ fontSize: 12, color: 'var(--text-muted)' }}
+                              title="This technique hasn't been reviewed yet — its effects may not be reflected anywhere in the app. Handle manually with the GM for now." />
+                          );
+                        })()}
+                      </div>
                       {TECHNIQUE_DESCRIPTIONS[currentTech] && (
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>
                           {TECHNIQUE_DESCRIPTIONS[currentTech]}
@@ -2109,7 +2220,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         {canEdit
                           ? <input value={a.customName || a.name} onChange={e => updateAdv({ customName: e.target.value })}
                               onBlur={e => !e.target.value && updateAdv({ customName: undefined })}
-                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
                           : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.customName || a.name}</span>
                         }
                         <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
@@ -2162,7 +2273,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         {canEdit
                           ? <input value={d.customName || d.name} onChange={e => updateDis({ customName: e.target.value })}
                               onBlur={e => !e.target.value && updateDis({ customName: undefined })}
-                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
                           : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.customName || d.name}</span>
                         }
                         <span style={{ color: 'var(--red)', fontSize: 11 }}>(+{d.value} CP)</span>

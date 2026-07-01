@@ -65,7 +65,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = f
                   value={q.title}
                   onChange={e => onUpdateQuest(q.id, { title: e.target.value })}
                   style={{ flex: 1, fontSize: indent ? 13 : 14, fontWeight: indent ? 400 : 500,
-                    background: 'transparent', border: 'none', borderBottom: '1px solid rgba(200,150,42,.2)',
+                    background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,150,42,.2)',
                     color: q.status === 'complete' ? 'var(--text-muted)' : 'var(--text-primary)',
                     textDecoration: q.status === 'complete' ? 'line-through' : 'none',
                     outline: 'none', padding: '0 2px', fontFamily: 'inherit' }}
@@ -133,7 +133,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = f
                   placeholder="Quest description…"
                   rows={2}
                   style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                    background: 'var(--bg-dark)', border: 'none', borderTop: '1px solid var(--border)',
+                    background: 'var(--bg-dark)', borderLeft: 'none', borderRight: 'none', borderBottom: 'none', borderTop: '1px solid var(--border)',
                     color: 'var(--text-secondary)', fontSize: 12, padding: '.4rem .75rem',
                     fontFamily: 'inherit', lineHeight: 1.5, outline: 'none' }}
                 />

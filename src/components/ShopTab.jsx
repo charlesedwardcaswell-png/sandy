@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, GAME_ID, POISONS_LIST } from '../data/constants';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
+import { RulebookEntryButton } from './UI';
 import { supabase } from '../lib/supabase';
+import { rollExplodingKeep } from '../lib/utils';
 
 const QUALITY_TIERS = [
   { key: 'poor',       label: 'Poor',       mult: 0.5,  color: '#6a5a40' },
@@ -11,79 +13,108 @@ const QUALITY_TIERS = [
   { key: 'masterwork', label: 'Masterwork', mult: 4,    color: '#e0c060' },
 ];
 
-// Helper to make a shop item from a weapon
-const wItem = (name, quality='standard') => {
+// Helper to make a shop item from a weapon. rarity: 'always' | 'common' | 'uncommon' | 'rare'
+const wItem = (name, quality='standard', rarity='common') => {
   const w = WEAPONS_LIST.find(x => x.name === name);
-  return { name, price: w?.price?.replace('c','0 copper') || '5 copper', dr: w?.dr || '', quality, visible: true, is_magic: false };
+  return { name, price: w?.price?.replace('c','0 copper') || '5 copper', dr: w?.dr || '', quality, visible: true, is_magic: false, rarity };
 };
 // Helper to make a shop item from gear
-const gItem = (name, price='2 copper', quality='standard') => ({ name, price, dr: '', quality, visible: true, is_magic: false });
+const gItem = (name, price='2 copper', quality='standard', rarity='common') => ({ name, price, dr: '', quality, visible: true, is_magic: false, rarity });
+
+// Rarity → inclusion chance when randomizing a shop's stock
+const RARITY_CHANCE = { always: 1, common: 0.85, uncommon: 0.5, rare: 0.2 };
 
 const BUNDLE_PRESETS = {
   // ── Standard shops ──────────────────────────────────────────────────────
   'Weapons Dealer': { icon: 'ti-sword', tier: 'standard', items: [
-    wItem('Longsword'), wItem('Scimitar'), wItem('Shortsword'), wItem('Knife'), wItem('Jambiya'),
-    wItem('Spear'), wItem('Staff'), wItem('Heavy Club'), wItem('War Axe'), wItem('Standard Bow'), wItem('Shortbow'), wItem('Knife'),
+    wItem('Longsword', 'standard', 'always'), wItem('Scimitar', 'standard', 'always'), wItem('Shortsword', 'standard', 'common'),
+    wItem('Knife', 'standard', 'always'), wItem('Jambiya', 'standard', 'common'),
+    wItem('Spear', 'standard', 'common'), wItem('Staff', 'standard', 'uncommon'), wItem('Heavy Club', 'standard', 'uncommon'),
+    wItem('War Axe', 'standard', 'uncommon'), wItem('Standard Bow', 'standard', 'always'), wItem('Shortbow', 'standard', 'common'),
+    wItem('Kindjal', 'standard', 'uncommon'),
+    // Ammo and weapon-shop staples — always stocked, every weapons dealer needs arrows
+    gItem('Quiver (60 arrows)', '2 copper', 'standard', 'always'),
+    gItem('Whetstone', '1 copper', 'standard', 'common'),
   ]},
   'Armorer': { icon: 'ti-shield', tier: 'standard', items: [
-    gItem('Partial Armor (+3 TN)', '10 copper'), gItem('Light Armor (+5 TN)', '20 copper'),
-    gItem('Heavy Armor (+10 TN)', '40 copper'), gItem('Riding Armor (+8 TN)', '30 copper'),
+    gItem('Partial Armor (+3 TN)', '10 copper', 'standard', 'always'), gItem('Light Armor (+5 TN)', '20 copper', 'standard', 'always'),
+    gItem('Heavy Armor (+10 TN)', '40 copper', 'standard', 'common'), gItem('Riding Armor (+8 TN)', '30 copper', 'standard', 'uncommon'),
   ]},
   'Apothecary': { icon: 'ti-flask', tier: 'standard', items: [
-    gItem('Medicine Kit', '5 copper'), gItem('Apothecary Kit', '8 copper'),
-    gItem('Traveling Rations', '1 copper'), gItem('Water Skin', '1 copper'),
-    gItem('Rope (50 ft)', '1 copper'), gItem('Lantern', '2 copper'), gItem('Lantern Oil', '1 copper'),
-    gItem('Flint and Steel', '1 copper'),
+    gItem('Medicine Kit', '5 copper', 'standard', 'always'), gItem('Apothecary Kit', '8 copper', 'standard', 'common'),
+    gItem('Traveling Rations', '1 copper', 'standard', 'always'), gItem('Water Skin', '1 copper', 'standard', 'always'),
+    gItem('Rope (50 ft)', '1 copper', 'standard', 'common'), gItem('Lantern', '2 copper', 'standard', 'common'),
+    gItem('Lantern Oil', '1 copper', 'standard', 'common'), gItem('Flint and Steel', '1 copper', 'standard', 'always'),
   ]},
   'General Goods': { icon: 'ti-backpack', tier: 'standard', items: [
-    gItem('Backpack', '2 copper'), gItem('Traveling Cloak', '3 copper'), gItem('Suit of Clothes', '2 copper'),
-    gItem('Sandals', '1 copper'), gItem('Blanket', '1 copper'), gItem('Rope (50 ft)', '1 copper'),
-    gItem('Lantern', '2 copper'), gItem('Lantern Oil', '1 copper'), gItem('Flint and Steel', '1 copper'),
-    gItem('Water Skin', '1 copper'), gItem('Tent (small)', '5 copper'), gItem('Traveling Rations', '1 copper'),
+    gItem('Backpack', '2 copper', 'standard', 'always'), gItem('Traveling Cloak', '3 copper', 'standard', 'common'),
+    gItem('Suit of Clothes', '2 copper', 'standard', 'always'), gItem('Sandals', '1 copper', 'standard', 'always'),
+    gItem('Blanket', '1 copper', 'standard', 'always'), gItem('Rope (50 ft)', '1 copper', 'standard', 'common'),
+    gItem('Lantern', '2 copper', 'standard', 'common'), gItem('Lantern Oil', '1 copper', 'standard', 'common'),
+    gItem('Flint and Steel', '1 copper', 'standard', 'always'), gItem('Water Skin', '1 copper', 'standard', 'always'),
+    gItem('Tent (small)', '5 copper', 'standard', 'uncommon'), gItem('Traveling Rations', '1 copper', 'standard', 'always'),
+    gItem('Grapple Hook', '3 copper', 'standard', 'uncommon'),
   ]},
   'Black Market': { icon: 'ti-eye-off', tier: 'standard', items: [
-    gItem('Lockpicks', '5 copper'), gItem('Generic Poison (dose)', '8 copper'),
-    gItem('Fire Biter (dose)', '15 copper'), gItem('Night Milk (dose)', '12 copper'),
-    gItem('Snake Venom (dose)', '15 copper'), gItem('Spider Venom (dose)', '10 copper'),
-    gItem('Blinding Dust (dose)', '5 copper'), gItem('Poison Powder (dose)', '10 copper'),
-    wItem('Knife'), wItem('Kindjal'),
+    gItem('Lockpicks', '5 copper', 'standard', 'common'), gItem('Generic Poison (dose)', '8 copper', 'standard', 'common'),
+    gItem('Fire Biter (dose)', '15 copper', 'standard', 'uncommon'), gItem('Night Milk (dose)', '12 copper', 'standard', 'common'),
+    gItem('Snake Venom (dose)', '15 copper', 'standard', 'uncommon'), gItem('Spider Venom (dose)', '10 copper', 'standard', 'common'),
+    gItem('Blinding Dust (dose)', '5 copper', 'standard', 'common'), gItem('Poison Powder (dose)', '10 copper', 'standard', 'common'),
+    gItem('Wish You Dead (dose)', '40 copper', 'standard', 'rare'), gItem('Stolen Breath (dose)', '20 copper', 'standard', 'uncommon'),
+    gItem('Hot Madness (dose)', '20 copper', 'standard', 'uncommon'),
+    wItem('Knife', 'standard', 'common'), wItem('Kindjal', 'standard', 'uncommon'),
   ]},
   'Outfitter': { icon: 'ti-hanger', tier: 'standard', items: [
-    gItem('Suit of Clothes', '2 copper'), gItem('Fine Clothes', '8 copper'),
-    gItem('Traveling Cloak', '3 copper'), gItem('Sandals', '1 copper'), gItem('Shoes', '2 copper'),
-    gItem('Backpack', '2 copper'), gItem('Coin Purse', '1 copper'), gItem('Blanket', '1 copper'),
-    gItem('Tent (small)', '5 copper'),
+    gItem('Suit of Clothes', '2 copper', 'standard', 'always'), gItem('Fine Clothes', '8 copper', 'standard', 'common'),
+    gItem('Traveling Cloak', '3 copper', 'standard', 'common'), gItem('Sandals', '1 copper', 'standard', 'always'),
+    gItem('Shoes', '2 copper', 'standard', 'common'), gItem('Backpack', '2 copper', 'standard', 'common'),
+    gItem('Coin Purse', '1 copper', 'standard', 'common'), gItem('Blanket', '1 copper', 'standard', 'common'),
+    gItem('Tent (small)', '5 copper', 'standard', 'uncommon'),
   ]},
   'Scribe': { icon: 'ti-pencil', tier: 'standard', items: [
-    gItem('Calligraphy Kit', '5 copper'), gItem('Book / Scroll', '3 copper'),
-    gItem('Writing Paper', '1 copper'), gItem('Personal Seal', '8 copper'),
+    gItem('Calligraphy Kit', '5 copper', 'standard', 'always'), gItem('Book / Scroll', '3 copper', 'standard', 'common'),
+    gItem('Writing Paper', '1 copper', 'standard', 'always'), gItem('Personal Seal', '8 copper', 'standard', 'uncommon'),
+  ]},
+  'Stables': { icon: 'ti-paw', tier: 'standard', items: [
+    // Camel: common, practical, but still a real purchase — roughly 1.5x Heavy Armor
+    gItem('Camel', '60 copper', 'standard', 'always'),
+    // Horse: rare status symbol, not native to the region — well above anything else in the shop
+    gItem('Horse', '150 copper', 'fine', 'rare'),
+    gItem('Saddle', '5 copper', 'standard', 'always'),
+    gItem('Saddlebags', '3 copper', 'standard', 'common'),
+    gItem('Bridle and Reins', '2 copper', 'standard', 'always'),
+    gItem('Feed (1 week)', '2 copper', 'standard', 'always'),
+    gItem('Hitching Post Fee (1 night)', '1 copper', 'standard', 'always'),
+    gItem('Riding Armor (+8 TN)', '30 copper', 'standard', 'uncommon'),
   ]},
 
   // ── Superior shops (better stock, fine quality) ──────────────────────────
   'Superior Weapons': { icon: 'ti-sword', tier: 'superior', items: [
-    wItem('Longsword','fine'), wItem('Scimitar','fine'), wItem('Jambiya','fine'),
-    wItem('Spear','fine'), wItem('Standard Bow','fine'), wItem('Shortbow','fine'),
-    wItem('Kindjal','fine'), wItem('War Axe','fine'),
+    wItem('Longsword','fine', 'always'), wItem('Scimitar','fine', 'common'), wItem('Jambiya','fine', 'common'),
+    wItem('Spear','fine', 'uncommon'), wItem('Standard Bow','fine', 'common'), wItem('Shortbow','fine', 'uncommon'),
+    wItem('Kindjal','fine', 'uncommon'), wItem('War Axe','fine', 'rare'),
+    gItem('Quiver (60 arrows)', '4 copper', 'fine', 'always'),
+    gItem('Whetstone', '2 copper', 'fine', 'common'),
   ]},
   'Superior Armorer': { icon: 'ti-shield', tier: 'superior', items: [
-    gItem('Light Armor (+5 TN)', '60 copper', 'fine'), gItem('Heavy Armor (+10 TN)', '120 copper', 'fine'),
-    gItem('Riding Armor (+8 TN)', '90 copper', 'fine'), gItem('Partial Armor (+3 TN)', '30 copper', 'fine'),
+    gItem('Light Armor (+5 TN)', '60 copper', 'fine', 'always'), gItem('Heavy Armor (+10 TN)', '120 copper', 'fine', 'common'),
+    gItem('Riding Armor (+8 TN)', '90 copper', 'fine', 'uncommon'), gItem('Partial Armor (+3 TN)', '30 copper', 'fine', 'common'),
   ]},
   'Merchant District': { icon: 'ti-building-store', tier: 'superior', items: [
-    gItem('Fine Clothes', '15 copper', 'fine'), gItem('Traveling Cloak', '10 copper', 'fine'),
-    gItem('Personal Seal', '20 copper', 'fine'), gItem('Calligraphy Kit', '15 copper', 'fine'),
-    gItem('Medicine Kit', '15 copper', 'fine'), gItem('Apothecary Kit', '20 copper', 'fine'),
-    gItem('Shoes', '8 copper', 'fine'), gItem('Musical Instrument', '25 copper', 'fine'),
+    gItem('Fine Clothes', '15 copper', 'fine', 'always'), gItem('Traveling Cloak', '10 copper', 'fine', 'common'),
+    gItem('Personal Seal', '20 copper', 'fine', 'uncommon'), gItem('Calligraphy Kit', '15 copper', 'fine', 'common'),
+    gItem('Medicine Kit', '15 copper', 'fine', 'common'), gItem('Apothecary Kit', '20 copper', 'fine', 'uncommon'),
+    gItem('Shoes', '8 copper', 'fine', 'common'), gItem('Musical Instrument', '25 copper', 'fine', 'rare'),
   ]},
   'Sahir Emporium': { icon: 'ti-sparkles', tier: 'superior', items: [
-    gItem('Calligraphy Kit', '20 copper', 'fine'), gItem('Book / Scroll', '15 copper', 'fine'),
-    gItem('Personal Seal', '25 copper', 'fine'), gItem('Apothecary Kit', '25 copper', 'fine'),
-    gItem('Medicine Kit', '20 copper', 'fine'), gItem('Writing Paper', '5 copper'),
+    gItem('Calligraphy Kit', '20 copper', 'fine', 'always'), gItem('Book / Scroll', '15 copper', 'fine', 'common'),
+    gItem('Personal Seal', '25 copper', 'fine', 'uncommon'), gItem('Apothecary Kit', '25 copper', 'fine', 'common'),
+    gItem('Medicine Kit', '20 copper', 'fine', 'common'), gItem('Writing Paper', '5 copper', 'standard', 'always'),
   ]},
 };
 
 function newShop(name, markupTier='fair') {
-  return { id: Date.now().toString(), name, open: false, items: [], markup_tier: markupTier, haggle_tn: 15 };
+  return { id: Date.now().toString(), name, open: false, items: [], markup_tier: markupTier, appraise_tn: 15, shopkeeper_id: null };
 }
 
 // Assign a random markup multiplier based on shop tier
@@ -160,6 +191,18 @@ const CATALOGUE = [
       ...POISONS_LIST.map(p => ({ name: p.name + ' (dose)', price: '15 copper', dr: '', defaultQuality: 'standard' })),
       { name: 'Poison Powder (dose)',  price: '10 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Blinding Dust (dose)', price: '5 copper',  dr: '', defaultQuality: 'standard' },
+    ],
+  },
+  {
+    category: 'Mounts & Stable Supplies',
+    items: [
+      { name: 'Camel', price: '60 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Horse', price: '150 copper', dr: '', defaultQuality: 'fine' },
+      { name: 'Saddle', price: '5 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Saddlebags', price: '3 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Bridle and Reins', price: '2 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Feed (1 week)', price: '2 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Hitching Post Fee (1 night)', price: '1 copper', dr: '', defaultQuality: 'standard' },
     ],
   },
 ];
@@ -276,6 +319,7 @@ function ShopCatalogue({ onAdd, onClose }) {
                             {item.name}
                             {item.dr && <span style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
                           </span>
+                          <RulebookEntryButton itemName={item.name} size={11} />
                           {isChecked && (
                             <>
                               <select value={cfg.quality} onChange={e => setChecked(p => ({ ...p, [item.name]: { ...p[item.name], quality: e.target.value } }))}
@@ -309,7 +353,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 }
 
 
-export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction }) {
+export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false }) {
   const gmView = isGM && !isPCView;
 
   // All shops — loaded from/saved to Supabase
@@ -339,6 +383,114 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [hagglingItem, setHagglingItem] = useState(null); // item being haggled // { needed, have, item } // auto | weapons | armor | apothecary | general | black | outfitter | scribe | superior | sahir
   const [randomQuality, setRandomQuality] = useState('standard'); // standard | fine | superior
   const [shopNameInput, setShopNameInput] = useState('');
+
+  // Cart state: { [shopId]: { items: [{...item, qty}] } }
+  const [carts, setCarts] = useState({});
+  // Per-shop appraisal result: { [shopId]: { revealQuality, revealTrueCost, bonusRolls: n } }
+  // bonusRolls = stacking +1k0 charges for the next Commerce roll at this shop (from raises beyond the 1st)
+  const [appraisalResults, setAppraisalResults] = useState({});
+  // Per-shop pending haggle result awaiting raise spends: { [shopId]: { success, raisesAvailable, raisesSpent: { discount10: n, iCanPay: n } } }
+  const [haggleResults, setHaggleResults] = useState({});
+
+  const getCart = (shopId) => carts[shopId] || { items: [] };
+  const setCart = (shopId, patch) => setCarts(prev => ({ ...prev, [shopId]: { ...getCart(shopId), ...patch } }));
+
+  const addToCart = (shopId, item) => {
+    const cart = getCart(shopId);
+    const existing = cart.items.findIndex(ci => ci.name === item.name && ci.quality === item.quality);
+    let newItems;
+    if (existing >= 0) {
+      newItems = cart.items.map((ci, idx) => idx === existing ? { ...ci, qty: (ci.qty || 1) + 1 } : ci);
+    } else {
+      newItems = [...cart.items, { ...item, qty: 1 }];
+    }
+    setCart(shopId, { items: newItems });
+  };
+
+  const removeFromCart = (shopId, idx) => {
+    const cart = getCart(shopId);
+    const item = cart.items[idx];
+    if ((item.qty || 1) > 1) {
+      setCart(shopId, { items: cart.items.map((ci, i) => i === idx ? { ...ci, qty: ci.qty - 1 } : ci) });
+    } else {
+      setCart(shopId, { items: cart.items.filter((_, i) => i !== idx) });
+    }
+  };
+
+  // Base cart total at listed (marked-up) price, or true/base price if haggle succeeded
+  const cartTotal = (shopId, useBase = false) => {
+    const cart = getCart(shopId);
+    return cart.items.reduce((sum, item) => {
+      const unitPrice = parseCopperAmount(useBase ? item.price : (item.markup ? applyMarkup(item.price, item.markup) : item.price), item.quality);
+      return sum + unitPrice * (item.qty || 1);
+    }, 0);
+  };
+
+  // Apply the 10%-off raises a player has banked from a successful haggle
+  const cartFinalTotal = (shopId) => {
+    const hr = haggleResults[shopId];
+    const useBase = !!hr?.success;
+    const base = cartTotal(shopId, useBase);
+    const discountStacks = hr?.raisesSpent?.discount10 || 0;
+    const discount = Math.min(0.7, discountStacks * 0.1); // soft cap so it never goes to 0 or negative
+    return Math.max(1, Math.round(base * (1 - discount)));
+  };
+
+  const handleCartCheckout = (shop) => {
+    const cart = getCart(shop.id);
+    if (cart.items.length === 0) return;
+    const totalCost = cartFinalTotal(shop.id);
+    const destName = purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'Character';
+
+    const available = purchaseTarget === 'party'
+      ? (inventory?.copper || 0)
+      : ((characters || []).find(c => c.id === purchaseTarget)?.copper || 0);
+    if (totalCost > available) {
+      setInsufficientFunds({ needed: totalCost, have: available, item: `${cart.items.length} items` });
+      return;
+    }
+
+    const itemEntries = cart.items.flatMap(item => {
+      const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
+      const displayName = item.is_magic ? item.name : (item.quality && item.quality !== 'standard' ? `${qTier.label} ${item.name}` : item.name);
+      return Array.from({ length: item.qty || 1 }, () =>
+        item.is_magic
+          ? { ...item, equipped: false, inUse: false }
+          : { name: displayName, dr: item.dr || undefined, equipped: false, inUse: false, quality: item.quality, qty: 1, category: 'Gear' }
+      );
+    });
+    const itemNames = cart.items.map(i => `${i.qty > 1 ? i.qty + '× ' : ''}${i.name}`).join(', ');
+    const hr = haggleResults[shop.id];
+    const discountStacks = hr?.raisesSpent?.discount10 || 0;
+    const priceStr = `${totalCost} copper${discountStacks > 0 ? ` (${Math.min(70, discountStacks * 10)}% off)` : ''}`;
+
+    // "I can pay" integrity award — fires once at checkout if banked
+    const iCanPayStacks = hr?.raisesSpent?.iCanPay || 0;
+    if (iCanPayStacks > 0 && purchaseTarget !== 'party') {
+      const char = (characters || []).find(c => c.id === purchaseTarget);
+      if (char) {
+        const curInt = Number(char.integrity) || 0;
+        const intRank = Math.floor(curInt);
+        const pointsPerStack = Math.max(1, 5 - intRank); // Rank 0 → +5, Rank 1 → +4, etc.
+        const totalPoints = pointsPerStack * iCanPayStacks;
+        const newIntegrity = Math.round((curInt + totalPoints / 10) * 10) / 10;
+        onUpdateCharacter(purchaseTarget, { integrity: newIntegrity });
+        if (onLogEvent) onLogEvent('ti-award', `${char.name} paid full price without complaint — integrity ${curInt.toFixed(1)} → ${newIntegrity.toFixed(1)}`);
+      }
+    }
+
+    if (purchaseTarget === 'party') {
+      const partyItems = itemEntries.map(e => ({ ...e, qty: 1, category: e.is_magic ? 'Magic' : 'Gear' }));
+      if (onPurchase) onPurchase({ itemName: itemNames, price: priceStr, copperAmt: totalCost, destination: 'party', destName, partyItems, multiItem: true });
+    } else {
+      const char = (characters || []).find(c => c.id === purchaseTarget);
+      if (char) onUpdateCharacter(purchaseTarget, { equipment: [...(char.equipment || []), ...itemEntries] });
+      if (onPurchase) onPurchase({ itemName: itemNames, price: priceStr, copperAmt: totalCost, destination: purchaseTarget, destName });
+    }
+    setCart(shop.id, { items: [] });
+    setAppraisalResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+    setHaggleResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+  };
 
   const activeShop = shops.find(s => s.id === activeShopId) || null;
 
@@ -448,7 +600,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     const THEME_MAP = {
       'weapons': 'Weapons Dealer', 'armor': 'Armorer', 'apothecary': 'Apothecary',
       'general': 'General Goods', 'black': 'Black Market', 'outfitter': 'Outfitter',
-      'scribe': 'Scribe', 'superior': 'Superior Weapons', 'sahir': 'Sahir Emporium',
+      'scribe': 'Scribe', 'stables': 'Stables', 'superior': 'Superior Weapons', 'sahir': 'Sahir Emporium',
     };
     let presetKey;
     if (randomTheme !== 'auto') {
@@ -463,14 +615,26 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         'black': 'Black Market', 'shadow': 'Black Market', 'fence': 'Black Market', 'poison': 'Black Market',
         'cloth': 'Outfitter', 'tailor': 'Outfitter', 'outfit': 'Outfitter',
         'scribe': 'Scribe', 'scroll': 'Scribe', 'book': 'Scribe',
+        'stable': 'Stables', 'stables': 'Stables', 'mount': 'Stables', 'camel': 'Stables', 'horse': 'Stables',
         'superior': 'Superior Weapons', 'sahir': 'Sahir Emporium', 'magic': 'Sahir Emporium',
       };
       const match = Object.entries(keywords).find(([kw]) => shopName.includes(kw));
       presetKey = match ? match[1] : Object.keys(BUNDLE_PRESETS)[Math.floor(Math.random() * Object.keys(BUNDLE_PRESETS).length)];
     }
     const preset = BUNDLE_PRESETS[presetKey] || Object.values(BUNDLE_PRESETS)[3];
+    // Roll each item against its rarity weight — 'always' items are guaranteed, rarer items are a coin flip
+    // weighted toward not appearing. This keeps staples (arrows, rations, basic armor) reliably in stock
+    // while specialty/rare goods are an occasional find, rather than every shop having full inventory.
+    let rolledItems = preset.items.filter(item => Math.random() < (RARITY_CHANCE[item.rarity] ?? 0.85));
+    // Safety net: never generate an empty shop — if the roll wipes everything, force in all 'always' items
+    // plus at least 2 more at random
+    if (rolledItems.length === 0) {
+      const guaranteed = preset.items.filter(i => i.rarity === 'always');
+      const rest = preset.items.filter(i => i.rarity !== 'always').sort(() => Math.random() - 0.5).slice(0, 2);
+      rolledItems = [...guaranteed, ...rest];
+    }
     // Build items with random variation
-    const baseItems = preset.items.map(item => ({ ...item, visible: true }));
+    const baseItems = rolledItems.map(item => ({ ...item, visible: true }));
     // Apply quality setting
     if (randomQuality === 'fine') {
       // Upgrade 2-4 random items to fine
@@ -486,12 +650,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       const upgradeIdx = Math.floor(Math.random() * baseItems.length);
       baseItems[upgradeIdx] = { ...baseItems[upgradeIdx], quality: 'fine' };
     }
-    // Randomize prices ±20%
+    // Assign each item its own random markup, same system used by Load Bundle — this is what makes
+    // prices vary item-to-item and shop-to-shop even for identical goods, per the shop's markup tier
+    const tier = activeShop.markup_tier || 'fair';
     baseItems.forEach((item, i) => {
-      if (item.price && !isNaN(item.price)) {
-        const variance = 0.8 + Math.random() * 0.4;
-        baseItems[i] = { ...item, price: Math.round(Number(item.price) * variance) };
-      }
+      baseItems[i] = { ...item, markup: randomMarkup(tier) };
     });
     updateActiveShop({ items: baseItems });
   };
@@ -507,18 +670,29 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     setCustomName(''); setCustomPrice(''); setCustomDr(''); setCustomQuality('standard');
   };
 
-  const rarityPrices = { uncommon: '20 copper', rare: '50 copper', legendary: '150 copper', artifact: '500 copper' };
+  // Magic item shop price = base item's real cost × rarity markup, so a magic Longsword
+  // costs more than a magic Knife even at the same rarity — falls back to flat pricing
+  // for items with no linked base item (trinkets, custom artifacts, etc.)
+  const RARITY_MARKUP_MULT = { uncommon: 2, rare: 4, legendary: 10, artifact: 25 };
+  const FALLBACK_RARITY_PRICE = { uncommon: 20, rare: 50, legendary: 150, artifact: 500 };
+  const magicItemPrice = (item) => {
+    if (item.base_price) {
+      const mult = RARITY_MARKUP_MULT[item.rarity] || 4;
+      return `${Math.round(item.base_price * mult)} copper`;
+    }
+    return `${FALLBACK_RARITY_PRICE[item.rarity] || 50} copper`;
+  };
 
   const addMagicItemToShop = (item) => {
     if (!activeShop) return;
-    const shopItem = { ...item, price: rarityPrices[item.rarity] || '50 copper', quality: 'fine', visible: true };
+    const shopItem = { ...item, price: magicItemPrice(item), quality: 'fine', visible: true };
     updateActiveItems([...(activeShop.items || []), shopItem]);
   };
 
   const addMagicItemToShopById = (shopId, item) => {
     const shop = shops.find(s => s.id === shopId);
     if (!shop) return;
-    const shopItem = { ...item, price: rarityPrices[item.rarity] || '50 copper', quality: 'fine', visible: true };
+    const shopItem = { ...item, price: magicItemPrice(item), quality: 'fine', visible: true };
     const updated = shops.map(s => s.id === shopId ? { ...s, items: [...(s.items || []), shopItem] } : s);
     setShops(updated);
     persistShops(updated);
@@ -549,14 +723,18 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       : { name: displayName, dr: item.dr || undefined, equipped: false, inUse: false, quality: item.quality, qty: 1, category: 'Gear' };
 
     if (purchaseTarget === 'party') {
-      onUpdateInventory({ items: [...(inventory.items || []), { ...itemEntry, qty: 1, category: item.is_magic ? 'Magic' : 'Gear' }] });
+      // Don't call onUpdateInventory here — pass partyItem up to onPurchase so App.js
+      // can do one atomic update (items + copper together), avoiding race-condition overwrites
+      const partyItem = { ...itemEntry, qty: 1, category: item.is_magic ? 'Magic' : 'Gear' };
+      if (onPurchase) {
+        onPurchase({ itemName: displayName, price, copperAmt, destination: purchaseTarget, destName, partyItem });
+      }
     } else {
       const char = (characters || []).find(c => c.id === purchaseTarget);
       if (char) onUpdateCharacter(purchaseTarget, { equipment: [...(char.equipment || []), itemEntry] });
-    }
-
-    if (onPurchase) {
-      onPurchase({ itemName: displayName, price, copperAmt, destination: purchaseTarget, destName });
+      if (onPurchase) {
+        onPurchase({ itemName: displayName, price, copperAmt, destination: purchaseTarget, destName });
+      }
     }
   };
 
@@ -564,6 +742,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
   // What players see: only open shops with visible items
   if (!gmView) {
+    if (encActive) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          <i className="ti ti-swords" style={{ fontSize: 32, display: 'block', marginBottom: '.5rem', opacity: 0.3 }} />
+          Shops are closed during an encounter.
+        </div>
+      );
+    }
     const openShops = shops.filter(s => s.open);
     if (openShops.length === 0) {
       return (
@@ -573,7 +759,6 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         </div>
       );
     }
-    // Copper balance and insufficient funds logic
     const myChar = characters?.find(c => c.id === myCharId);
     const targetCopper = purchaseTarget === 'party'
       ? (inventory?.copper || 0)
@@ -581,7 +766,6 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
     return (
       <div style={{ position: 'relative' }}>
-        {/* Insufficient funds popup */}
         {insufficientFunds && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--red)', borderRadius: 8, padding: '2rem', maxWidth: 300, textAlign: 'center', boxShadow: '0 0 24px rgba(200,50,40,.3)' }}>
@@ -592,162 +776,283 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                 costs <strong style={{ color: 'var(--gold)' }}>{insufficientFunds.needed} copper</strong><br />
                 but you only have <strong style={{ color: 'var(--red)' }}>{insufficientFunds.have} copper</strong>.
               </div>
-              <button className="btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => setInsufficientFunds(null)}>
-                Dismiss
-              </button>
+              <button className="btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => setInsufficientFunds(null)}>Dismiss</button>
             </div>
           </div>
         )}
-        {/* Copper balance — large watermark top left */}
+        {/* Copper watermark */}
         <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0, lineHeight: 1 }}>
-          <div style={{ fontSize: 42, fontWeight: 900, color: 'var(--gold)', opacity: 0.15, userSelect: 'none' }}>
-            🪙 {targetCopper}
-          </div>
+          <div style={{ fontSize: 42, fontWeight: 900, color: 'var(--gold)', opacity: 0.15, userSelect: 'none' }}>🪙 {targetCopper}</div>
           <div style={{ fontSize: 10, color: 'var(--gold-dim)', opacity: 0.6, marginTop: -4, paddingLeft: 2 }}>
             {purchaseTarget === 'party' ? 'Party funds' : 'Personal funds'}
           </div>
         </div>
-        <div style={{ paddingLeft: 0, position: 'relative', zIndex: 1 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ marginLeft: 88 }}><i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar</span>
-          {onRoll && (() => {
-            const appraisalSkill = myChar ? (myChar.skills || []).find(s => s.name === 'Appraisal') : null;
-            const canAppraise = myGrantedActions > 0 || appraisalSkill;
-            if (!canAppraise) return null;
-            const hasAppraised = !!appraisalResult;
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: '1rem', marginLeft: 88, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="ti ti-shopping-cart" /> The Bazaar
+          </div>
+          <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Purchases go to:</span>
+            <select value={purchaseTarget} onChange={e => setPurchaseTarget(e.target.value)} style={{ fontSize: 12 }}>
+              <option value="party">Party Inventory</option>
+              {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {openShops.map(shop => {
+            const visItems = shop.items.filter(i => i.visible);
+            const cart = getCart(shop.id);
+            const apr = appraisalResults[shop.id];
+            const hr = haggleResults[shop.id];
+            const cartItemCount = cart.items.reduce((s, i) => s + (i.qty || 1), 0);
+            const cartHasItems = cart.items.length > 0;
+            const discountedTotal = cartFinalTotal(shop.id);
+            const discountStacks = hr?.raisesSpent?.discount10 || 0;
+            const discountPct = Math.min(70, discountStacks * 10);
+            const shopkeeper = shop.shopkeeper_id ? (characters || []).find(c => c.id === shop.shopkeeper_id) : null;
+            // Unspent raises waiting on the player to allocate (from the most recent haggle roll)
+            const pendingRaises = hr?.raisesAvailable || 0;
+
             return (
-              <button className="btn btn-sm" style={{ fontSize: 12, borderColor: hasAppraised ? 'var(--green)' : 'var(--gold-dim)', color: hasAppraised ? 'var(--green)' : 'var(--gold)' }}
-                title={myGrantedActions > 0 ? 'Use a granted action to appraise shop goods' : 'Roll Appraisal to assess item value and quality'}
-                onClick={() => {
-                  onRoll({
-                    skill: 'Appraisal', tn: 15, character: myChar,
-                    baseRoll: (appraisalSkill?.rank || 0) + (myChar?.perception || myChar?.awareness || 2),
-                    baseKeep: myChar?.water || myChar?.air || 2,
-                    label: 'Appraisal — assess shop goods',
-                    onComplete: (total, raises) => {
-                      if (total >= 15) {
-                        setAppraisalResult({ revealQuality: true, revealTrueCost: (raises || 0) >= 1 });
-                        setLastActionWasAppraise(true);
-                        if (myGrantedActions > 0 && onSpendGrantedAction) onSpendGrantedAction();
-                        if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar?.name || 'Player'} appraised the shop — quality revealed${raises >= 1 ? ', true costs revealed' : ''}`);
-                      } else {
-                        setLastActionWasAppraise(true);
-                        if (myGrantedActions > 0 && onSpendGrantedAction) onSpendGrantedAction();
-                        if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar?.name || 'Player'} failed to appraise the shop`);
-                      }
-                    },
-                  });
-                }}>
-                <i className="ti ti-zoom-money" style={{ marginRight: 4 }} />
-                {hasAppraised ? '✓ Appraised' : `Appraise${appraisalSkill ? ` (${appraisalSkill.rank})` : ''}${myGrantedActions > 0 ? ' — uses granted action' : ''}`}
-              </button>
-            );
-          })()}
-        </div>
-        <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Purchases go to:</span>
-          <select value={purchaseTarget} onChange={e => setPurchaseTarget(e.target.value)} style={{ fontSize: 12 }}>
-            <option value="party">Party Inventory</option>
-            {pcChars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        {openShops.map(shop => {
-          const visItems = shop.items.filter(i => i.visible);
-          return (
-            <div key={shop.id} style={{ marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ti ti-store" style={{ fontSize: 14 }} />{shop.name}
-              </div>
-              <div className="card">
-                {visItems.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing on display.</div>}
-                {visItems.map((item, i) => {
-                  const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
-                  // Price: show marked-up price to players unless appraise revealed true cost
-                  const basePrice = item.is_magic ? (item.price || '?') : qualityPrice(item.price, item.quality);
-                  const markedPrice = item.markup ? applyMarkup(qualityPrice(item.price, item.quality), item.markup) : basePrice;
-                  const shownPrice = (appraisalResult?.revealTrueCost) ? basePrice : markedPrice;
-                  // Quality: only show if appraised
-                  const showQuality = !!(appraisalResult?.revealQuality);
-                  const canHaggle = myGrantedActions > 0 && !item.is_magic;
-                  return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem 0', borderBottom: '1px solid rgba(107,78,40,.2)', flexWrap: 'wrap' }}>
-                      {item.is_magic ? (
-                        <div style={{ flex: 1 }}><MagicItemBadge item={item} compact /></div>
-                      ) : (
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                              {showQuality && item.quality && item.quality !== 'standard'
-                                ? <span style={{ color: qTier.color }}>{qTier.label} </span>
-                                : null}
-                              {item.name}
-                              {item.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
-                            </span>
+              <div key={shop.id} style={{ marginBottom: '2rem' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <i className="ti ti-store" style={{ fontSize: 14 }} />{shop.name}
+                  {apr?.revealQuality && (
+                    <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: '.04em', color: 'var(--green)', textTransform: 'uppercase' }}>
+                      APPRAISED — QUALITY REVEALED{apr?.revealTrueCost ? ' — MARKET PRICE REVEALED' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Item list */}
+                <div className="card" style={{ marginBottom: cartHasItems ? '.75rem' : 0 }}>
+                  {visItems.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing on display.</div>}
+                  {visItems.map((item, i) => {
+                    const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
+                    const basePrice = item.is_magic ? (item.price || '?') : qualityPrice(item.price, item.quality);
+                    const markedPrice = item.markup ? applyMarkup(qualityPrice(item.price, item.quality), item.markup) : basePrice;
+                    const shownPrice = apr?.revealTrueCost ? basePrice : markedPrice;
+                    const showQuality = !!apr?.revealQuality;
+                    const inCart = cart.items.find(ci => ci.name === item.name && ci.quality === item.quality);
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem 0', borderBottom: '1px solid rgba(107,78,40,.2)', flexWrap: 'wrap' }}>
+                        {item.is_magic ? (
+                          <div style={{ flex: 1 }}><MagicItemBadge item={item} compact /></div>
+                        ) : (
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                                {showQuality && item.quality && item.quality !== 'standard'
+                                  ? <span style={{ color: qTier.color }}>{qTier.label} </span> : null}
+                                {item.name}
+                                {item.dr && <span style={{ fontSize: 11, color: 'var(--gold-dim)', marginLeft: 5 }}>{item.dr}</span>}
+                              </span>
+                            </div>
+                            {(() => {
+                              const weapon = WEAPONS_LIST.find(w => w.name === item.name);
+                              const rulebookText = GEAR_DESCRIPTIONS[item.name] ||
+                                (weapon ? `${weapon.dr ? `DR ${weapon.dr} · ` : ''}${weapon.skill}${weapon.special ? ' · ' + weapon.special : ''}` : null);
+                              return (rulebookText || item.description) ? (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.5 }}>
+                                  {rulebookText && <span style={{ display: 'block', fontStyle: 'italic' }}>{rulebookText}</span>}
+                                  {item.description && <span style={{ display: 'block', color: 'var(--text-secondary)' }}>{item.description}</span>}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
-                          {(() => {
-                            const weapon = WEAPONS_LIST.find(w => w.name === item.name);
-                            const rulebookText = GEAR_DESCRIPTIONS[item.name] ||
-                              (weapon ? `${weapon.dr ? `DR ${weapon.dr} · ` : ''}${weapon.skill}${weapon.special ? ' · ' + weapon.special : ''}` : null);
-                            return (rulebookText || item.description) ? (
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, lineHeight: 1.5 }}>
-                                {rulebookText && <span style={{ display: 'block', fontStyle: 'italic' }}>{rulebookText}</span>}
-                                {item.description && <span style={{ display: 'block', color: 'var(--text-secondary)' }}>{item.description}</span>}
-                              </div>
-                            ) : null;
-                          })()}
-                        </div>
-                      )}
-                      <span style={{ fontSize: 12, color: appraisalResult?.revealTrueCost ? 'var(--green)' : qTier.color, fontWeight: 600, minWidth: 65, textAlign: 'right' }}>
-                        {shownPrice}
-                        {appraisalResult?.revealTrueCost && item.markup && item.markup > 1.03 && (
-                          <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>true cost</span>
                         )}
+                        {!item.is_magic && <RulebookEntryButton itemName={item.name} />}
+                        <span style={{ fontSize: 12, color: apr?.revealTrueCost ? 'var(--green)' : qTier.color, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+                          {shownPrice}
+                          {apr?.revealTrueCost && item.markup && item.markup > 1.03 && (
+                            <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>true cost</span>
+                          )}
+                        </span>
+                        {/* Quick buy */}
+                        <button className="btn btn-sm" style={{ fontSize: 11 }}
+                          title="Buy now at listed price — instant, no cart needed"
+                          onClick={() => handlePurchase(item)}>
+                          Buy
+                        </button>
+                        {/* Add to cart */}
+                        {!item.is_magic && (
+                          <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
+                            title="Add to cart — appraise/haggle the whole cart at once"
+                            onClick={() => addToCart(shop.id, item)}>
+                            {inCart ? `+Cart (${inCart.qty})` : '+ Cart'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Cart panel */}
+                {cartHasItems && (
+                  <div style={{ border: '2px solid var(--gold)', borderRadius: 8, padding: '.75rem', background: 'rgba(200,150,42,.05)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="ti ti-shopping-cart" /> Cart — {cartItemCount} item{cartItemCount !== 1 ? 's' : ''}
+                      {discountPct > 0 && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 4 }}>({discountPct}% off)</span>}
+                    </div>
+                    {/* Cart items */}
+                    {cart.items.map((ci, idx) => {
+                      const markedUnitCost = parseCopperAmount(ci.markup ? applyMarkup(ci.price, ci.markup) : ci.price, ci.quality);
+                      const baseUnitCost = parseCopperAmount(ci.price, ci.quality);
+                      const unitCost = hr?.success ? baseUnitCost : markedUnitCost;
+                      const lineTotal = unitCost * (ci.qty || 1);
+                      return (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.2rem 0', borderBottom: '1px solid rgba(107,78,40,.15)', fontSize: 12 }}>
+                          <button onClick={() => removeFromCart(shop.id, idx)}
+                            style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                          <span style={{ flex: 1, color: 'var(--text-primary)' }}>{ci.qty > 1 ? `${ci.qty}× ` : ''}{ci.name}</span>
+                          <span style={{ color: 'var(--gold-dim)' }}>{lineTotal} copper</span>
+                        </div>
+                      );
+                    })}
+                    {/* Total */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '.5rem', paddingTop: '.4rem', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total:</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: discountPct > 0 ? 'var(--green)' : 'var(--gold)' }}>
+                        {discountedTotal} copper
+                        {hr?.success && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4, fontWeight: 400 }}>(base price)</span>}
                       </span>
-                      <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => handlePurchase(item)}>Buy</button>
-                      {canHaggle && (
-                        <button className="btn btn-sm" style={{ fontSize: 11, borderColor: '#a060e0', color: '#c080f0' }}
-                          title={`Haggle — Commerce/Awareness vs TN ${shop.haggle_tn || 15}${lastActionWasAppraise ? ' (+1k0 from Appraise)' : ''}`}
+                    </div>
+
+                    {/* Pending raise allocation — shown after a successful Haggle roll */}
+                    {pendingRaises > 0 && (
+                      <div style={{ marginTop: '.6rem', padding: '.5rem', background: 'rgba(160,96,224,.1)', border: '1px solid #a060e0', borderRadius: 6 }}>
+                        <div style={{ fontSize: 12, color: '#c080f0', fontWeight: 600, marginBottom: '.4rem' }}>
+                          {pendingRaises} raise{pendingRaises !== 1 ? 's' : ''} to spend on this haggle:
+                        </div>
+                        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+                          <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green)', color: 'var(--green)' }}
+                            onClick={() => {
+                              setHaggleResults(prev => ({ ...prev, [shop.id]: {
+                                ...hr, raisesAvailable: pendingRaises - 1,
+                                raisesSpent: { ...hr.raisesSpent, discount10: (hr.raisesSpent?.discount10 || 0) + 1 },
+                              } }));
+                              if (onLogEvent) onLogEvent('ti-coins', `${myChar?.name || 'Player'} spent a raise for 10% off at ${shop.name}`);
+                            }}>
+                            10% off
+                          </button>
+                          <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
+                            title="Pay full price (with markup) but gain Integrity for your honesty"
+                            onClick={() => {
+                              setHaggleResults(prev => ({ ...prev, [shop.id]: {
+                                ...hr, raisesAvailable: pendingRaises - 1,
+                                raisesSpent: { ...hr.raisesSpent, iCanPay: (hr.raisesSpent?.iCanPay || 0) + 1 },
+                                success: false, // "I can pay" forces marked-up price even if haggle succeeded
+                              } }));
+                              if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} chose to pay full price at ${shop.name} — integrity gain pending checkout`);
+                            }}>
+                            I can pay (+Integrity)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cart actions */}
+                    <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap' }}>
+                      {/* Appraise — requires granted action */}
+                      {onRoll && myChar && (
+                        <button className="btn btn-sm"
+                          style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)', opacity: myGrantedActions > 0 ? 1 : 0.5 }}
+                          title={myGrantedActions > 0 ? `Appraise — TN ${shop.appraise_tn || 15}. Reveals quality. 1st raise reveals true prices, more raises bank +1k0 for your next Commerce roll here.` : 'Need a granted action to appraise'}
+                          disabled={myGrantedActions < 1}
                           onClick={() => {
-                            const myChar = characters?.find(c => c.id === myCharId);
-                            const commerceSkill = (myChar?.skills || []).find(s => s.name === 'Commerce');
-                            const awareness = myChar?.awareness || 2;
-                            const air = myChar?.air || 2;
-                            const baseRoll = (commerceSkill?.rank || 0) + awareness + (lastActionWasAppraise ? 1 : 0);
-                            const baseKeep = air;
-                            const tn = shop.haggle_tn || 15;
-                            setHagglingItem(item);
-                            setLastActionWasAppraise(false);
-                            if (onSpendGrantedAction) onSpendGrantedAction();
+                            const appraisalSkill = (myChar.skills || []).find(s => s.name === 'Appraisal');
+                            const tn = shop.appraise_tn || 15;
                             onRoll({
-                              skill: 'Commerce (Haggle)',
-                              tn,
-                              baseRoll,
-                              baseKeep,
-                              character: myChar,
-                              bonusNotes: lastActionWasAppraise ? ['+1k0 from Appraise'] : [],
+                              skill: 'Appraisal', tn, character: myChar,
+                              baseRoll: (appraisalSkill?.rank || 0) + (myChar.perception || myChar.awareness || 2),
+                              baseKeep: myChar.water || myChar.air || 2,
+                              label: `Appraise ${shop.name}`,
                               onComplete: (total, raises) => {
+                                const r = raises || 0;
                                 if (total >= tn) {
-                                  handlePurchase(item, true); // buy at base cost
-                                  if (onLogEvent) onLogEvent('ti-coins', `${myChar?.name || 'Player'} haggled successfully — bought at true cost!`);
+                                  const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
+                                  setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
+                                  if (onSpendGrantedAction) onSpendGrantedAction();
+                                  if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — true prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
                                 } else {
-                                  handlePurchase(item, false); // pay marked price
-                                  if (onLogEvent) onLogEvent('ti-coins', `${myChar?.name || 'Player'} failed to haggle — paid asking price.`);
+                                  if (onSpendGrantedAction) onSpendGrantedAction();
+                                  if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
                                 }
-                                setHagglingItem(null);
                               },
                             });
                           }}>
-                          Haggle
+                          <i className="ti ti-zoom-money" style={{ marginRight: 3 }} />
+                          {apr ? `✓ Appraised${apr.bonusRolls > 0 ? ` (+${apr.bonusRolls}k0 banked)` : ''}` : 'Appraise (action)'}
                         </button>
                       )}
+                      {/* Haggle — opposed roll vs shopkeeper, no granted action required */}
+                      {onRoll && myChar && shopkeeper && (
+                        <button className="btn btn-sm"
+                          style={{ borderColor: '#a060e0', color: '#c080f0', opacity: myGrantedActions > 0 ? 1 : 0.5 }}
+                          disabled={myGrantedActions < 1}
+                          title={myGrantedActions > 0
+                            ? `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success or raises let you choose 10% off and/or pay full price for Integrity.`
+                            : 'Need a granted action to haggle'}
+                          onClick={() => {
+                            const commerceSkill = (myChar.skills || []).find(s => s.name === 'Commerce');
+                            const bonusRoll = apr?.bonusRolls || 0;
+                            const skShopkeeperCommerce = (shopkeeper.skills || []).find(s => s.name === 'Commerce');
+                            const skRoll = (skShopkeeperCommerce?.rank || 0) + (shopkeeper.awareness || 2);
+                            const skKeep = shopkeeper.air || 2;
+                            // Roll the shopkeeper's side now — their result becomes this roll's effective TN
+                            const shopkeeperResult = rollExplodingKeep(skRoll, skKeep);
+                            onRoll({
+                              skill: `Commerce (vs ${shopkeeper.name})`,
+                              tn: shopkeeperResult,
+                              baseRoll: (commerceSkill?.rank || 0) + (myChar.awareness || 2) + bonusRoll,
+                              baseKeep: myChar.air || 2,
+                              character: myChar,
+                              bonusNotes: bonusRoll > 0 ? [`+${bonusRoll}k0 from Appraise`] : [],
+                              label: `Haggle ${shop.name} — opposing ${shopkeeper.name} rolled ${shopkeeperResult}`,
+                              onComplete: (total, raises) => {
+                                const r = raises || 0;
+                                const success = total >= shopkeeperResult;
+                                setHaggleResults(prev => ({ ...prev, [shop.id]: { success, raisesAvailable: r, raisesSpent: { discount10: 0, iCanPay: 0 } } }));
+                                // Consume banked appraise bonus rolls — they only apply to the next Commerce roll
+                                if (apr?.bonusRolls > 0) setAppraisalResults(prev => ({ ...prev, [shop.id]: { ...apr, bonusRolls: 0 } }));
+                                if (onSpendGrantedAction) onSpendGrantedAction();
+                                if (onLogEvent) onLogEvent('ti-coins', success
+                                  ? `${myChar.name} won the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult})${r > 0 ? ` with ${r} raise${r !== 1 ? 's' : ''} to spend` : ''}!`
+                                  : `${myChar.name} lost the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult}) — paying asking price.`);
+                              },
+                            });
+                          }}>
+                          <i className="ti ti-gavel" style={{ marginRight: 3 }} />Haggle
+                        </button>
+                      )}
+                      {onRoll && myChar && !shopkeeper && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', alignSelf: 'center' }}>
+                          (no shopkeeper assigned — haggling unavailable)
+                        </span>
+                      )}
+                      {/* Clear cart */}
+                      <button className="btn btn-sm btn-d" style={{ marginLeft: 'auto' }}
+                        onClick={() => {
+                          setCart(shop.id, { items: [] });
+                          setAppraisalResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+                          setHaggleResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
+                        }}>
+                        Clear
+                      </button>
+                      {/* Checkout */}
+                      <button className="btn btn-sm btn-p" disabled={pendingRaises > 0}
+                        title={pendingRaises > 0 ? 'Spend your remaining raises first' : undefined}
+                        onClick={() => handleCartCheckout(shop)}>
+                        <i className="ti ti-check" style={{ marginRight: 3 }} />
+                        Checkout — {discountedTotal} copper
+                      </button>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -772,7 +1077,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
           shops={shops}
           onCreateForShop={shops.length > 0 ? addMagicItemToShopById : undefined}
           onCreateForParty={(item) => {
-            onUpdateInventory({ items: [...(inventory.items || []), { ...item, qty: 1, category: 'Magic' }] });
+            onUpdateInventory({ items: [...(inventory.items || []).filter(Boolean), { ...item, qty: 1, category: 'Magic' }] });
           }}
           onCreateForCharacter={(charId, item) => {
             const char = characters.find(c => c.id === charId);
@@ -806,7 +1111,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             <button onClick={() => setActiveShopId(shop.id)} style={{
               padding: '.3rem .6rem', borderRadius: '4px 0 0 4px', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
               background: activeShopId === shop.id ? 'rgba(200,150,42,.15)' : 'var(--bg-panel)',
-              border: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`,
+              borderLeft: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`, borderTop: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`, borderBottom: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`,
               borderRight: 'none',
               color: activeShopId === shop.id ? 'var(--gold)' : 'var(--text-muted)',
               fontWeight: activeShopId === shop.id ? 600 : 400,
@@ -819,7 +1124,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             <button onClick={() => toggleShopOpen(shop.id)} title={shop.open ? 'Close shop' : 'Open to players'} style={{
               padding: '.3rem .35rem', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
               background: shop.open ? 'rgba(74,138,64,.15)' : 'var(--bg-panel)',
-              border: `1px solid ${shop.open ? 'var(--green)' : 'var(--border)'}`,
+              borderLeft: `1px solid ${shop.open ? 'var(--green)' : 'var(--border)'}`, borderTop: `1px solid ${shop.open ? 'var(--green)' : 'var(--border)'}`, borderBottom: `1px solid ${shop.open ? 'var(--green)' : 'var(--border)'}`,
               borderRight: activeShopId === shop.id ? '1px solid var(--gold-dim)' : '1px solid var(--border)',
               color: shop.open ? 'var(--green)' : 'var(--text-muted)',
             }}>
@@ -829,12 +1134,12 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             {activeShopId === shop.id && shops.length > 1 && (
               <button onClick={() => deleteShop(shop.id)} title="Delete this shop" style={{
                 padding: '.3rem .35rem', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
-                background: 'var(--bg-panel)', border: `1px solid var(--border)`, borderLeft: 'none', borderRadius: '0 4px 4px 0',
+                background: 'var(--bg-panel)', borderRight: `1px solid var(--border)`, borderTop: `1px solid var(--border)`, borderBottom: `1px solid var(--border)`, borderLeft: 'none', borderRadius: '0 4px 4px 0',
                 color: 'var(--red)',
               }}>×</button>
             )}
             {activeShopId !== shop.id && (
-              <div style={{ width: 4, borderRadius: '0 4px 4px 0', border: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
+              <div style={{ width: 4, borderRadius: '0 4px 4px 0', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
             )}
           </div>
         ))}
@@ -902,11 +1207,20 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             </select>
 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* GM-only: haggle TN and markup tier */}
+              {/* GM-only: appraise TN, shopkeeper, and markup tier */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span title="Hidden from players — the TN for haggling rolls">Haggle TN:</span>
-                <input type="number" min={5} max={50} value={activeShop.haggle_tn || 15} style={{ width: 44, fontSize: 11, padding: '1px 4px' }}
-                  onChange={e => updateActiveShop({ haggle_tn: parseInt(e.target.value) || 15 })} />
+                <span title="Hidden from players — the TN for the Appraise roll">Appraise TN:</span>
+                <input type="number" min={5} max={50} value={activeShop.appraise_tn || 15} style={{ width: 44, fontSize: 11, padding: '1px 4px' }}
+                  onChange={e => updateActiveShop({ appraise_tn: parseInt(e.target.value) || 15 })} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                <span title="The NPC players haggle against — uses their actual Commerce/Awareness">Shopkeeper:</span>
+                <select value={activeShop.shopkeeper_id || ''} onChange={e => updateActiveShop({ shopkeeper_id: e.target.value || null })} style={{ fontSize: 11, maxWidth: 140 }}>
+                  <option value="">— none (no haggle) —</option>
+                  {(characters || []).filter(c => c.is_npc).map(npc => (
+                    <option key={npc.id} value={npc.id}>{npc.name}</option>
+                  ))}
+                </select>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
                 <span title="Markup tier — affects how much prices are inflated">Markup:</span>

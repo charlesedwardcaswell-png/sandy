@@ -243,7 +243,30 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 .combat-card { background: var(--bg-panel); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: .5rem; transition: all .2s; }
 .combat-card.pc-card { border-left-color: #6a9a5a; background: rgba(74,138,64,.04); }
 .combat-card.npc-card { border-left-color: #8a3030; background: rgba(139,48,48,.04); }
-.combat-card.my-char { border-left-color: var(--gold); background: rgba(200,150,42,.06); box-shadow: -2px 0 8px rgba(200,150,42,.2); }
+.combat-card.my-char { border-left-color: var(--gold); border-left-width: 4px; background: rgba(200,150,42,.08); box-shadow: -3px 0 12px rgba(200,150,42,.3), 0 0 0 1px rgba(200,150,42,.15); }
+
+/* Void spend swirl — brief black swirl at cursor position when a Void Point is spent */
+@keyframes void-swirl-spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.3); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(420deg) scale(1.4); opacity: 0; }
+}
+.void-swirl {
+  position: fixed;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  z-index: 9999;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(40,30,60,.9), rgba(0,0,0,.95) 60%, transparent 100%);
+  box-shadow: 0 0 18px 4px rgba(80,50,140,.5);
+  animation: void-swirl-spin 0.6s ease-out forwards;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 .combat-card.active-turn { border-color: var(--gold); border-left-color: var(--gold); box-shadow: 0 0 0 2px rgba(200,150,42,.2), -2px 0 10px rgba(200,150,42,.3); background: rgba(200,150,42,.08); transform: scale(1.02); }
 .combat-card.targeted { border-color: var(--red); border-left-color: var(--red); }
 .act-btn { padding: 3px 7px; font-size: 12px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-family: inherit; transition: all .15s; margin: 2px; }

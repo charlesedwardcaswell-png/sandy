@@ -265,14 +265,22 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
-  const { reps, updateRep } = useFactionReputation();
+  const { reps, updateRep, updateRepNotes } = useFactionReputation();
   const { log: encounterLog, addEntry: addEncounterEntry } = useEncounterLog();
   const { inventory, updateInventory } = useGroupInventory();
   const { sessionLog, refetch: refetchSessionLog } = useSessionLog();
+
+  // ── Session lock ──────────────────────────────────────────────────────────────
+  // With no active session, every player-facing mutation is blocked — viewing and read-only reference
+  // material (rulebook lookups, etc.) still work. GM is exempt and can always edit (prep, fixes).
+  const sessionLocked = !session && !isGM;
+  // Wrap a mutating callback so it silently no-ops for players when sessionLocked is true.
+  // Usage: guardFn(realCallback) — pass the real function, get back a gated version.
+  const guardFn = (fn) => sessionLocked ? (() => {}) : fn;
 
   const [encounter, setEncounter] = useState({
     state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] },
@@ -387,15 +395,35 @@ export default function App() {
   const [musicUrl, setMusicUrlState] = useState('');
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
   const [disableReroll, setDisableReroll] = useState(false);
+  const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
+  const [partyWater, setPartyWater] = useState(0);
+  const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
 
   // Load music URL and jinn art URL from games settings on mount
+  // Also subscribe to realtime changes so party water, portrait scale, drought mode etc.
+  // sync to all connected clients without requiring a page refresh.
+  const applyGameSettings = (settings) => {
+    if (!settings) return;
+    if (settings.music_url) setMusicUrlState(settings.music_url);
+    if (settings.jinn_art_url) setJinnArtUrl(settings.jinn_art_url);
+    if (settings.disable_reroll !== undefined) setDisableReroll(!!settings.disable_reroll);
+    if (settings.water_drought_enabled !== undefined) setWaterDroughtEnabled(!!settings.water_drought_enabled);
+    if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
+    if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
+  };
   useEffect(() => {
+    // Initial load
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
-      if (data?.settings?.music_url) setMusicUrlState(data.settings.music_url);
-      if (data?.settings?.jinn_art_url) setJinnArtUrl(data.settings.jinn_art_url);
-      if (data?.settings?.disable_reroll !== undefined) setDisableReroll(!!data.settings.disable_reroll);
+      applyGameSettings(data?.settings);
     });
-  }, []);
+    // Realtime subscription — fires for all clients when any client saves settings
+    const channel = supabase
+      .channel('games_settings_' + GAME_ID)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${GAME_ID}` },
+        (payload) => { applyGameSettings(payload.new?.settings); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced event log save ref
   const eventLogSaveTimer = useRef(null);
@@ -405,8 +433,9 @@ export default function App() {
     setTicker(prev => [entry, ...prev].slice(0, 20));
     setFullEventLog(prev => {
       const updated = [entry, ...prev];
-      // Auto-save to active session (debounced 3s)
-      if (session?.id && isGM) {
+      // Auto-save to active session (debounced 3s) — any connected client triggers this,
+      // not just the GM, so player actions (dice rolls, purchases, etc.) are also captured
+      if (session?.id) {
         clearTimeout(eventLogSaveTimer.current);
         eventLogSaveTimer.current = setTimeout(() => {
           saveEventLog(session.id, updated.map(e => ({ icon: e.icon, text: e.text, ts: e.ts, gmOnly: e.gmOnly })));
@@ -427,6 +456,8 @@ export default function App() {
   const [showSessionEnd, setShowSessionEnd] = useState(false);
   const [viewCharId, setViewCharId] = useState(null);
   const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
+  const [purchaseBanner, setPurchaseBanner] = useState(null); // local only — not broadcast
+  const [rollBanner, setRollBanner] = useState(null); // local only — not broadcast; only the rolling player sees their own result
 
   // Compute wound penalty for any character — applies to ALL rolls
   const computeWoundPenalty = (char) => {
@@ -478,9 +509,7 @@ export default function App() {
       const touchesDuel = next.duelState !== prev.duelState;
       const touchesTurn = next.activeTurn !== prev.activeTurn
         || next.combatants !== prev.combatants;
-      const touchesBanner = next.jinnBanner !== prev.jinnBanner
-        || next.purchaseBanner !== prev.purchaseBanner
-        || next.rollBanner !== prev.rollBanner;
+      const touchesBanner = next.jinnBanner !== prev.jinnBanner;
       if (isGM || touchesDuel || touchesTurn || touchesBanner) saveEncounterDebounced(next);
       return next;
     });
@@ -566,18 +595,21 @@ export default function App() {
     } catch (e) {}
   };
 
-  const handlePurchase = ({ itemName, price, copperAmt, destination, destName }) => {
-    // Deduct copper
-    if (copperAmt > 0) {
-      if (destination === 'party') {
-        updateInventory({ copper: Math.max(0, (inventory.copper || 0) - copperAmt) });
-      } else {
-        const char = characters.find(c => c.id === destination);
-        if (char) updateCharacter(destination, { copper: Math.max(0, (char.copper || 0) - copperAmt) });
-      }
+  const handlePurchase = ({ itemName, price, copperAmt, destination, destName, partyItem, partyItems }) => {
+    // Deduct copper and (for party) add item(s) — all in one atomic updateInventory call.
+    // Supports both single-item purchases (partyItem) and cart checkout (partyItems, plural array).
+    if (destination === 'party') {
+      const newCopper = copperAmt > 0 ? Math.max(0, (inventory.copper || 0) - copperAmt) : (inventory.copper || 0);
+      const itemsToAdd = partyItems && Array.isArray(partyItems) ? partyItems : (partyItem ? [partyItem] : []);
+      const newItems = [...(inventory.items || []), ...itemsToAdd].filter(Boolean); // filter(Boolean) as a safety net against any stray null/undefined
+      updateInventory({ copper: newCopper, items: newItems });
+    } else if (copperAmt > 0) {
+      const char = characters.find(c => c.id === destination);
+      if (char) updateCharacter(destination, { copper: Math.max(0, (char.copper || 0) - copperAmt) });
     }
-    // Flash banner to all players
-    handleSetEncounter(e => ({ ...e, purchaseBanner: { itemName, price, destName, ts: Date.now() } }));
+    // Flash banner locally only — purchaser sees it, not all players
+    setPurchaseBanner({ itemName, price, destName, ts: Date.now() });
+    setTimeout(() => setPurchaseBanner(null), 3500);
     playCoinJingle();
     push('ti-shopping-cart', `Purchased: ${itemName}${price ? ' — ' + price : ''} → ${destName}`);
   };
@@ -619,6 +651,20 @@ export default function App() {
   const handleUpdateRep = async (faction, delta) => {
     await updateRep(faction, delta);
     push('ti-shield-half', `${faction} reputation ${delta > 0 ? '+1' : '−1'}`);
+  };
+
+  const handleSetPartyWater = async (newVal) => {
+    const clamped = Math.max(0, newVal);
+    setPartyWater(clamped);
+    // Read-modify-write to games.settings — must preserve all keys since SettingsTab saves the same blob
+    const { data } = await supabase.from('games').select('settings').eq('id', GAME_ID).maybeSingle();
+    const updated = { ...(data?.settings || {}), party_water: clamped };
+    supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
+    // Realtime subscription on games table will propagate this change to all other clients automatically
+  };
+
+  const handleUpdateRepNotes = async (faction, notes) => {
+    await updateRepNotes(faction, notes);
   };
 
   const handleUpdateNPC = async (id, updates) => {
@@ -740,6 +786,7 @@ export default function App() {
     } else {
       setTimeOfDay(nextTime);
       handleSetEncounter(e => ({ ...e, timeOfDay: nextTime, campaignDay }));
+      push('ti-clock', `${TIME_ICONS[nextTime] || '🕐'} Time advances to ${nextTime} — Day ${campaignDay}, Week ${campaignWeek}`);
     }
   };
   const handleSetDay = (d) => {
@@ -791,7 +838,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v116</span>
+        <span className="hdr-game">The Tool — v123.3</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -931,19 +978,21 @@ export default function App() {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
             <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
           </div>
-          {/* Rest Everyone — morning healing + void restore */}
-          <button className="btn btn-sm" title="Rest Everyone: apply morning healing (Stamina + Rank wounds) and restore all Void Points to max"
+          {/* Rest Everyone — morning healing + void restore (does NOT advance time) */}
+          <button className="btn btn-sm" title="Rest Everyone: heal Stamina + Rank wounds and restore all Void Points to max. Does not advance time."
             style={{ borderColor: 'var(--gold-dim)', color: 'var(--gold)', marginLeft: 8 }}
             onClick={() => {
               const pcs = safeChars.filter(c => !c.is_npc);
-              applyPassiveHealing(pcs, true);
               pcs.forEach(char => {
+                // Heal exactly Stamina + Insight Rank wounds (natural full rest)
+                const heal = (char.stamina || 2) + (char.insight_rank || char.school_rank || 1);
+                const newWounds = Math.max(0, (char.current_wounds || 0) - heal);
+                if (newWounds !== (char.current_wounds || 0)) handleUpdateChar(char.id, { current_wounds: newWounds });
+                // Restore Void to max
                 const maxVoid = char.void || 2;
-                if ((char.current_void || 0) !== maxVoid) {
-                  handleUpdateChar(char.id, { current_void: maxVoid });
-                }
+                if ((char.current_void || 0) !== maxVoid) handleUpdateChar(char.id, { current_void: maxVoid });
               });
-              push('ti-moon', `Rest — morning healing applied, all Void Points restored (${pcs.length} characters)`);
+              push('ti-moon', `Rest — healed Stamina+Rank wounds, all Void Points restored (${pcs.length} characters)`);
             }}>
             <i className="ti ti-moon" style={{ fontSize: 12 }} /> Rest Everyone
           </button>
@@ -979,26 +1028,29 @@ export default function App() {
             isPlayer={isPlayer}
             characters={safeChars}
             npcs={npcs}
-            onUpdateNPC={handleUpdateNPC}
-            onUpdateCharacter={handleUpdateChar}
-            onCreateCharacter={handleCreateChar}
-            onDeleteCharacter={handleDeleteChar}
-            onCreateNPC={handleCreateNPC}
+            onUpdateNPC={guardFn(handleUpdateNPC)}
+            onUpdateCharacter={guardFn(handleUpdateChar)}
+            onCreateCharacter={guardFn(handleCreateChar)}
+            onDeleteCharacter={guardFn(handleDeleteChar)}
+            onCreateNPC={guardFn(handleCreateNPC)}
             myCharId={myCharId}
-            onClaimCharacter={claimCharacter}
-            onUnclaimCharacter={unclaimCharacter}
+            onClaimCharacter={guardFn(claimCharacter)}
+            onUnclaimCharacter={guardFn(unclaimCharacter)}
             jumpToCharId={viewCharId}
             onClearJump={() => setViewCharId(null)}
             jinnArtUrl={jinnArtUrl}
             onJinnSummoned={(jinnName) => {
               handleSetEncounter(e => ({ ...e, jinnBanner: { name: jinnName, artUrl: jinnArtUrl, ts: Date.now() } }));
             }}
-            onUpdateInventory={updateInventory}
-            partyInventoryItems={inventory?.items || []}
-            onRoll={(ctx) => openRoll(ctx)}
+            onUpdateInventory={guardFn(updateInventory)}
+            partyInventoryItems={(inventory?.items || []).filter(Boolean)}
+            onRoll={sessionLocked ? (() => {}) : ((ctx) => openRoll(ctx))}
             jinnSummonerRef={jinnSummonerRef}
             jinnSummonBonus={jinnSummonBonus}
             onJinnSummonDone={() => setJinnSummonBonus(null)}
+            onLogEvent={push}
+            waterDroughtEnabled={waterDroughtEnabled}
+            portraitScale={portraitScale}
           />
         )}
         {tab === 'encounter' && (
@@ -1011,21 +1063,23 @@ export default function App() {
             setEncounter={handleSetEncounter}
             npcsFromLog={npcs.filter(Boolean).filter(n => n.is_visible_to_players || isGM)}
             fullNpcs={safeChars.filter(c => c.is_npc)}
-            onUpdateCharacter={handleUpdateChar}
-            onAddEncounterEntry={addEncounterEntry}
-            onLogSkill={logSkillUse}
-            onLogEvent={push}
+            onUpdateCharacter={encounter?.trainingSession ? (() => {}) : handleUpdateChar}
+            onAddEncounterEntry={encounter?.trainingSession ? (() => {}) : addEncounterEntry}
+            onLogSkill={encounter?.trainingSession ? (() => {}) : logSkillUse}
+            onLogEvent={encounter?.trainingSession ? (() => {}) : push}
             preparedEncounters={session?.prepared_encounters || []}
             onSavePreparedEncounters={enc => savePreparedEncounters(session?.id, enc)}
+            onGlobalRoll={openRoll}
+            portraitScale={portraitScale}
           />
         )}
         {tab === 'map' && (
           <MapTab
             isGM={isGM} isPCView={isPCView}
             pins={pins}
-            onCreatePin={createPin}
-            onUpdatePin={updatePin}
-            onDeletePin={deletePin}
+            onCreatePin={guardFn(createPin)}
+            onUpdatePin={guardFn(updatePin)}
+            onDeletePin={guardFn(deletePin)}
             timeOfDay={timeOfDay}
           />
         )}
@@ -1034,11 +1088,12 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             npcs={npcs}
             fullNpcs={safeChars.filter(c => c.is_npc)}
-            onUpdateFullNpc={handleUpdateChar}
+            onUpdateFullNpc={guardFn(handleUpdateChar)}
             reps={reps}
-            onUpdateNPC={handleUpdateNPC}
-            onDeleteNPC={deleteNPC}
-            onUpdateRep={handleUpdateRep}
+            onUpdateNPC={guardFn(handleUpdateNPC)}
+            onDeleteNPC={guardFn(deleteNPC)}
+            onUpdateRep={guardFn(handleUpdateRep)}
+            onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
             onRefetch={refetchNpcs}
             encounter={encounter}
             setEncounter={handleSetEncounter}
@@ -1050,15 +1105,15 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             session={session}
             quests={quests}
-            onCreateQuest={handleCreateQuest}
-            onUpdateQuest={(id, updates) => {
+            onCreateQuest={guardFn(handleCreateQuest)}
+            onUpdateQuest={guardFn((id, updates) => {
               // Fire ticker notification when quest becomes visible
               if (updates.is_visible === true) {
                 const q = quests.find(x => x.id === id);
                 if (q) push('ti-flag', `Quest revealed: "${q.title}"`);
               }
               handleUpdateQuest(id, updates);
-            }}
+            })}
           />
         )}
         {tab === 'party' && (
@@ -1066,12 +1121,27 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             characters={safeChars}
             reps={reps}
-            onUpdateRep={handleUpdateRep}
+            onUpdateRep={guardFn(handleUpdateRep)}
+            onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
             inventory={inventory}
-            onUpdateInventory={updateInventory}
+            onUpdateInventory={guardFn(updateInventory)}
             encounterLog={encounterLog}
-            onUpdateCharacter={handleUpdateChar}
+            onUpdateCharacter={guardFn(handleUpdateChar)}
             myCharId={myCharId}
+            onLogEvent={push}
+            waterDroughtEnabled={waterDroughtEnabled}
+            partyWater={partyWater}
+            onSetPartyWater={isGM ? handleSetPartyWater : null}
+            onTakeWater={guardFn(async (charId) => {
+              if (partyWater <= 0) return;
+              const char = safeChars.find(c => c.id === charId);
+              if (!char) return;
+              const current = char.water_units || 0;
+              if (current >= 5) return;
+              await handleUpdateChar(charId, { water_units: current + 1 });
+              await handleSetPartyWater(partyWater - 1);
+              push('ti-droplet', `${char.name} took 1 water from party supply`);
+            })}
           />
         )}
         {tab === 'log' && (
@@ -1089,6 +1159,8 @@ export default function App() {
             npcsFromLog={npcs}
             skillLog={skillLog}
             eventLog={fullEventLog}
+            onUpdateSessionRecap={updateSessionRecap}
+            isPlayer={isPlayer}
           />
         )}
         {tab === 'shop' && (
@@ -1096,19 +1168,20 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             onWipeShops={shopWipeRef}
             inventory={inventory}
-            onUpdateInventory={updateInventory}
+            onUpdateInventory={guardFn(updateInventory)}
             characters={safeChars}
-            onUpdateCharacter={handleUpdateChar}
+            onUpdateCharacter={guardFn(handleUpdateChar)}
             onLogEvent={push}
             shopOpen={shopOpen}
-            onPurchase={handlePurchase}
-            onRoll={(ctx) => openRoll(ctx)}
+            encActive={encActive}
+            onPurchase={guardFn(handlePurchase)}
+            onRoll={sessionLocked ? (() => {}) : ((ctx) => openRoll(ctx))}
             myCharId={myCharId}
             myGrantedActions={(encounter?.grantedActions || {})[myCharId] || 0}
-            onSpendGrantedAction={() => {
+            onSpendGrantedAction={guardFn(() => {
               const cur = (encounter?.grantedActions || {})[myCharId] || 0;
               handleSetEncounter(e => ({ ...e, grantedActions: { ...(e.grantedActions || {}), [myCharId]: Math.max(0, cur - 1) } }));
-            }}
+            })}
             onToggleShopOpen={gmView ? () => {
               const opening = !encounter?.shopOpen;
               handleSetEncounter(e => ({ ...e, shopOpen: opening }));
@@ -1162,8 +1235,8 @@ export default function App() {
       })()}
 
       {/* Purchase Flash Banner */}
-      {encounter.purchaseBanner && (() => {
-        const b = encounter.purchaseBanner;
+      {purchaseBanner && (() => {
+        const b = purchaseBanner;
         if (Date.now() - (b.ts || 0) > 3500) return null;
         return (
           <div style={{
@@ -1188,8 +1261,8 @@ export default function App() {
       })()}
 
       {/* Global Roll Result Banner */}
-      {encounter.rollBanner && (() => {
-        const b = encounter.rollBanner;
+      {rollBanner && (() => {
+        const b = rollBanner;
         if (Date.now() - (b.ts || 0) > 5000) return null;
         return (
           <div style={{
@@ -1236,7 +1309,7 @@ export default function App() {
       })()}
 
       {/* Global Status / Wound Banner — shows portrait + condition/wound rank change */}
-      {encounter.statusBanner && !encounter.rollBanner && (() => {
+      {encounter.statusBanner && !rollBanner && (() => {
         const b = encounter.statusBanner;
         if (Date.now() - (b.ts || 0) > 4000) return null;
         const isDown = b.label === 'DOWN' || b.label === 'OUT';
@@ -1356,10 +1429,24 @@ export default function App() {
             push('ti-clover', `${char.name} used Luck (${newUses} uses remaining)`);
           }}
           onResult={(resultObj, damage) => {
-            // DiceModal passes full result object {total, success, margin, tn, raises, flatMod}
+            // DiceModal passes full result object {total, success, margin, tn, raises, flatMod, usedVoid, voidSpentCount}
             const result = typeof resultObj === 'object' ? resultObj.total : resultObj;
             const resultSuccess = typeof resultObj === 'object' ? resultObj.success : (result >= (globalModal.tn || 15));
-            const resultRaises = typeof resultObj === 'object' ? resultObj.raises : Math.max(0, Math.floor((result - (globalModal.tn || 15)) / 5));
+            // Deduct any Void Points actually spent on this roll — covers shop, contested-roll, and
+            // general skill-check flows that route through this App.js-level modal (separate from the
+            // EncounterTab combat-attack roll path, which has its own equivalent deduction). Skipped
+            // entirely during a Training Dummy session — nothing should persist from practice rolls.
+            if (typeof resultObj === 'object' && resultObj.usedVoid && globalModal?.character?.id && !encounter?.trainingSession) {
+              const charId = globalModal.character.id;
+              const charNow = safeChars.find(c => c.id === charId);
+              const spend = resultObj.voidSpentCount || 1;
+              if (charNow) handleUpdateChar(charId, { current_void: Math.max(0, (charNow.current_void || 0) - spend) });
+            }
+            const resultRaisesRaw = typeof resultObj === 'object' ? resultObj.raises : Math.max(0, Math.floor((result - (globalModal.tn || 15)) / 5));
+            // resultObj.raises from DiceModal is the raw array of raise labels taken (e.g. ['Called Shot']),
+            // not a count — normalize to a number here so every downstream consumer (spell raises, Appraise/
+            // Haggle bonus tracking, etc.) gets a consistent count regardless of source.
+            const resultRaises = Array.isArray(resultRaisesRaw) ? resultRaisesRaw.length : resultRaisesRaw;
             const banner = {
               success: resultSuccess,
               total: result,
@@ -1492,6 +1579,7 @@ export default function App() {
                 }));
               }
               setSpellResultModal({ spellName: od.spellName, total: result, raises, desc: spellDesc, charName: globalModal.character?.name || '' });
+              push('ti-sparkles', `${globalModal.character?.name || 'Sahir'} cast ${od.spellName}${raises > 0 ? ` (${raises} raise${raises !== 1 ? 's' : ''})` : ''}`);
             }
             // Apply damage to target if attack
             if (damage !== null && damage !== undefined && globalModal?.targetId) {
@@ -1499,10 +1587,15 @@ export default function App() {
                 ...e,
                 combatants: e.combatants.map(c => c.id === globalModal.targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(damage / 5)) } : c),
                 dmgBanner: { attackerName: encounter.combatants.find(c => c.id === myCharId)?.name || 'Party', targetId: globalModal.targetId, damage, result },
-                rollBanner: banner,
               }));
-            } else {
-              handleSetEncounter(e => ({ ...e, rollBanner: banner }));
+            }
+            // Roll result banner — local only, never broadcast, so only the rolling player sees their own result
+            setRollBanner(banner);
+            setTimeout(() => setRollBanner(null), 5000);
+            // Generic onComplete dispatch — lets any caller (ShopTab, contested rolls, etc.)
+            // pass a callback directly in the roll context instead of needing a skillOutcomeData flag
+            if (typeof globalModal?.onComplete === 'function') {
+              globalModal.onComplete(result, raises, globalModal?.opposedRoll);
             }
             setGlobalModal(null);
           }}
@@ -1529,7 +1622,7 @@ export default function App() {
             onPass={() => handleSetEncounter(e => ({ ...e, activeTurn: e.activeTurn + 1 }))}
             onUpdateCharacter={handleUpdateChar}
             onUpdateInventory={updateInventory}
-            partyInventoryItems={inventory?.items || []}
+            partyInventoryItems={(inventory?.items || []).filter(Boolean)}
           />
         );
       })()}

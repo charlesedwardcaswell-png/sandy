@@ -1,5 +1,5 @@
 import React from 'react';
-import { FACTION_ICONS, WOUND_RANKS, WOUND_COLORS } from '../data/constants';
+import { FACTION_ICONS, WOUND_RANKS, WOUND_COLORS, WEAPONS_LIST, GEAR_FULL_ENTRY, GEAR_DESCRIPTIONS } from '../data/constants';
 import { getArchetype } from '../lib/utils';
 
 // ── Faction Icon ──────────────────────────────────────────────────────────────
@@ -48,6 +48,7 @@ export const AVATAR_TYPES = [
   { id: 'nomad',     label: 'Nomad'     },
   { id: 'jinn',      label: 'Jinn'      },
   { id: 'monster',   label: 'Monster'   },
+  { id: 'ghoul',     label: 'Ghoul'     },
 ];
 
 export const AVATAR_COLORS = [
@@ -110,6 +111,31 @@ export function Silhouette({ type, size = 32, color }) {
       {/* Eyes */}
       <ellipse cx="13" cy="7" rx="1.5" ry="2" fill="#ff6050" />
       <ellipse cx="19" cy="7" rx="1.5" ry="2" fill="#ff6050" />
+    </svg>
+  );
+
+  if (type === 'ghoul') return (
+    <svg width={size} height={h} viewBox="0 0 32 44">
+      {/* Gaunt skull-like head, tilted from a hunched neck */}
+      <path d="M11 4 Q16 0 21 4 Q22 9 19 12 Q16 14 13 12 Q10 9 11 4 Z" {...props} />
+      {/* Sunken cheeks */}
+      <ellipse cx="12.5" cy="8" rx="1.2" ry="1.6" fill={dark} />
+      <ellipse cx="19.5" cy="8" rx="1.2" ry="1.6" fill={dark} />
+      {/* Hollow glowing eyes */}
+      <ellipse cx="13" cy="6.5" rx="1.3" ry="1.8" fill="#9aff90" />
+      <ellipse cx="19" cy="6.5" rx="1.3" ry="1.8" fill="#9aff90" />
+      {/* Hunched, emaciated torso — asymmetric to read as crouched/feral */}
+      <path d="M9 13 Q16 11 23 14 L21 27 Q16 31 11 27 Z" {...props} />
+      {/* Ribs suggestion */}
+      <path d="M13 16 L19 16 M13 19 L19 19 M13 22 L19 22" stroke={dark} strokeWidth="0.8" fill="none" />
+      {/* Long emaciated arms ending in claws, one raised */}
+      <path d="M9 14 Q2 18 1 28" {...dimProps} strokeWidth="3" fill="none" stroke={c} />
+      <path d="M23 14 Q30 12 31 6" {...dimProps} strokeWidth="3" fill="none" stroke={c} />
+      <path d="M1 28 L-1 31 M1 28 L2 32 M1 28 L4 30" stroke={c} strokeWidth="1.4" />
+      <path d="M31 6 L33 3 M31 6 L34 7 M31 6 L32 9" stroke={c} strokeWidth="1.4" />
+      {/* Crouched legs */}
+      <path d="M11 27 Q9 34 7 41" {...props} strokeWidth="4" fill="none" stroke={c} />
+      <path d="M21 27 Q22 34 23 41" {...props} strokeWidth="4" fill="none" stroke={c} />
     </svg>
   );
 
@@ -398,6 +424,14 @@ export function SilhouetteToken({ type = 'warrior', cx, cy, r, color = '#c8962a'
       <path d="M6 13 Q16 10 26 13 L28 38 Q16 44 4 38 Z" {...p} />
       <path d="M6 13 L4 8 M26 13 L28 8" stroke={c} strokeWidth={2 / scale} fill="none" />
     </>;
+    if (type === 'ghoul') return <>
+      <path d="M11 4 Q16 0 21 4 Q22 9 19 12 Q16 14 13 12 Q10 9 11 4 Z" {...p} />
+      <path d="M9 13 Q16 11 23 14 L21 27 Q16 31 11 27 Z" {...p} />
+      <path d="M9 14 Q2 18 1 28" {...dp} strokeWidth={3 / scale} fill="none" stroke={c} />
+      <path d="M23 14 Q30 12 31 6" {...dp} strokeWidth={3 / scale} fill="none" stroke={c} />
+      <path d="M11 27 Q9 34 7 41" {...p} strokeWidth={4 / scale} fill="none" stroke={c} />
+      <path d="M21 27 Q22 34 23 41" {...p} strokeWidth={4 / scale} fill="none" stroke={c} />
+    </>;
     if (type === 'jinn') return <>
       <ellipse cx="16" cy="7" rx="6" ry="6" {...p} />
       <path d="M8 14 Q16 10 24 14 Q28 26 24 38 Q16 44 8 38 Q4 26 8 14 Z" {...p} />
@@ -502,6 +536,177 @@ export function Empty({ icon = 'ti-ghost', message, action }) {
       <i className={`ti ${icon}`} style={{ fontSize: 36, opacity: .3, display: 'block', marginBottom: '.75rem' }} />
       <div style={{ fontSize: 15, marginBottom: action ? '1rem' : 0 }}>{message}</div>
       {action}
+    </div>
+  );
+}
+
+// ── Weapon / Armor Icons ──────────────────────────────────────────────────────
+// One distinct icon per weapon SKILL CATEGORY (not per individual weapon name — the rulebook has too many
+// named weapons to hand-draw each uniquely, but every weapon maps cleanly to one of these 8 skills).
+// getWeaponIconType(weaponName) resolves a weapon's display name to its icon category.
+export function getWeaponIconType(weaponName) {
+  if (!weaponName) return null;
+  // weaponName may come in as "Longsword (3k2)" from drawnWeapon strings — strip the DR suffix
+  const cleanName = weaponName.split(' (')[0].trim();
+  const w = WEAPONS_LIST.find(x => x.name === cleanName);
+  if (!w) return null;
+  const skillToType = {
+    'Swordsmanship': 'sword', 'Knives': 'knife', 'Spears': 'spear', 'Polearms': 'polearm',
+    'Staves': 'staff', 'Heavy Weapons': 'club', 'Archery': 'bow', 'Brawling': 'fist',
+  };
+  return skillToType[w.skill] || null;
+}
+
+// Is this weapon two-handed (occupies both hands — no off-hand icon should render alongside it)?
+export function isWeaponTwoHanded(weaponName) {
+  if (!weaponName) return false;
+  const cleanName = weaponName.split(' (')[0].trim();
+  const w = WEAPONS_LIST.find(x => x.name === cleanName);
+  return !!w?.twoHanded;
+}
+
+export function WeaponIcon({ type, size = 18, color = '#c8962a', style }) {
+  const c = color;
+  const props = { stroke: c, strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (type === 'sword') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <line x1="6" y1="18" x2="18" y2="6" {...props} />
+      <line x1="9" y1="9" x2="15" y2="15" stroke={c} strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="4" x2="20" y2="8" {...props} />
+    </svg>
+  );
+  if (type === 'knife') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path d="M7 17 L15 9 L18 12 L10 20 Z" fill={c} stroke={c} strokeWidth="1" />
+      <line x1="5" y1="19" x2="7" y2="17" stroke={c} strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+  if (type === 'spear') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <line x1="4" y1="20" x2="18" y2="6" {...props} />
+      <path d="M16 4 L20 4 L18 8 Z" fill={c} stroke={c} strokeWidth="1" />
+    </svg>
+  );
+  if (type === 'polearm') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <line x1="5" y1="20" x2="17" y2="6" {...props} />
+      <path d="M15 4 Q20 4 19 9 Q15 8 15 4 Z" fill={c} stroke={c} strokeWidth="1" />
+    </svg>
+  );
+  if (type === 'staff') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <line x1="6" y1="20" x2="18" y2="4" {...props} strokeWidth="2.4" />
+      <circle cx="18" cy="4" r="2" fill={c} />
+    </svg>
+  );
+  if (type === 'club') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <line x1="7" y1="19" x2="14" y2="12" {...props} strokeWidth="2.6" />
+      <circle cx="17" cy="8" r="4" fill="none" stroke={c} strokeWidth="1.8" />
+      <circle cx="17" cy="8" r="1.6" fill={c} />
+    </svg>
+  );
+  if (type === 'bow') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path d="M8 4 Q4 12 8 20" {...props} strokeWidth="2" />
+      <line x1="8" y1="4" x2="8" y2="20" stroke={c} strokeWidth="1" strokeDasharray="1 1.5" />
+      <line x1="6" y1="12" x2="19" y2="12" stroke={c} strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M16 9 L19 12 L16 15" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+  if (type === 'fist') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <rect x="6" y="9" width="12" height="9" rx="3" {...props} strokeWidth="1.8" />
+      <line x1="9" y1="9" x2="9" y2="6" {...props} strokeWidth="1.6" />
+      <line x1="12" y1="9" x2="12" y2="5" {...props} strokeWidth="1.6" />
+      <line x1="15" y1="9" x2="15" y2="6" {...props} strokeWidth="1.6" />
+    </svg>
+  );
+  return null;
+}
+
+export function ArmorIcon({ size = 18, color = '#c8962a', style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path d="M12 3 L19 6 V12 Q19 18 12 21 Q5 18 5 12 V6 Z" fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+      <line x1="12" y1="3" x2="12" y2="21" stroke={color} strokeWidth="1" opacity="0.5" />
+    </svg>
+  );
+}
+
+
+// Spawns a brief black swirling circle at a screen position (defaults to last mouse position)
+// when a player spends a Void Point. Call from any click handler: triggerVoidSwirl(event)
+let lastMouseX = 0, lastMouseY = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('mousemove', e => { lastMouseX = e.clientX; lastMouseY = e.clientY; });
+}
+export function triggerVoidSwirl(event) {
+  const x = event?.clientX ?? lastMouseX;
+  const y = event?.clientY ?? lastMouseY;
+  const el = document.createElement('div');
+  el.className = 'void-swirl';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 650);
+}
+
+// ── Rulebook reference modal — magnifying glass icon opens this for any gear item ─────────
+export function RulebookEntryButton({ itemName, size = 13, color = 'var(--text-muted)' }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center', color, flexShrink: 0 }}
+        title="View full rulebook entry">
+        <i className="ti ti-zoom-in" style={{ fontSize: size }} />
+      </button>
+      {open && <RulebookEntryModal itemName={itemName} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function RulebookEntryModal({ itemName, onClose }) {
+  const fullEntry = GEAR_FULL_ENTRY[itemName];
+  const shortEntry = GEAR_DESCRIPTIONS[itemName];
+  const weapon = WEAPONS_LIST.find(w => w.name === itemName);
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--bg-panel)', border: '2px solid var(--gold-dim)', borderRadius: 8, padding: '1.25rem', maxWidth: 420, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,.8)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.6rem' }}>
+          <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: 16 }}>{itemName}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+        {weapon && (
+          <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.6rem', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <span>DR {weapon.dr}</span>
+            <span>{weapon.skill}</span>
+            {weapon.price && weapon.price !== '—' && <span>{weapon.price.replace('c', ' copper')}</span>}
+            {weapon.twoHanded && <span>Two-handed</span>}
+          </div>
+        )}
+        {fullEntry ? (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{fullEntry}</div>
+        ) : shortEntry ? (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {shortEntry}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.6rem', fontStyle: 'italic' }}>
+              Full rulebook entry not yet added for this item — ask the GM to check the book directly.
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            No reference entry available for this item yet.
+          </div>
+        )}
+        {weapon?.special && (
+          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: '.6rem', paddingTop: '.6rem', borderTop: '1px solid var(--border)' }}>
+            <strong>Special:</strong> {weapon.special}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

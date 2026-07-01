@@ -475,7 +475,7 @@ function NPCDetailModal({ npc, isGM, onSave, onDelete, onClose }) {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                style={{ fontSize: 16, fontWeight: 600, width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', padding: '2px 0' }}
+                style={{ fontSize: 16, fontWeight: 600, width: '100%', background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', outline: 'none', padding: '2px 0' }}
                 placeholder="NPC name"
               />
             ) : (
@@ -825,7 +825,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                           onBlur={() => { (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); }}
                           onKeyDown={e => { if (e.key === 'Enter') { (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { name: editingNPCName.trim() || n.name }); setEditingNPCId(null); } if (e.key === 'Escape') setEditingNPCId(null); }}
                           onClick={e => e.stopPropagation()}
-                          style={{ flex: 1, fontSize: 13, background: 'transparent', border: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
+                          style={{ flex: 1, fontSize: 13, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid var(--gold)', color: 'var(--text-primary)', outline: 'none', padding: '1px 0' }}
                         />
                       ) : (
                         <span
@@ -873,7 +873,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
         const categories = [...new Set(CREATURES_LIBRARY.map(c => c.category))];
         return (
           <div style={{ marginTop: '.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .6rem', background: 'rgba(107,78,40,.08)', borderRadius: '5px 5px 0 0', border: '1px solid var(--border)', borderBottom: 'none', cursor: 'pointer' }}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.5rem .6rem', background: 'rgba(107,78,40,.08)', borderRadius: '5px 5px 0 0', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: 'none', cursor: 'pointer' }}
               onClick={() => setOpenFactions(o => ({ ...o, _bestiary: !o._bestiary }))}>
               <FacIcon name="Monsters" size={14} />
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Bestiary</span>
@@ -881,7 +881,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{openFactions._bestiary ? '▲' : '▼'}</span>
             </div>
             {openFactions._bestiary && (
-              <div style={{ border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 5px 5px', padding: '.5rem .6rem' }}>
+              <div style={{ borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 5px 5px', padding: '.5rem .6rem' }}>
                 {categories.map(cat => (
                   <div key={cat} style={{ marginBottom: '.75rem' }}>
                     <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem', fontWeight: 600 }}>{cat}</div>

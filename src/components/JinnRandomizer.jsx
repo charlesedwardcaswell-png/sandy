@@ -456,7 +456,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: '1rem' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
+      onClick={e => e.target === e.currentTarget && step !== 'negotiate' && onClose()}>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.5rem', width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto' }}>
 
         {/* Header */}
@@ -465,7 +465,10 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>✦ Jinn Summoning</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{STEP_LABELS[step]}</div>
           </div>
-          <button className="btn btn-sm" onClick={onClose}>✕</button>
+          {step !== 'negotiate'
+            ? <button className="btn btn-sm" onClick={onClose}>✕</button>
+            : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Roll to complete</span>
+          }
         </div>
 
         {/* Progress bar */}
@@ -481,7 +484,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.6 }}>
               Cast <strong>Jinn Summoning 1</strong> on Hakhim's Seal.<br />
               Roll <strong>Air / Lore: Theology</strong> (keep Air). Base TN: <strong style={{ color: 'var(--gold)' }}>5</strong>.<br />
-              Each 5 above TN = 1 raise = 1 table result you may <em>choose</em> instead of roll.
+              Call Raises to choose Jinn attributes manually — one raise per choice.
             </div>
 
             {/* Summoner picker */}

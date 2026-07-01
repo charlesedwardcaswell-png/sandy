@@ -156,6 +156,7 @@ export default function EncounterBuilder({
     bgUrl: '',
     selectedNPCs: [],
     participantIds: null,
+    gridSize: 24,
     ...initialSetup,
   });
   const upS = patch => setS(prev => ({ ...prev, ...patch }));
@@ -192,7 +193,7 @@ export default function EncounterBuilder({
         {/* Type */}
         <div style={{ marginBottom: '1rem' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Type</span>
-          <div>{['Action','Intrigue','Travel','Downtime'].map(t => (
+          <div>{['Action','Intrigue','Travel'].map(t => (
             <button key={t} className={`opt-btn ${s.type === t ? 'sel' : ''}`} onClick={() => upS({ type: t, name: '' })}>{t}</button>
           ))}</div>
           {s.type && (() => {
@@ -200,6 +201,14 @@ export default function EncounterBuilder({
             const limit = (custom !== undefined && custom !== '') ? (+custom || null) : ROUND_LIMITS[s.type];
             return limit ? <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem' }}>{limit} round limit</div> : null;
           })()}
+        </div>
+
+        {/* Battle grid size */}
+        <div style={{ marginBottom: '1rem' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Battle Grid Size</span>
+          <div>{[12, 24, 36, 48].map(g => (
+            <button key={g} className={`opt-btn ${(s.gridSize || 24) === g ? 'sel' : ''}`} onClick={() => upS({ gridSize: g })}>{g}×{g}</button>
+          ))}</div>
         </div>
 
         {/* Setting */}
