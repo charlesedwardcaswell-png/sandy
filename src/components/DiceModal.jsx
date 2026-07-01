@@ -166,8 +166,15 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   // Disarm overrides the weapon's normal damage entirely with a flat 2k1, per L5R 4E core rules —
   // "regardless of the weapon used, and characters do not add Strength to the rolled dice."
   const isDisarmManeuver = raises.includes('Disarm (3)');
+  const isRangedWeapon = ['Archery', 'Assassin Ranged Weapons', 'Throwing'].includes(context?.skill);
   const dmgDR = isDisarmManeuver ? '2k1' : (context?.dr || '3k2');
   let [dmgRoll, dmgKeep] = dmgDR.match(/\d+/g)?.map(Number) || [3, 2];
+  // Add Strength to damage rolled dice for melee attacks (not Disarm, not ranged, not unarmed-override)
+  // RAW: melee weapons always add character's Strength ring to the rolled (not kept) dice of damage rolls
+  if (!isDisarmManeuver && !isRangedWeapon && isAttack) {
+    const charStrength = context?.character?.strength || context?.character?.water || 0;
+    dmgRoll += charStrength;
+  }
   // Increased Damage maneuver — each selection of this raise stacks another +1k0. Since the UI only
   // allows one button instance, count how many times it was effectively "spent" via the raise count
   // dedicated to it (mutual exclusivity in the UI means only one tier shows selected at a time, but the
@@ -411,6 +418,13 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
           {/* Raises — always visible */}
           <div className="modal-section">
             <span className="modal-label">Raises <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>+5 TN each — harder but more effect</span></span>
+            {/* Per-roll raise explainer — passed as context.raiseExplainer for rolls like Haggle/Appraise
+                where the player needs to know what raises do before committing */}
+            {context?.raiseExplainer && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(107,78,40,.1)', borderTop: '1px solid rgba(107,78,40,.25)', borderBottom: '1px solid rgba(107,78,40,.25)', borderLeft: '3px solid var(--gold-dim)', borderRight: 'none', padding: '4px 8px', marginBottom: 6, lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                {context.raiseExplainer}
+              </div>
+            )}
             {(() => {
               const maxRaises = context?.character?.void || context?.ringVal || null;
               if (!maxRaises) return null;

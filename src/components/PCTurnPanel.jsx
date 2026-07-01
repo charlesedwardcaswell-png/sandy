@@ -36,6 +36,24 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   // NPC turn — simplified panel for GM
   if (isNPCTurn) {
+    // Compute wound penalty for NPC here (can't use the declaration below — it comes after the return)
+    const npcWoundRank = Math.min(7, Math.floor((combatant.wound || 0)));
+    const NPC_WOUND_PENALTIES = [0, 3, 5, 10, 15, 20, 40, 999];
+    const npcWoundPenalty = NPC_WOUND_PENALTIES[npcWoundRank] || 0;
+
+    // NPC attack pool — read actual rings and weapon from combatant
+    const npcAgi   = combatant.agility  || combatant.fire || 2;
+    const npcRef   = combatant.reflexes || combatant.air  || 2;
+    const npcAir   = combatant.air      || 2;
+    const npcFire  = combatant.fire     || 2;
+    const npcWpnSkillRank = combatant.weapon_skill_rank || combatant.wpn_rank || 1;
+    const npcDR    = combatant.dr || combatant.weapon_dr || '3k2';
+    const npcWeaponName = combatant.drawnWeapon || combatant.weapon || 'Weapon';
+    // Attack: (Agility + weapon skill rank) k Fire
+    const npcAtkRoll = npcAgi + npcWpnSkillRank;
+    const npcAtkKeep = npcFire;
+    // Armor TN: 5 + (Reflexes × 5) + armor bonus
+    const npcArmorTN = 5 + (npcRef * 5) + (combatant.armor_bonus || 0);
     return (
       <div style={{ background: 'var(--bg-deep)', backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,64,48,.06) 0%, transparent 70%)', borderTop: '2px solid var(--red)', boxShadow: '0 -4px 24px rgba(0,0,0,.5)', padding: '1rem', position: 'sticky', bottom: 0, zIndex: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
@@ -66,20 +84,15 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 if (action.disabled) return;
                 if (action.id === 'pass') { if (onPass) onPass(); }
                 else if (action.id === 'defend') {
-                  const defSkill = (character?.skills || []).find(s => s.name === 'Defense')?.rank || 0;
-                  const agility = combatant.agility || character?.agility || 2;
-                  const reflexes = combatant.reflexes || character?.reflexes || 2;
+                  const defSkill = 0; // NPCs don't have skill ranks stored currently
                   onRoll({
                     skill: 'Defense (Full Defense)',
                     tn: 5,
-                    baseRoll: reflexes + defSkill,
-                    baseKeep: agility,
-                    woundPenalty,
-                    resultLabel: 'Half this result (round up) added to your base Armor TN until your next Turn.',
-                    bonusNotes: defSkill > 0 ? [`Defense Skill Rank ${defSkill} added to pool`] : [],
-                    onComplete: (total) => {
-                      onStanceChange('Full Defense', total);
-                    },
+                    baseRoll: npcRef + defSkill,
+                    baseKeep: npcAir,
+                    woundPenalty: npcWoundPenalty,
+                    resultLabel: 'Result replaces Armor TN until next turn.',
+                    onComplete: (total) => { onStanceChange('Full Defense', total); },
                   });
                   if (onSpendAction) onSpendAction('full');
                   setSelectedAction('defend');
@@ -109,19 +122,22 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               ))}
             </div>
             {selectedTarget && (
-              <button className="btn btn-p" onClick={() => {
+              <button className="btn btn-p" style={{ fontSize: 13, padding: '.4rem .8rem' }} onClick={() => {
                 onRoll({
-                  skill: 'Attack', isAttack: true, tn: 15,
-                  baseRoll: (combatant.reflexes || 2) + 1,
-                  baseKeep: combatant.air || 2,
-                  dr: combatant.dr || '3k2',
+                  skill: npcWeaponName,
+                  isAttack: true,
+                  tn: npcArmorTN + npcWoundPenalty,
+                  baseRoll: npcAtkRoll,
+                  baseKeep: npcAtkKeep,
+                  dr: npcDR,
                   targetName: enemies.find(e => e.id === selectedTarget)?.name,
                   targetId: selectedTarget,
-                  woundPenalty,
+                  woundPenalty: npcWoundPenalty,
+                  bonusNotes: [`${npcWeaponName} — DR ${npcDR}`, `TN ${npcArmorTN} (target Armor)`],
                 });
                 onSpendAction && onSpendAction('full');
               }}>
-                Roll Attack — {(combatant.reflexes || 2) + 1}k{combatant.air || 2} vs TN 15
+                ⚔ Roll Attack — {npcAtkRoll}k{npcAtkKeep} vs TN {npcArmorTN}
               </button>
             )}
           </div>

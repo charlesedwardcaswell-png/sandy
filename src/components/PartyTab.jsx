@@ -125,6 +125,55 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
 
       {/* Party members + Faction standing */}
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        {/* Water supply — full width above party/faction, only in drought mode */}
+        {waterDroughtEnabled && (
+          <div style={{ flex: '0 0 100%' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#3a80c0', marginBottom: '.75rem' }}>
+              <i className="ti ti-droplet" style={{ marginRight: 6 }} />Party Water Supply
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.5rem' }}>
+                {isGM && onSetPartyWater && (
+                  <button className="btn btn-sm" onClick={() => onSetPartyWater(Math.max(0, partyWater - 1))} disabled={partyWater <= 0}>−</button>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: partyWater <= 2 ? '#c84030' : '#3a80c0' }}>
+                    {partyWater} {partyWater === 1 ? 'unit' : 'units'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {partyWater === 0 ? 'No water — dehydration risk' : partyWater <= 2 ? 'Running low' : 'Adequate supply'}
+                  </div>
+                </div>
+                {isGM && onSetPartyWater && (
+                  <button className="btn btn-sm" onClick={() => onSetPartyWater(partyWater + 1)}>+</button>
+                )}
+              </div>
+              <div style={{ marginTop: '.5rem', borderTop: '1px solid rgba(107,78,40,.15)', paddingTop: '.5rem' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Character water (tap to take from supply, max 5):</div>
+                {characters.filter(c => !c.is_npc).map(char => {
+                  const units = char.water_units ?? 0;
+                  const canTake = partyWater > 0 && units < 5 && onTakeWater;
+                  return (
+                    <div key={char.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', padding: '3px 8px', marginRight: 8, marginBottom: 4, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{char.name}</span>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i < units ? '#3a80c0' : 'var(--border)' }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11, color: units <= 1 ? '#c84030' : 'var(--text-muted)' }}>{units}</span>
+                      {(isGM || char.id === myCharId) && (
+                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: canTake ? 1 : 0.4 }}
+                          disabled={!canTake} onClick={() => onTakeWater(char.id)}>Take</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Party members */}
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
@@ -172,66 +221,6 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
           )}
         </div>
 
-        {/* Water supply — only shown in drought mode */}
-        {waterDroughtEnabled && (
-          <div style={{ flex: '1 1 280px', minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#3a80c0', marginBottom: '.75rem' }}>
-              <i className="ti ti-droplet" style={{ marginRight: 6 }} />Party Water Supply
-            </div>
-            <div className="card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.5rem' }}>
-                {/* GM-only controls to set party water level */}
-                {isGM && onSetPartyWater && (
-                  <button className="btn btn-sm" onClick={() => onSetPartyWater(Math.max(0, partyWater - 1))} disabled={partyWater <= 0}>−</button>
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: partyWater <= 2 ? '#c84030' : '#3a80c0' }}>
-                    {partyWater} {partyWater === 1 ? 'unit' : 'units'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {partyWater === 0 ? 'No water — dehydration risk' : partyWater <= 2 ? 'Running low' : 'Adequate supply'}
-                  </div>
-                </div>
-                {isGM && onSetPartyWater && (
-                  <button className="btn btn-sm" onClick={() => onSetPartyWater(partyWater + 1)}>+</button>
-                )}
-              </div>
-              {/* Per-character water — click to take from party supply */}
-              <div style={{ marginTop: '.5rem', borderTop: '1px solid rgba(107,78,40,.15)', paddingTop: '.5rem' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  Character water (tap to take from supply, max 5 per person):
-                </div>
-                {characters.filter(c => !c.is_npc).map(char => {
-                  const units = char.water_units ?? 0;
-                  const isMe = char.id === myCharId;
-                  const canTake = partyWater > 0 && units < 5 && onTakeWater;
-                  return (
-                    <div key={char.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '3px 0' }}>
-                      <span style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>{char.name}</span>
-                      {/* Water pip dots */}
-                      <div style={{ display: 'flex', gap: 3 }}>
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < units ? '#3a80c0' : 'var(--border)' }} />
-                        ))}
-                      </div>
-                      <span style={{ fontSize: 11, color: units <= 1 ? '#c84030' : 'var(--text-muted)', minWidth: 16, textAlign: 'center' }}>{units}</span>
-                      {(isGM || isMe) && (
-                        <button
-                          className="btn btn-sm"
-                          style={{ fontSize: 10, padding: '1px 6px', opacity: canTake ? 1 : 0.4 }}
-                          disabled={!canTake}
-                          title={!canTake ? (partyWater <= 0 ? 'No party water left' : units >= 5 ? 'Already full' : '') : 'Take 1 from party supply'}
-                          onClick={() => onTakeWater(char.id)}>
-                          Take
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Faction standing */}
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>

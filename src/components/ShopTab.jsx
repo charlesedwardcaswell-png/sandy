@@ -119,6 +119,8 @@ function newShop(name, markupTier='fair') {
 
 // Assign a random markup multiplier based on shop tier
 function randomMarkup(tier) {
+  // 15% chance of a sale item priced below cost (0.5–0.7× base price)
+  if (Math.random() < 0.15) return 0.5 + Math.random() * 0.2;
   const ranges = {
     fair:   [1.01, 1.03],
     medium: [1.05, 1.20],
@@ -782,8 +784,8 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         )}
         {/* Copper watermark */}
         <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0, lineHeight: 1 }}>
-          <div style={{ fontSize: 42, fontWeight: 900, color: 'var(--gold)', opacity: 0.15, userSelect: 'none' }}>🪙 {targetCopper}</div>
-          <div style={{ fontSize: 10, color: 'var(--gold-dim)', opacity: 0.6, marginTop: -4, paddingLeft: 2 }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#d4a020', opacity: 1, userSelect: 'none', letterSpacing: '-0.01em' }}>◈ {targetCopper}</div>
+          <div style={{ fontSize: 10, color: '#d4a020', opacity: 0.7, marginTop: 1, paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '.06em' }}>
             {purchaseTarget === 'party' ? 'Party funds' : 'Personal funds'}
           </div>
         </div>
@@ -920,9 +922,13 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
                     {/* Pending raise allocation — shown after a successful Haggle roll */}
                     {pendingRaises > 0 && (
-                      <div style={{ marginTop: '.6rem', padding: '.5rem', background: 'rgba(160,96,224,.1)', border: '1px solid #a060e0', borderRadius: 6 }}>
-                        <div style={{ fontSize: 12, color: '#c080f0', fontWeight: 600, marginBottom: '.4rem' }}>
-                          {pendingRaises} raise{pendingRaises !== 1 ? 's' : ''} to spend on this haggle:
+                      <div style={{ marginTop: '.6rem', padding: '.5rem .65rem', background: 'rgba(160,96,224,.1)', border: '1px solid #a060e0', borderRadius: 6 }}>
+                        <div style={{ fontSize: 12, color: '#c080f0', fontWeight: 600, marginBottom: '.2rem' }}>
+                          🎲 Haggle succeeded! {pendingRaises} raise{pendingRaises !== 1 ? 's' : ''} to spend:
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem', lineHeight: 1.4 }}>
+                          Cart already switched to base prices (markup removed).
+                          {discountPct > 0 && <span style={{ color: 'var(--green)' }}> {discountPct}% discount applied so far.</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green)', color: 'var(--green)' }}
@@ -933,19 +939,19 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               } }));
                               if (onLogEvent) onLogEvent('ti-coins', `${myChar?.name || 'Player'} spent a raise for 10% off at ${shop.name}`);
                             }}>
-                            10% off
+                            −10% off cart
                           </button>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
-                            title="Pay full price (with markup) but gain Integrity for your honesty"
+                            title="Pay full marked-up price instead — gain Integrity for paying without complaint"
                             onClick={() => {
                               setHaggleResults(prev => ({ ...prev, [shop.id]: {
                                 ...hr, raisesAvailable: pendingRaises - 1,
                                 raisesSpent: { ...hr.raisesSpent, iCanPay: (hr.raisesSpent?.iCanPay || 0) + 1 },
-                                success: false, // "I can pay" forces marked-up price even if haggle succeeded
+                                success: false,
                               } }));
                               if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} chose to pay full price at ${shop.name} — integrity gain pending checkout`);
                             }}>
-                            I can pay (+Integrity)
+                            I can pay — +Integrity (pays full marked-up price)
                           </button>
                         </div>
                       </div>
@@ -953,12 +959,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
                     {/* Cart actions */}
                     <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap' }}>
-                      {/* Appraise — requires granted action */}
-                      {onRoll && myChar && (
+                      {/* Appraise — freely available during downtime, not during encounters */}
+                      {onRoll && myChar && !encActive && (
                         <button className="btn btn-sm"
-                          style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)', opacity: myGrantedActions > 0 ? 1 : 0.5 }}
-                          title={myGrantedActions > 0 ? `Appraise — TN ${shop.appraise_tn || 15}. Reveals quality. 1st raise reveals true prices, more raises bank +1k0 for your next Commerce roll here.` : 'Need a granted action to appraise'}
-                          disabled={myGrantedActions < 1}
+                          style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)' }}
+                          title={`Appraise — TN ${shop.appraise_tn || 15}. Success reveals quality. 1st raise reveals true prices, extra raises bank +1k0 for Haggling.`}
                           onClick={() => {
                             const appraisalSkill = (myChar.skills || []).find(s => s.name === 'Appraisal');
                             const tn = shop.appraise_tn || 15;
@@ -967,15 +972,20 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               baseRoll: (appraisalSkill?.rank || 0) + (myChar.perception || myChar.awareness || 2),
                               baseKeep: myChar.water || myChar.air || 2,
                               label: `Appraise ${shop.name}`,
+                              raiseExplainer: [
+                                '✓ Success — reveals quality of all items in this shop.',
+                                '★ 1st raise — also reveals true market prices (what items are actually worth).',
+                                '★ Each extra raise — banks +1k0 on your next Commerce roll here (for Haggling).',
+                              ].join('\n'),
                               onComplete: (total, raises) => {
                                 const r = raises || 0;
                                 if (total >= tn) {
                                   const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
                                   setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
-                                  if (onSpendGrantedAction) onSpendGrantedAction();
+                                  // No action spending for shop rolls — appraise/haggle are downtime only
                                   if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — true prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
                                 } else {
-                                  if (onSpendGrantedAction) onSpendGrantedAction();
+                                  // No action spending for shop rolls — appraise/haggle are downtime only
                                   if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
                                 }
                               },
@@ -985,14 +995,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                           {apr ? `✓ Appraised${apr.bonusRolls > 0 ? ` (+${apr.bonusRolls}k0 banked)` : ''}` : 'Appraise (action)'}
                         </button>
                       )}
-                      {/* Haggle — opposed roll vs shopkeeper, no granted action required */}
-                      {onRoll && myChar && shopkeeper && (
+                      {/* Haggle — freely available during downtime, not during encounters */}
+                      {onRoll && myChar && shopkeeper && !encActive && (
                         <button className="btn btn-sm"
-                          style={{ borderColor: '#a060e0', color: '#c080f0', opacity: myGrantedActions > 0 ? 1 : 0.5 }}
-                          disabled={myGrantedActions < 1}
-                          title={myGrantedActions > 0
-                            ? `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success or raises let you choose 10% off and/or pay full price for Integrity.`
-                            : 'Need a granted action to haggle'}
+                          style={{ borderColor: '#a060e0', color: '#c080f0' }}
+                          title={`Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success removes markup; each raise = 10% off or Integrity.`}
                           onClick={() => {
                             const commerceSkill = (myChar.skills || []).find(s => s.name === 'Commerce');
                             const bonusRoll = apr?.bonusRolls || 0;
@@ -1009,13 +1016,19 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               character: myChar,
                               bonusNotes: bonusRoll > 0 ? [`+${bonusRoll}k0 from Appraise`] : [],
                               label: `Haggle ${shop.name} — opposing ${shopkeeper.name} rolled ${shopkeeperResult}`,
+                              raiseExplainer: [
+                                '✓ Success — cart switches to true base prices (removes markup).',
+                                '★ Each raise (after rolling) — choose one per raise:',
+                                '   • 10% off the cart total (stacks, capped at 70% off)',
+                                '   • "I can pay" — pay full marked-up price instead, gain Integrity for honesty.',
+                              ].join('\n'),
                               onComplete: (total, raises) => {
                                 const r = raises || 0;
                                 const success = total >= shopkeeperResult;
                                 setHaggleResults(prev => ({ ...prev, [shop.id]: { success, raisesAvailable: r, raisesSpent: { discount10: 0, iCanPay: 0 } } }));
                                 // Consume banked appraise bonus rolls — they only apply to the next Commerce roll
                                 if (apr?.bonusRolls > 0) setAppraisalResults(prev => ({ ...prev, [shop.id]: { ...apr, bonusRolls: 0 } }));
-                                if (onSpendGrantedAction) onSpendGrantedAction();
+                                // No action spending for shop rolls — appraise/haggle are downtime only
                                 if (onLogEvent) onLogEvent('ti-coins', success
                                   ? `${myChar.name} won the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult})${r > 0 ? ` with ${r} raise${r !== 1 ? 's' : ''} to spend` : ''}!`
                                   : `${myChar.name} lost the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult}) — paying asking price.`);
@@ -1065,7 +1078,9 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         <ShopCatalogue
           onClose={() => setShowCatalogue(false)}
           onAdd={(items) => {
-            updateActiveItems([...(activeShop.items || []), ...items]);
+            const tier = activeShop.markup_tier || 'fair';
+            const itemsWithMarkup = items.map(item => ({ ...item, markup: randomMarkup(tier) }));
+            updateActiveItems([...(activeShop.items || []), ...itemsWithMarkup]);
             setShowCatalogue(false);
           }}
         />

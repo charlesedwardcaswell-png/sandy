@@ -632,7 +632,7 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -652,21 +652,27 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
 
   const handleAddToEncounter = npc => {
     if (!encActive || !setEncounter) return;
+    const rank = npc.rank || 1;
+    const air   = npc.rings?.Air   || rank;
+    const earth = npc.rings?.Earth || rank;
+    const fire  = npc.rings?.Fire  || rank;
+    const water = npc.rings?.Water || rank;
+    const ref = npc.traits?.Reflexes || air + 1;
+    const agi = npc.traits?.Agility  || fire + 1;
     const combatant = {
       id: 'npc_log_' + Date.now(),
       name: npc.name,
+      school: npc.school, rank, faction: npc.faction,
       type: 'npc',
-      sub: npc.school,
       wound: 0,
       stance: 'Attack',
-      init: Math.floor(Math.random() * 10) + 5,
-      dr: '3k2',
+      init: Math.floor(Math.random() * 6) + (ref || 3),
+      dr: npc.weapon_dr || '3k2',
+      drawnWeapon: npc.weapon ? `${npc.weapon} (${npc.weapon_dr || '3k2'})` : (npc.weapon_dr ? `Weapon (${npc.weapon_dr})` : 'Weapon (3k2)'),
+      reflexes: ref, agility: agi,
+      air, earth, fire, water,
       statusEffects: [],
-      drawnWeapon: 'Longsword (3k2)',
       archetype: getArchetype(npc.school) || 'warrior',
-      traits: { Reflexes: 2, Agility: 2 },
-      rings: { Air: 2 },
-      skills: SCHOOL_DATA[npc.school]?.skills?.map(s => ({ name: s, rank: npc.rank || 1 })) || [{ name: 'Swordsmanship', rank: 2 }],
     };
     setEncounter(e => ({ ...e, combatants: [...e.combatants, combatant].sort((a, b) => b.init - a.init) }));
   };
@@ -890,6 +896,24 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.2rem' }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{creature.name}</span>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>ATK {creature.attack} | DMG {creature.damage} | TN {creature.tn} | {creature.wpl} W/lvl</span>
+                          {gmView && onCreateNPC && (
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
+                              title="Save to NPC Log — creates a reusable NPC entry from this bestiary creature"
+                              onClick={async () => {
+                                await onCreateNPC({
+                                  name: creature.name,
+                                  faction: creature.category,
+                                  school: creature.category,
+                                  rank: 1,
+                                  weapon: `${creature.name} (${creature.attack})`,
+                                  weapon_dr: creature.damage,
+                                  rings: { Air: creature.air, Earth: creature.earth, Fire: creature.fire, Water: creature.water },
+                                  traits: creature.traits || {},
+                                  notes: creature.specials?.join('; ') || '',
+                                  is_visible_to_players: false,
+                                });
+                              }}>+ Log</button>
+                          )}
                           {encActive && gmView && (
                             <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0 }}
                               onClick={() => {

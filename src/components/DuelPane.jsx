@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Silhouette } from './UI';
+import { ATTACK_MANEUVERS } from '../data/constants';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -180,8 +181,10 @@ function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, all
 
 export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpdateCharacter, onClose }) {
   const [rolling, setRolling] = useState({});
-  const [revealedIntel, setRevealedIntel] = useState([]); // list of revealed INTEL_LIST keys
+  const [revealedIntel, setRevealedIntel] = useState([]);
   const [strikeRaises, setStrikeRaises] = useState({ challenger: 0, defender: 0 });
+  const [strikeManeuvers, setStrikeManeuvers] = useState({ challenger: [], defender: [] });
+  const [strikeManeuversOpen, setStrikeManeuversOpen] = useState({ challenger: false, defender: false });
 
   const { phase } = duel;
   const isChallenger = myCharId === duel.challenger?.id;
@@ -527,9 +530,40 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                       <button className="rep-btn" disabled={!can} onClick={() => setStrikeRaises(r => ({ ...r, [side]: r[side] + 1 }))}>+</button>
                     </div>
                   )}
+                  {/* Maneuvers — same options as a normal attack roll. Strike IS an attack roll. */}
+                  {!hasRolled && can && (
+                    <div style={{ marginBottom: '.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', justifyContent: 'center' }}
+                        onClick={() => setStrikeManeuversOpen(o => ({ ...o, [side]: !o[side] }))}>
+                        <i className={`ti ti-chevron-${strikeManeuversOpen[side] || strikeManeuvers[side].length > 0 ? 'down' : 'right'}`} style={{ fontSize: 10, color: 'var(--text-muted)' }} />
+                        <span style={{ fontSize: 10, color: strikeManeuvers[side].length > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>
+                          Maneuvers{strikeManeuvers[side].length > 0 ? ` (${strikeManeuvers[side].length})` : ''}
+                        </span>
+                      </div>
+                      {(strikeManeuversOpen[side] || strikeManeuvers[side].length > 0) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2, marginTop: 3 }}>
+                          {ATTACK_MANEUVERS.map(m => (
+                            <button key={m} className={`raise-btn ${strikeManeuvers[side].includes(m) ? 'sel' : ''}`}
+                              style={{ fontSize: 9 }}
+                              onClick={() => setStrikeManeuvers(p => ({
+                                ...p,
+                                [side]: p[side].includes(m) ? p[side].filter(x => x !== m) : [...p[side], m]
+                              }))}>
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: '.4rem' }}>
                     TN {pool.tn}{pool.totalRaises > 0 ? ` · ${pool.totalRaises} raise${pool.totalRaises > 1 ? 's' : ''} (narrative/maneuver)` : ''}
                   </div>
+                  {strikeManeuvers[side].length > 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.3rem' }}>
+                      Maneuvers: <span style={{ color: 'var(--gold-dim)' }}>{strikeManeuvers[side].join(', ')}</span>
+                    </div>
+                  )}
                   {/* Roll block */}
                   {(() => {
                     const hasR = duel.strikeRolls?.[side] != null;

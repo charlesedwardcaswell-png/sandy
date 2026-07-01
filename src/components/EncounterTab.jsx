@@ -415,7 +415,7 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
       {granted > 0 && (
         <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
           <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
-            <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} Action{granted > 1 ? 's' : ''} granted
+            <i className="ti ti-bolt" style={{ marginRight: 4 }} />{granted} unused action{granted > 1 ? 's' : ''}
           </div>
         </div>
       )}
@@ -432,10 +432,11 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
 }
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0 }) {
   const [selected, setSelected] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
   const [localPing, setLocalPing] = useState(null);
+  const [zoom, setZoom] = useState(1.0); // 1.0 = full grid, 0.5 = zoomed in 2×
   const [dragging, setDragging] = useState(null);   // { id, startX, startY }
   const [dragPos, setDragPos] = useState(null);      // { svgX, svgY } current drag position in SVG coords
   const svgRef = React.useRef(null);
@@ -621,11 +622,19 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2 }}>
-        Battle Grid {gridSize}×{gridSize}
-        {selected && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
-        {!isGM && !isMyTurn && myCharId && <span style={{ color: 'var(--text-muted)', marginLeft: 6, textTransform: 'none' }}>— Move your token on your turn</span>}
-        {!isGM && isMyTurn && !selected && myCharId && <span style={{ color: 'var(--green)', marginLeft: 6, textTransform: 'none' }}>— Click your token to move</span>}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>Battle Grid {gridSize}×{gridSize}</span>
+        {selected && <span style={{ color: 'var(--gold)' }}>Moving: {combatants.find(c => c.id === selected)?.name}</span>}
+        {!isGM && !isMyTurn && myCharId && <span style={{ textTransform: 'none' }}>— Move your token on your turn</span>}
+        {!isGM && isMyTurn && !selected && myCharId && <span style={{ color: 'var(--green)', textTransform: 'none' }}>— Click your token to move</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
+          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom in"
+            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>+</button>
+          <button onClick={() => setZoom(1.0)} title="Reset zoom"
+            style={{ background: 'rgba(107,78,40,.2)', border: '1px solid rgba(107,78,40,.4)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer', padding: '1px 6px', fontSize: 10, lineHeight: 1 }}>{Math.round((1/zoom)*100)}%</button>
+          <button onClick={() => setZoom(z => Math.min(1.0, z + 0.25))} title="Zoom out"
+            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>−</button>
+        </div>
       </div>
 
       <ShiftBtn dx={0} dy={-1} icon="↑" />
@@ -634,15 +643,29 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
         <ShiftBtn dx={-1} dy={0} icon="←" />
 
         <svg ref={svgRef} width={W} height={W}
+          viewBox={(() => {
+            if (zoom >= 1.0) return `0 0 ${W} ${W}`;
+            // Center viewBox on active token if present, else grid center
+            const focusToken = active || combatants.find(c => c.id === myCharId);
+            const cx = focusToken?.gridX !== undefined ? (focusToken.gridX + 0.5) * CELL : W / 2;
+            const cy = focusToken?.gridY !== undefined ? (focusToken.gridY + 0.5) * CELL : W / 2;
+            const vw = W * zoom;
+            const vh = W * zoom;
+            const vx = Math.max(0, Math.min(W - vw, cx - vw / 2));
+            const vy = Math.max(0, Math.min(W - vh, cy - vh / 2));
+            return `${vx} ${vy} ${vw} ${vh}`;
+          })()}
           style={{ background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, cursor: dragging ? 'grabbing' : selected ? 'crosshair' : 'default', display: 'block', overflow: 'hidden', userSelect: 'none' }}
           onClick={e => {
-            if (dragging) return; // ignore clicks during drag
+            if (dragging) return;
             if (!selected) return;
             const rect = e.currentTarget.getBoundingClientRect();
-            const scaleX = W / rect.width;
-            const scaleY = W / rect.height;
-            const x = Math.floor(((e.clientX - rect.left) * scaleX) / CELL);
-            const y = Math.floor(((e.clientY - rect.top) * scaleY) / CELL);
+            // With viewBox zoom: scale from screen coords to SVG coords, then to grid cells
+            const svgW = parseFloat(e.currentTarget.getAttribute('width')) || W;
+            const vb = (e.currentTarget.getAttribute('viewBox') || `0 0 ${W} ${W}`).split(' ').map(Number);
+            const [vx, vy, vw, vh] = vb;
+            const x = Math.floor((((e.clientX - rect.left) / rect.width) * vw + vx) / CELL);
+            const y = Math.floor((((e.clientY - rect.top)  / rect.height) * vh + vy) / CELL);
             handleCellClick(x, y);
           }}
           onMouseMove={handleSVGMouseMove}
@@ -1159,7 +1182,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
         school, rank, faction,
         techniques: deriveTechniques(school, rank),
         dr: rank >= 3 ? '4k2' : '3k2',
-        drawnWeapon: rank >= 3 ? 'Longsword (4k2)' : 'Longsword (3k2)',
+        drawnWeapon: rank >= 3 ? `${school} Attack (4k2)` : `${school} Attack (3k2)`,
         reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
         wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
       });
@@ -1199,7 +1222,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
                 id: 'npc_log_' + n.id + '_' + Date.now(),
                 name: n.name, school: n.school, rank: n.rank || 1, faction: n.faction,
                 techniques: deriveTechniques(n.school, n.rank || 1),
-                dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || 'Longsword (3k2)',
+                dr: n.weapon_dr || '3k2', drawnWeapon: n.weapon || n.weapon_dr ? `${n.weapon || 'Weapon'} (${n.weapon_dr || '3k2'})` : 'Weapon (3k2)',
                 reflexes: n.traits?.Reflexes || (n.rank || 1) + 1,
                 agility: n.traits?.Agility || (n.rank || 1) + 1,
                 air: n.rings?.Air || (n.rank || 1), fire: n.rings?.Fire || (n.rank || 1),
@@ -1230,7 +1253,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
                 reflexes: ref, agility: agi, air: n.air || 2, fire: n.fire || 2,
                 earth: n.earth || 2, water: n.water || 2, void: n.void || 2,
                 dr: n.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
-                drawnWeapon: n.current_weapon || 'Longsword (3k2)',
+                drawnWeapon: n.current_weapon || (n.equipment?.find(e => e.dr)?.name) || 'Weapon (3k2)',
                 wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
               });
               e.target.value = '';
@@ -1949,13 +1972,34 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           {characters.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, padding: '2rem' }}>No characters created yet.</div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              {characters.map(c => (
-                <PartyCard key={c.id} c={c} pcsMap={pcsMap} myCharId={myCharId}
-                  isGM={isGM} isPCView={isPCView} grantedActions={grantedActions}
-                  combatants={combatants} onUpdateCharacter={onUpdateCharacter} upEnc={upEnc} />
-              ))}
-            </div>
+            <>
+              {isGM && !isPCView && (
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.75rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Grant all PCs:</span>
+                  {[1, 2, 3].map(n => (
+                    <button key={n} className="btn btn-sm" style={{ fontSize: 11 }}
+                      onClick={() => {
+                        const all = {};
+                        characters.forEach(c => { all[c.id] = (grantedActions[c.id] || 0) + n; });
+                        upEnc({ grantedActions: { ...grantedActions, ...all } });
+                      }}>+{n} action{n > 1 ? 's' : ''}</button>
+                  ))}
+                  <button className="btn btn-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}
+                    onClick={() => {
+                      const all = {};
+                      characters.forEach(c => { all[c.id] = 0; });
+                      upEnc({ grantedActions: { ...grantedActions, ...all } });
+                    }}>Clear all</button>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                {characters.map(c => (
+                  <PartyCard key={c.id} c={c} pcsMap={pcsMap} myCharId={myCharId}
+                    isGM={isGM} isPCView={isPCView} grantedActions={grantedActions}
+                    combatants={combatants} onUpdateCharacter={onUpdateCharacter} upEnc={upEnc} />
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -2391,6 +2435,27 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 </div>
               ))}
             </div>
+            {(isGM || isPCView === false) && (
+              <button className="btn btn-sm" style={{ marginTop: '.5rem', width: '100%', fontSize: 11, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
+                title="Auto-roll initiative for all players who haven't rolled yet"
+                onClick={() => {
+                  const updated = combatants.map(c => {
+                    if (c._initRolled) return c;
+                    const ref = pcsMap[c.id]?.reflexes || c.reflexes || 2;
+                    const air = pcsMap[c.id]?.air || c.air || 2;
+                    const roll = ref + air;
+                    const keep = air;
+                    const dice = Array.from({ length: roll }, () => Math.ceil(Math.random() * 10));
+                    const sorted = [...dice].sort((a, b) => b - a);
+                    const init = sorted.slice(0, keep).reduce((s, d) => s + d, 0);
+                    return { ...c, init, _initRolled: true };
+                  }).sort((a, b) => b.init - a.init);
+                  upEnc({ combatants: updated });
+                }}>
+                <i className="ti ti-dice" style={{ marginRight: 4, fontSize: 11 }} />
+                Auto-roll for all waiting
+              </button>
+            )}
           </div>
         );
       })()}
@@ -2454,8 +2519,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
       {/* Two column view */}
       {view === 'columns' && (
-        <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '1fr auto 1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
-          {/* Party */}
+        <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '260px auto' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
+
+          {/* Left column — all combatants when grid on, just party when grid off */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
               <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
@@ -2470,12 +2536,41 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 onRemoveStatus={removeStatus}
                 targeting={null}
                 onSetTarget={null}
-                compact={compact}
+                compact={showGrid || compact}
                 portraitScale={portraitScale}
                 onVoidDefense={handleVoidDefense}
                 onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
               />
             ))}
+            {/* When grid is on, show enemies in the same left column */}
+            {showGrid && enemies.length > 0 && (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemies.length})
+                </div>
+                {enemies.map(c => (
+                  <CombatantCard key={c.id} c={c}
+                    isActive={c.id === active?.id}
+                    isGM={isGM} isPCView={isPCView}
+                    myCharId={myCharId} pcs={pcsMap}
+                    onGMWound={gmWound}
+                    onApplyStatus={applyStatus}
+                    onRemoveStatus={removeStatus}
+                    targeting={targeting}
+                    compact={true}
+                    portraitScale={portraitScale}
+                    onSetTarget={(npcId, action) => { handleSetNPCAction(npcId, action); if (action === 'Attack') setTargeting(npcId); }}
+                    onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
+                  />
+                ))}
+                {isGM && !isPCView && (
+                  <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
+                    const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + (npc.reflexes || 3), statusEffects: [], _action: null };
+                    upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
+                  }} />
+                )}
+              </>
+            )}
           </div>
 
           {/* Battle Grid — centre column, GM toggle only */}
@@ -2526,7 +2621,8 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             />
           )}
 
-          {/* Enemies */}
+          {/* Enemies — only shown as full column when grid is off; sidebar handles it when grid is on */}
+          {!showGrid && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
               <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemies.length})
@@ -2571,6 +2667,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               }} />
             )}
           </div>
+          )}
         </div>
       )}
 

@@ -334,15 +334,26 @@ export default function App() {
   }, [session?.id, saveEncounter]);
 
   const [skillLog, setSkillLog] = useState({});
+  const skillLogSaveTimer = useRef(null);
   const logSkillUse = (skillName) => {
-    setSkillLog(prev => ({
-      ...prev,
-      [skillName]: {
-        encounter: (prev[skillName]?.encounter || 0) + 1,
-        session:   (prev[skillName]?.session   || 0) + 1,
-        total:     (prev[skillName]?.total     || 0) + 1,
-      },
-    }));
+    setSkillLog(prev => {
+      const next = {
+        ...prev,
+        [skillName]: {
+          encounter: (prev[skillName]?.encounter || 0) + 1,
+          session:   (prev[skillName]?.session   || 0) + 1,
+          total:     (prev[skillName]?.total     || 0) + 1,
+        },
+      };
+      // Persist to session recap (debounced 3s) so it survives page reloads
+      if (session?.id) {
+        clearTimeout(skillLogSaveTimer.current);
+        skillLogSaveTimer.current = setTimeout(() => {
+          updateSessionRecap(session.id, { skill_log: next });
+        }, 3000);
+      }
+      return next;
+    });
   };
   // Reset encounter-level skill counts when an encounter ends
   const resetEncounterSkillLog = () => {
@@ -352,10 +363,19 @@ export default function App() {
   const [ticker, setTicker] = useState([]);
   const [fullEventLog, setFullEventLog] = useState([]);
 
-  // Restore event log from active session on load/reload
+  // Restore event log and skill log from active session on load/reload
   useEffect(() => {
-    if (session?.event_log?.length > 0 && fullEventLog.length === 0) {
-      setFullEventLog(session.event_log.map(e => ({ ...e, id: e.id || Date.now() + Math.random() })));
+    if (session?.id) {
+      if (session.event_log?.length > 0 && fullEventLog.length === 0) {
+        setFullEventLog(session.event_log.map(e => ({ ...e, id: e.id || Date.now() + Math.random() })));
+      }
+      // Restore skill log from session recap
+      try {
+        const recap = JSON.parse(session.recap || '{}');
+        if (recap.skill_log && Object.keys(recap.skill_log).length > 0) {
+          setSkillLog(recap.skill_log);
+        }
+      } catch { /* ignore parse errors */ }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id]);
@@ -481,7 +501,16 @@ export default function App() {
   };
 
   // My character — stored in localStorage, player picks once
-  const [myCharId, setMyCharId] = useState(() => localStorage.getItem('sandy_my_char_id') || null);
+  const [myCharIds, setMyCharIds] = useState(() => {
+    // Migrate from old single-char key if present
+    const old = localStorage.getItem('sandy_my_char_id');
+    const multi = localStorage.getItem('sandy_my_char_ids');
+    if (multi) { try { return JSON.parse(multi); } catch { return []; } }
+    if (old) { localStorage.setItem('sandy_my_char_ids', JSON.stringify([old])); return [old]; }
+    return [];
+  });
+  // Convenience: primary claimed character (first in list, usually the PC)
+  const myCharId = myCharIds[0] || null;
 
   // Wrapped setEncounter — fires ticker; only GM saves to Supabase
   const handleSetEncounter = useCallback((updater) => {
@@ -568,10 +597,24 @@ export default function App() {
   const gmView = isGM && !isPCView;
 
   const claimCharacter = (id) => {
-    localStorage.setItem('sandy_my_char_id', id);
-    setMyCharId(id);
-    const char = characters.find(c => c.id === id);
-    if (char) push('ti-user-check', `Playing as ${char.name}`, { gmOnly: true });
+    const char = safeChars.find(c => c.id === id);
+    // If already claimed by this player, unclaim it
+    if (myCharIds.includes(id)) {
+      const next = myCharIds.filter(x => x !== id);
+      localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
+      setMyCharIds(next);
+      if (char) handleUpdateChar(id, { claimed_by_name: null });
+      push('ti-user-off', `Unclaimed ${char?.name || 'character'}`, { gmOnly: true });
+    } else {
+      const next = [...myCharIds, id];
+      localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
+      setMyCharIds(next);
+      // Derive display name from primary character or just "Player"
+      const primaryChar = safeChars.find(c => c.id === myCharIds[0]);
+      const playerLabel = primaryChar?.name || char?.player_name || 'Player';
+      if (char) handleUpdateChar(id, { claimed_by_name: playerLabel });
+      push('ti-user-check', `Claimed ${char?.name || 'character'} as ${playerLabel}`, { gmOnly: true });
+    }
   };
 
 
@@ -607,16 +650,17 @@ export default function App() {
       const char = characters.find(c => c.id === destination);
       if (char) updateCharacter(destination, { copper: Math.max(0, (char.copper || 0) - copperAmt) });
     }
-    // Flash banner locally only — purchaser sees it, not all players
-    setPurchaseBanner({ itemName, price, destName, ts: Date.now() });
-    setTimeout(() => setPurchaseBanner(null), 3500);
+    // Show purchase confirmation panel — player dismisses manually
+    setPurchaseBanner({ itemName, price, destName });
     playCoinJingle();
     push('ti-shopping-cart', `Purchased: ${itemName}${price ? ' — ' + price : ''} → ${destName}`);
   };
 
   const unclaimCharacter = (id) => {
-    localStorage.removeItem('sandy_my_char_id');
-    setMyCharId(null);
+    const next = myCharIds.filter(x => x !== id);
+    localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
+    setMyCharIds(next);
+    if (id) handleUpdateChar(id, { claimed_by_name: null });
     push('ti-user-off', 'Character unclaimed', { gmOnly: true });
   };
 
@@ -838,7 +882,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v123.3</span>
+        <span className="hdr-game">The Tool — v131</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1034,6 +1078,7 @@ export default function App() {
             onDeleteCharacter={guardFn(handleDeleteChar)}
             onCreateNPC={guardFn(handleCreateNPC)}
             myCharId={myCharId}
+            myCharIds={myCharIds}
             onClaimCharacter={guardFn(claimCharacter)}
             onUnclaimCharacter={guardFn(unclaimCharacter)}
             jumpToCharId={viewCharId}
@@ -1091,7 +1136,8 @@ export default function App() {
             onUpdateFullNpc={guardFn(handleUpdateChar)}
             reps={reps}
             onUpdateNPC={guardFn(handleUpdateNPC)}
-            onDeleteNPC={guardFn(deleteNPC)}
+            onDeleteNPC={deleteNPC}
+            onCreateNPC={handleCreateNPC}
             onUpdateRep={guardFn(handleUpdateRep)}
             onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
             onRefetch={refetchNpcs}
@@ -1235,78 +1281,82 @@ export default function App() {
       })()}
 
       {/* Purchase Flash Banner */}
-      {purchaseBanner && (() => {
-        const b = purchaseBanner;
-        if (Date.now() - (b.ts || 0) > 3500) return null;
-        return (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 448,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(20,15,0,.92)',
-            pointerEvents: 'none',
-            animation: 'purchaseFlash 3.5s forwards',
-          }}>
-            <div style={{ fontSize: 72, lineHeight: 1, marginBottom: '.5rem', animation: 'coinSpin 0.6s ease-in-out' }}>🪙</div>
-            <div style={{ fontSize: 11, letterSpacing: '.3em', textTransform: 'uppercase', color: '#a07820', marginBottom: '.4rem' }}>Purchased</div>
-            <div style={{ fontSize: 'clamp(24px, 5vw, 44px)', fontWeight: 900, color: '#f0c040', textAlign: 'center', padding: '0 1rem',
-              textShadow: '0 0 40px #f0c04066, 0 0 15px #f0c04088' }}>
-              {b.itemName}
-            </div>
-            {b.price && (
-              <div style={{ fontSize: 20, color: '#c0a030', marginTop: '.4rem', fontWeight: 600 }}>{b.price}</div>
-            )}
-            <div style={{ fontSize: 13, color: '#806010', marginTop: '.3rem' }}>→ {b.destName}</div>
+      {purchaseBanner && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 448,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(20,15,0,.92)',
+        }}
+          onClick={() => setPurchaseBanner(null)}>
+          <div style={{ fontSize: 72, lineHeight: 1, marginBottom: '.5rem', animation: 'coinSpin 0.6s ease-in-out' }}>🪙</div>
+          <div style={{ fontSize: 11, letterSpacing: '.3em', textTransform: 'uppercase', color: '#a07820', marginBottom: '.4rem' }}>Purchased</div>
+          <div style={{ fontSize: 'clamp(24px, 5vw, 44px)', fontWeight: 900, color: '#f0c040', textAlign: 'center', padding: '0 1rem',
+            textShadow: '0 0 40px #f0c04066, 0 0 15px #f0c04088' }}>
+            {purchaseBanner.itemName}
           </div>
-        );
-      })()}
+          {purchaseBanner.price && (
+            <div style={{ fontSize: 20, color: '#c0a030', marginTop: '.4rem', fontWeight: 600 }}>{purchaseBanner.price}</div>
+          )}
+          <div style={{ fontSize: 13, color: '#806010', marginTop: '.3rem' }}>→ {purchaseBanner.destName}</div>
+          <button className="btn btn-p" style={{ marginTop: '1.5rem', fontSize: 14, padding: '.4rem 2rem' }}
+            onClick={() => setPurchaseBanner(null)}>Close</button>
+          <div style={{ fontSize: 11, color: 'rgba(160,120,32,.5)', marginTop: '.5rem' }}>tap anywhere to dismiss</div>
+        </div>
+      )}
 
       {/* Global Roll Result Banner */}
-      {rollBanner && (() => {
-        const b = rollBanner;
-        if (Date.now() - (b.ts || 0) > 5000) return null;
-        return (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 400,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: b.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
-            pointerEvents: 'none',
-            animation: 'resultFade 5s forwards',
-          }}>
-            {(b.charName || b.skillName) && (
-              <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: b.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
-                {[b.charName, b.skillName].filter(Boolean).join(' — ')}
-              </div>
-            )}
-            <div style={{
-              fontSize: 'clamp(72px, 14vw, 130px)',
-              fontWeight: 900, lineHeight: 1,
-              color: b.success ? '#6aba60' : '#e06050',
-              textShadow: b.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
-              letterSpacing: '-0.02em',
-            }}>
-              {b.success ? 'SUCCESS' : '✗'}
+      {rollBanner && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 400,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: rollBanner.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
+          cursor: 'pointer',
+        }}
+          onClick={() => setRollBanner(null)}>
+          {(rollBanner.charName || rollBanner.skillName) && (
+            <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: rollBanner.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
+              {[rollBanner.charName, rollBanner.skillName].filter(Boolean).join(' — ')}
             </div>
-            {b.total !== undefined && b.tn !== undefined && (
-              <div style={{ fontSize: 24, color: b.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
-                {b.total} vs TN {b.tn}
-              </div>
-            )}
-            {/* Damage + wound change for NPC attacks */}
-            {b.success && b.damage !== undefined && (
-              <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
-                  {b.damage} damage → {b.targetName}
-                </div>
-                {b.newWoundLabel && (
-                  <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
-                    {b.oldWoundLabel} → <span style={{ color: '#e03030' }}>{b.newWoundLabel}</span>
-                  </div>
-                )}
-              </div>
-            )}
+          )}
+          <div style={{
+            fontSize: 'clamp(72px, 14vw, 130px)',
+            fontWeight: 900, lineHeight: 1,
+            color: rollBanner.success ? '#6aba60' : '#e06050',
+            textShadow: rollBanner.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
+            letterSpacing: '-0.02em',
+          }}>
+            {rollBanner.success ? 'SUCCESS' : '✗'}
           </div>
-        );
-      })()}
+          {rollBanner.total !== undefined && rollBanner.tn !== undefined && (
+            <div style={{ fontSize: 24, color: rollBanner.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
+              {rollBanner.total} vs TN {rollBanner.tn}
+            </div>
+          )}
+          {rollBanner.raises > 0 && (
+            <div style={{ fontSize: 20, color: '#c8a040', marginTop: '.5rem', fontWeight: 600 }}>
+              {rollBanner.raises} raise{rollBanner.raises !== 1 ? 's' : ''}
+              {rollBanner.maneuvers?.length > 0 && (
+                <span style={{ fontSize: 14, color: '#a07820', marginLeft: 8 }}>— {rollBanner.maneuvers.join(', ')}</span>
+              )}
+            </div>
+          )}
+          {rollBanner.success && rollBanner.damage !== undefined && (
+            <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
+                {rollBanner.damage} damage → {rollBanner.targetName}
+              </div>
+              {rollBanner.newWoundLabel && (
+                <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
+                  {rollBanner.oldWoundLabel} → <span style={{ color: '#e03030' }}>{rollBanner.newWoundLabel}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <button className="btn btn-p" style={{ marginTop: '1.5rem', fontSize: 14, padding: '.4rem 2rem' }}
+            onClick={(e) => { e.stopPropagation(); setRollBanner(null); }}>Close</button>
+          <div style={{ fontSize: 11, color: 'rgba(160,160,160,.4)', marginTop: '.5rem' }}>tap anywhere to dismiss</div>
+        </div>
+      )}
 
       {/* Global Status / Wound Banner — shows portrait + condition/wound rank change */}
       {encounter.statusBanner && !rollBanner && (() => {
@@ -1591,7 +1641,7 @@ export default function App() {
             }
             // Roll result banner — local only, never broadcast, so only the rolling player sees their own result
             setRollBanner(banner);
-            setTimeout(() => setRollBanner(null), 5000);
+            // No auto-dismiss — player closes manually
             // Generic onComplete dispatch — lets any caller (ShopTab, contested rolls, etc.)
             // pass a callback directly in the roll context instead of needing a skillOutcomeData flag
             if (typeof globalModal?.onComplete === 'function') {

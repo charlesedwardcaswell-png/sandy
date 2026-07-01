@@ -865,7 +865,7 @@ export const SETTING_FACTIONS = {
 export const ADVANTAGES = [
   // ── Mental ────────────────────────────────────────────────────────────────
   { name: "Absolute Direction", cost: 1, type: "Mental", desc: "Always know which direction is north, no matter the circumstances." },
-  { name: "Balance", cost: 2, type: "Mental", desc: "When adding Honor Rank to resist Intimidation or Temptation, gain an additional +1k0." },
+  { name: "Balance", cost: 2, type: "Mental", desc: "When adding Integrity to resist Intimidation or Temptation, gain an additional +1k0." },
   { name: "Clear Thinker", cost: 3, type: "Mental", desc: "When making a Contested Roll against someone attempting to confuse or manipulate you, gain +1k0." },
   { name: "Crafty", cost: 3, type: "Mental", desc: "When forced to make an Unskilled Roll using a Low Skill, you are considered to have 1 rank instead." },
   { name: "Daredevil", cost: 3, type: "Mental", desc: "When spending a Void Point to enhance an Athletics roll, gain +3k1 instead of the normal +1k1." },
@@ -876,7 +876,8 @@ export const ADVANTAGES = [
   { name: "Dark Paragon (Perfection)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to cause any one die of your choice on a Skill Roll to explode (no +5 bonus added)." },
   { name: "Dark Paragon (Strength)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any Damage Roll, keeping the higher result." },
   { name: "Dark Paragon (Will)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to negate 10 Wounds at the moment they are suffered." },
-  { name: "Forbidden Knowledge", cost: 5, type: "Mental", desc: "You possess dangerous knowledge of a forbidden subject. Gain 1 rank in an appropriate Lore skill and related bonuses (discuss with GM)." },
+  { name: "Ceremony of the Hidden Heart", cost: 10, type: "Mental/Spiritual", desc: "Sahir only. You know the ritual to create a Khadi — the process of separating a subject's heart from their body and creating a near-immortal being. Only those with a suitable teacher may purchase this. The ritual requires specific inscriptions, a living host, and precise timing; failure is catastrophic." },
+  { name: "Cosmopolitan", cost: 5, type: "Mental", desc: "Yodotai only. Skilled at adapting to different cultures. Gain +1k0 bonus to all Social Skill Rolls." },
   { name: "Great Potential", cost: 5, type: "Mental", desc: "Choose one Skill. Raises on rolls using that Skill are limited by your Skill Rank rather than Void Ring (use whichever is higher)." },
   { name: "Heartless", cost: 4, type: "Mental", desc: "+1k0 to resist any Courtier, Sincerity, or Temptation roll made to persuade, seduce, or change your mind." },
   { name: "Higher Purpose", cost: 3, type: "Mental", desc: "Devoted to a grand goal. In any session where demonstrable progress is made toward it, gain 1 additional XP." },
@@ -898,9 +899,12 @@ export const ADVANTAGES = [
   { name: "Paragon of Sincerity", cost: 7, type: "Mental", desc: "Add +2k0 to all Contested Rolls using the Sincerity Skill. Gain +1 Integrity whenever your words carry genuine conviction that changes hearts or minds." },
   // ── Physical ──────────────────────────────────────────────────────────────
   { name: "Bland", cost: 2, type: "Physical", desc: "Extremely unremarkable. May voluntarily increase the TN of rolls to recognize you by 10." },
+  { name: "Ambidextrous", cost: 4, type: "Physical", desc: "Equally skilled with both hands. No +5 TN penalty for off-hand weapon. When wielding two weapons, TN penalty is reduced by 5." },
+  { name: "Blood of the Hanie", cost: 2, type: "Physical", desc: "Yodotai only. Descended from the original Yodotai Empire bloodline. Gain +1k1 when using Social Skills on other Yodotai." },
   { name: "Crab Hands", cost: 3, type: "Physical", desc: "When forced to make an Unskilled Roll with a Weapon Skill, you are considered to have 1 rank instead." },
   { name: "Dangerous Beauty", cost: 3, type: "Physical", desc: "+1k0 to all Temptation Skill Rolls made with members of the opposite sex." },
   { name: "Hands of Stone", cost: 6, type: "Physical", desc: "Damage Rolls for unarmed attacks increased by +0k1." },
+  { name: "Khadi", cost: 6, type: "Physical/Spiritual", desc: "You are one of the heartless. You heal 1 Wound per minute in addition to normal healing, even if totally obliterated. Can only be permanently destroyed if your heart is crushed or stabbed. 6pt: your heart belongs to another and you must heed their will. 8pt: you control your own heart." },
   { name: "Large", cost: 4, type: "Physical", desc: "+1k0 to all Damage Rolls for any large melee weapon. You are notably larger than average." },
   { name: "Quick", cost: 6, type: "Physical", desc: "If you did not act first in a Round, during the Reactions Stage you may add your Reflexes to your Initiative Score for all subsequent rounds." },
   { name: "Quick Healer", cost: 3, type: "Physical", desc: "For the purposes of recovering Wounds, your Stamina is considered two ranks higher." },
@@ -927,10 +931,16 @@ export const ADVANTAGES = [
   { name: "Social Position", cost: 6, type: "Social", desc: "+1 Status Rank." },
   { name: "Spy Network", cost: 8, type: "Social", desc: "Once per session, contact your network to acquire a piece of useful covert information (GM determines specifics)." },
   { name: "Stolen Identity", cost: 6, type: "Social", desc: "Discovered a false identity in ruins. Two Free Raises on Acting rolls when using this alternate identity." },
-  { name: "Wealthy", cost: 1, type: "Material", desc: "1 pt per rank. Each rank grants 2 additional koku added to starting outfit." },
   { name: "Well-Connected", cost: 3, type: "Social", desc: "3 pts per rank. Once per session per rank, roll Courtier/Awareness TN 20 for a minor favor from someone at court." },
+  { name: "Gorilla Bodyguard", cost: 3, type: "Material", desc: "You have a trained gorilla as a bodyguard. Considered to have 5 ranks in Animal Handling (Gorilla) for commanding it, or use your actual rank if higher." },
+  { name: "Inheritance, Crysteel Weapon", cost: 5, type: "Material", desc: "Ashalan only. Obtain a Crysteel weapon: +1k0 bonus to attack and damage rolls, and counts as Crystal for the purpose of Invulnerability." },
+  { name: "Inheritance, Khadja of the Council", cost: 5, type: "Material", desc: "Ashalan only. A Khadja polearm with DR 1k4 (Polearms skill) that grants +1k0 to Attack Rolls." },
+  { name: "Wealthy", cost: 1, type: "Material", desc: "1 pt per rank. Each rank grants 2 additional koku added to starting outfit." },
+  { name: "Sacred Weapon", cost: 5, type: "Material", desc: "Variable cost (3-6 pts). A specially crafted weapon with unique properties specific to your faction." },
   // ── Spiritual ─────────────────────────────────────────────────────────────
-  { name: "Blood of Fate", cost: 4, type: "Spiritual", desc: "The blood of desert fortune flows in you. Immune to damage/penalties from natural weather and sandstorms. Reduce damage from elemental weather spells by 1k1." },
+  { name: "Fitfully Sleeping Blood", cost: 8, type: "Spiritual", desc: "An ancestor was a Jinn in disguise. You did not inherit their soul of smokeless fire, but the mixing of mortal and Jinn blood left its mark. Roll once on any Jinn Ability table and receive that ability, which you may invoke exactly as if you were a Jinn." },
+  { name: "Paragon of Faith", cost: 6, type: "Spiritual", desc: "Senpet only. Devotion to the Ten Thousand Gods is unshakable. Gain one free Void Point that can only be used for Senpet Character Class Techniques." },
+  { name: "Soul of Warriors", cost: 10, type: "Spiritual", desc: "Yodotai only. Considered a true Yodotai hero by peers and ancestors. Whenever in combat, a guardian spirit fights by your side." },
   { name: "Chosen by the Oracles", cost: 6, type: "Spiritual", desc: "Choose one Ring. +1k1 to the total of all Ring Rolls using that Ring." },
   { name: "Elemental Blessing", cost: 4, type: "Spiritual", desc: "Choose one Ring (not Void). Cost to increase Traits associated with that Ring is decreased by 1 XP each time." },
   { name: "Enlightened", cost: 6, type: "Spiritual", desc: "Cost to increase Void Ring decreased by 2 XP each time." },
@@ -1020,8 +1030,12 @@ export const DISADVANTAGES = [
   { name: "Stolen Identity Stigma", value: 3, type: "Social", desc: "Potential enemy from another faction. Functions as Sworn Enemy with 1 extra point; enemy identity changes periodically (GM decides)." },
   { name: "Nemesis", value: 4, type: "Social", desc: "You have earned a truly implacable enemy — one whose resources, connections, and burning hatred far exceed those of a Sworn Enemy. They will sacrifice considerable resources to see you destroyed. +1 pt per Insight Rank above yours they possess." },
   { name: "Sworn Enemy", value: 3, type: "Social", desc: "An enemy determined to see you defeated or dead. +1 pt per Insight Rank above yours. +2 pts to make them your kharmic nemesis (cannot spend Void opposing them)." },
-  // ── Spiritual ─────────────────────────────────────────────────────────────
-  { name: "Desert Curse", value: 4, type: "Spiritual", desc: "Your bloodline carries a spiritual weakness to the corrupting forces of the desert. You suffer -1k0 on any roll to resist acquiring spiritual corruption, Jinn influence, or supernatural desert afflictions. (Equivalent to Moto Curse in LBS setting.)" },
+  // ── LBS-Specific ──────────────────────────────────────────────────────────
+  { name: "Curse of the Grey Crone", value: 3, type: "Spiritual", desc: "Assassin bloodline only. A difformity from the Grey Crone's curse on Prince Hassan — internal or external, pain or spasms, strange growths, twisted muscles, or severe communication difficulty. Choose one Trait: it is lowered to 1 and cannot be increased with XP. However, XP needed per Insight Rank is reduced by 5 (145 for 2nd, 165 for 3rd, etc.). Mandatory for male Assassins; compatible with Dark Fate." },
+  { name: "Defiler of the Dead", value: 2, type: "Spiritual", desc: "Senpet only. You create ghuls for your own purposes rather than in service to the Ten Thousand Gods. Gain a Free Raise on all Spellcasting Rolls involving Ghul Creation spells. Suffer +5 TN on all Social Skills with other Senpet." },
+  { name: "Despicable", value: 5, type: "Mental", desc: "Yodotai only. You do not attract the attention of Yodotai ancestors — perhaps you reject their gods or are not considered a true warrior. You gain no advantage from Magic Resistance and may not purchase that Advantage. Suffer –2k0 penalty to all Social Skill Rolls with other Yodotai." },
+  { name: "Forlorn (State)", value: 2, type: "Mental", desc: "Senpet only. You once believed in the Empire but something shattered that. Whenever you attempt to use any Skill or Technique referencing the State, you suffer +10 TN to that roll." },
+  { name: "Forlorn (Religion)", value: 5, type: "Mental", desc: "Senpet only. You once believed in the Faith but something destroyed that. Whenever you attempt to use any Skill or Technique referencing Religion, you suffer +10 TN. You may not use Void Points for techniques that require faith." },
   { name: "Bad Fortune", value: 3, type: "Spiritual", desc: "Something unpleasant is in store. Form varies: Secret Love, Disfigurement, Evil Eye, Allergy, Lingering Misfortune, or Unknown Enemy." },
   { name: "Marked by the Sands", value: 4, type: "Spiritual", desc: "An elemental or supernatural force of the Burning Sands has marked you as its enemy. Choose one Ring element or supernatural force (Jinn, the Khadi, the desert itself). Effects of that force are more severe for you; discuss specifics with your GM." },
   { name: "Dark Fate", value: 3, type: "Spiritual", desc: "Destined to cause great darkness. Once per session when you would die, you are reduced to 1 Wound instead." },
@@ -1436,12 +1450,18 @@ export const CREATURES_LIBRARY = [
     gm_notes: 'Not native to Burning Sands. Status symbol for wealthy citizens.',
   },
   {
-    id: 'creature_gorilla', name: 'Gorilla', category: 'Animal',
-    air: 2, earth: 3, fire: 2, water: 3,
-    traits: { Agility: 3, Strength: 5 },
-    attack: '6k3', damage: '5k1', tn: 15, wpl: 6,
-    specials: [],
-    gm_notes: 'Originally from Ra\'Shari caravans. Fashionable guard pets for the wealthy. Requires ~80 lbs food/day. Dahabi House keep trained gorilla bodyguards.',
+    id: 'creature_gorilla', name: 'Ape (Gorilla Bodyguard)', category: 'Animal',
+    air: 1, earth: 2, fire: 2, water: 1,
+    traits: { Reflexes: 3, Stamina: 4, Agility: 4, Strength: 5 },
+    attack: '5k4', damage: '5k2', tn: 20, wpl: 10,
+    reduction: 4,
+    specials: [
+      'Smash (Simple): Attack 5k4, Damage 5k2',
+      'Bite (Complex): Attack 4k4, Damage 3k3',
+      'Athletics (Climbing) 3',
+      'Fear 1 — all opponents must resist Fear at the start of combat',
+    ],
+    gm_notes: 'Ape (Ozaru) — official stat block. Initiative: 4k3. Wounds: 10/20/30/Dead. Reduction 4. Gorilla Bodyguard advantage grants one trained ape; owner counts as Animal Handling (Gorilla) 5 for commands, or uses actual rank if higher.',
   },
   {
     id: 'creature_snake', name: 'Snake (Venomous)', category: 'Animal',
@@ -1912,15 +1932,13 @@ export const TECHNIQUE_ROLL_BONUSES = {
   "The Keeper's Courage": [
     { skills: ['Investigation','Hunting','Perception'], rolled: 1, kept: 0, note: '+1k0 Perception-based rolls' },
   ],
-  "The Keeper's Judgment": [
-    { skills: ['ATTACK'], conditional: 'Choose to Disable (no damage, inflict Dazed) instead of wound', note: 'May choose to Daze target instead of dealing wounds' },
-  ],
-  "The Keeper's Justice": [
-    { skills: ['ATTACK'], simpleAction: true, conditional: 'Attacks that inflict Dazed or initiate grapple are Simple Actions', note: 'Non-damaging attacks (Daze/grapple) are Simple Actions' },
-  ],
-  "The Keeper's Art": [
-    { skills: ['ATTACK'], rolled: 0, kept: 0, freeRaises: 1, conditional: '1 Free Raise on Attack vs Dazed opponent to Fatigue them', note: '+1 Free Raise vs Dazed targets to inflict Fatigued' },
-  ],
+  "The Keeper's Judgment": [], // manual — "may choose to Disable (deal no damage, inflict Dazed) instead
+    // of wounding" is an attack declaration choice, not a dice modifier; no hook for attack-outcome substitution
+  "The Keeper's Justice": [], // manual — "non-damaging attacks (Rank 2 / grapple initiation) are Simple
+    // Actions" is a timing/action-type change; simpleAction flag was never enforced by any roll handler
+  "The Keeper's Art": [], // manual — "+2×Class Rank to resistance TNs of Conditional Effects you inflict"
+    // is dynamic and affects opponent's roll (not your own); "+1 Raise vs Dazed to Fatigue" is conditional
+    // opponent-state gating with a special attack follow-up, not a dice pool bonus
   'By the Force of Will Alone': [], // manual — target-selection reactive ability (forces opponent Void cost in
     // Full Defense; ignores target's Armor TN bonuses in Full Attack), no opponent-targeting hook in bonus system
 
@@ -1974,9 +1992,8 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Divine Strength': [
     { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, note: '+1k1 Damage when spending Void' },
   ],
-  'Divine Retribution': [
-    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Senpet keyword weapons (Khopesh, Shamsir)', note: 'Attacks with Senpet weapons are Simple Actions' },
-  ],
+  'Divine Retribution': [], // manual — "attacks with Senpet keyword weapons are Simple Actions" is an
+    // action-type change; the simpleAction flag was never read by any roll handler in the codebase
   'The Gods Protect Me': [
     { skills: ['ARMORBONUS'], flat: 20, voidOnly: true, stances: ['Center'], note: '+20 Armor TN in Center Stance (Void spend, once per round)' },
   ],
@@ -2033,12 +2050,11 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['Investigation','Hunting','Perception'], rolled: 2, kept: 0, note: '+2k0 Perception-based (total)' },
     { skills: ['Acting'], freeRaises: 1, conditional: 'Disguise Emphasis only', note: 'Free Raise on Acting (Disguise)' },
   ],
-  'Seen and Not Noticed': [
-    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Knives, Staves, or Assassin Ranged Weapons', note: 'Attacks with Knives/Staves/ARW are Simple Actions' },
-  ],
-  'Blinding Speed': [
-    { skills: ['ATTACK'], conditional: 'Extra Attack costs 3 Raises (Knives/Staves/ARW)', note: 'Extra Attack costs 3 Raises with Knives/Staves/ARW' },
-  ],
+  'Seen and Not Noticed': [], // manual — "attacks with Knives, Staves, or Assassin Ranged Weapons are a
+    // Simple Action" is a timing/action-type change, not a dice modifier. The simpleAction flag in
+    // the previous entry was never read by any roll handler.
+  'Blinding Speed': [], // manual — "Extra Attack Maneuver costs only 3 Raises (not 5) with Knives/Staves/ARW"
+    // reduces a raise cost threshold, not a dice pool bonus — no hook for raise-cost modification exists.
 
   // ── Necromancer ────────────────────────────────────────────────────────────────
   'Initiate of Undeath': [], // manual — spell grant (3 Mastery Levels of Ghul Creation/Death, cast per day
@@ -2049,9 +2065,9 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Creator of Undeath': [
     { skills: ['Intimidation','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Intimidation/Sincerity (Deceit)' },
   ],
-  'Leader of Undead': [
-    { skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'Undead allies only (not self)', note: 'Undead under your control get +1k0 Attack/Damage' },
-  ],
+  'Leader of Undead': [], // manual — "+1k0 to Attack and Damage Rolls for all Undead under your control"
+    // is a bonus that applies to NPC combatants, not to the player's own roll pool. No hook exists
+    // for augmenting controlled-NPC rolls from a PC technique.
   'Agent of Death': [], // manual — clarifies undead-control ownership (your undead obey until dismissed or
     // stolen by another Necromancer; non-Necromancers can't take control) — not a dice modifier
 
@@ -2117,15 +2133,14 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Yodotai Legionnaire ──────────────────────────────────────────────────────
-  'Tortoise Formation': [
-    { skills: ['ARMORBONUS'], conditional: 'Full Defense Stance + scutum shield: +Insight Rank to Armor TN', note: '+Insight Rank Armor TN in Full Defense with scutum' },
-  ],
+  'Tortoise Formation': [], // manual — three effects: (1) no attack penalty for carrying Yodotai shields
+    // (not a roll bonus), (2) +Insight Rank to Armor TN in Full Defense with scutum (dynamic value, no
+    // enforcement hook), (3) Void-powered aura to allies (ally-buff system doesn't exist)
   'In Close Quarters': [
     { skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'Round you switch from Full Defense → Full Attack', note: '+1k0 Attack on the round you switch stances (Full Defense → Full Attack)' },
   ],
-  'Deadly Strike (Legionnaire)': [
-    { skills: ['ATTACK'], simpleAction: true, conditional: 'With Yodotai and Warrior weapons', note: 'Attacks with Yodotai/Warrior weapons are Simple Actions' },
-  ],
+  'Deadly Strike (Legionnaire)': [], // manual — "attacks with Yodotai and Warrior weapons are Simple Actions"
+    // is an action-type change; simpleAction flag was never enforced by any roll handler
   'Wedge Formation': [
     { skills: ['REDUCTION'], conditional: 'Attack Stance: Reduction = School Rank', note: 'Gain Reduction equal to Rank in Attack Stance' },
   ],
@@ -2138,9 +2153,8 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Stranger in a Foreign Land': [
     { skills: ['Battle','Intimidation','Courtier'], rolled: 1, kept: 0, note: '+1k0 Battle/Intimidation/Courtier' },
   ],
-  'Unfriendly Glare': [
-    { skills: ['ATTACK'], simpleAction: true, conditional: 'Warrior and Yodotai weapons', note: 'Attacks with warrior/Yodotai weapons are Simple Actions' },
-  ],
+  'Unfriendly Glare': [], // manual — "attacks with Warrior and Yodotai weapons are Simple Actions"
+    // is an action-type change; simpleAction flag was never enforced by any roll handler
   'Combat Diplomacy': [], // manual — contested roll to learn an opponent's Advantage/Disadvantage, plus a
     // conditional Void-spend Free Raise on first meeting someone — both outside the standard roll-bonus shape
   'Hoplon Bash': [], // manual — a whole new shield-bash attack type (Agility/Brawling vs Armor TN, 1k2 damage

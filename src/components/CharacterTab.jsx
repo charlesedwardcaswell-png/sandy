@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0 }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0 }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -89,19 +89,27 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
           <button className="btn btn-sm btn-p" onClick={() => setView('create')}>
             <i className="ti ti-plus" style={{ fontSize: 12 }} /> New Character
           </button>
-          {selId && onClaimCharacter && (
-            <button
-              className={`btn btn-sm ${myCharId === selId ? 'btn-p' : ''}`}
-              onClick={() => onClaimCharacter(selId)}
-              title="Mark this as your character — your card will be highlighted in encounters"
-              style={myCharId === selId ? {} : { borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
-            >
-              {myCharId === selId
-                ? <><i className="ti ti-user-check" style={{ fontSize: 12 }} /> My Character</>
-                : <><i className="ti ti-user-question" style={{ fontSize: 12 }} /> Claim as Mine</>
-              }
-            </button>
-          )}
+          {selId && onClaimCharacter && (() => {
+            const selChar = characters.find(c => c.id === selId);
+            const isMine = myCharIds.includes(selId);
+            const claimedBy = selChar?.claimed_by_name;
+            const claimedByOther = claimedBy && !isMine;
+            return (
+              <button
+                className={`btn btn-sm ${isMine ? 'btn-p' : ''}`}
+                onClick={() => onClaimCharacter(selId)}
+                title={isMine ? 'Click to unclaim this character' : claimedByOther ? `Controlled by ${claimedBy} — click to also claim` : 'Claim this character as one you control (you can control multiple)'}
+                style={isMine ? {} : claimedByOther ? { borderColor: '#4a8a40', color: '#6aba60' } : { borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
+              >
+                {isMine
+                  ? <><i className="ti ti-user-check" style={{ fontSize: 12 }} /> My Character</>
+                  : claimedByOther
+                    ? <><i className="ti ti-user" style={{ fontSize: 12 }} /> {claimedBy}</>
+                    : <><i className="ti ti-user-question" style={{ fontSize: 12 }} /> Claim as Mine</>
+                }
+              </button>
+            );
+          })()}
           {hasSummonAbility && onCreateNPC && (
             <button className="btn btn-sm" onClick={() => setJinnOpen(true)}
               style={{ borderColor: 'rgba(160,120,200,.5)', color: 'var(--gold)' }}
@@ -697,9 +705,18 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
         }
       } else if (item.type === 'emphasis') {
         const [skillName, emphasis] = item.key.split('|||');
-        updates.skills = (updates.skills || char.skills || []).map(s =>
-          s.name === skillName ? { ...s, emphases: [...new Set([...(s.emphases || []), emphasis])] } : s
-        );
+        updates.skills = (updates.skills || char.skills || []).map(s => {
+          if (s.name !== skillName) return s;
+          const updated = { ...s, emphases: [...new Set([...(s.emphases || []), emphasis])] };
+          // Gorilla Bodyguard advantage: gaining the Gorilla emphasis on Animal Handling
+          // automatically grants Animal Handling 5 if below that rank — BUT ONLY if the
+          // character actually has the Gorilla Bodyguard advantage
+          const hasGorillaBG = (char.advantages || []).some(a => (a.name || a) === 'Gorilla Bodyguard');
+          if (skillName === 'Animal Handling' && emphasis === 'Gorilla' && hasGorillaBG && (s.rank || 0) < 5) {
+            updated.rank = 5;
+          }
+          return updated;
+        });
       }
     });
     onBatchUpdate(updates);
@@ -1214,11 +1231,16 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           {/* Name block — top left, shares row with portrait */}
           <div style={{ minWidth: 160, flexShrink: 0 }}>
             <div style={{ marginBottom: '.4rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
-                  <button className={`btn btn-sm ${canEdit ? 'btn-p' : ''}`} style={{ fontSize: 10, padding: '1px 5px' }} onClick={onToggleEdit}>
-                    <i className={`ti ${canEdit ? 'ti-lock' : 'ti-edit'}`} style={{ fontSize: 11 }} />
-                  </button>
+                  {isGM && (
+                    <button className={`btn ${canEdit ? 'btn-p' : ''}`}
+                      style={{ fontSize: 12, padding: '3px 10px', fontWeight: 700, letterSpacing: '.04em', minWidth: 52 }}
+                      onClick={onToggleEdit}>
+                      <i className={`ti ${canEdit ? 'ti-lock' : 'ti-pencil'}`} style={{ fontSize: 13, marginRight: 4 }} />
+                      {canEdit ? 'LOCK' : 'EDIT'}
+                    </button>
+                  )}
                 </div>
                 {canEdit && isGM ? (
                   <select value={char.faction || ''} onChange={e => update('faction', e.target.value)}
@@ -1597,29 +1619,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         <div className="card">
           <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Skills</span>
-            {canEdit && <AddSkillControl char={char} onAdd={(skillName) => {
+            {canEdit && isGM && <AddSkillControl char={char} onAdd={(skillName) => {
               if ((char.skills || []).some(s => s.name === skillName)) return;
               update('skills', [...(char.skills || []), { name: skillName, rank: 0, school: false }]);
             }} />}
           </div>
-          {/* Quick-add weapon skills strip — shows any combat skill not yet on this character */}
-          {canEdit && (() => {
-            const WEAPON_SKILLS = ['Swordsmanship','Knives','Polearms','Spears','Staves','Brawling','Archery','Tahaddi','Assassin Ranged Weapons'];
-            const existing = new Set((char.skills || []).map(s => s.name));
-            const missing = WEAPON_SKILLS.filter(s => !existing.has(s));
-            if (missing.length === 0) return null;
-            return (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>Add:</span>
-                {missing.map(s => (
-                  <button key={s} className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--gold-dim)', borderColor: 'var(--gold-dim)' }}
-                    onClick={() => update('skills', [...(char.skills || []), { name: s, rank: 0, school: false }])}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             {/* Build set of active technique names for this character */}
             {(() => {
@@ -1712,9 +1716,16 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                               onKeyDown={e => {
                                 if (e.key === 'Enter' && e.target.value.trim()) {
                                   const val = e.target.value.trim();
-                                  const skills = (char.skills || []).map(x => x.name === s.name
-                                    ? { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] }
-                                    : x);
+                                  const skills = (char.skills || []).map(x => {
+                                    if (x.name !== s.name) return x;
+                                    const updated = { ...x, emphases: [...(x.emphases || []).filter(em => em !== val), val] };
+                                    // Only auto-set Animal Handling to 5 if the character has the Gorilla Bodyguard advantage
+                                    const hasGorillaBG = (char.advantages || []).some(a => (a.name || a) === 'Gorilla Bodyguard');
+                                    if (s.name === 'Animal Handling' && val === 'Gorilla' && hasGorillaBG && (x.rank || 0) < 5) {
+                                      updated.rank = 5;
+                                    }
+                                    return updated;
+                                  });
                                   update('skills', skills);
                                   e.target.value = '';
                                 }
@@ -1816,18 +1827,23 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           )}
         </div>
 
-        {/* Copper */}
+      </div>
+
+      {/* Right column — Equipment, Techniques, Spells, Advantages */}
+      <div>
+        {/* Equipment — copper shown inline next to title, GM-only edit */}
         <div className="card">
-          <div className="card-title"><i className="ti ti-coin" style={{ marginRight: 5 }} />Copper</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)' }}>{char.copper ?? 0}</span>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>copper</span>
-            {canEdit && (() => {
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
+            <span className="card-title" style={{ marginBottom: 0 }}>Equipment</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#d4a020', marginLeft: 4 }}>
+              ◈ {char.copper ?? 0}
+            </span>
+            {canEdit && isGM && (() => {
               const inputId = `copper-delta-${char.id}`;
               return (
                 <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
-                  <input type="number" id={inputId} placeholder="±amount"
-                    style={{ width: 72, fontSize: 12, padding: '2px 4px' }}
+                  <input type="number" id={inputId} placeholder="±copper"
+                    style={{ width: 68, fontSize: 11, padding: '1px 4px' }}
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         const delta = parseInt(e.target.value) || 0;
@@ -1840,22 +1856,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     const delta = parseInt(el?.value) || 0;
                     update('copper', Math.max(0, (char.copper || 0) + delta));
                     if (el) el.value = '';
-                  }}>Apply</button>
+                  }}>±</button>
                 </div>
               );
             })()}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-            Use + to gain, − to spend. Party pool copper is in the Party tab.
-          </div>
-        </div>
-      </div>
-
-      {/* Right column — Equipment, Techniques, Spells, Advantages */}
-      <div>
-        {/* Equipment */}
-        <div className="card">
-          <div className="card-title">Equipment</div>
           {(char.equipment || []).map((e, i) => {
             const weapon = WEAPONS_LIST.find(w => w.name === e.name)
               || WEAPONS_LIST.find(w => w.name.toLowerCase().startsWith(e.name.toLowerCase()));
@@ -1997,33 +2002,33 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 {e.dr && (() => {
                   const wData = WEAPONS_LIST.find(w => w.name === e.name);
                   const skillName = e.skill || wData?.skill;
-                  const isRanged = ['Archery', 'Throwing'].includes(skillName);
-                  const str = char.strength || 2;
-                  // Melee weapons add Strength to damage dice
-                  const drDisplay = (!isRanged && str > 0)
-                    ? <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr} <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{str}k0</span></span>
-                    : <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{e.dr}</span>;
-                  return drDisplay;
-                })()}
-                {/* Weapon sample roll: Str+WeaponDice kStr for melee (STR k STR), or Agi+rank k Fire for finesse */}
-                {e.dr && (() => {
-                  const wData = WEAPONS_LIST.find(w => w.name === e.name);
-                  const skillName = e.skill || wData?.skill;
                   const charSkill = (char.skills || []).find(s => s.name === skillName);
                   const rank = charSkill?.rank || 0;
-                  // Determine trait: Strength for heavy/bows, Agility for swords/knives
+                  const agi = char.agility || 2;
+                  const str = char.strength || 2;
                   const isStrWeapon = ['Heavy Weapons','Chain Weapons','Staves','Brawling'].includes(skillName);
-                  const isArchery = skillName === 'Archery';
-                  const traitKey = isStrWeapon ? 'strength' : 'agility';
-                  const ringKey = isStrWeapon ? 'water' : 'fire';
-                  const traitVal = char[traitKey] || 2;
-                  const ringVal = char[ringKey] || 2;
-                  const rollDice = rank + traitVal;
-                  const keepDice = ringVal;
-                  if (!skillName || rank === 0) return null;
+                  const isRanged = ['Archery'].includes(skillName);
+                  // Parse DR e.g. "0k4" or "3k2"
+                  const drMatch = (e.dr || '').match(/^(\d+)k(\d+)$/);
+                  const drRoll = drMatch ? parseInt(drMatch[1]) : 0;
+                  const drKeep = drMatch ? parseInt(drMatch[2]) : 0;
+                  // Attack pool: (Agility + skill rank)k(Fire ring for finesse, Strength for power)
+                  const atkTrait = isStrWeapon ? (char.strength || 2) : agi;
+                  const atkRing = isStrWeapon ? (char.water || 2) : (char.fire || 2);
+                  const atkRoll = atkTrait + rank;
+                  const atkKeep = atkRing;
+                  // Damage pool: weapon DR + Strength bonus to rolled dice (kept stays weapon)
+                  const dmgRoll = drRoll + (isRanged ? 0 : str);
+                  const dmgKeep = drKeep;
                   return (
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>
-                      {rollDice}k{keepDice}
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: 4 }}>
+                      <span style={{ color: 'var(--gold-dim)', fontWeight: 600 }}>DR {e.dr}</span>
+                      {rank > 0 && (
+                        <span style={{ marginLeft: 6 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Atk:</span> {atkRoll}k{atkKeep}{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>Dmg:</span> {dmgRoll}k{dmgKeep}
+                        </span>
+                      )}
                     </span>
                   );
                 })()}
@@ -2068,7 +2073,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               </div>
             );
           })}
-          {canEdit && (
+          {canEdit && isGM && (
             <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem', flexWrap: 'wrap' }}>
               <select value={addEq || ''} onChange={e => setAddEq && setAddEq(e.target.value)} style={{ flex: 1 }}>
                 <option value="">Add equipment...</option>
@@ -2203,96 +2208,126 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         )}
 
         {/* Advantages / Disadvantages */}
-        {((char.advantages || []).length > 0 || (char.disadvantages || []).length > 0) && (
+        {(((char.advantages || []).length > 0 || (char.disadvantages || []).length > 0) || (canEdit && isGM)) && (
           <div className="card">
-            {(char.advantages || []).length > 0 && (
-              <>
-                <div className="card-title">Advantages</div>
-                {char.advantages.map((a, ai) => {
-                  const adv = ADVANTAGES.find(x => x.name === a.name);
-                  const updateAdv = (patch) => {
-                    const updated = (char.advantages || []).map((x, xi) => xi === ai ? { ...x, ...patch } : x);
-                    update('advantages', updated);
-                  };
-                  return (
-                    <div key={a.name + ai} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {canEdit
-                          ? <input value={a.customName || a.name} onChange={e => updateAdv({ customName: e.target.value })}
-                              onBlur={e => !e.target.value && updateAdv({ customName: undefined })}
-                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
-                          : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.customName || a.name}</span>
-                        }
-                        <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
+            {/* Advantages */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '.25rem' }}>
+              <span className="card-title" style={{ marginBottom: 0 }}>Advantages</span>
+              {canEdit && isGM && (
+                <select style={{ fontSize: 10, marginLeft: 'auto', maxWidth: 160 }}
+                  value=""
+                  onChange={e => {
+                    const name = e.target.value;
+                    if (!name) return;
+                    const adv = ADVANTAGES.find(a => a.name === name);
+                    const already = (char.advantages || []).some(a => a.name === name);
+                    if (!already) update('advantages', [...(char.advantages || []), { name, cost: adv?.cost || 0, notes: '' }]);
+                  }}>
+                  <option value="">+ Add advantage…</option>
+                  {ADVANTAGES.map(a => <option key={a.name} value={a.name}>{a.name} ({a.cost}pt)</option>)}
+                </select>
+              )}
+            </div>
+            {(char.advantages || []).length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.25rem' }}>None</div>}
+            {(char.advantages || []).map((a, ai) => {
+              const adv = ADVANTAGES.find(x => x.name === a.name);
+              const updateAdv = (patch) => {
+                const updated = (char.advantages || []).map((x, xi) => xi === ai ? { ...x, ...patch } : x);
+                update('advantages', updated);
+              };
+              return (
+                <div key={a.name + ai} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {canEdit && isGM
+                      ? <input value={a.customName || a.name} onChange={e => updateAdv({ customName: e.target.value })}
+                          onBlur={e => !e.target.value && updateAdv({ customName: undefined })}
+                          style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                      : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.customName || a.name}</span>
+                    }
+                    <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
+                    {canEdit && isGM && (
+                      <button className="btn btn-sm btn-d" style={{ padding: '0 4px', fontSize: 11, lineHeight: 1.4 }}
+                        onClick={() => update('advantages', (char.advantages || []).filter((_, xi) => xi !== ai))}>×</button>
+                    )}
+                  </div>
+                  {adv?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{adv.desc}</div>}
+                  {(a.name || '').startsWith('Luck') && (() => {
+                    const luckRank = a.rank || 1;
+                    const usesLeft = a.current_uses !== undefined ? a.current_uses : luckRank;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Uses this session:</span>
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {Array.from({ length: luckRank }, (_, i) => (
+                            <button key={i} onClick={() => updateAdv({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
+                              style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--gold)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--gold)' : 'transparent', cursor: 'pointer', padding: 0 }} />
+                          ))}
+                        </div>
+                        <span style={{ fontSize: 11, color: usesLeft > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{usesLeft}/{luckRank}</span>
+                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateAdv({ current_uses: luckRank })}>Reset</button>
                       </div>
-                      {adv?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{adv.desc}</div>}
-                      {/* Luck tracking — pip tracker */}
-                      {(a.name || '').startsWith('Luck') && (() => {
-                        const luckRank = a.rank || 1;
-                        const usesLeft = a.current_uses !== undefined ? a.current_uses : luckRank;
-                        return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Uses this session:</span>
-                            <div style={{ display: 'flex', gap: 3 }}>
-                              {Array.from({ length: luckRank }, (_, i) => (
-                                <button key={i} onClick={() => canEdit && updateAdv({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
-                                  style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--gold)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--gold)' : 'transparent', cursor: canEdit ? 'pointer' : 'default', padding: 0 }} />
-                              ))}
-                            </div>
-                            <span style={{ fontSize: 11, color: usesLeft > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{usesLeft}/{luckRank}</span>
-                            {canEdit && <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateAdv({ current_uses: luckRank })}>Reset</button>}
-                          </div>
-                        );
-                      })()}
-                      {canEdit
-                        ? <textarea value={a.notes || ''} onChange={e => updateAdv({ notes: e.target.value })}
-                            placeholder="Personal notes on this advantage…"
-                            rows={1}
-                            style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
-                        : a.notes
-                          ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>{a.notes}</div>
-                          : null
-                      }
-                    </div>
-                  );
-                })}
-              </>
-            )}
-            {(char.disadvantages || []).length > 0 && (
-              <>
-                <div className="card-title" style={{ marginTop: '.5rem' }}>Disadvantages</div>
-                {char.disadvantages.map((d, di) => {
-                  const dis = DISADVANTAGES.find(x => x.name === d.name);
-                  const updateDis = (patch) => {
-                    const updated = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, ...patch } : x);
-                    update('disadvantages', updated);
-                  };
-                  return (
-                    <div key={d.name + di} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {canEdit
-                          ? <input value={d.customName || d.name} onChange={e => updateDis({ customName: e.target.value })}
-                              onBlur={e => !e.target.value && updateDis({ customName: undefined })}
-                              style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
-                          : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.customName || d.name}</span>
-                        }
-                        <span style={{ color: 'var(--red)', fontSize: 11 }}>(+{d.value} CP)</span>
-                      </div>
-                      {dis?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{dis.desc}</div>}
-                      {canEdit
-                        ? <textarea value={d.notes || ''} onChange={e => updateDis({ notes: e.target.value })}
-                            placeholder="Personal notes on this disadvantage…"
-                            rows={1}
-                            style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
-                        : d.notes
-                          ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>{d.notes}</div>
-                          : null
-                      }
-                    </div>
-                  );
-                })}
-              </>
-            )}
+                    );
+                  })()}
+                  {canEdit && isGM
+                    ? <textarea value={a.notes || ''} onChange={e => updateAdv({ notes: e.target.value })}
+                        placeholder="Notes…" rows={1}
+                        style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
+                    : a.notes ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{a.notes}</div> : null
+                  }
+                </div>
+              );
+            })}
+
+            {/* Disadvantages */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '.5rem', marginBottom: '.25rem' }}>
+              <span className="card-title" style={{ marginBottom: 0 }}>Disadvantages</span>
+              {canEdit && isGM && (
+                <select style={{ fontSize: 10, marginLeft: 'auto', maxWidth: 160 }}
+                  value=""
+                  onChange={e => {
+                    const name = e.target.value;
+                    if (!name) return;
+                    const dis = DISADVANTAGES.find(d => d.name === name);
+                    const already = (char.disadvantages || []).some(d => d.name === name);
+                    if (!already) update('disadvantages', [...(char.disadvantages || []), { name, value: dis?.value || 0, notes: '' }]);
+                  }}>
+                  <option value="">+ Add disadvantage…</option>
+                  {DISADVANTAGES.map(d => <option key={d.name} value={d.name}>{d.name} (+{d.value}CP)</option>)}
+                </select>
+              )}
+            </div>
+            {(char.disadvantages || []).length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>None</div>}
+            {(char.disadvantages || []).map((d, di) => {
+              const dis = DISADVANTAGES.find(x => x.name === d.name);
+              const updateDis = (patch) => {
+                const updated = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, ...patch } : x);
+                update('disadvantages', updated);
+              };
+              return (
+                <div key={d.name + di} style={{ padding: '6px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {canEdit && isGM
+                      ? <input value={d.customName || d.name} onChange={e => updateDis({ customName: e.target.value })}
+                          onBlur={e => !e.target.value && updateDis({ customName: undefined })}
+                          style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
+                      : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.customName || d.name}</span>
+                    }
+                    <span style={{ color: 'var(--red)', fontSize: 11 }}>(+{d.value} CP)</span>
+                    {canEdit && isGM && (
+                      <button className="btn btn-sm btn-d" style={{ padding: '0 4px', fontSize: 11, lineHeight: 1.4 }}
+                        onClick={() => update('disadvantages', (char.disadvantages || []).filter((_, xi) => xi !== di))}>×</button>
+                    )}
+                  </div>
+                  {dis?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{dis.desc}</div>}
+                  {canEdit && isGM
+                    ? <textarea value={d.notes || ''} onChange={e => updateDis({ notes: e.target.value })}
+                        placeholder="Notes…" rows={1}
+                        style={{ width: '100%', boxSizing: 'border-box', marginTop: 3, fontSize: 11, resize: 'vertical', background: 'rgba(107,78,40,.06)', border: '1px solid rgba(107,78,40,.2)', borderRadius: 3, color: 'var(--text-muted)', fontFamily: 'inherit', padding: '2px 5px' }} />
+                    : d.notes ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{d.notes}</div> : null
+                  }
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
