@@ -16,6 +16,36 @@ export function getWoundRank(current, max, earth) {
   return 7; // Out
 }
 
+// Effective Stamina for natural wound-recovery purposes only (not used for wound RANK thresholds,
+// which are Earth-based). Quick Healer (+2) and Blessed by the Keeper of Years (+1) raise this;
+// stacks if a character somehow has both.
+export function getEffectiveStamina(char) {
+  const base = char?.stamina || 2;
+  const advNames = (char?.advantages || []).map(a => (typeof a === 'string' ? a : a?.name) || '');
+  const bonus = (advNames.includes('Quick Healer') ? 2 : 0) + (advNames.includes('Blessed by the Keeper of Years') ? 1 : 0);
+  return base + bonus;
+}
+
+// Full natural-healing calculation: Stamina (with advantage bonuses) + Insight Rank, halved if
+// Cursed by the Keeper of Years (natural healing rate halved).
+// Effective Water Ring for Move Action range purposes only. Lame overrides to 1 outright (more severe);
+// Small reduces by 1 rank (min 1). Lame takes priority if a character somehow has both.
+export function getEffectiveWaterRing(char) {
+  const base = char?.water || 2;
+  const disNames = (char?.disadvantages || []).map(d => (typeof d === 'string' ? d : d?.name) || '');
+  if (disNames.includes('Lame')) return 1; // most severe — overrides everything else
+  let val = base;
+  if (disNames.includes('Small')) val -= 1;
+  if (disNames.includes('Blind')) val -= 2;
+  return Math.max(1, val);
+}
+
+export function getNaturalHealAmount(char) {
+  const raw = getEffectiveStamina(char) + (char?.insight_rank || char?.school_rank || 1);
+  const disNames = (char?.disadvantages || []).map(d => (typeof d === 'string' ? d : d?.name) || '');
+  return disNames.includes('Cursed by the Keeper of Years') ? Math.max(1, Math.floor(raw / 2)) : raw;
+}
+
 export function woundColor(rank) { return WOUND_COLORS[rank] || WOUND_COLORS[0]; }
 export function woundLabel(rank) { return WOUND_RANKS[rank] || 'Healthy'; }
 
@@ -204,11 +234,12 @@ export function calcInsight(char) {
   return rings * 10 + skills + masteryInsight;
 }
 
-export function insightRankFor(insight) {
-  if (insight >= 225) return 5;
-  if (insight >= 200) return 4;
-  if (insight >= 175) return 3;
-  if (insight >= 150) return 2;
+export function insightRankFor(insight, char) {
+  const t = char ? getEffectiveRankThresholds(char) : RANK_THRESHOLDS;
+  if (insight >= t[4]) return 5;
+  if (insight >= t[3]) return 4;
+  if (insight >= t[2]) return 3;
+  if (insight >= t[1]) return 2;
   return 1;
 }
 
@@ -220,6 +251,15 @@ export function skillXpCost(currentRank)  { return (currentRank + 1) * 2; }
 export const RANK_THRESHOLDS = [0, 150, 175, 200, 225, Infinity];
 export function nextRankThreshold(schoolRank) {
   return RANK_THRESHOLDS[schoolRank] ?? Infinity;
+}
+// Curse of the Grey Crone: "XP needed per Insight Rank is reduced by 5" — cumulative per rank index,
+// confirmed against the disadvantage's own examples (145 for 2nd rank, 165 for 3rd — i.e. -5, -10, -15,
+// -20, not a flat -5 to every threshold). Returns a character-adjusted copy rather than mutating the
+// shared global array.
+export function getEffectiveRankThresholds(char) {
+  const hasGreyCrone = (char?.disadvantages || []).some(d => (d.name || d) === 'Curse of the Grey Crone' && d.trait);
+  if (!hasGreyCrone) return RANK_THRESHOLDS;
+  return RANK_THRESHOLDS.map((t, i) => t === Infinity ? t : Math.max(0, t - 5 * i));
 }
 
 // Trait name → which ring it affects and which trait is paired with it

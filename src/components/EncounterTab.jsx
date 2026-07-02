@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, getArmorBonus } from '../data/constants';
+import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, TRAITS, getArmorBonus } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore, triggerVoidSwirl, WeaponIcon, ArmorIcon, getWeaponIconType } from './UI';
-import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques } from '../lib/utils';
+import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques, getEffectiveWaterRing } from '../lib/utils';
 import DiceModal, { computeBonuses } from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
 import EncounterBuilder, { NPCPicker, NPC_BY_FACTION, generateGroup } from './EncounterBuilder';
@@ -531,7 +531,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, isMy
   const moveRangeTiers = React.useMemo(() => {
     if (!active || !isMyTurn) return { free: new Set(), move1: new Set(), move2: new Set(), maxRange: 0 };
     const pc = pcsMap[active.id];
-    const waterRing = pc?.water || active.water || 2;
+    const waterRing = pc ? getEffectiveWaterRing(pc) : (active.water || 2);
     const movesUsed = active._movesUsed || 0;
     // Use starting position for range, not current — player can end turn anywhere within total range
     const originX = active.startX !== undefined ? active.startX : active.gridX;
@@ -1143,8 +1143,13 @@ function ContestedRollInitiator({ combatants, pcsMap, onStart }) {
               </select>
               {side.id && (
                 <select value={side.skill} onChange={e => side.setSkill(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">— Select skill —</option>
-                  {skillsFor(side.id).map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="">— Select skill or trait —</option>
+                  <optgroup label="Skills">
+                    {skillsFor(side.id).map(s => <option key={s} value={s}>{s}</option>)}
+                  </optgroup>
+                  <optgroup label="Traits (e.g. Willpower vs. fear/manipulation effects)">
+                    {TRAITS.map(t => <option key={'trait_' + t} value={'Trait: ' + t}>Trait: {t}</option>)}
+                  </optgroup>
                 </select>
               )}
             </div>
@@ -1305,6 +1310,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const startContestedRoll = (charA, skillNameA, charB, skillNameB) => {
     const makeSide = (c, skillName) => {
       const full = pcsMap[c.id] || c;
+      const isTrait = skillName.startsWith('Trait: ');
+      if (isTrait) {
+        const traitName = skillName.replace('Trait: ', '');
+        return {
+          id: c.id, name: c.name, skillName, isTrait: true, traitKey: traitName.toLowerCase(),
+          rolled: null,
+        };
+      }
       const skill = (full.skills || []).find(s => s.name === skillName);
       const mapping = SKILL_TRAIT_MAP[skillName] || { trait: 'Agility', ring: 'Fire' };
       const traitKey = mapping.trait.toLowerCase();
@@ -1324,26 +1337,87 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     onLogEvent && onLogEvent('ti-scale', `Contested Roll: ${charA.name} (${skillNameA}) vs ${charB.name} (${skillNameB})`);
   };
 
+  // Disadvantages that grant the OPPONENT a bonus on a specific contested skill against the disadvantaged
+  // character. Generic computeBonuses() can never apply these — it only ever sees the rolling character,
+  // not who they're rolling against — but a Contested Roll knows both sides, so it's the one place these
+  // can actually be automated. Emphasis-level nuance (Bribery vs. general Temptation, etc.) isn't tracked
+  // at the roll level, so this applies whenever the matching skill is used in a contest against them.
+  const OPPONENT_BONUS_DISADVANTAGES = {
+    Temptation: [{ name: 'Greedy', rolled: 1, kept: 1 }, { name: 'Lechery', rolled: 1, kept: 1 }],
+    Sincerity: [{ name: 'Gullible', rolled: 1, kept: 1 }, { name: 'Failure of Sincerity', rolled: 1, kept: 0 }],
+    'Trait: Willpower': [{ name: 'Frail Mind', rolled: 2, kept: 0 }],
+  };
+  const getOpponentDisadvantageBonus = (targetChar, skillName) => {
+    const entries = OPPONENT_BONUS_DISADVANTAGES[skillName] || [];
+    const targetDisNames = (targetChar?.disadvantages || []).map(d => (typeof d === 'string' ? d : d?.name) || '');
+    return entries.filter(e => targetDisNames.includes(e.name))
+      .reduce((acc, e) => ({ rolled: acc.rolled + e.rolled, kept: acc.kept + e.kept, names: [...acc.names, e.name] }),
+        { rolled: 0, kept: 0, names: [] });
+  };
+
   const rollContestedSide = (side) => {
     const cr = encounter.contestedRoll;
     if (!cr) return;
     const sideData = cr[side];
     const full = pcsMap[sideData.id];
     if (!full || !onGlobalRoll) return;
-    const skill = (full.skills || []).find(s => s.name === sideData.skillName);
     const traitVal = full[sideData.traitKey] || 2;
+    const insightRank = full.insight_rank || full.school_rank || 1;
+    // Opponent-facing disadvantage bonus — e.g. rolling Temptation against someone with Greedy
+    const opposingSideKey = side === 'sideA' ? 'sideB' : 'sideA';
+    const opposingChar = pcsMap[cr[opposingSideKey]?.id];
+    const oppBonus = getOpponentDisadvantageBonus(opposingChar, sideData.skillName);
+
+    if (sideData.isTrait) {
+      // Trait-only contested roll (e.g. Willpower vs. fear/manipulation): rolled = Trait + Insight Rank,
+      // kept = Trait itself — matches the conversion doc's "Trait / Insight Rank (keeping Trait)" pattern.
+      onGlobalRoll({
+        skill: sideData.skillName,
+        ring: sideData.traitKey.charAt(0).toUpperCase() + sideData.traitKey.slice(1),
+        ringVal: traitVal,
+        baseRoll: traitVal + insightRank + oppBonus.rolled,
+        baseKeep: traitVal + oppBonus.kept,
+        tn: 5,
+        character: full,
+        currentVoid: full.current_void,
+        label: `Contested Roll — ${sideData.skillName}`,
+        bonusNotes: oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : undefined,
+        onComplete: (total) => {
+          setEncounter(e => {
+            const cur = e.contestedRoll;
+            if (!cur) return e;
+            const updated = { ...cur, [side]: { ...cur[side], rolled: total } };
+            if (updated.sideA.rolled !== null && updated.sideB.rolled !== null) {
+              updated.winner = updated.sideA.rolled === updated.sideB.rolled ? 'tie'
+                : (updated.sideA.rolled > updated.sideB.rolled ? 'sideA' : 'sideB');
+              if (onLogEvent) {
+                const margin = Math.abs(updated.sideA.rolled - updated.sideB.rolled);
+                onLogEvent('ti-scale', updated.winner === 'tie'
+                  ? `Contested Roll — tie! ${updated.sideA.rolled} vs ${updated.sideB.rolled}`
+                  : `Contested Roll — ${updated[updated.winner].name} wins (${updated.sideA.rolled} vs ${updated.sideB.rolled}, margin ${margin})`);
+              }
+            }
+            return { ...e, contestedRoll: updated };
+          });
+        },
+      });
+      return;
+    }
+
+    const skill = (full.skills || []).find(s => s.name === sideData.skillName);
     const ringVal = full[sideData.ringKey] || 2;
     onGlobalRoll({
       skill: sideData.skillName,
       skillRank: skill?.rank || 0,
       ring: sideData.ringKey.charAt(0).toUpperCase() + sideData.ringKey.slice(1),
       ringVal,
-      baseRoll: (skill?.rank || 0) + traitVal,
-      baseKeep: ringVal,
+      baseRoll: (skill?.rank || 0) + traitVal + oppBonus.rolled,
+      baseKeep: ringVal + oppBonus.kept,
       tn: 5, // contested rolls don't use a fixed TN — total is compared directly between sides
       character: full,
       currentVoid: full.current_void,
       label: `Contested Roll — ${sideData.skillName}`,
+      bonusNotes: oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : undefined,
       onComplete: (total) => {
         setEncounter(e => {
           const cur = e.contestedRoll;
@@ -1604,8 +1678,22 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       const earth = pc?.earth || c.earth || 2;
       const maxWounds = earth * 5 + earth * 2 * 6; // Healthy buffer + 6 ranks of Earth×2
       const curWounds = pc?.current_wounds ?? 0;
-      const newWoundPoints = Math.max(0, Math.min(maxWounds, curWounds + delta));
-      const newWoundRank = getWoundRank(newWoundPoints, maxWounds, earth);
+      let newWoundPoints = Math.max(0, Math.min(maxWounds, curWounds + delta));
+      let newWoundRank = getWoundRank(newWoundPoints, maxWounds, earth);
+
+      // Dark Fate (disadvantage) / Great Destiny (advantage): once per session, when this would kill you
+      // (Out rank), you're reduced to 1 Wound point instead. Both share identical text — same hook.
+      let lifesaverUsed = null;
+      if (newWoundRank >= 7 && pc) {
+        const lifesaverEntry = [...(pc.advantages || []).map(a => ({ ...a, _list: 'advantages' })), ...(pc.disadvantages || []).map(d => ({ ...d, _list: 'disadvantages' }))]
+          .find(e => (e.name === 'Great Destiny' || e.name === 'Dark Fate') && e.usedInSessionId !== session?.id);
+        if (lifesaverEntry) {
+          newWoundPoints = 1;
+          newWoundRank = getWoundRank(1, maxWounds, earth);
+          lifesaverUsed = lifesaverEntry;
+        }
+      }
+
       const rankChanged = newWoundRank !== c.wound;
 
       const extra = (delta > 0 && rankChanged)
@@ -1614,6 +1702,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, wound: newWoundRank } : x), ...extra });
       if (extra.statusBanner) setTimeout(() => upEnc({ statusBanner: null }), 4000);
       if (pc) onUpdateCharacter(id, { current_wounds: newWoundPoints });
+      if (lifesaverUsed) {
+        const listKey = lifesaverUsed._list;
+        const updatedList = (pc[listKey] || []).map(e => e.name === lifesaverUsed.name ? { ...e, usedInSessionId: session?.id } : e);
+        onUpdateCharacter(id, { [listKey]: updatedList });
+        if (onLogEvent) onLogEvent('ti-shield-star', `${c.name} would have died — ${lifesaverUsed.name} reduces them to 1 Wound instead (used this session)`);
+      }
     } else {
       // NPCs/monsters: no current_wounds field tracked on a character row, so adjust
       // the encounter-state wound rank directly by single steps (existing simpler model).
@@ -1845,27 +1939,56 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
 
   const handleNPCAttack = (npcId, targetId) => {
     const npc = combatants.find(c => c.id === npcId);
-    // Apply the same automatic technique bonuses a PC of this school/rank would get — but only the
-    // AUTO-APPLIED ones. voidOnly and other manually-confirmed bonuses are never included here since NPCs
-    // don't get Void-spend choices; computeBonuses already routes those into a separate conditional bucket
-    // that's simply never read for NPC attacks, so they're excluded for free.
+    const target = combatants.find(c => c.id === targetId);
+    const targetPC = pcsMap[targetId];
     const npcChar = {
       techniques: npc?.techniques || {}, school_rank: npc?.rank || 1, advantages: [],
       is_npc: true, faction: npc?.faction, current_stance: npc?.stance,
       air: npc?.air, earth: npc?.earth, fire: npc?.fire, water: npc?.water,
     };
-    // isDamage:true alongside isAttack:true — NPCs use one combined roll for both attack and damage (no
-    // separate damage phase like PCs have), so DAMAGE-tagged bonuses (e.g. Jinn's "Damage bonus = highest
-    // Ring") need to fold into this same single roll, not just ATTACK-tagged ones.
-    const bonuses = computeBonuses(npcChar, 'ATTACK', true, true, npc?.stance);
-    // Full Attack stance bonus — same +2k1 every PC gets in that stance, applied here for parity
     const stanceRolled = npc?.stance === 'Full Attack' ? 2 : 0;
     const stanceKept = npc?.stance === 'Full Attack' ? 1 : 0;
-    const totalRolled = 3 + bonuses.extraRolled + stanceRolled;
-    const totalKept = Math.min(2 + bonuses.extraKept + stanceKept, totalRolled);
+
+    // ── To-hit roll — this was previously MISSING ENTIRELY: NPC attacks always connected regardless of
+    // the target's Armor TN. Pool approximation: Agility + NPC Rank (stand-in for weapon skill rank, since
+    // lightweight NPC combatants don't track individual skill ranks the way full characters do), keeping
+    // Fire — matches the Agility/Fire pairing shared by every melee weapon skill in SKILL_TRAIT_MAP.
+    const atkBonuses = computeBonuses(npcChar, 'ATTACK', true, false, npc?.stance);
+    const atkRolled = Math.max(1, (npc?.agility || 2) + (npc?.rank || 1) + atkBonuses.extraRolled + stanceRolled);
+    const atkKept = Math.max(1, Math.min((npc?.fire || 2) + atkBonuses.extraKept + stanceKept, atkRolled));
+    const atkDice = rollN(atkRolled).sort((a, b) => b - a);
+    const atkTotal = atkDice.slice(0, atkKept).reduce((s, d) => s + d, 0) + (atkBonuses.extraFlat || 0);
+
+    // Target's real Armor TN — duplicates the formula CombatantCard computes for display (see BACKLOG.md's
+    // "Armor TN formula duplicated in 8+ places" note); reusing it exactly here rather than approximating.
+    const tArmorBonus = getArmorBonus(targetPC?.equipment) || target?.armorBonus || 0;
+    const tVoidTnBoost = target?.voidArmor ? 10 : 0;
+    const tFullDefBonus = target?.stance === 'Full Defense' ? Math.ceil((target?.fullDefenseBonus ?? 0) / 2) : 0;
+    const tDefenseStanceBonus = target?.stance === 'Defense' ? ((target?.air || 2) + (target?.defenseSkillRank || 0)) : 0;
+    const tFullAttackPenalty = target?.stance === 'Full Attack' ? -10 : 0;
+    const targetArmorTN = target?.stance === 'Full Defense'
+      ? 5 + (target?.reflexes || 2) * 5 + tArmorBonus + tFullDefBonus + tVoidTnBoost
+      : 5 + (target?.reflexes || 2) * 5 + tArmorBonus + tDefenseStanceBonus + tFullAttackPenalty + tVoidTnBoost;
+
+    const hit = atkTotal >= targetArmorTN;
+    if (onLogEvent) onLogEvent(hit ? 'ti-sword' : 'ti-shield-x',
+      `${npc?.name} attacks ${target?.name}: ${atkTotal} vs TN ${targetArmorTN} — ${hit ? 'HIT' : 'MISS'}`);
+
+    if (!hit) {
+      setTargeting(null);
+      setNpcTargets(p => ({ ...p, [npcId]: null }));
+      return;
+    }
+
+    // ── Damage roll — now uses the NPC's actual stored weapon DR (e.g. "5k4" for a heavy weapon) instead
+    // of a hardcoded 3k2 that ignored what weapon they actually had.
+    const [drRolled, drKept] = (npc?.dr || '3k2').match(/(\d+)k(\d+)/i)?.slice(1).map(Number) || [3, 2];
+    const dmgBonuses = computeBonuses(npcChar, 'ATTACK', false, true, npc?.stance);
+    const totalRolled = Math.max(1, drRolled + dmgBonuses.extraRolled);
+    const totalKept = Math.max(1, Math.min(drKept + dmgBonuses.extraKept, totalRolled));
     const dice = rollN(totalRolled).sort((a, b) => b - a);
     const kept = dice.slice(0, totalKept);
-    const dmg = kept.reduce((s, d) => s + d, 0) + (bonuses.extraFlat || 0);
+    const dmg = kept.reduce((s, d) => s + d, 0) + (dmgBonuses.extraFlat || 0);
     playDamage();
     upEnc({
       combatants: combatants.map(c => c.id === targetId ? { ...c, wound: Math.min(7, c.wound + Math.ceil(dmg / 5)) } : c),
@@ -2369,21 +2492,30 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         const ref = myPC.reflexes || 2;
         const ir = myPC.insight_rank || myPC.school_rank || 1;
         const voidLeft = myPC.current_void ?? myPC.void ?? 2;
+        // Battle Skill Mastery Rank 5: add Battle Skill Rank to Initiative Score during Skirmishes (confirmed L5R 4E core rule)
+        const battleSkill = (myPC.skills || []).find(s => s.name === 'Battle');
+        const battleInitBonus = (battleSkill?.rank || 0) >= 5 ? battleSkill.rank : 0;
+        // Leadership advantage: someone may have granted this character +School Rank flat and +1k1 to
+        // this Initiative roll (once per round, consumed on use)
+        const leadershipGrant = encounter.leadershipGrant?.targetId === myCharId ? encounter.leadershipGrant : null;
 
         const rollInit = (voidSpend = false) => {
           const bonus = voidSpend ? 10 : 0;
-          const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
+          const leadershipRolled = leadershipGrant ? ref + ir + 1 : ref + ir; // +1k1: one extra die rolled
+          const leadershipKeep = leadershipGrant ? ref + 1 : ref; // ...and kept
+          const dice = Array.from({length: leadershipRolled}, () => Math.floor(Math.random() * 10) + 1);
           const sorted = [...dice].sort((a,b) => b - a);
-          const base = sorted.slice(0, ref).reduce((s,d) => s + d, 0);
-          const total = base + bonus;
+          const base = sorted.slice(0, leadershipKeep).reduce((s,d) => s + d, 0);
+          const leadershipFlat = leadershipGrant ? leadershipGrant.schoolRank : 0;
+          const total = base + bonus + battleInitBonus + leadershipFlat;
           const newCombatants = combatants
             .map(c => c.id === myCharId ? { ...c, init: total, _initRolled: true } : c)
             .sort((a, b) => b.init - a.init);
           // Only reset activeTurn if no one has acted yet (all _initRolled false or this is the first)
           const anyoneActed = combatants.some(c => c._actionsLeft?.full < 1 || c._actionsLeft?.simple < 2);
-          upEnc({ combatants: newCombatants, ...(anyoneActed ? {} : { activeTurn: 0 }) });
+          upEnc({ combatants: newCombatants, ...(anyoneActed ? {} : { activeTurn: 0 }), ...(leadershipGrant ? { leadershipGrant: null } : {}) });
           if (voidSpend) onUpdateCharacter(myCharId, { current_void: Math.max(0, voidLeft - 1) });
-          onLogEvent && onLogEvent('ti-dice', `${myCombatant.name} Initiative: ${total}${voidSpend ? ' (Void +10)' : ''} (${ref + ir}k${ref})`);
+          onLogEvent && onLogEvent('ti-dice', `${myCombatant.name} Initiative: ${total}${voidSpend ? ' (Void +10)' : ''}${battleInitBonus > 0 ? ` (+${battleInitBonus} Battle Mastery)` : ''}${leadershipGrant ? ` (+${leadershipGrant.schoolRank}+1k1 Leadership from ${leadershipGrant.granterName})` : ''} (${leadershipRolled}k${leadershipKeep})`);
         };
 
         return (
@@ -2392,11 +2524,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
               🎲 Roll Initiative — {myCombatant.name}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
-              Pool: {ref + ir}k{ref} (Reflexes {ref} + Insight Rank {ir})
+              Pool: {ref + ir}k{ref} (Reflexes {ref} + Insight Rank {ir}){battleInitBonus > 0 && <span style={{ color: 'var(--gold-dim)' }}> +{battleInitBonus} Battle Mastery (Rank 5)</span>}
+              {leadershipGrant && <span style={{ color: 'var(--gold-dim)' }}> +{leadershipGrant.schoolRank}+1k1 Leadership (from {leadershipGrant.granterName})</span>}
             </div>
             <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
               <button className="btn btn-p" onClick={() => rollInit(false)}>
-                <i className="ti ti-dice" style={{ marginRight: 4 }} />Roll {ref + ir}k{ref}
+                <i className="ti ti-dice" style={{ marginRight: 4 }} />Roll {leadershipGrant ? `${ref + ir + 1}k${ref + 1}` : `${ref + ir}k${ref}`}
               </button>
               {voidLeft > 0 && (
                 <button className="btn" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }} onClick={() => rollInit(true)}
@@ -2407,6 +2540,42 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             </div>
           </div>
         );
+      })()}
+
+      {/* Leadership advantage: any combatant with it may grant +School Rank flat and +1k1 to one ally's
+          Initiative roll, once per round, before that ally rolls */}
+      {(() => {
+        if (encounter.leadershipGrant) return null; // already granted this round
+        const rollingCombatants = combatants.filter(c => !c._initRolled);
+        if (rollingCombatants.length < 2) return null; // no one left to grant to
+        const leaders = rollingCombatants.filter(c => {
+          const full = pcsMap[c.id];
+          return (full?.advantages || []).some(a => (a.name || a) === 'Leadership');
+        });
+        if (leaders.length === 0) return null;
+        return leaders.map(leader => {
+          const full = pcsMap[leader.id];
+          const targets = rollingCombatants.filter(c => c.id !== leader.id);
+          const canGrant = myCharId === leader.id || (isGM && !isPCView);
+          return (
+            <div key={leader.id} style={{ background: 'rgba(200,150,42,.06)', border: '1px solid var(--gold-dim)', borderRadius: 8, padding: '.5rem .75rem', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--gold-dim)' }}>
+                <i className="ti ti-flag" style={{ marginRight: 4 }} />{leader.name}'s Leadership: grant +{full?.school_rank || 1}k1 Initiative to an ally
+              </span>
+              {canGrant ? (
+                <select style={{ fontSize: 12 }} onChange={e => {
+                  if (!e.target.value) return;
+                  upEnc({ leadershipGrant: { targetId: e.target.value, schoolRank: full?.school_rank || 1, granterName: leader.name } });
+                }}>
+                  <option value="">— choose ally —</option>
+                  {targets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              ) : (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>waiting for {leader.name} to choose</span>
+              )}
+            </div>
+          );
+        });
       })()}
 
       {/* ── Waiting on initiative — overlay shown to GM and to players who've already rolled ── */}

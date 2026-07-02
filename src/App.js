@@ -12,15 +12,16 @@ import QuestTab from './components/QuestTab';
 import PartyTab from './components/PartyTab';
 import ShopTab from './components/ShopTab';
 import LogTab from './components/LogTab';
+import FeedbackTab from './components/FeedbackTab';
 import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
 import DuelPane from './components/DuelPane';
 import { BOOK_TOC, DRIVE_FOLDER_URL, GAME_ID, POISON_EMPHASES, SAHIR_DISCIPLINES, COKALOI_CATEGORIES } from './data/constants';
-import { getWoundRank } from './lib/utils';
+import { getWoundRank, getNaturalHealAmount } from './lib/utils';
 import {
-  useCharacters, useActiveSession, useNPCs, useQuests,
+  useCharacters, useActiveSession, useNPCs, useQuests, useFeedback,
   useMapPins, useFactionReputation, useEncounterLog,
   useGroupInventory, useSessionLog, usePresence,
 } from './hooks/useSupabase';
@@ -267,6 +268,7 @@ export default function App() {
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
   const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
+  const { feedback, addFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
   const { reps, updateRep, updateRepNotes } = useFactionReputation();
@@ -469,7 +471,7 @@ export default function App() {
   const [tab, setTab] = useState(() => {
     try {
       const saved = localStorage.getItem('sandy_tab');
-      return saved && ['character','encounter','map','npc','quest','party','log','shop','settings'].includes(saved) ? saved : 'character';
+      return saved && ['character','encounter','map','npc','quest','party','log','shop','feedback','settings'].includes(saved) ? saved : 'character';
     } catch { return 'character'; }
   });
   const [isPCView, setIsPCView] = useState(false);
@@ -483,14 +485,23 @@ export default function App() {
   const computeWoundPenalty = (char) => {
     if (!char) return 0;
     const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
-    const woundRank = getWoundRank(char.current_wounds, char.max_wounds, char.earth);
+    // Bad Health disadvantage: Earth treated one rank lower for Wound Rank thresholds
+    const hasBadHealth = (char.disadvantages || []).some(d => (d.name || d) === 'Bad Health');
+    const effectiveEarth = Math.max(1, (char.earth || 2) - (hasBadHealth ? 1 : 0));
+    let woundRank = getWoundRank(char.current_wounds, char.max_wounds, effectiveEarth);
+    // Permanent Wound disadvantage: first Wound Rank is always considered full — floor at rank 1 once any wound is taken
+    const hasPermanentWound = (char.disadvantages || []).some(d => (d.name || d) === 'Permanent Wound');
+    if (hasPermanentWound && (char.current_wounds || 0) > 0) woundRank = Math.max(woundRank, 1);
     const rawPenalty = WOUND_TN_PENALTY[woundRank] || 0;
     if (rawPenalty === 0) return 0;
     // Reductions: Strength of the Earth advantage (-3), City Guard R1 Trained For War (-school_rank)
     const hasSotE = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
     const hasCityGuard = Object.values(char.techniques || {}).some(t => t === 'Trained For War');
     const reduction = (hasSotE ? 3 : 0) + (hasCityGuard ? (char.school_rank || 1) : 0);
-    return Math.max(0, rawPenalty - reduction);
+    // Increase: Low Pain Threshold disadvantage (+5 to wound-rank TN penalty)
+    const hasLowPainThreshold = (char.disadvantages || []).some(d => (d.name || d) === 'Low Pain Threshold');
+    const increase = hasLowPainThreshold ? 5 : 0;
+    return Math.max(0, rawPenalty - reduction + increase);
   };
 
   // Wrapper that automatically injects woundPenalty for the rolling character
@@ -801,8 +812,8 @@ export default function App() {
       if (rank >= 7) return; // Out — no passive healing
       let heal = 1; // houserule: +1 per time unit
       if (isDawn) {
-        // Natural morning recovery: Stamina + Insight Rank
-        heal += (char.stamina || 2) + (char.insight_rank || char.school_rank || 1);
+        // Natural morning recovery: Stamina (+Quick Healer/Keeper of Years bonuses, halved if Cursed by Keeper of Years) + Insight Rank
+        heal += getNaturalHealAmount(char);
       }
       const newWounds = Math.max(0, (char.current_wounds || 0) - heal);
       if (newWounds !== char.current_wounds) {
@@ -860,8 +871,8 @@ export default function App() {
     }
   };
 
-  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', ...(gmView ? ['settings'] : [])];
-  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', settings: 'Settings' };
+  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', 'feedback', ...(gmView ? ['settings'] : [])];
+  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings' };
   const handleTabChange = (id) => {
     setTab(id);
     try { localStorage.setItem('sandy_tab', id); } catch {}
@@ -882,7 +893,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v131</span>
+        <span className="hdr-game">The Tool — v139</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1028,8 +1039,8 @@ export default function App() {
             onClick={() => {
               const pcs = safeChars.filter(c => !c.is_npc);
               pcs.forEach(char => {
-                // Heal exactly Stamina + Insight Rank wounds (natural full rest)
-                const heal = (char.stamina || 2) + (char.insight_rank || char.school_rank || 1);
+                // Heal exactly Stamina (+Quick Healer/Keeper of Years bonuses, halved if Cursed by Keeper of Years) + Insight Rank wounds (natural full rest)
+                const heal = getNaturalHealAmount(char);
                 const newWounds = Math.max(0, (char.current_wounds || 0) - heal);
                 if (newWounds !== (char.current_wounds || 0)) handleUpdateChar(char.id, { current_wounds: newWounds });
                 // Restore Void to max
@@ -1045,6 +1056,17 @@ export default function App() {
             ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => {
                 sessionTransitionRef.current = true;
                 startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1)
+                  .then(() => {
+                    // Luck and Unlucky pips recharge fully at the start of each new session
+                    safeChars.filter(c => !c.is_npc).forEach(char => {
+                      const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+                      const unluckyDis = (char.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
+                      const patch = {};
+                      if (luckAdv) patch.advantages = (char.advantages || []).map(a => (a.name || '').startsWith('Luck') ? { ...a, current_uses: a.rank || 1 } : a);
+                      if (unluckyDis) patch.disadvantages = (char.disadvantages || []).map(d => (d.name || d) === 'Unlucky' ? { ...d, current_uses: d.rank || 1 } : d);
+                      if (Object.keys(patch).length > 0) handleUpdateChar(char.id, patch);
+                    });
+                  })
                   .finally(() => { setTimeout(() => { sessionTransitionRef.current = false; }, 3000); });
               }}>
                 <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session
@@ -1207,6 +1229,14 @@ export default function App() {
             eventLog={fullEventLog}
             onUpdateSessionRecap={updateSessionRecap}
             isPlayer={isPlayer}
+          />
+        )}
+        {tab === 'feedback' && (
+          <FeedbackTab
+            feedback={feedback}
+            onAddFeedback={addFeedback}
+            username={isGM ? 'GM' : (playerUsername || 'Player')}
+            isGM={isGM}
           />
         )}
         {tab === 'shop' && (
@@ -1478,6 +1508,21 @@ export default function App() {
             handleUpdateChar(char.id, { advantages: updatedAdvs });
             push('ti-clover', `${char.name} used Luck (${newUses} uses remaining)`);
           }}
+          onUnluckyUsed={() => {
+            // Decrement Unlucky uses on character when the GM forces an Unlucky reroll
+            const char = globalModal?.character;
+            if (!char) return;
+            const unluckyDis = (char.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
+            if (!unluckyDis) return;
+            const unluckyRank = unluckyDis.rank || 1;
+            const usesLeft = unluckyDis.current_uses !== undefined ? unluckyDis.current_uses : unluckyRank;
+            const newUses = Math.max(0, usesLeft - 1);
+            const updatedDis = (char.disadvantages || []).map(d =>
+              (d.name || d) === 'Unlucky' ? { ...d, current_uses: newUses } : d
+            );
+            handleUpdateChar(char.id, { disadvantages: updatedDis });
+            push('ti-skull', `${char.name} was forced to reroll by Unlucky (${newUses} uses remaining)`);
+          }}
           onResult={(resultObj, damage) => {
             // DiceModal passes full result object {total, success, margin, tn, raises, flatMod, usedVoid, voidSpentCount}
             const result = typeof resultObj === 'object' ? resultObj.total : resultObj;
@@ -1570,9 +1615,10 @@ export default function App() {
                 const seeThroughTN = result; // roll result IS the TN to see through
                 const char = safeChars.find(c => c.id === od.characterId);
                 if (char) {
-                  const conditions = [...(char.xp_log || []), { note: `${conditionName} — TN ${seeThroughTN} to see through`, ts: new Date().toISOString(), type: 'condition' }];
+                  const posingAs = !od.stealth && od.actingTempName ? ` as "${od.actingTempName}"` : '';
+                  const conditions = [...(char.xp_log || []), { note: `${conditionName}${posingAs} — TN ${seeThroughTN} to see through`, ts: new Date().toISOString(), type: 'condition' }];
                   handleUpdateChar(od.characterId, { xp_log: conditions });
-                  push('ti-mask', `${char.name} is ${conditionName} (TN ${seeThroughTN} to see through)`);
+                  push('ti-mask', `${char.name} is ${conditionName}${posingAs} (TN ${seeThroughTN} to see through)`);
                 }
               }
               // Meditation — recover Void Points

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, GAME_ID, POISONS_LIST } from '../data/constants';
+import { WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, GAME_ID, POISONS_LIST, SHIELDS } from '../data/constants';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
 import { RulebookEntryButton } from './UI';
@@ -20,6 +20,12 @@ const wItem = (name, quality='standard', rarity='common') => {
 };
 // Helper to make a shop item from gear
 const gItem = (name, price='2 copper', quality='standard', rarity='common') => ({ name, price, dr: '', quality, visible: true, is_magic: false, rarity });
+// Helper to make a shop item from a shield — price/stats pulled from SHIELDS data in constants.js
+const sItem = (name, quality='standard', rarity='common') => {
+  const s = SHIELDS.find(x => x.name === name);
+  const priceStr = s?.price?.endsWith('c') ? s.price.replace('c', ' copper') : (s?.price || '10 copper');
+  return { name, price: priceStr, dr: '', quality, visible: true, is_magic: false, rarity };
+};
 
 // Rarity → inclusion chance when randomizing a shop's stock
 const RARITY_CHANCE = { always: 1, common: 0.85, uncommon: 0.5, rare: 0.2 };
@@ -35,10 +41,14 @@ const BUNDLE_PRESETS = {
     // Ammo and weapon-shop staples — always stocked, every weapons dealer needs arrows
     gItem('Quiver (60 arrows)', '2 copper', 'standard', 'always'),
     gItem('Whetstone', '1 copper', 'standard', 'common'),
+    // Shields — a weapons dealer plausibly stocks them alongside blades and bows
+    sItem('Large Wooden Shield', 'standard', 'common'), sItem('Scutum', 'standard', 'uncommon'), sItem('Parma', 'standard', 'common'),
   ]},
   'Armorer': { icon: 'ti-shield', tier: 'standard', items: [
     gItem('Partial Armor (+3 TN)', '10 copper', 'standard', 'always'), gItem('Light Armor (+5 TN)', '20 copper', 'standard', 'always'),
     gItem('Heavy Armor (+10 TN)', '40 copper', 'standard', 'common'), gItem('Riding Armor (+8 TN)', '30 copper', 'standard', 'uncommon'),
+    // Shields — an armorer is the other natural place to stock them, guaranteed here
+    sItem('Large Wooden Shield', 'standard', 'always'), sItem('Scutum', 'standard', 'common'), sItem('Parma', 'standard', 'always'),
   ]},
   'Apothecary': { icon: 'ti-flask', tier: 'standard', items: [
     gItem('Medicine Kit', '5 copper', 'standard', 'always'), gItem('Apothecary Kit', '8 copper', 'standard', 'common'),
@@ -174,7 +184,7 @@ const CATALOGUE = [
       { name: 'Light Armor (+5 TN)',    price: '20 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Heavy Armor (+10 TN)',   price: '40 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Riding Armor (+8 TN)',   price: '30 copper', dr: '', defaultQuality: 'standard' },
-      { name: 'Shield',                 price: '5 copper',  dr: '', defaultQuality: 'standard' },
+      ...SHIELDS.map(s => ({ name: s.name, price: s.price?.endsWith('c') ? s.price.replace('c', ' copper') : (s.price || '10 copper'), dr: '', defaultQuality: 'standard' })),
     ],
   },
   {
@@ -489,6 +499,21 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       if (char) onUpdateCharacter(purchaseTarget, { equipment: [...(char.equipment || []), ...itemEntries] });
       if (onPurchase) onPurchase({ itemName: itemNames, price: priceStr, copperAmt: totalCost, destination: purchaseTarget, destName });
     }
+
+    // Fine, Masterwork, and Magic items are one-of — once bought, they're gone from this shop's stock.
+    // Standard/Poor items restock indefinitely (untouched). Match by name+quality, same identity check
+    // addToCart already uses to de-dupe, since catalog items don't carry a separate stable id.
+    const oneOfKeys = new Set(
+      cart.items
+        .filter(ci => ci.is_magic || ci.quality === 'fine' || ci.quality === 'masterwork')
+        .map(ci => `${ci.name}::${ci.quality || 'standard'}`)
+    );
+    if (oneOfKeys.size > 0) {
+      const remainingItems = (shop.items || []).filter(si => !oneOfKeys.has(`${si.name}::${si.quality || 'standard'}`));
+      const updatedShops = shops.map(s => s.id === shop.id ? { ...s, items: remainingItems } : s);
+      updateShops(updatedShops);
+    }
+
     setCart(shop.id, { items: [] });
     setAppraisalResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
     setHaggleResults(prev => { const n = { ...prev }; delete n[shop.id]; return n; });
@@ -700,7 +725,8 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     persistShops(updated);
   };
 
-  const handlePurchase = (item, useBaseCost = false) => {
+  const handlePurchase = (item, useBaseCost = false, shopOverride = null) => {
+    const shop = shopOverride || activeShop;
     const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
     const displayName = item.is_magic ? item.name : (item.quality && item.quality !== 'standard' ? `${qTier.label} ${item.name}` : item.name);
     // If haggling succeeded (useBaseCost), use base price; otherwise use marked-up price
@@ -737,6 +763,15 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       if (onPurchase) {
         onPurchase({ itemName: displayName, price, copperAmt, destination: purchaseTarget, destName });
       }
+    }
+
+    // Fine, Masterwork, and Magic items are one-of — once bought, they're gone from this shop's stock.
+    if (shop && (item.is_magic || item.quality === 'fine' || item.quality === 'masterwork')) {
+      const key = `${item.name}::${item.quality || 'standard'}`;
+      const remainingItems = (shop.items || []).filter(si => `${si.name}::${si.quality || 'standard'}` !== key);
+      const updatedShops = shops.map(s => s.id === shop.id ? { ...s, items: remainingItems } : s);
+      setShops(updatedShops);
+      persistShops(updatedShops);
     }
   };
 
@@ -819,6 +854,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
               <div key={shop.id} style={{ marginBottom: '2rem' }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <i className="ti ti-store" style={{ fontSize: 14 }} />{shop.name}
+                  {shopkeeper && (
+                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>
+                      — Shopkeeper: <span style={{ color: 'var(--text-secondary)' }}>{shopkeeper.name}</span>
+                    </span>
+                  )}
                   {apr?.revealQuality && (
                     <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: '.04em', color: 'var(--green)', textTransform: 'uppercase' }}>
                       APPRAISED — QUALITY REVEALED{apr?.revealTrueCost ? ' — MARKET PRICE REVEALED' : ''}
@@ -873,7 +913,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                         {/* Quick buy */}
                         <button className="btn btn-sm" style={{ fontSize: 11 }}
                           title="Buy now at listed price — instant, no cart needed"
-                          onClick={() => handlePurchase(item)}>
+                          onClick={() => handlePurchase(item, false, shop)}>
                           Buy
                         </button>
                         {/* Add to cart */}
@@ -887,6 +927,54 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Appraise — shop-level action, available regardless of cart contents (you assess a shop's
+                    wares/prices before deciding what to buy, not after). Haggle is cart-level — it lives in
+                    the cart panel below since you're haggling down the price of what's actually in your
+                    cart. Both require a downtime Granted Action to attempt. */}
+                <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Appraise — freely available during downtime, not during encounters, costs 1 Granted Action */}
+                  {onRoll && myChar && !encActive && (
+                    <button className="btn btn-sm" disabled={myGrantedActions < 1}
+                      style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)' }}
+                      title={myGrantedActions < 1
+                        ? 'No Granted Actions available — ask your GM for one'
+                        : `Appraise — Commerce/Intelligence, TN ${shop.appraise_tn || 15}. Costs 1 Granted Action. Success reveals quality. 1st raise reveals true prices, extra raises bank +1k0 for Haggling.`}
+                      onClick={() => {
+                        if (myGrantedActions < 1) return;
+                        const commerceSkillForAppraise = (myChar.skills || []).find(s => s.name === 'Commerce');
+                        const tn = shop.appraise_tn || 15;
+                        onSpendGrantedAction && onSpendGrantedAction();
+                        onRoll({
+                          skill: 'Commerce (Appraise)', tn, character: myChar,
+                          baseRoll: (commerceSkillForAppraise?.rank || 0) + (myChar.intelligence || 2),
+                          baseKeep: myChar.fire || 2,
+                          label: `Appraise ${shop.name}`,
+                          raiseExplainer: [
+                            '✓ Success — reveals quality of all items in this shop.',
+                            '★ 1st raise — also reveals true market prices (what items are actually worth).',
+                            '★ Each extra raise — banks +1k0 on your next Commerce roll here (for Haggling).',
+                          ].join('\n'),
+                          onComplete: (total, raises) => {
+                            const r = raises || 0;
+                            if (total >= tn) {
+                              const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
+                              setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
+                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — true prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
+                            } else {
+                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
+                            }
+                          },
+                        });
+                      }}>
+                      <i className="ti ti-zoom-money" style={{ marginRight: 3 }} />
+                      {apr ? `✓ Appraised${apr.bonusRolls > 0 ? ` (+${apr.bonusRolls}k0 banked)` : ''}` : 'Appraise (1 Granted Action)'}
+                    </button>
+                  )}
+                  {onRoll && myChar && !encActive && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{myGrantedActions} Granted Action{myGrantedActions !== 1 ? 's' : ''} available</span>
+                  )}
                 </div>
 
                 {/* Cart panel */}
@@ -942,65 +1030,32 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             −10% off cart
                           </button>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
-                            title="Pay full marked-up price instead — gain Integrity for paying without complaint"
+                            title="Decline this raise's discount and pay it graciously — gain Integrity. The markup you already talked down stays removed."
                             onClick={() => {
                               setHaggleResults(prev => ({ ...prev, [shop.id]: {
                                 ...hr, raisesAvailable: pendingRaises - 1,
                                 raisesSpent: { ...hr.raisesSpent, iCanPay: (hr.raisesSpent?.iCanPay || 0) + 1 },
-                                success: false,
                               } }));
-                              if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} chose to pay full price at ${shop.name} — integrity gain pending checkout`);
+                              if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} declined a further discount at ${shop.name} — integrity gain pending checkout`);
                             }}>
-                            I can pay — +Integrity (pays full marked-up price)
+                            I can pay — +Integrity (skip this raise's discount)
                           </button>
                         </div>
                       </div>
                     )}
 
                     {/* Cart actions */}
-                    <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap' }}>
-                      {/* Appraise — freely available during downtime, not during encounters */}
-                      {onRoll && myChar && !encActive && (
-                        <button className="btn btn-sm"
-                          style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)' }}
-                          title={`Appraise — TN ${shop.appraise_tn || 15}. Success reveals quality. 1st raise reveals true prices, extra raises bank +1k0 for Haggling.`}
-                          onClick={() => {
-                            const appraisalSkill = (myChar.skills || []).find(s => s.name === 'Appraisal');
-                            const tn = shop.appraise_tn || 15;
-                            onRoll({
-                              skill: 'Appraisal', tn, character: myChar,
-                              baseRoll: (appraisalSkill?.rank || 0) + (myChar.perception || myChar.awareness || 2),
-                              baseKeep: myChar.water || myChar.air || 2,
-                              label: `Appraise ${shop.name}`,
-                              raiseExplainer: [
-                                '✓ Success — reveals quality of all items in this shop.',
-                                '★ 1st raise — also reveals true market prices (what items are actually worth).',
-                                '★ Each extra raise — banks +1k0 on your next Commerce roll here (for Haggling).',
-                              ].join('\n'),
-                              onComplete: (total, raises) => {
-                                const r = raises || 0;
-                                if (total >= tn) {
-                                  const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
-                                  setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
-                                  // No action spending for shop rolls — appraise/haggle are downtime only
-                                  if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — true prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
-                                } else {
-                                  // No action spending for shop rolls — appraise/haggle are downtime only
-                                  if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
-                                }
-                              },
-                            });
-                          }}>
-                          <i className="ti ti-zoom-money" style={{ marginRight: 3 }} />
-                          {apr ? `✓ Appraised${apr.bonusRolls > 0 ? ` (+${apr.bonusRolls}k0 banked)` : ''}` : 'Appraise (action)'}
-                        </button>
-                      )}
-                      {/* Haggle — freely available during downtime, not during encounters */}
+                    <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {/* Haggle — cart-level: negotiates down the price of what's actually in the cart.
+                          Freely available during downtime, not during encounters, costs 1 Granted Action. */}
                       {onRoll && myChar && shopkeeper && !encActive && (
-                        <button className="btn btn-sm"
+                        <button className="btn btn-sm" disabled={myGrantedActions < 1}
                           style={{ borderColor: '#a060e0', color: '#c080f0' }}
-                          title={`Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success removes markup; each raise = 10% off or Integrity.`}
+                          title={myGrantedActions < 1
+                            ? 'No Granted Actions available — ask your GM for one'
+                            : `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness. Costs 1 Granted Action.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success removes markup; each raise = 10% off or Integrity.`}
                           onClick={() => {
+                            if (myGrantedActions < 1) return;
                             const commerceSkill = (myChar.skills || []).find(s => s.name === 'Commerce');
                             const bonusRoll = apr?.bonusRolls || 0;
                             const skShopkeeperCommerce = (shopkeeper.skills || []).find(s => s.name === 'Commerce');
@@ -1008,6 +1063,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             const skKeep = shopkeeper.air || 2;
                             // Roll the shopkeeper's side now — their result becomes this roll's effective TN
                             const shopkeeperResult = rollExplodingKeep(skRoll, skKeep);
+                            onSpendGrantedAction && onSpendGrantedAction();
                             onRoll({
                               skill: `Commerce (vs ${shopkeeper.name})`,
                               tn: shopkeeperResult,
@@ -1020,7 +1076,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                                 '✓ Success — cart switches to true base prices (removes markup).',
                                 '★ Each raise (after rolling) — choose one per raise:',
                                 '   • 10% off the cart total (stacks, capped at 70% off)',
-                                '   • "I can pay" — pay full marked-up price instead, gain Integrity for honesty.',
+                                '   • "I can pay" — skip this raise\'s discount and gain Integrity for honesty.',
                               ].join('\n'),
                               onComplete: (total, raises) => {
                                 const r = raises || 0;
@@ -1028,18 +1084,17 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                                 setHaggleResults(prev => ({ ...prev, [shop.id]: { success, raisesAvailable: r, raisesSpent: { discount10: 0, iCanPay: 0 } } }));
                                 // Consume banked appraise bonus rolls — they only apply to the next Commerce roll
                                 if (apr?.bonusRolls > 0) setAppraisalResults(prev => ({ ...prev, [shop.id]: { ...apr, bonusRolls: 0 } }));
-                                // No action spending for shop rolls — appraise/haggle are downtime only
                                 if (onLogEvent) onLogEvent('ti-coins', success
                                   ? `${myChar.name} won the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult})${r > 0 ? ` with ${r} raise${r !== 1 ? 's' : ''} to spend` : ''}!`
                                   : `${myChar.name} lost the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult}) — paying asking price.`);
                               },
                             });
                           }}>
-                          <i className="ti ti-gavel" style={{ marginRight: 3 }} />Haggle
+                          <i className="ti ti-gavel" style={{ marginRight: 3 }} />Haggle (1 Granted Action)
                         </button>
                       )}
                       {onRoll && myChar && !shopkeeper && (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', alignSelf: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                           (no shopkeeper assigned — haggling unavailable)
                         </span>
                       )}

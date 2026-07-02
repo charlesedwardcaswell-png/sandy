@@ -42,6 +42,7 @@ export function MagicItemBadge({ item, compact = false }) {
         {item.item_type && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{item.item_type}</span>}
       </div>
       {item.dr && <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: 2 }}>Damage: {item.dr}</div>}
+      {typeof item.tn_bonus === 'number' && <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginBottom: 2 }}>Armor TN Bonus: +{item.tn_bonus}</div>}
       {item.effect && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{item.effect}</div>}
       {item.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.description}</div>}
     </div>
@@ -54,6 +55,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
   const [itemType, setItemType] = useState('Weapon');
   const [baseWeapon, setBaseWeapon] = useState(''); // name from WEAPONS_LIST, or '' for non-weapons/custom
   const [dr, setDr] = useState('');
+  const [tnBonus, setTnBonus] = useState('');
   const [effect, setEffect] = useState('');
   const [description, setDescription] = useState('');
   const [destination, setDestination] = useState(onCreateForShop && shops.length > 0 ? shops[0].id : 'party');
@@ -95,6 +97,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
       skill: baseWeaponData ? baseWeaponData.skill : undefined,
       base_price: basePrice,
       dr: dr.trim() || undefined,
+      tn_bonus: itemType === 'Armor' && tnBonus.trim() ? parseInt(tnBonus, 10) || undefined : undefined,
       effect: effect.trim(),
       description: description.trim(),
       is_magic: true,
@@ -177,6 +180,17 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Damage (if weapon, e.g. 3k2)</label>
           <input value={dr} onChange={e => setDr(e.target.value)} placeholder="e.g. 3k2" style={{ width: '100%', boxSizing: 'border-box' }} />
         </div>
+
+        {/* Armor TN Bonus — only meaningful for Armor type. Without this, getArmorBonus() has no way to
+            read a mechanical TN value off a custom-named magic armor item — it would silently contribute 0. */}
+        {itemType === 'Armor' && (
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+              Armor TN Bonus <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(added to Armor TN when worn)</span>
+            </label>
+            <input type="number" value={tnBonus} onChange={e => setTnBonus(e.target.value)} placeholder="e.g. 5" style={{ width: '100%', boxSizing: 'border-box' }} />
+          </div>
+        )}
 
         {/* Base cost — shown so GM knows what shop price will be derived from */}
         <div style={{ marginBottom: '.75rem', padding: '.5rem .65rem', background: 'var(--bg-panel)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted)' }}>

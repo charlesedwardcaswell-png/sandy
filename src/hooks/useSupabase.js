@@ -72,9 +72,15 @@ export function useActiveSession() {
         }
         setAllSessions(prev => {
           const exists = prev.find(s => s.id === incoming.id);
-          return exists ? prev.map(s => s.id === incoming.id ? incoming : s) : [...prev, incoming].sort((a,b) => a.session_number - b.session_number);
+          const merged = exists ? { ...exists, ...incoming } : incoming;
+          return exists ? prev.map(s => s.id === incoming.id ? merged : s) : [...prev, merged].sort((a,b) => a.session_number - b.session_number);
         });
-        if (incoming.is_active) setSession(incoming);
+        // Merge (not replace) so a realtime payload missing unchanged columns — e.g. Supabase only sends
+        // changed columns on UPDATE without REPLICA IDENTITY FULL — can't wipe fields like encounter_data
+        // client-side just because a DIFFERENT column (event_log, etc.) was what actually changed. This
+        // was the root cause of encounters randomly bouncing to the downtime screen mid-session; a refresh
+        // "fixed" it because fetch() always pulls the complete row, but the realtime merge didn't.
+        if (incoming.is_active) setSession(prev => prev?.id === incoming.id ? { ...prev, ...incoming } : incoming);
         else setSession(prev => prev?.id === incoming.id ? null : prev);
       })
       .subscribe();
@@ -238,7 +244,11 @@ export function useCharacters() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'characters', filter: `game_id=eq.${GAME_ID}` },
         payload => {
           if (payload.eventType === 'UPDATE') {
-            setCharacters(prev => prev.map(c => c.id === payload.new.id ? payload.new : c));
+            // Merge, don't replace — Supabase only sends changed columns on UPDATE (without REPLICA
+            // IDENTITY FULL), so a payload missing a field means "unchanged," not "cleared." Replacing
+            // wholesale was wiping other character fields (equipment, advantages, etc.) any time a targeted
+            // update only touched one column — same root cause as the encounter/downtime-screen bug.
+            setCharacters(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
           } else if (payload.eventType === 'INSERT') {
             setCharacters(prev => [...prev.filter(c => c.id !== payload.new.id), payload.new]);
           } else if (payload.eventType === 'DELETE') {
@@ -276,6 +286,48 @@ export function usePresence(username, isGM, onJoin, onLeave) {
     return () => supabase.removeChannel(channel);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, isGM]);
+}
+
+// ── Feedback (append-only: Visual / Feature Requests / Broken Things) ──────────
+export function useFeedback() {
+  const [feedback, setFeedback] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('game_id', GAME_ID)
+      .order('created_at', { ascending: false });
+    setFeedback(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  const addFeedback = async (type, text, author) => {
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert({ game_id: GAME_ID, type, body: text, author })
+      .select()
+      .single();
+    if (error) { console.error('addFeedback error:', error.message); return null; }
+    if (data) setFeedback(prev => [data, ...prev]);
+    return data;
+  };
+
+  // Real-time subscription — so everyone sees new feedback live without refreshing
+  useEffect(() => {
+    const sub = supabase
+      .channel('feedback_' + GAME_ID)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feedback', filter: `game_id=eq.${GAME_ID}` },
+        payload => setFeedback(prev => prev.some(f => f.id === payload.new.id) ? prev : [payload.new, ...prev]))
+      .subscribe();
+    return () => supabase.removeChannel(sub);
+  }, []);
+
+  return { feedback, addFeedback, loading, refetch: fetch };
 }
 
 // ── NPCs ──────────────────────────────────────────────────────────────────────
@@ -330,7 +382,7 @@ export function useNPCs() {
       .channel('npcs_' + GAME_ID)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'npcs', filter: `game_id=eq.${GAME_ID}` },
         payload => {
-          if (payload.eventType === 'UPDATE') setNpcs(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+          if (payload.eventType === 'UPDATE') setNpcs(prev => prev.map(n => n.id === payload.new.id ? { ...n, ...payload.new } : n));
           else if (payload.eventType === 'INSERT') setNpcs(prev => [...prev.filter(n => n.id !== payload.new.id), payload.new]);
           else if (payload.eventType === 'DELETE') setNpcs(prev => prev.filter(n => n.id !== payload.old.id));
         })
@@ -588,7 +640,12 @@ export function useGroupInventory() {
       .channel('group_inventory_' + GAME_ID)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_inventory', filter: `game_id=eq.${GAME_ID}` },
         payload => {
-          setInventory({ copper: payload.new.copper, items: payload.new.items || [] });
+          // Merge, don't replace with a hard [] fallback — a payload missing `items` (because only `copper`
+          // changed in that particular UPDATE) was wiping the entire party inventory display until refresh.
+          setInventory(prev => ({
+            copper: payload.new.copper !== undefined ? payload.new.copper : prev.copper,
+            items: payload.new.items !== undefined ? payload.new.items : prev.items,
+          }));
         })
       .subscribe();
     return () => supabase.removeChannel(sub);

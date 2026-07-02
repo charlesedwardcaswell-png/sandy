@@ -772,6 +772,7 @@ export const SKILL_TRAIT_MAP = {
   'Athletics': { trait: 'Strength', ring: 'Water' },
   'Battle': { trait: 'Perception', ring: 'Water' },  // Primary = Perception for strategy; correct
   'Horsemanship': { trait: 'Agility', ring: 'Fire' },
+  'Sailing': { trait: 'Agility', ring: 'Fire' },
   'Hunting': { trait: 'Perception', ring: 'Water' },  // Tracking=Perception, Survival=Strength — most common
   'Intimidation': { trait: 'Awareness', ring: 'Air' },  // Can also use Strength — most common is Awareness
   'Stealth': { trait: 'Agility', ring: 'Fire' },
@@ -795,6 +796,9 @@ export const SKILL_TRAIT_MAP = {
   'Sleight of Hand': { trait: 'Agility', ring: 'Fire' },
   'Gambling': { trait: 'Perception', ring: 'Water' },
   'Locksmithing': { trait: 'Agility', ring: 'Fire' },
+  'Assassin Ranged Weapons': { trait: 'Reflexes', ring: 'Air' },
+  'Appraisal': { trait: 'Perception', ring: 'Water' },
+  'Games': { trait: 'Intelligence', ring: 'Fire' },
   // Open skills — default trait
   'Lore': { trait: 'Intelligence', ring: 'Fire' },
   'Craft': { trait: 'Intelligence', ring: 'Fire' },
@@ -817,15 +821,50 @@ export const ARMOR_TN_BONUS = {
   'Yodotai Chain Shirt': 7,
   'Half-Plate': 10,
   'Ebonite Armor': 5,
-  'Adaga': 0, // shield — handled separately as TN bonus
+  'Adaga': 5, // Senpet body armor (Medium, +5 TN, Reduction 2) — NOT a shield despite shield-like appearance
 };
 
+// ── Shields — confirmed against the L5R 4E Conversion doc directly (see BACKLOG.md for source detail) ──
+// Unlike armor pieces (which use the highest-only rule), shields occupy their own slot and STACK on top
+// of worn armor. Attack Roll / Athletics penalty follows L5R 4E's Wielding Two Weapons rules by size
+// (Small -5, Medium -10, Large -15) per the conversion doc's general shield rule — shields do NOT grant
+// the two-weapon-fighting benefits, just the penalty.
+export const SHIELDS = [
+  { name: 'Large Wooden Shield', size: 'large', tnBonus: 7, reduction: 3, keywords: ['Large'], price: '15c' },
+  { name: 'Scutum', size: 'medium', tnBonus: 5, reduction: 3, keywords: ['Yodotai', 'Medium'], price: '12c' }, // price not listed in source, estimated to match Large Wooden Shield's tier
+  { name: 'Parma', size: 'small', tnBonus: 0, reduction: 0, keywords: ['Yodotai', 'Small'],
+    note: '+5 TN vs ranged attacks only (not automated — GM applies manually); +5 TN penalty to all Agility/Reflexes Skill Rolls while carried (not automated)',
+    price: '5c' },
+];
+export const SHIELD_ATTACK_PENALTY = { small: -5, medium: -10, large: -15 };
+
+// Compute shield TN bonus (stacks additively with armor, unlike armor's highest-only rule) and Reduction
+// from a character's equipment. Parma's ranged-only +5 and Agility/Reflexes penalty are NOT included here
+// — see the note on its SHIELDS entry above; those need manual GM application until Sandy tracks attack
+// type (ranged vs melee) and has a general Reduction/damage-soak system for PCs.
+export function getShieldBonus(equipment = []) {
+  let tnBonus = 0, reduction = 0, penalty = 0;
+  (equipment || []).forEach(item => {
+    if (!item.equipped) return;
+    const shieldData = SHIELDS.find(s => s.name === item.name);
+    if (!shieldData) return;
+    tnBonus = Math.max(tnBonus, shieldData.tnBonus);
+    reduction = Math.max(reduction, shieldData.reduction);
+    penalty = Math.min(penalty, SHIELD_ATTACK_PENALTY[shieldData.size] || 0); // most negative wins
+  });
+  return { tnBonus, reduction, attackPenalty: penalty };
+}
+
 // Compute armor TN bonus from a character's equipment array
-// Uses the highest armor bonus from equipped (equipped === true) armor items
+// Uses the highest armor bonus from equipped (equipped === true) armor items, PLUS shield TN which stacks
+// additively on top (shields are a separate slot, not subject to the highest-only rule — conversion doc)
 export function getArmorBonus(equipment = []) {
   let best = 0;
   (equipment || []).forEach(item => {
     if (!item.equipped) return;
+    if (SHIELDS.some(s => s.name === item.name)) return; // shields handled separately by getShieldBonus, added below
+    // Magic armor items (from MagicItemCreator) carry an explicit tn_bonus field — check that first
+    if (typeof item.tn_bonus === 'number') { best = Math.max(best, item.tn_bonus); return; }
     const name = item.name || '';
     // Check direct lookup
     const direct = ARMOR_TN_BONUS[name];
@@ -834,7 +873,7 @@ export function getArmorBonus(equipment = []) {
     const match = name.match(/\(\+(\d+)\s*TN\)/i);
     if (match) { best = Math.max(best, parseInt(match[1], 10)); }
   });
-  return best;
+  return best + getShieldBonus(equipment).tnBonus;
 }
 
 // Keep backward compatibility — GEAR_LIST is the name array
@@ -2198,7 +2237,6 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Blessed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Stamina considered one rank higher for Wounds and healing', note: 'Stamina +1 for Wound Ranks (Keeper of Years Blessing)' }],
   'Stolen Identity':      [{ skills: ['Acting'], freeRaises: 2, conditional: 'when using alternate identity', note: '2 Free Raises on Acting when using stolen identity (Stolen Identity)' }],
   'Strength of the Earth': [{ skills: ['ALL'], flat: 3, conditional: 'reduces wound TN penalty only — already coded in wound system', note: 'Wound TN penalties reduced by 3 (Strength of the Earth)' }],
-  'Touch of the Void':    [{ skills: ['ALL'], rolled: 1, kept: 0, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 total when spending Void — risk Dazed (Touch of the Void) — adds +1 rolled on top of base Void +1k1' }],
   'Virtuous':             [{ skills: ['ALL'], flat: 0, conditional: 'Integrity/Honor bonus only', note: '+1 starting Integrity Rank (Virtuous)' }],
   'Voice':                [{ skills: ['PERFORM'], rolled: 1, kept: 1, conditional: 'voice-based Perform only', note: '+1k1 voice-based Perform (Singing, Oratory, etc.) (Voice)' }],
   'Wary':                 [{ skills: ['Investigation'], rolled: 1, kept: 1, conditional: 'vs Stealth (Ambush) only', note: '+1k1 Investigation (Notice) vs Stealth (Ambush) (Wary)' }],
@@ -2223,7 +2261,135 @@ export const ADVANTAGE_ROLL_BONUSES = {
   // ── LBS-specific advantages ───────────────────────────────────────────────
   'Ambidextrous':    [{ skills: ['ATTACK'], flat: -5, conditional: 'dual wield only — reduces off-hand penalty from -10 to -5', note: 'Dual-wield off-hand penalty -5 instead of -10 (Ambidextrous)' }],
   'Chosen by the Oracles': [{ skills: ['RING'], rolled: 1, kept: 1, conditional: 'chosen Ring only', note: '+1k1 all rolls using chosen Ring (Chosen by the Oracles)' }],
+
+  // ── Newly reviewed — real dice bonuses ────────────────────────────────────
+  'Cosmopolitan':     [{ skills: ['SOCIAL'], rolled: 1, kept: 0, note: '+1k0 all Social Skill rolls (Cosmopolitan)' }],
+  'Blood of the Hanie': [{ skills: ['SOCIAL'], rolled: 1, kept: 1, conditional: 'vs other Yodotai only', note: '+1k1 Social rolls vs other Yodotai (Blood of the Hanie)' }],
+  'Crab Hands':       [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Weapon Skill rolls treated as rank 1', note: 'Treated as rank 1 on Unskilled Weapon Skill rolls (Crab Hands)' }],
+  'Sage':             [{ skills: ['LORE'], flat: 0, conditional: 'Unskilled Lore Skill rolls treated as rank 1', note: 'Treated as rank 1 on Unskilled Lore Skill rolls (Sage)' }],
+  'Soul of Artistry':  [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Artisan/Craft rolls (chosen type) treated as rank 1', note: 'Treated as rank 1 on Unskilled Artisan/Craft rolls (Soul of Artistry)' }],
+  'Crafty':           [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Low Skill rolls treated as rank 1', note: 'Treated as rank 1 on Unskilled Low Skill rolls (Crafty)' }],
+  'Kharmic Tie':      [{ skills: ['ATTACK'], rolled: 1, kept: 1, conditional: 'once/session per point spent, fighting to protect the bonded person', note: '+1k1 Attack rolls protecting bonded person (Kharmic Tie)' }],
+  'Blessed by Kaleel': [{ skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'once per session, Free Action, one round, no Void spent', note: '+1k0 Attack rolls for one round — once/session Free Action (Blessed by Kaleel)' }],
+  'Naga Ancestry':    [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'with Naga only', note: '+1k0 Social rolls with Naga (Naga Ancestry)' }],
+  'Reincarnated':     [{ skills: ['ALL'], rolled: 1, kept: 0, conditional: 'three chosen non-School Skills only', note: '+1k0 on three chosen non-School Skills (Reincarnated)' }],
+  'Paragon of Duty':  [{ skills: ['ALL'], conditional: 'Once per session: spend Void to negate all TN penalties (incl. Wounds) on one roll', note: 'Negate all TN/Wound penalties on one roll (Paragon of Duty)' }],
+
+  // ── Second pass — previously missed real dice bonuses ─────────────────────
+  'Heartless':        [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Courtier/Sincerity/Temptation persuasion, seduction, or manipulation only', note: '+1k0 to resist persuasion/seduction/manipulation (Heartless)' }],
+  'Imperial Spouse':  [{ skills: ['SOCIAL'], rolled: 1, kept: 1, conditional: 'with members of Imperial families only', note: '+1k1 Social rolls with Imperial family members (Imperial Spouse)' }],
+  'Inheritance':      [{ skills: ['ALL'], rolled: 1, kept: 1, conditional: 'non-combat rolls using the heirloom only (attack/damage excluded)', note: '+1k1 non-combat rolls using the heirloom (Inheritance)' }],
+  'Inheritance, Crysteel Weapon': [{ skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'with the Crysteel weapon only', note: '+1k0 Attack/Damage with Crysteel weapon (Inheritance, Crysteel Weapon)' }],
+  'Inheritance, Khadja of the Council': [{ skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'with the Khadja polearm only', note: '+1k0 Attack rolls with the Khadja (Inheritance, Khadja of the Council)' }],
+  'Great Potential': [{ skills: ['ALL'], conditional: 'raise cap for chosen Skill uses Skill Rank instead of Void Ring, if higher — wired into DiceModal raise-cap display, not the bonus pipeline', note: 'Raise cap = max(Void Ring, Skill Rank) for chosen Skill (Great Potential)' }],
+  'Magic Resistance': [{ skills: ['SPELLCASTING'], conditional: 'target\'s Casting TN vs elemental spells increases +3/rank — wired directly in PCTurnPanel\'s getTargetTN (opponent-facing, same pattern as Frail Mind/Greedy on the disadvantage side, but via target-selection TN rather than the Contested Roll tool since spellcasting isn\'t a Contested Roll in Sandy)', note: 'Target Casting TN +3/rank vs elemental spells (Magic Resistance)' }],
+  'Absolute Direction': [{ skills: ['Sailing'], rolled: 1, kept: 0, emphasisRequired: 'Navigation', note: '+1k0 Sailing (Navigation) — always knows true north (Absolute Direction)' }],
+  'Fame': [{ skills: ['ALL'], conditional: '+1 Reputation Rank, applied immediately and directly to the character record when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Reputation Rank (Fame)' }],
+  'Gentry': [{ skills: ['ALL'], conditional: 'Grants starting copper (cost × 3, a documented estimate — LBS gives no exact koku table for holdings) applied immediately when added — wired in CharacterTab\'s add-advantage handler, not this table', note: 'Starting copper from holding income (Gentry)' }],
+  'Elemental Blessing': [{ skills: ['ALL'], conditional: 'GM picks the chosen Ring on the advantage card — -1 XP cost per rank to raise that Ring\'s Traits, wired directly into the XP Spend Panel\'s cost calculation, not this table', note: '-1 XP cost to raise chosen Ring\'s Traits (Elemental Blessing)' }],
+  'Quick Healer': [{ skills: ['ALL'], conditional: 'Stamina treated 2 ranks higher for natural wound recovery — already coded via getEffectiveStamina()/getNaturalHealAmount() in lib/utils.js, used by Dawn healing and Rest Everyone', note: 'Stamina +2 for natural healing (Quick Healer)' }],
+  'Wealthy': [{ skills: ['ALL'], conditional: 'Grants 2 copper × rank, applied immediately when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+2 copper × rank to starting outfit (Wealthy)' }],
+  'Social Position': [{ skills: ['ALL'], conditional: '+1 Status Rank, applied immediately and directly to the character record when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Status Rank (Social Position)' }],
+  'Perceived Integrity': [{ skills: ['ALL'], conditional: 'Shows a derived "Perceived Integrity" stat card (Integrity + advantage rank) directly above real Integrity on the character sheet, per Charles\'s direction — simpler than per-viewer filtering, wired in CharacterTab, not this table', note: 'Perceived Integrity stat display = Integrity + rank (Perceived Integrity)' }],
+  'Gorilla Bodyguard': [{ skills: ['ALL'], conditional: 'Auto-spawns a full Gorilla Bodyguard character (confirmed Ozaru stat block) when added, with claimed_by_name set to the owner — the player still needs one click to actually Claim it (claim state lives in their own browser, not settable remotely). Animal Handling override for commanding it is handled separately.', note: 'Auto-creates trained Ape character on add (Gorilla Bodyguard)' }],
+  'Great Destiny': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead — wired directly in EncounterTab\'s gmWound(), shared mechanism with Dark Fate (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Great Destiny)' }],
+  'Enlightened': [{ skills: ['ALL'], conditional: '-2 XP cost per rank to raise the Void Ring specifically, wired directly into the XP Spend Panel\'s cost calculation, not this table', note: '-2 XP cost to raise Void Ring (Enlightened)' }],
+  'Leadership':       [{ skills: ['INITIATIVE'], conditional: 'once per round, grants +School Rank flat and +1k1 to one ally\'s Initiative roll — wired directly in the Initiative panel in EncounterTab (target-selection UI, not the bonus pipeline)', note: '+School Rank+1k1 to one ally\'s Initiative, once/round (Leadership)' }],
 };
+
+// ── Advantages with NO dice-roll hook by design (social/material/narrative effects,
+// XP-cost changes, once-per-session GM-adjudicated triggers too free-form to auto-apply,
+// or effects handled in a different system entirely — Void, healing, movement, etc.)
+// Reviewed and confirmed manual — not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
+const MANUAL_ADVANTAGES = [
+  'Ceremony of the Hidden Heart','Higher Purpose',
+  'Strategist','Tactician','Virtuous','Bland','Khadi','Quick','Allies','Blackmail',
+  'Blissful Betrothal','Different School','Fame','Gentry','Hero of the People',
+  'Multiple Schools','Read Lips','Sacrosanct',
+  'Social Position','Spy Network','Well-Connected',
+  'Wealthy','Sacred Weapon','Fitfully Sleeping Blood',
+  'Paragon of Faith','Soul of Warriors',
+  "Inari's Blessing",'Inner Gift','Languages','Luck','Servant of Smokeless Fire',
+  'Blessed by the Wanderer',
+  'Dark Paragon (Control)','Dark Paragon (Determination)','Dark Paragon (Insight)',
+  'Dark Paragon (Knowledge)','Dark Paragon (Perfection)','Dark Paragon (Strength)','Dark Paragon (Will)',
+];
+MANUAL_ADVANTAGES.forEach(name => { if (!(name in ADVANTAGE_ROLL_BONUSES)) ADVANTAGE_ROLL_BONUSES[name] = []; });
+
+// ── Disadvantage Roll Bonuses (negative modifiers, using the same shape as advantages) ──────
+export const DISADVANTAGE_ROLL_BONUSES = {
+  'Bad Eyesight':      [{ skills: ['Archery','Assassin Ranged Weapons','Throwing'], rolled: -1, kept: -1, note: '-1k1 ranged attacks (Bad Eyesight)' }, { skills: ['ALL'], rolled: -1, kept: -1, conditional: 'Perception-based rolls only', note: '-1k1 Perception-based rolls (Bad Eyesight)' }],
+  'Small':             [{ skills: ['DAMAGE'], rolled: -1, kept: 0, conditional: 'melee attacks only', note: '-1k0 melee Damage rolls (Small)' }, { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -1 for Move Actions — already coded in movement system', note: 'Water Ring -1 for movement (Small)' }],
+  'Antisocial':        [{ skills: ['SOCIAL'], rolled: -1, kept: 0, note: '-1k0 all Social rolls (Antisocial, 2pt) — or -1k1 at the 4pt rank, adjust manually' }],
+  'Cursed by Shilah':  [{ skills: ['SOCIAL'], rolled: -1, kept: 0, conditional: 'persuading or charming only', note: '-1k0 Social rolls to persuade/charm (Cursed by Shilah)' }],
+  'Cursed by Kaleel':  [{ skills: ['ATTACK'], rolled: -1, kept: 0, stances: ['Attack','Full Attack'], note: '-1k0 Attack rolls in Attack/Full Attack stance (Cursed by Kaleel)' }],
+  'Cursed by the Desert': [{ skills: ['Commerce'], rolled: 0, kept: -1, note: 'Commerce kept die -1, min 1 (Cursed by the Desert)' }],
+  'Failure of Honesty': [
+    { skills: ['Sincerity'], rolled: 1, kept: 0, emphasisRequired: 'Deceit', note: '+1k0 Sincerity (Deceit) — auto-applies when Deceit emphasis is selected (Failure of Honesty)' },
+    { skills: ['Sincerity'], conditional: 'Integrity loss from dishonesty is doubled — not automated (Integrity system doesn\'t track loss reasons)', note: 'Doubled Integrity loss from dishonesty (Failure of Honesty)' },
+  ],
+  'Frail Mind':        [{ skills: ['Trait: Willpower'], conditional: 'opponent using a Trait: Willpower roll against you in the Contested Roll tool automatically gets +2k0 — wired this session', note: 'Opponent +2k0 Trait: Willpower vs you (Frail Mind)' }],
+  'Doubt':             [{ skills: ['ALL'], conditional: 'GM picks the affected School Skill on the disadvantage card — +5 TN auto-applies on that skill only, wired directly in DiceModal (not this table)', note: '+5 TN mandatory wasted Raise on chosen School Skill (Doubt)' }],
+  'Missing Limb':      [{ skills: ['ALL'], conditional: 'GM picks the missing limb type on the disadvantage card — +10 TN auto-applies on a curated list of affected skills (approximation, not exhaustive), wired directly in DiceModal (not this table)', note: '+10 TN on rolls involving the missing limb (Missing Limb)' }],
+  'Obtuse':            [{ skills: ['ALL'], conditional: 'XP cost doubled for High Skills (except Investigation/Medicine) — wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for High Skills except Investigation/Medicine (Obtuse)' }],
+  'Cursed by the Honest Hand': [{ skills: ['ALL'], conditional: 'GM picks the affected skill on the disadvantage card — XP cost doubled for that skill only, wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for chosen skill (Cursed by the Honest Hand)' }],
+  'Infamous': [{ skills: ['ALL'], conditional: 'Reputation stat card relabeled "Infamy" instead of "Reputation" — same underlying number, wired in CharacterTab, not this table', note: 'Reputation displays as "Infamy" (Infamous)' }],
+  'Dark Fate': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead — wired directly in EncounterTab\'s gmWound(), shared mechanism with Great Destiny (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Dark Fate)' }],
+  'Curse of the Grey Crone': [{ skills: ['ALL'], conditional: 'GM picks the locked Trait on the disadvantage card — set to 1, +1 button hidden in XP Spend Panel, and Insight Rank XP thresholds reduced cumulatively (145/165/185/205, verified against the disadvantage\'s own stated examples) — wired directly in CharacterTab and lib/utils.js\'s insightRankFor(), not this table', note: 'Trait locked to 1 + reduced Insight XP thresholds (Curse of the Grey Crone)' }],
+  'Unlucky': [{ skills: ['ALL'], conditional: 'GM-controlled pip tracker on the disadvantage card + a matching reroll button in DiceModal (mirrors Luck\'s mechanism exactly — fresh reroll, player picks kept dice from the new set). GM decides when to spend it, per Charles\'s direction', note: 'GM forces a reroll, N times/session per rank (Unlucky)' }],
+  'Dishonored':        [{ skills: ['ALL'], conditional: 'Status Rank set to 1, applied immediately when added — wired in CharacterTab\'s add-disadvantage handler. The "may not gain Status while active" restriction is not enforced (would need to gate the Status-editing UI)', note: 'Status Rank set to 1 (Dishonored)' }],
+  'Social Disadvantage': [{ skills: ['ALL'], conditional: 'Status Rank set to 0, applied immediately when added — wired in CharacterTab\'s add-disadvantage handler', note: 'Status Rank set to 0 (Social Disadvantage)' }],
+  'Greedy':            [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Temptation vs you (Greedy)' }],
+  'Gullible':          [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Sincerity vs you (Gullible)' }],
+  'Lechery':           [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Temptation vs you (Lechery)' }],
+  'Failure of Sincerity': [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k0 — wired this session', note: 'Opponent +1k0 Sincerity vs you (Failure of Sincerity)' }],
+  'Phobia':            [{ skills: ['ALL'], flat: 5, conditional: 'per rank, only when confronted with the phobia subject', note: '+5 TN per rank when confronted with phobia subject (Phobia)' }],
+  'Disbeliever':       [{ skills: ['SOCIAL'], flat: 5, conditional: 'with sahir, diviners, priests, or spiritually devoted individuals only', note: '+5 TN Social rolls with spiritually devoted individuals (Disbeliever)' }],
+  'Low Pain Threshold': [{ skills: ['WOUNDPENALTY'], conditional: 'Wound TN penalties increased by +5 — already coded in wound system', note: 'Wound TN penalties +5 (Low Pain Threshold)' }],
+  'Bad Health':        [{ skills: ['WOUNDPENALTY'], conditional: 'Earth Ring treated one rank lower for Wound Rank thresholds — already coded in wound system', note: 'Earth -1 for Wound Ranks (Bad Health)' }],
+
+  // ── Second pass — previously mis-filed or missed on first review ──────────
+  'Touch of the Void': [{ skills: ['ALL'], rolled: 1, kept: 0, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 total when spending Void — risk Dazed (Touch of the Void) — adds +1 rolled on top of base Void +1k1' }],
+  'Disturbing Countenance': [{ skills: ['SOCIAL'], flat: 5, note: '+5 TN all Social Skill rolls (Disturbing Countenance)' }],
+  'Defiler of the Dead': [{ skills: ['SOCIAL'], flat: 5, conditional: 'with other Senpet only', note: '+5 TN Social rolls with other Senpet (Defiler of the Dead) — Ghul Creation Free Raise not automated, apply manually' }],
+  'Despicable':        [{ skills: ['SOCIAL'], rolled: -2, kept: 0, conditional: 'with other Yodotai only', note: '-2k0 Social rolls with other Yodotai (Despicable)' }],
+  'Permanent Wound':   [{ skills: ['WOUNDPENALTY'], conditional: 'First Wound Rank always considered full — already coded in wound system', note: 'Wound Rank floor of 1 whenever wounded (Permanent Wound)' }],
+  'Cursed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Natural healing rate halved — already coded in healing system; Medicine TN +5 to treat not automated', note: 'Natural healing halved (Cursed by the Keeper of Years)' }],
+  'Lame': [{ skills: ['WOUNDPENALTY'], conditional: 'Water Ring treated as 1 for Move Actions — already coded in movement system; +10 TN lower-limb Agility rolls not automated (too vague which rolls qualify)', note: 'Water Ring = 1 for movement (Lame)' }],
+  'Blind': [
+    { skills: ['Archery','Assassin Ranged Weapons','Throwing'], rolled: -3, kept: -3, note: '-3k3 ranged attacks (Blind)' },
+    { skills: ['Swordsmanship','Knives','Spears','Brawling','Polearms','Staves','Heavy Weapons','Chain','Tahaddi'], rolled: -1, kept: -1, note: '-1k1 melee attacks (Blind)' },
+    { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -2 for Move Actions — already coded in movement system. Armor TN formula change (Reflexes+5 instead of 5+Reflexes×5) and the Simple Move TN 20 fall-prone check are NOT automated — Armor TN is computed inline in 8+ separate places across the codebase and touching all of them risks introducing an inconsistency; apply manually with the GM for now.', note: 'Armor TN = Reflexes+5; TN 20 Athletics/Agility or fall Prone on Simple Move (Blind) — apply manually' },
+  ],
+};
+
+// ── Disadvantages with NO dice-roll hook by design (situational GM-triggered rolls,
+// XP-cost/Integrity/social-standing effects, or narrative-only complications).
+// Reviewed and confirmed manual — not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
+const MANUAL_DISADVANTAGES = [
+  'Ascetic','Brash','Can\'t Lie','Compulsion','Consumed','Contrary','Driven',
+  'Failure of Compassion','Failure of Courage','Failure of Courtesy','Failure of Duty','Failure of Honor',
+  'Fascination','Idealistic','Insensitive','Jealousy','Overconfident','Soft-Hearted','True Love',
+  'Epilepsy','Weakness',
+  'Bitter Betrothal','Black Sheep','Blackmailed','Bounty','Dark Secret','Debt','Dependent','Dishonored',
+  'Forced Retirement','Mistrusted Foreigner','Hostage','Obligation',
+  'Rumormonger','Social Disadvantage','Stolen Identity Stigma','Nemesis','Sworn Enemy',
+  'Forlorn (State)','Forlorn (Religion)',
+  'Bad Fortune','Marked by the Sands','Elemental Imbalance','Enlightened Madness','Haunted',
+  "Lord Moon's Curse",'Lost Love','Momoku','Cursed by the All-Seeing Eye',
+  'Cursed by the Wanderer','Sleeper Agent','Uncentered',
+  'Wrath of the Desert','Wanderer',
+];
+MANUAL_DISADVANTAGES.forEach(name => { if (!(name in DISADVANTAGE_ROLL_BONUSES)) DISADVANTAGE_ROLL_BONUSES[name] = []; });
+
+export function getAdvantageAutomationStatus(name) {
+  if (!(name in ADVANTAGE_ROLL_BONUSES)) return 'missing';
+  return ADVANTAGE_ROLL_BONUSES[name].length === 0 ? 'manual' : 'auto';
+}
+export function getDisadvantageAutomationStatus(name) {
+  if (!(name in DISADVANTAGE_ROLL_BONUSES)) return 'missing';
+  return DISADVANTAGE_ROLL_BONUSES[name].length === 0 ? 'manual' : 'auto';
+}
 
 // Automation status for a technique, used to show players whether a technique's effects apply
 // automatically in the dice roller, or need to be handled manually with the GM:

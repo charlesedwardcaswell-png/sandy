@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, getTechniqueAutomationStatus } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, SHIELDS, SHIELD_ATTACK_PENALTY, getShieldBonus, CREATURES_LIBRARY, getTechniqueAutomationStatus, getAdvantageAutomationStatus, getDisadvantageAutomationStatus } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore, WeaponIcon, ArmorIcon, getWeaponIconType, RulebookEntryButton } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
 import { MagicItemBadge } from './MagicItemCreator';
 import SocialReferenceModal from './SocialReferenceModal';
 import { supabase } from '../lib/supabase';
-import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS } from '../lib/utils';
+import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS, getEffectiveRankThresholds } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
@@ -638,8 +638,8 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
   const [cart, setCart] = useState({}); // { 'trait_agility': { type:'trait', key:'agility', from:2, to:3, cost:12 }, 'skill_Knives': {...} }
 
   const insight = calcInsight(char);
-  const insightRank = insightRankFor(insight);
-  const nextThreshold = RANK_THRESHOLDS[insightRank];
+  const insightRank = insightRankFor(insight, char);
+  const nextThreshold = getEffectiveRankThresholds(char)[insightRank];
   const xpAvail = (char.xp_total || 0) - (char.xp_spent || 0);
   const cartCost = Object.values(cart).reduce((s, x) => s + x.cost, 0);
   const canAfford = cartCost <= xpAvail;
@@ -656,25 +656,42 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
     }
   });
   const projInsight = calcInsight(projectedChar);
-  const projRank = insightRankFor(projInsight);
+  const projRank = insightRankFor(projInsight, char);
 
   const addTraitToCart = (traitKey, currentVal) => {
+    // Curse of the Grey Crone: chosen Trait is locked to 1, cannot be increased with XP at all
+    const greyCroneCurse = (char.disadvantages || []).find(d => (d.name || d) === 'Curse of the Grey Crone' && d.trait);
+    if (greyCroneCurse && greyCroneCurse.trait.toLowerCase() === traitKey) return;
     const cartKey = `trait_${traitKey}`;
     const alreadyPending = cart[cartKey];
     const effectiveFrom = alreadyPending ? alreadyPending.to : currentVal;
     if (effectiveFrom >= 10) return; // max trait
     const to = effectiveFrom + 1;
-    const cost = traitXpCost(effectiveFrom);
+    // Elemental Blessing: -1 XP cost per rank for Traits associated with the chosen Ring, floored at 1
+    const elementalBlessing = (char.advantages || []).find(a => (a.name || a) === 'Elemental Blessing' && a.ring);
+    const traitRing = TRAIT_RING_MAP[traitKey]?.ring; // lowercase e.g. 'air'; undefined for 'void', which is correct — Elemental Blessing explicitly excludes Void
+    const elementalDiscount = elementalBlessing && elementalBlessing.ring.toLowerCase() === traitRing ? 1 : 0;
+    // Enlightened: -2 XP cost per rank specifically for raising the Void Ring
+    const hasEnlightened = (char.advantages || []).some(a => (a.name || a) === 'Enlightened');
+    const enlightenedDiscount = traitKey === 'void' && hasEnlightened ? 2 : 0;
+    const cost = Math.max(1, traitXpCost(effectiveFrom) - elementalDiscount - enlightenedDiscount);
     setCart(c => ({ ...c, [cartKey]: { type: 'trait', key: traitKey, from: currentVal, to, cost: (alreadyPending?.cost || 0) + cost, label: traitKey.charAt(0).toUpperCase() + traitKey.slice(1) } }));
   };
 
+  const HIGH_SKILLS = ['Calligraphy','Courtier','Divination','Etiquette','Games','Medicine','Meditation','Sincerity','Storytelling'];
   const addSkillToCart = (skillName, currentRank) => {
     const cartKey = `skill_${skillName}`;
     const alreadyPending = cart[cartKey];
     const effectiveFrom = alreadyPending ? alreadyPending.to : currentRank;
     if (effectiveFrom >= 10) return;
     const to = effectiveFrom + 1;
-    const cost = skillXpCost(effectiveFrom);
+    let cost = skillXpCost(effectiveFrom);
+    // Obtuse: XP cost doubled for any High Skill except Investigation/Medicine
+    const hasObtuse = (char.disadvantages || []).some(d => (d.name || d) === 'Obtuse');
+    if (hasObtuse && HIGH_SKILLS.includes(skillName) && skillName !== 'Medicine' && skillName !== 'Investigation') cost *= 2;
+    // Cursed by the Honest Hand: XP cost doubled for one chosen non-weapon skill
+    const honestHand = (char.disadvantages || []).find(d => (d.name || d) === 'Cursed by the Honest Hand' && d.skill);
+    if (honestHand && honestHand.skill === skillName) cost *= 2;
     setCart(c => ({ ...c, [cartKey]: { type: 'skill', key: skillName, from: currentRank, to, cost: (alreadyPending?.cost || 0) + cost, label: skillName } }));
   };
 
@@ -765,7 +782,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
           {insightRank < 5 && (
             <div>
               <div style={{ height: 6, background: 'var(--bg-dark)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 3, background: 'var(--gold)', width: `${Math.min(100, ((projInsight - RANK_THRESHOLDS[insightRank-1]) / (nextThreshold - RANK_THRESHOLDS[insightRank-1])) * 100)}%`, transition: 'width .3s' }} />
+                <div style={{ height: '100%', borderRadius: 3, background: 'var(--gold)', width: `${Math.min(100, ((projInsight - getEffectiveRankThresholds(char)[insightRank-1]) / (nextThreshold - getEffectiveRankThresholds(char)[insightRank-1])) * 100)}%`, transition: 'width .3s' }} />
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>Next rank at {nextThreshold} ({Math.max(0, nextThreshold - projInsight)} more insight needed)</div>
             </div>
@@ -782,12 +799,15 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
               const pending = cart[cartKey];
               const displayVal = pending ? pending.to : cur;
               const nextCost = traitXpCost(displayVal);
+              const greyCroneCurse = (char.disadvantages || []).find(d => (d.name || d) === 'Curse of the Grey Crone' && d.trait);
+              const isLockedByGreyCrone = greyCroneCurse && greyCroneCurse.trait.toLowerCase() === t.key;
               return (
                 <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '4px 0', borderBottom: '1px solid rgba(107,78,40,.15)' }}>
                   <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>{t.label}<span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>{t.ring}</span></span>
                   <span style={{ fontSize: 16, fontWeight: 700, color: pending ? 'var(--green)' : 'var(--gold)', minWidth: 20, textAlign: 'center' }}>{displayVal}</span>
                   {pending && <span style={{ fontSize: 11, color: 'var(--green)' }}>↑</span>}
-                  {displayVal < 5 && (
+                  {isLockedByGreyCrone && <span style={{ fontSize: 10, color: 'var(--red)' }} title="Curse of the Grey Crone — cannot be raised with XP">🔒 locked</span>}
+                  {!isLockedByGreyCrone && displayVal < 5 && (
                     <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 6px' }}
                       onClick={() => addTraitToCart(t.key, cur)} title={`${nextCost} XP`}>
                       +1 ({nextCost}xp)
@@ -943,9 +963,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const [showSocialRef, setShowSocialRef] = useState(null); // 'integrity' | 'reputation' | 'status'
   const [skillTraitOverride, setSkillTraitOverride] = useState({}); // skillName -> trait key override
   const [expandedSkills, setExpandedSkills] = useState({}); // skillName -> bool
+  const [readLipsDist, setReadLipsDist] = useState({}); // charId -> distance in feet, for the Read Lips advantage quick-roll
 
   const insight = calcInsight(char);
-  const insightRank = insightRankFor(insight);
+  const insightRank = insightRankFor(insight, char);
   // Show rank-up overlay if insight qualifies for a higher rank than current school_rank
   const needsRankUp = insightRank > (char.school_rank || 1);
 
@@ -957,26 +978,21 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     // Check if the new state triggers a rank-up
     const projChar = { ...char, ...updates };
     const projInsight = calcInsight(projChar);
-    const projRank = insightRankFor(projInsight);
+    const projRank = insightRankFor(projInsight, char);
     if (projRank > (char.school_rank || 1)) setPendingRankUp(true);
   };
 
   // Equipment slot classification — enforces single-slot rules for worn items
   const getEquipSlot = (itemName) => {
     const n = (itemName || '').toLowerCase();
+    if (n.includes('shield') || n.includes('parma') || n.includes('scutum')) return 'shield';
     if (n.includes('armor') || n.includes('lorica') || n.includes('chain shirt') || n.includes('half-plate') || n.includes('ebonite armor') || n.includes('riding armor') || n.includes('partial armor')) return 'armor';
     if (n.includes('clothing') || n.includes('clothes') || n.includes('robe') || n.includes('tunic') || n.includes('toga') || n.includes('cloak') || n.includes('outfit') || n.includes('garment') || n.includes('uniform')) return 'clothing';
     if (n.includes('sandal') || n.includes('boot') || n.includes('shoe') || n.includes('slipper')) return 'footwear';
     if (n.includes('hat') || n.includes('helm') || n.includes('turban') || n.includes('crown') || n.includes('hood') || n.includes('keffiyeh') || n.includes('headwear') || n.includes('cap') || n.includes('veil')) return 'headwear';
     return 'accessory'; // accessories: multiple allowed
   };
-  const SINGLE_SLOT_CATEGORIES = ['armor', 'clothing', 'footwear', 'headwear'];
-
-  const toggleEqInUse = (idx) => {
-    const eq = [...(char.equipment || [])];
-    eq[idx] = { ...eq[idx], inUse: !eq[idx].inUse };
-    update('equipment', eq);
-  };
+  const SINGLE_SLOT_CATEGORIES = ['armor', 'clothing', 'footwear', 'headwear', 'shield'];
 
   const removeEq = (idx) => {
     const eq = (char.equipment || []).filter((_, i) => i !== idx);
@@ -986,8 +1002,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const addEquipment = () => {
     if (!addEq) return;
     const w = WEAPONS_LIST.find(x => x.name === addEq);
+    const shield = SHIELDS.find(x => x.name === addEq);
     const newItem = w
       ? { name: addEq, dr: w.dr, skill: w.skill, equipped: true, inUse: false }
+      : shield
+      ? { name: addEq, equipped: false, inUse: false } // shield stats resolved by name via SHIELDS lookup in getArmorBonus/getShieldBonus — GM equips it explicitly
       : { name: addEq, dr: '', skill: '', equipped: true, inUse: false };
     update('equipment', [...(char.equipment || []), newItem]);
     setAddEq && setAddEq('');
@@ -1470,18 +1489,27 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
 
           {/* ── Social Stats — top right column ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90, order: 3 }}>
-            {[
-              { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
-              { label: 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation' },
-              { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
-              // Water units — only shown in drought mode; GM can edit, players see their own
-              ...(waterDroughtEnabled && !char.is_npc ? [{ label: 'Water', value: char.water_units ?? 0, color: '#3a80c0', borderColor: '#2a60a0', key: 'water_units', isWater: true }] : []),
-            ].map(({ label, value, color, borderColor, key, isDecimal, isWater }) => (
+            {(() => {
+              const perceivedIntegrityAdv = (char.advantages || []).find(a => (a.name || a) === 'Perceived Integrity');
+              const perceivedIntegrityRank = perceivedIntegrityAdv?.rank || 1;
+              const perceivedIntegrityValue = (Number(char.integrity) || 0) + perceivedIntegrityRank;
+              return [
+                // Perceived Integrity — derived (Integrity + advantage rank), not independently editable.
+                // Shown right above real Integrity per Charles's direction, rather than trying to filter who
+                // sees which value (Sandy's sheets don't have per-viewer permissions to hook that into).
+                ...(perceivedIntegrityAdv ? [{ label: 'Perceived Integrity', value: perceivedIntegrityValue, color: '#e0c060', borderColor: '#c0a040', key: 'perceived_integrity', isDecimal: true, isDerived: true }] : []),
+                { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
+                { label: (char.disadvantages || []).some(d => (d.name || d) === 'Infamous') ? 'Infamy' : 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation' },
+                { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
+                // Water units — only shown in drought mode; GM can edit, players see their own
+                ...(waterDroughtEnabled && !char.is_npc ? [{ label: 'Water', value: char.water_units ?? 0, color: '#3a80c0', borderColor: '#2a60a0', key: 'water_units', isWater: true }] : []),
+              ];
+            })().map(({ label, value, color, borderColor, key, isDecimal, isWater, isDerived }) => (
               <div key={key} style={{ textAlign: 'center', background: 'var(--bg-panel)', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '4px 12px', width: '100%' }}>
                 <div
-                  style={{ fontSize: 28, fontWeight: 900, color: isWater && value <= 1 ? '#c84030' : color, lineHeight: 1, cursor: isWater ? 'default' : 'pointer' }}
-                  title={isWater ? `Water units on hand (max 5)` : `Click to view ${label} reference table`}
-                  onClick={() => !isWater && setShowSocialRef(key)}
+                  style={{ fontSize: 28, fontWeight: 900, color: isWater && value <= 1 ? '#c84030' : color, lineHeight: 1, cursor: isWater || isDerived ? 'default' : 'pointer' }}
+                  title={isWater ? `Water units on hand (max 5)` : isDerived ? 'Integrity + Perceived Integrity advantage rank — what others perceive your Integrity to be' : `Click to view ${label} reference table`}
+                  onClick={() => !isWater && !isDerived && setShowSocialRef(key)}
                 >
                   {isWater
                     ? <span style={{ display: 'flex', gap: 2, justifyContent: 'center', paddingTop: 4 }}>
@@ -1491,8 +1519,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       </span>
                     : (isDecimal ? (Number(value) || 0).toFixed(1) : (value || 0))}
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: isWater ? 5 : 1 }}>{label}{!isWater && <span style={{ color: borderColor, opacity: 0.6 }}> ?</span>}</div>
-                {canEdit && isGM && !isWater && (
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: isWater ? 5 : 1 }}>{label}{!isWater && !isDerived && <span style={{ color: borderColor, opacity: 0.6 }}> ?</span>}</div>
+                {canEdit && isGM && !isWater && !isDerived && (
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
                     <button className="rep-btn" onClick={() => update(key, Math.max(0, +(value || 0) - (isDecimal ? 0.5 : 1)))}>−</button>
                     <button className="rep-btn" onClick={() => update(key, +(value || 0) + (isDecimal ? 0.5 : 1))}>+</button>
@@ -1776,8 +1804,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               )}
             </div>
             {insightRank < 5 && (() => {
-              const threshold = RANK_THRESHOLDS[insightRank];
-              const prev = RANK_THRESHOLDS[insightRank - 1] || 0;
+              const threshold = getEffectiveRankThresholds(char)[insightRank];
+              const prev = getEffectiveRankThresholds(char)[insightRank - 1] || 0;
               const pct = Math.min(100, ((insight - prev) / (threshold - prev)) * 100);
               return (
                 <>
@@ -1869,77 +1897,21 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             const loreText = weapon
               ? `Damage: ${weapon.dr}\nSkill: ${weapon.skill}\nPrice: ${weapon.price}${weapon.special ? `\nSpecial: ${weapon.special}` : ''}`
               : gearDesc || null;
-            if (e.is_magic) {
-              return (
-                <div key={i} style={{ marginBottom: '.4rem' }}>
-                  <MagicItemBadge item={e} />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
-                      <input type="checkbox" checked={e.equipped || false} onChange={() => {
-                        const slot = getEquipSlot(e.name);
-                        let eq;
-                        if (!e.equipped && SINGLE_SLOT_CATEGORIES.includes(slot)) {
-                          // Equipping: unequip any other item in the same slot first
-                          eq = (char.equipment || []).map((x, xi) =>
-                            xi === i ? { ...x, equipped: true }
-                            : getEquipSlot(x.name) === slot ? { ...x, equipped: false }
-                            : x
-                          );
-                        } else {
-                          eq = (char.equipment || []).map((x, xi) => xi === i ? { ...x, equipped: !x.equipped } : x);
-                        }
-                        update('equipment', eq);
-                      }} style={{ accentColor: 'var(--gold)' }} />
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Equipped{e.equipped && SINGLE_SLOT_CATEGORIES.includes(getEquipSlot(e.name)) ? ` (${getEquipSlot(e.name)})` : ''}
-                      </span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11 }}>
-                      <input type="checkbox" checked={e.inUse || false} onChange={() => toggleEqInUse(i)} style={{ accentColor: 'var(--gold)' }} />
-                      <span style={{ color: 'var(--text-muted)' }}>In use</span>
-                    </label>
-                    {canEdit && onUpdateInventory && (
-                      <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--gold-dim)', borderColor: 'var(--gold-dim)' }}
-                        title="Send to Party Inventory"
-                        onClick={() => {
-                          const item = char.equipment[i];
-                          update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                          onUpdateInventory({ items: [...(partyInventoryItems || []).filter(Boolean), { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
-                          onLogEvent && onLogEvent('ti-arrow-left', `${item.name} → ${char.name} to Party Inventory`);
-                        }}>→ Party</button>
-                    )}
-                    {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
-                      <select style={{ fontSize: 10, padding: '1px 3px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer' }}
-                        value=""
-                        onChange={ev => {
-                          const targetId = ev.target.value;
-                          if (!targetId) return;
-                          const targetChar = (allChars || []).find(c => c.id === targetId);
-                          if (!targetChar) return;
-                          const item = char.equipment[i];
-                          update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                          onUpdate(targetId, { equipment: [...(targetChar.equipment || []), { ...item, equipped: false, inUse: false }] });
-                          onLogEvent && onLogEvent('ti-gift', `${item.name} → ${char.name} gave to ${targetChar.name}`);
-                        }}>
-                        <option value="">→ Player…</option>
-                        {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    )}
-                    {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
-                  </div>
-                </div>
-              );
-            }
             const qualData = ITEM_QUALITIES[e.quality || 'standard'] || ITEM_QUALITIES.standard;
-            const isWeapon = !!e.dr;
-            const isArmor = getEquipSlot(e.name) === 'armor';
-            const canToggleWield = isWeapon || isArmor;
+            // Magic items (from MagicItemCreator) often have a custom GM-chosen name that isn't in the
+            // fixed WEAPONS_LIST/GEAR_LIST, so the name-based lookups below miss them — fall back to the
+            // item's own item_type ('Weapon'/'Armor') which is always set correctly at creation time.
+            const isWeapon = !!e.dr || e.item_type === 'Weapon';
+            const eqSlot = getEquipSlot(e.name);
+            const isArmor = eqSlot === 'armor' || e.item_type === 'Armor';
+            const isShield = eqSlot === 'shield';
+            const canToggleWield = isWeapon || isArmor || isShield;
             // Player can wield/wear their own gear even without full edit mode
             const canWield = canEdit || (myCharId === char.id);
             return (
-              <div key={i} className="eq-row">
+              <React.Fragment key={i}>
+                {e.is_magic && <div style={{ marginBottom: 3 }}><MagicItemBadge item={e} /></div>}
+                <div className="eq-row">
                 {/* Wield/Wear status indicator */}
                 {canToggleWield && (
                   <button
@@ -1954,12 +1926,16 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           : null;
                         onUpdate(char.id, { equipment: eq, current_weapon: currentWeapon });
                       } else {
-                        // Armor: toggle equipped
+                        // Armor / Shield / other single-slot items: toggle equipped, unequip any other
+                        // item occupying the SAME slot (armor unequips armor, shield unequips shield —
+                        // shields are their own slot so they don't conflict with armor, matching the
+                        // conversion doc's rule that shields stack on top of armor rather than compete).
                         const nowWorn = !e.equipped;
+                        const mySlot = getEquipSlot(e.name) === 'armor' || e.item_type === 'Armor' ? 'armor' : getEquipSlot(e.name);
                         const eq = (char.equipment || []).map((x, xi) => {
                           if (xi === i) return { ...x, equipped: nowWorn, inUse: nowWorn };
-                          // Unequip other armor if wearing new one
-                          if (nowWorn && getEquipSlot(x.name) === 'armor') return { ...x, equipped: false, inUse: false };
+                          const xSlot = getEquipSlot(x.name) === 'armor' || x.item_type === 'Armor' ? 'armor' : getEquipSlot(x.name);
+                          if (nowWorn && SINGLE_SLOT_CATEGORIES.includes(mySlot) && xSlot === mySlot) return { ...x, equipped: false, inUse: false };
                           return x;
                         });
                         onUpdate(char.id, { equipment: eq });
@@ -1999,6 +1975,20 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     {qualData.label}
                   </span>
                 )}
+                {!e.dr && SHIELDS.some(s => s.name === e.name) && (() => {
+                  const shieldData = SHIELDS.find(s => s.name === e.name);
+                  const atkPenalty = SHIELD_ATTACK_PENALTY[shieldData.size] || 0;
+                  return (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: 4 }}>
+                      <span style={{ color: 'var(--gold-dim)', fontWeight: 600 }}>+{shieldData.tnBonus} TN</span>
+                      {shieldData.reduction > 0 && <span style={{ marginLeft: 6 }}>Reduction {shieldData.reduction}</span>}
+                      <span style={{ marginLeft: 6 }}>{atkPenalty} Attack/Athletics</span>
+                      {shieldData.note && (
+                        <span style={{ marginLeft: 6, fontStyle: 'italic', color: 'var(--text-muted)' }} title={shieldData.note}>ⓘ</span>
+                      )}
+                    </span>
+                  );
+                })()}
                 {e.dr && (() => {
                   const wData = WEAPONS_LIST.find(w => w.name === e.name);
                   const skillName = e.skill || wData?.skill;
@@ -2071,6 +2061,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 )}
                 {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
               </div>
+              </React.Fragment>
             );
           })}
           {canEdit && isGM && (
@@ -2078,6 +2069,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               <select value={addEq || ''} onChange={e => setAddEq && setAddEq(e.target.value)} style={{ flex: 1 }}>
                 <option value="">Add equipment...</option>
                 {WEAPONS_LIST.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dr})</option>)}
+                {SHIELDS.map(s => <option key={s.name} value={s.name}>{s.name} (Shield: +{s.tnBonus} TN{s.reduction ? `, Reduction ${s.reduction}` : ''})</option>)}
                 {GEAR_LIST.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
               <button className="btn btn-sm btn-p" disabled={!addEq} onClick={addEquipment}>Add</button>
@@ -2216,12 +2208,55 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               {canEdit && isGM && (
                 <select style={{ fontSize: 10, marginLeft: 'auto', maxWidth: 160 }}
                   value=""
-                  onChange={e => {
+                  onChange={async e => {
                     const name = e.target.value;
                     if (!name) return;
                     const adv = ADVANTAGES.find(a => a.name === name);
                     const already = (char.advantages || []).some(a => a.name === name);
-                    if (!already) update('advantages', [...(char.advantages || []), { name, cost: adv?.cost || 0, notes: '' }]);
+                    if (already) return;
+                    const patch = { advantages: [...(char.advantages || []), { name, cost: adv?.cost || 0, notes: '' }] };
+                    // Fame: "+1 Reputation Rank" — direct, immediate, one-time stat add (like Weakness's trait
+                    // reduction) rather than a roll-time hook, since it's not a dice modifier at all.
+                    if (name === 'Fame') patch.reputation = (char.reputation ?? 1) + 1;
+                    // Gentry: variable cost (8-30pt) holding — LBS doesn't give an exact koku/copper table for
+                    // this, so this is a documented estimate (cost × 3 copper), not an official value. Uses
+                    // whatever cost was set at add time; if the GM later edits Gentry's point cost, the money
+                    // grant won't retroactively adjust (same one-time-grant limitation as Weakness/Doubt).
+                    if (name === 'Gentry') patch.copper = (char.copper || 0) + (adv?.cost || 8) * 3;
+                    // Wealthy: "each rank grants 2 additional koku" — rank stored as a.rank (default 1, like Luck)
+                    if (name === 'Wealthy') patch.copper = (char.copper || 0) + 2;
+                    // Social Position: "+1 Status Rank" — direct, immediate stat change, same pattern as Fame
+                    if (name === 'Social Position') patch.status = (char.status ?? 1) + 1;
+                    onUpdate(char.id, patch);
+                    // Gorilla Bodyguard: auto-spawn the trained ape as a full character using the confirmed
+                    // Ozaru stat block, so it shows up claimable in the Character tab immediately. Sets
+                    // claimed_by_name to the owner's name as a visible association — true one-click claiming
+                    // for the SPECIFIC player isn't automatable from here (claim state lives in that player's
+                    // own browser localStorage, not something a background handler can set remotely); the
+                    // player still needs to tap "Claim" on the new gorilla themselves, one click.
+                    if (name === 'Gorilla Bodyguard' && onCreateCharacter) {
+                      const g = CREATURES_LIBRARY.find(c => c.id === 'creature_gorilla');
+                      if (g) {
+                        const [atkRoll, atkKeep] = (g.attack || '5k4').split('k').map(Number);
+                        const [dmgRoll, dmgKeep] = (g.damage || '5k2').split('k').map(Number);
+                        await onCreateCharacter({
+                          name: `${char.name}'s Gorilla Bodyguard`, faction: char.faction || '', school: '',
+                          school_rank: 1, insight_rank: 1, is_npc: true,
+                          air: g.air, earth: g.earth, fire: g.fire, water: g.water, void: 2,
+                          reflexes: g.traits?.Reflexes || 3, awareness: 2, stamina: g.traits?.Stamina || 4, willpower: 2,
+                          agility: g.traits?.Agility || 4, intelligence: 1, strength: g.traits?.Strength || 5, perception: 2,
+                          current_wounds: 0, max_wounds: (g.traits?.Stamina || 4) * 17, current_void: 2,
+                          integrity: 3, reputation: 0, status: 0, copper: 0,
+                          player_notes: '', gm_notes: g.gm_notes || '',
+                          skills: [{ name: 'Athletics', rank: 3, school: false }],
+                          equipment: [], advantages: [], disadvantages: [],
+                          techniques: {}, spells: [],
+                          current_weapon: `Smash (${g.attack || '5k4'})`,
+                          claimed_by_name: char.name,
+                        });
+                        if (onLogEvent) onLogEvent('ti-paw', `${char.name}'s Gorilla Bodyguard created — tap Claim on it to control it directly`);
+                      }
+                    }
                   }}>
                   <option value="">+ Add advantage…</option>
                   {ADVANTAGES.map(a => <option key={a.name} value={a.name}>{a.name} ({a.cost}pt)</option>)}
@@ -2244,6 +2279,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,150,42,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
                       : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{a.customName || a.name}</span>
                     }
+                    {(() => {
+                      const status = getAdvantageAutomationStatus(a.name);
+                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook — no clutter otherwise
+                      return <i className="ti ti-bolt" style={{ fontSize: 12, color: 'var(--gold-dim)' }}
+                        title="This advantage's bonus is applied automatically in the dice roller when relevant." />;
+                    })()}
                     <span style={{ color: 'var(--gold-dim)', fontSize: 11 }}>({a.cost} pts)</span>
                     {canEdit && isGM && (
                       <button className="btn btn-sm btn-d" style={{ padding: '0 4px', fontSize: 11, lineHeight: 1.4 }}
@@ -2251,6 +2292,70 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     )}
                   </div>
                   {adv?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{adv.desc}</div>}
+                  {a.name === 'Elemental Blessing' && canEdit && isGM && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Ring:</span>
+                      <select style={{ fontSize: 11 }} value={a.ring || ''} onChange={e => updateAdv({ ring: e.target.value || undefined })}>
+                        <option value="">— choose —</option>
+                        {['Air', 'Earth', 'Fire', 'Water'].map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      {a.ring && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>-1 XP cost to raise {a.ring}-Ring Traits</span>}
+                    </div>
+                  )}
+                  {a.name === 'Elemental Blessing' && !isGM && a.ring && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Chosen Ring: {a.ring}</div>
+                  )}
+                  {a.name === 'Great Potential' && canEdit && isGM && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Skill:</span>
+                      <select style={{ fontSize: 11 }} value={a.skill || ''} onChange={e => updateAdv({ skill: e.target.value || undefined })}>
+                        <option value="">— choose —</option>
+                        {(char.skills || []).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                      </select>
+                      {a.skill && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>Raises on {a.skill} capped by Skill Rank instead of Void Ring, if higher.</span>}
+                    </div>
+                  )}
+                  {a.name === 'Great Potential' && !isGM && a.skill && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Chosen Skill: {a.skill}</div>
+                  )}
+                  {a.name === 'Read Lips' && (canEdit || myCharId === char.id) && onRoll && (() => {
+                    const [dist, setDist] = [readLipsDist[char.id] || 20, (v) => setReadLipsDist(p => ({ ...p, [char.id]: v }))];
+                    const tn = 15 + 5 * Math.ceil(dist / 20);
+                    const perception = char.perception || 2;
+                    const insightRank = char.insight_rank || char.school_rank || 1;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Distance:</span>
+                        <input type="number" value={dist} onChange={e => setDist(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                          style={{ width: 50, fontSize: 11 }} /> <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ft (TN {tn})</span>
+                        <button className="btn btn-sm" onClick={() => onRoll({
+                          skill: 'Read Lips', ring: 'Perception', ringVal: perception,
+                          baseRoll: perception + insightRank, baseKeep: perception, tn,
+                          character: char, currentVoid: char.current_void,
+                          label: `Read Lips (${dist} ft, TN ${tn})`,
+                        })}>
+                          <i className="ti ti-dice" style={{ marginRight: 3 }} />Roll {perception + insightRank}k{perception}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {a.name === 'Well-Connected' && (canEdit || myCharId === char.id) && onRoll && (() => {
+                    const courtierSkill = (char.skills || []).find(s => s.name === 'Courtier');
+                    const awareness = char.awareness || 2;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Favor from court contact (TN 20, once/session/rank):</span>
+                        <button className="btn btn-sm" onClick={() => onRoll({
+                          skill: 'Courtier', ring: 'Air', ringVal: awareness,
+                          baseRoll: (courtierSkill?.rank || 0) + awareness, baseKeep: awareness, tn: 20,
+                          character: char, currentVoid: char.current_void,
+                          label: 'Well-Connected — favor from court contact',
+                        })}>
+                          <i className="ti ti-dice" style={{ marginRight: 3 }} />Roll {(courtierSkill?.rank || 0) + awareness}k{awareness}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   {(a.name || '').startsWith('Luck') && (() => {
                     const luckRank = a.rank || 1;
                     const usesLeft = a.current_uses !== undefined ? a.current_uses : luckRank;
@@ -2289,7 +2394,14 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     if (!name) return;
                     const dis = DISADVANTAGES.find(d => d.name === name);
                     const already = (char.disadvantages || []).some(d => d.name === name);
-                    if (!already) update('disadvantages', [...(char.disadvantages || []), { name, value: dis?.value || 0, notes: '' }]);
+                    if (already) return;
+                    const patch = { disadvantages: [...(char.disadvantages || []), { name, value: dis?.value || 0, notes: '' }] };
+                    // Dishonored: "Status Rank 1" — direct, immediate stat set (the "may not gain Status while
+                    // active" restriction isn't enforced — would need to gate the Status-editing UI, not done)
+                    if (name === 'Dishonored') patch.status = 1;
+                    // Social Disadvantage: "begin with Status Rank 0" — same pattern
+                    if (name === 'Social Disadvantage') patch.status = 0;
+                    onUpdate(char.id, patch);
                   }}>
                   <option value="">+ Add disadvantage…</option>
                   {DISADVANTAGES.map(d => <option key={d.name} value={d.name}>{d.name} (+{d.value}CP)</option>)}
@@ -2312,13 +2424,142 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           style={{ flex: 1, fontSize: 13, fontWeight: 500, background: 'transparent', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: '1px solid rgba(200,64,48,.2)', color: 'var(--text-secondary)', outline: 'none', fontFamily: 'inherit', padding: '0 2px' }} />
                       : <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>{d.customName || d.name}</span>
                     }
+                    {(() => {
+                      const status = getDisadvantageAutomationStatus(d.name);
+                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook — no clutter otherwise
+                      return <i className="ti ti-bolt" style={{ fontSize: 12, color: 'var(--red)' }}
+                        title="This disadvantage's penalty is applied automatically in the dice roller when relevant." />;
+                    })()}
                     <span style={{ color: 'var(--red)', fontSize: 11 }}>(+{d.value} CP)</span>
                     {canEdit && isGM && (
                       <button className="btn btn-sm btn-d" style={{ padding: '0 4px', fontSize: 11, lineHeight: 1.4 }}
-                        onClick={() => update('disadvantages', (char.disadvantages || []).filter((_, xi) => xi !== di))}>×</button>
+                        onClick={() => {
+                          const filtered = (char.disadvantages || []).filter((_, xi) => xi !== di);
+                          if (d.name === 'Weakness' && d.trait) {
+                            const traitField = d.trait.toLowerCase();
+                            onUpdate(char.id, { disadvantages: filtered, [traitField]: (char[traitField] || 1) + 1 });
+                          } else {
+                            update('disadvantages', filtered);
+                          }
+                        }}>×</button>
                     )}
                   </div>
                   {dis?.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{dis.desc}</div>}
+                  {d.name === 'Weakness' && canEdit && isGM && (() => {
+                    const traitField = (t) => t.toLowerCase();
+                    const chooseTrait = (newTrait) => {
+                      const patch = {};
+                      // Restore the previously-chosen trait if switching
+                      if (d.trait) patch[traitField(d.trait)] = (char[traitField(d.trait)] || 1) + 1;
+                      // Apply -1 to the newly chosen trait (min 1)
+                      const baseVal = patch[traitField(newTrait)] !== undefined ? patch[traitField(newTrait)] : (char[traitField(newTrait)] || 2);
+                      patch[traitField(newTrait)] = Math.max(1, baseVal - 1);
+                      const updatedDisadvantages = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, trait: newTrait } : x);
+                      onUpdate(char.id, { ...patch, disadvantages: updatedDisadvantages });
+                    };
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Affected Trait:</span>
+                        <select style={{ fontSize: 11 }} value={d.trait || ''} onChange={e => e.target.value && chooseTrait(e.target.value)}>
+                          <option value="">— choose —</option>
+                          {TRAITS.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        {d.trait && <span style={{ fontSize: 11, color: 'var(--red)' }}>{d.trait} reduced by 1 (permanent, until this disadvantage is removed)</span>}
+                      </div>
+                    );
+                  })()}
+                  {d.name === 'Weakness' && !isGM && d.trait && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Affected Trait: {d.trait} (reduced by 1)</div>
+                  )}
+                  {d.name === 'Curse of the Grey Crone' && canEdit && isGM && (() => {
+                    const traitField = (t) => t.toLowerCase();
+                    const chooseTrait = (newTrait) => {
+                      const patch = {};
+                      // Restore the previously-chosen trait to a sane default if switching (can't know their
+                      // true pre-curse value once locked, so restore to 2 — GM can correct manually if needed)
+                      if (d.trait) patch[traitField(d.trait)] = 2;
+                      patch[traitField(newTrait)] = 1;
+                      const updatedDisadvantages = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, trait: newTrait } : x);
+                      onUpdate(char.id, { ...patch, disadvantages: updatedDisadvantages });
+                    };
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Locked Trait:</span>
+                        <select style={{ fontSize: 11 }} value={d.trait || ''} onChange={e => e.target.value && chooseTrait(e.target.value)}>
+                          <option value="">— choose —</option>
+                          {TRAITS.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        {d.trait && <span style={{ fontSize: 11, color: 'var(--red)' }}>{d.trait} locked to 1, cannot be raised with XP. Insight Rank XP thresholds reduced by 5 each.</span>}
+                      </div>
+                    );
+                  })()}
+                  {d.name === 'Curse of the Grey Crone' && !isGM && d.trait && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Locked Trait: {d.trait} (cannot be raised)</div>
+                  )}
+                  {d.name === 'Unlucky' && (() => {
+                    const unluckyRank = d.rank || 1;
+                    const usesLeft = d.current_uses !== undefined ? d.current_uses : unluckyRank;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>GM uses this session:</span>
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {Array.from({ length: unluckyRank }, (_, i) => (
+                            <button key={i} onClick={() => canEdit && isGM && updateDis({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
+                              style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--red)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--red)' : 'transparent', cursor: canEdit && isGM ? 'pointer' : 'default', padding: 0 }} />
+                          ))}
+                        </div>
+                        <span style={{ fontSize: 11, color: usesLeft > 0 ? 'var(--red)' : 'var(--text-muted)' }}>{usesLeft}/{unluckyRank}</span>
+                        {canEdit && isGM && <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateDis({ current_uses: unluckyRank })}>Reset</button>}
+                      </div>
+                    );
+                  })()}
+                  {d.name === 'Cursed by the Honest Hand' && canEdit && isGM && (() => {
+                    const options = (char.skills || []).map(s => s.name);
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Skill:</span>
+                        <select style={{ fontSize: 11 }} value={d.skill || ''} onChange={e => updateDis({ skill: e.target.value || undefined })}>
+                          <option value="">— choose —</option>
+                          {options.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {d.skill && <span style={{ fontSize: 11, color: 'var(--red)' }}>XP cost to raise {d.skill} is doubled</span>}
+                      </div>
+                    );
+                  })()}
+                  {d.name === 'Cursed by the Honest Hand' && !isGM && d.skill && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Chosen Skill: {d.skill} (XP cost doubled)</div>
+                  )}
+                  {d.name === 'Doubt' && canEdit && isGM && (() => {
+                    const options = (char.skills || []).map(s => s.name);
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen School Skill:</span>
+                        <select style={{ fontSize: 11 }} value={d.skill || ''} onChange={e => updateDis({ skill: e.target.value || undefined })}>
+                          <option value="">— choose —</option>
+                          {options.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {d.skill && <span style={{ fontSize: 11, color: 'var(--red)' }}>+5 TN on every {d.skill} roll (mandatory wasted Raise)</span>}
+                      </div>
+                    );
+                  })()}
+                  {d.name === 'Doubt' && !isGM && d.skill && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Chosen School Skill: {d.skill} (+5 TN mandatory wasted Raise)</div>
+                  )}
+                  {d.name === 'Missing Limb' && canEdit && isGM && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Missing:</span>
+                      <select style={{ fontSize: 11 }} value={d.limb || ''} onChange={e => updateDis({ limb: e.target.value || undefined })}>
+                        <option value="">— choose —</option>
+                        <option value="Arm/Hand">Arm / Hand</option>
+                        <option value="Leg/Foot">Leg / Foot</option>
+                        <option value="Eye">Eye</option>
+                      </select>
+                      {d.limb && <span style={{ fontSize: 11, color: 'var(--red)' }}>+10 TN on rolls involving a {d.limb}</span>}
+                    </div>
+                  )}
+                  {d.name === 'Missing Limb' && !isGM && d.limb && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Missing: {d.limb} (+10 TN on affected rolls)</div>
+                  )}
                   {canEdit && isGM
                     ? <textarea value={d.notes || ''} onChange={e => updateDis({ notes: e.target.value })}
                         placeholder="Notes…" rows={1}

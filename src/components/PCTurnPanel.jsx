@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, getArmorBonus } from '../data/constants';
-import { getWoundRank } from '../lib/utils';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES } from '../data/constants';
+import { getWoundRank, getEffectiveWaterRing } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
@@ -30,6 +30,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
   const [forgeryDocName, setForgeryDocName] = useState('');
+  const [simpleActionConfirmed, setSimpleActionConfirmed] = useState({}); // techName -> bool, for Simple Action Attack techniques whose condition needs a GM/player call (weapon type, lone opponent, mounted, etc.)
+  const [actingTempName, setActingTempName] = useState('');
   const [selectedEmphasis, setSelectedEmphasis] = useState(null); // active emphasis for free raise
 
   if (!isNPCTurn && !character) return null;
@@ -91,7 +93,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     baseRoll: npcRef + defSkill,
                     baseKeep: npcAir,
                     woundPenalty: npcWoundPenalty,
-                    resultLabel: 'Result replaces Armor TN until next turn.',
+                    resultLabel: 'Half the result (rounded up) is added to base Armor TN until next turn.',
                     onComplete: (total) => { onStanceChange('Full Defense', total); },
                   });
                   if (onSpendAction) onSpendAction('full');
@@ -142,19 +144,81 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             )}
           </div>
         )}
+        {selectedAction === 'skill' && (
+          <div style={{ marginBottom: '.5rem' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Select skill to roll:</div>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.4rem' }}>
+              {[
+                { name: 'Intimidation', trait: 'willpower', ring: npcAir, roll: (combatant.willpower||npcAir)+1, keep: npcAir },
+                { name: 'Stealth',      trait: 'agility',   ring: npcFire, roll: (combatant.agility||npcFire)+1, keep: npcFire },
+                { name: 'Investigation',trait: 'perception',ring: npcAir,  roll: (combatant.perception||npcAir)+1, keep: npcAir },
+                { name: 'Athletics',    trait: 'strength',  ring: npcAir,  roll: (combatant.strength||npcAir)+1, keep: npcAir },
+                { name: 'Courtier',     trait: 'awareness', ring: npcAir,  roll: (combatant.awareness||npcAir)+1, keep: npcAir },
+                { name: 'Medicine',     trait: 'intelligence', ring: npcFire, roll: (combatant.intelligence||npcFire)+1, keep: npcFire },
+                ...(combatant.skills || []).map(s => ({
+                  name: s.name, trait: '', ring: npcAir,
+                  roll: (npcAgi) + (s.rank||1), keep: npcFire,
+                })),
+              ].map(sk => (
+                <button key={sk.name} className={`btn btn-sm ${selectedTarget === sk.name ? 'btn-p' : ''}`}
+                  onClick={() => setSelectedTarget(sk.name)}>
+                  {sk.name}
+                </button>
+              ))}
+            </div>
+            {selectedTarget && (() => {
+              const allSkills = [
+                { name: 'Intimidation', roll: (combatant.willpower||npcAir)+1, keep: npcAir },
+                { name: 'Stealth',      roll: (combatant.agility||npcFire)+1,  keep: npcFire },
+                { name: 'Investigation',roll: (combatant.perception||npcAir)+1, keep: npcAir },
+                { name: 'Athletics',    roll: (combatant.strength||npcAir)+1,   keep: npcAir },
+                { name: 'Courtier',     roll: (combatant.awareness||npcAir)+1,  keep: npcAir },
+                { name: 'Medicine',     roll: (combatant.intelligence||npcFire)+1, keep: npcFire },
+                ...(combatant.skills || []).map(s => ({ name: s.name, roll: npcAgi + (s.rank||1), keep: npcFire })),
+              ];
+              const sk = allSkills.find(s => s.name === selectedTarget) || { name: selectedTarget, roll: npcAgi+1, keep: npcFire };
+              return (
+                <button className="btn btn-p" style={{ fontSize: 13, padding: '.4rem .8rem' }} onClick={() => {
+                  onRoll({
+                    skill: sk.name,
+                    tn: 15,
+                    baseRoll: sk.roll,
+                    baseKeep: sk.keep,
+                    woundPenalty: npcWoundPenalty,
+                    character: combatant,
+                  });
+                  onSpendAction && onSpendAction('full');
+                  setSelectedTarget(null);
+                  setSelectedAction(null);
+                }}>
+                  Roll {sk.name} — {sk.roll}k{sk.keep} vs TN 15
+                </button>
+              );
+            })()}
+          </div>
+        )}
       </div>
     );
   }
 
-  const woundRank = getWoundRank(character.current_wounds, (character.earth || 2) * 17, character.earth || 2);
+  // Bad Health disadvantage: Earth treated one rank lower for Wound Rank thresholds
+  const hasBadHealth = (character.disadvantages || []).some(d => (d.name || d) === 'Bad Health');
+  const effectiveEarth = Math.max(1, (character.earth || 2) - (hasBadHealth ? 1 : 0));
+  let woundRank = getWoundRank(character.current_wounds, effectiveEarth * 17, effectiveEarth);
+  // Permanent Wound disadvantage: first Wound Rank is always considered full — floor at rank 1 once any wound is taken
+  const hasPermanentWound = (character.disadvantages || []).some(d => (d.name || d) === 'Permanent Wound');
+  if (hasPermanentWound && (character.current_wounds || 0) > 0) woundRank = Math.max(woundRank, 1);
   // Wound penalties are TN additions per L5R 4th Ed; Strength of the Earth reduces by 3
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasStrengthOfEarth = (character.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
   // City Guard R1 "Trained For War": subtract School Rank from wound penalties
   const hasCityGuardR1 = character && Object.values(character.techniques || {}).some(t => t === 'Trained For War');
   const cityGuardReduction = hasCityGuardR1 ? (character.school_rank || 1) : 0;
+  // Low Pain Threshold disadvantage: +5 TN penalty per wound rank
+  const hasLowPainThreshold = (character.disadvantages || []).some(d => (d.name || d) === 'Low Pain Threshold');
   const woundPenaltyReduction = (hasStrengthOfEarth ? 3 : 0) + cityGuardReduction;
-  const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction);
+  const woundPenaltyIncrease = hasLowPainThreshold ? 5 : 0;
+  const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction + woundPenaltyIncrease);
 
   // Drawn weapons and dual-wield penalties — computed at top level for use in roll TN
   const drawnList = combatant.drawnWeapons || (combatant.drawnWeapon ? [combatant.drawnWeapon] : []);
@@ -165,9 +229,19 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     return w?.size === 'small' ? -5 : w?.size === 'large' ? -15 : -10;
   };
   const dualWieldPenalty = isDualWielding && selectedWeapon
-    ? (drawnList[0]?.startsWith(selectedWeapon.name) ? primaryHandPenalty : getOffHandPenalty(selectedWeapon.name))
+    ? (() => {
+        // Knives Skill Mastery Rank 3: off-hand penalties do not apply when using a knife (confirmed L5R 4E core rule)
+        const knivesSkill = (character.skills || []).find(s => s.name === 'Knives');
+        const weaponData = WEAPONS_LIST.find(w => w.name === selectedWeapon.name);
+        if ((knivesSkill?.rank || 0) >= 3 && weaponData?.skill === 'Knives') return 0;
+        return drawnList[0]?.startsWith(selectedWeapon.name) ? primaryHandPenalty : getOffHandPenalty(selectedWeapon.name);
+      })()
     : 0;
   const dualWieldArmorBonus = isDualWielding ? (character?.insight_rank || character?.school_rank || 1) : 0;
+  // Shield penalty: L5R 4E Two-Weapon rules by size, applies to BOTH Attack rolls and Athletics rolls
+  // per the conversion doc's explicit shield rule (shields don't grant two-weapon-fighting benefits, only
+  // the penalty). Uses TN-increase convention to match how dualWieldPenalty is already applied below.
+  const equippedShieldPenalty = getShieldBonus(character?.equipment || []).attackPenalty; // 0, -5, -10, or -15
 
   // Targetable pool — enemies always, allies too if friendly-fire targeting is enabled
   const targetPool = allowFriendly ? [...enemies, ...allies] : enemies;
@@ -196,11 +270,15 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const centerExtraKeep = hasCenterBonus ? 1 : 0;
   const centerBonus = combatant.stance === 'Center' ? (character?.school_rank || 1) : 0;
 
-  // Skill mastery bonuses (ranks 3, 5, 7)
+  // Skill mastery bonuses (ranks 3, 5, 7). NOTE: real L5R 4E Bugei (combat) skill mastery abilities
+  // (confirmed against a clean wiki source this session — see MASTERY_AUDIT.md) essentially never take
+  // the form of "add a rolled die to this skill's own attack pool." They're damage-only bonuses, free
+  // actions, Initiative bonuses, conditional/situational effects, or cross-skill bonuses instead — none
+  // of which fit this simple table. The previous Swordsmanship/Brawling/Athletics entries here (and the
+  // Knives/Spears/Staves/Heavy Weapons/Chain Weapons stopgap added earlier this session) were WRONG —
+  // removed rather than left in place actively misleading players. See MASTERY_AUDIT.md for what each
+  // skill's real mastery abilities are and where (if anywhere) they've been wired instead.
   const MASTERY_ROLL_BONUS = {
-    Swordsmanship: { 5: 1 }, // +1k0 at rank 5
-    Brawling: { 5: 0 },      // +1k0 damage only
-    Athletics: { 5: 1 },
     Stealth: { 5: 1 },
     Investigation: { 5: 1 },
     Medicine: { 5: 1 },
@@ -208,8 +286,6 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     Spellcraft: {},
   };
   const MASTERY_FREE_RAISE = {
-    Brawling: { 7: true },
-    Hunting: { 3: true, 7: true },
     Divination: { 3: true },
     Spellcraft: { 3: true },
   };
@@ -219,17 +295,15 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   // Calculate dice pool for a skill
   const getPool = (skill) => {
-    const SKILL_RINGS = {
-      Swordsmanship: ['agility', 'fire'], Knives: ['agility', 'fire'], Spears: ['agility', 'fire'],
-      Archery: ['reflexes', 'air'], Brawling: ['strength', 'water'], Defense: ['reflexes', 'air'],
-      Polearms: ['agility', 'fire'], Staves: ['agility', 'fire'], Athletics: ['strength', 'water'],
-      Tahaddi: ['awareness', 'air'], Sincerity: ['awareness', 'air'], Etiquette: ['awareness', 'air'],
-      Courtier: ['awareness', 'air'], Temptation: ['awareness', 'air'], Intimidation: ['strength', 'water'],
-      Acting: ['awareness', 'air'], Storytelling: ['awareness', 'air'], Commerce: ['intelligence', 'fire'],
-      Investigation: ['perception', 'water'], Stealth: ['agility', 'fire'], Medicine: ['intelligence', 'fire'],
-      Meditation: ['void', 'void'], Spellcraft: ['intelligence', 'fire'], Divination: ['awareness', 'air'],
-    };
-    const [traitKey, ringKey] = SKILL_RINGS[skill.name] || ['agility', 'fire'];
+    // Authoritative trait/ring source is SKILL_TRAIT_MAP in constants.js — this used to be a separate,
+    // incomplete, locally-hardcoded table that disagreed with it for Tahaddi (was Awareness, should be
+    // Reflexes) and Intimidation (was Strength/Water, should be Awareness/Air), and silently defaulted
+    // ~24 other skills (Battle, Horsemanship, Hunting, all Lore/Craft/Perform variants, etc.) to
+    // Agility/Fire because they weren't in the local table at all.
+    const lookupName = skill.name.startsWith('Lore:') ? 'Lore' : skill.name.startsWith('Craft:') ? 'Craft' : skill.name.startsWith('Perform:') ? 'Perform' : skill.name;
+    const mapped = SKILL_TRAIT_MAP[lookupName];
+    const traitKey = (mapped?.trait || 'Agility').toLowerCase();
+    const ringKey = (mapped?.ring || 'Fire').toLowerCase();
     const traitVal = character[traitKey] || 2;
     const ringVal = character[ringKey] || 2;
 
@@ -241,11 +315,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   };
 
   // Get armor TN of target
-  const getTargetTN = (targetId) => {
+  const getTargetTN = (targetId, skillName) => {
     const t = targetPool.find(e => e.id === targetId);
     if (!t) return 15;
     const tArmor = getArmorBonus(t.equipment || []) || (t.has_armor ? 5 : 0) || t.armorBonus || 0;
-    return 5 + (t.reflexes || 2) * 5 + tArmor;
+    // Magic Resistance: target's Casting TN vs elemental spells increases +3 per rank
+    const magicResist = (t.advantages || []).find(a => (a.name || a) === 'Magic Resistance');
+    const magicResistBonus = (skillName === 'Spellcraft' && magicResist) ? (magicResist.rank || 1) * 3 : 0;
+    return 5 + (t.reflexes || 2) * 5 + tArmor + magicResistBonus;
   };
 
   const handleSkillClick = (skill) => {
@@ -258,11 +335,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (!selectedSkill) return;
     const pool = getPool(selectedSkill);
     const isAttack = combatSkills.some(s => s.name === selectedSkill.name) && selectedSkill.name !== 'Defense' && selectedSkill.name !== 'Athletics';
-    const tn = manualTn || (selectedTarget ? getTargetTN(selectedTarget) : 15);
+    const tn = manualTn || (selectedTarget ? getTargetTN(selectedTarget, selectedSkill.name) : 15);
     const target = targetPool.find(e => e.id === selectedTarget);
 
     const stanceBonus = isAttack ? stanceRollBonus : 0;
-    const hasMasteryFreeRaise = (MASTERY_FREE_RAISE[selectedSkill.name] || {})[selectedSkill.rank];
+    // Universal skill mastery: EVERY skill grants a Free Raise at Rank 5 (core L5R 4E "Journeyman" tier),
+    // separate from and stacking with any skill-specific bonus in MASTERY_FREE_RAISE (e.g. Brawling R7,
+    // Hunting R3/R7). Specific-rank bonuses only trigger at the exact listed rank, not cumulatively above it.
+    const specificMasteryRaise = (MASTERY_FREE_RAISE[selectedSkill.name] || {})[selectedSkill.rank] ? 1 : 0;
+    const universalMasteryRaise = selectedSkill.rank >= 5 ? 1 : 0;
+    const masteryFreeRaiseCount = specificMasteryRaise + universalMasteryRaise;
 
     // Quality bonus from drawn weapon
     const drawnName = combatant.drawnWeapon?.split(' (')[0];
@@ -272,11 +354,22 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     const qualityRollBonus = isAttack ? (qualityData.rollBonus || 0) : 0;
     const qualityKeepBonus = isAttack ? (qualityData.keepBonus || 0) : 0;
 
+    // Shield penalty applies to Attack rolls and Athletics rolls specifically (per conversion doc)
+    const shieldPenaltyApplies = equippedShieldPenalty !== 0 && (isAttack || selectedSkill.name === 'Athletics');
+    const shieldPenalty = shieldPenaltyApplies ? equippedShieldPenalty : 0;
+
     const bonusNotes = [];
     if (stanceRollBonus > 0) bonusNotes.push(`Full Attack: +2k1 to attacks (−10 Armor TN)`);
     if (dualWieldPenalty !== 0) bonusNotes.push(`Dual wield: ${dualWieldPenalty} TN to this attack`);
+    if (shieldPenalty !== 0) bonusNotes.push(`Shield: ${shieldPenalty} TN (carrying a shield)`);
+    if (selectedSkill.name === 'Spellcraft' && selectedTarget) {
+      const targetChar = targetPool.find(e => e.id === selectedTarget);
+      const magicResist = (targetChar?.advantages || []).find(a => (a.name || a) === 'Magic Resistance');
+      if (magicResist) bonusNotes.push(`Target's Magic Resistance: +${(magicResist.rank || 1) * 3} Casting TN`);
+    }
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
-    if (hasMasteryFreeRaise) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
+    if (universalMasteryRaise > 0) bonusNotes.push(`Rank 5+ Mastery: Free Raise`);
+    if (specificMasteryRaise > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
     if (selectedEmphasis) bonusNotes.push(`Emphasis (${selectedEmphasis}): reroll 1s on kept dice`);
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
@@ -300,7 +393,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       character,
       suggestedFlatMod: centerBonus,
       bonusNotes,
-      freeRaises: hasMasteryFreeRaise ? 1 : 0,
+      freeRaises: masteryFreeRaiseCount,
       activeEmphasis: selectedEmphasis || null, // rerolls 1s on kept dice, not a free raise
       // Skill outcome context
       skillOutcome: selectedSkill.name,
@@ -314,6 +407,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         meditation: selectedSkill.name === 'Meditation',
         forgery: selectedSkill.name === 'Forgery',
         forgeryDocName: forgeryDocName || 'Forged Document',
+        actingTempName: actingTempName || null,
         storytelling: selectedSkill.name === 'Storytelling',
         boastTargetId: boastTarget || null,
         socialTarget: skillTarget || null,
@@ -598,7 +692,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                  : `Move — adds Water Ring (${character?.water || combatant.water || 2}) squares to your range (Simple Action). You always have 1 free square without this.` },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
             hidden: ['Full Defense','Full Attack','Center','Attack'].includes(combatant.stance),
-            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, result replaces your Armor TN' },
+            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, half the result (rounded up) is added to your Armor TN' },
           { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: noActionsLeft ? 'var(--gold)' : 'var(--text-muted)',     title: 'Pass — skip your turn', glow: noActionsLeft },
           { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0',
             hidden: !(character?.spells?.length > 0) || ['Full Attack','Full Defense','Center'].includes(combatant.stance),
@@ -612,8 +706,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 // Clicking Full Defense: switch to stance AND immediately roll
                 onStanceChange('Full Defense');
                 // Full Defense — Complex Action. Must be in Full Defense stance.
-                // Roll Agility/Defense (TN 5). Result REPLACES Reflexes×5 as the TN to be hit.
-                // Final Armor TN = 5 + armor bonus + Defense roll result.
+                // Roll Agility/Defense (TN 5). Half the result (rounded up) is ADDED to base Armor TN —
+                // confirmed against the conversion doc's own "Rules Confirmed" record and matches the
+                // formula EncounterTab.jsx actually computes (5 + Reflexes×5 + armor + half this roll).
+                // A stale, superseded base-rulebook analysis in project docs claims "replaces," which is
+                // wrong — don't reintroduce that.
                 const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
                 const agl = character?.agility || 2;
                 const defRank = defenseSkill?.rank || 0;
@@ -624,7 +721,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   baseKeep: agl,
                   character,
                   woundPenalty,
-                  resultLabel: 'Defense roll result replaces your Reflexes×5 — new Armor TN = 5 + armor + this roll',
+                  resultLabel: 'Half this result (rounded up) is added to base Armor TN (5 + Reflexes×5 + armor)',
                   onComplete: (result) => {
                     onStanceChange('Full Defense', result ?? 10);
                     onSpendAction && onSpendAction('full');
@@ -748,29 +845,56 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 const wSkill = (character.skills || []).find(s => s.name === selectedWeapon.skill)
                   || (character.skills || []).find(s => ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves'].includes(s.name));
                 const pool = wSkill ? getPool(wSkill) : { roll: (character.agility || 2) + 1, keep: character.fire || 2, ringKey: 'fire', ringVal: character.fire || 2 };
-                return (
-                  <button className="btn btn-p" onClick={() => {
+                // Simple Action Attack techniques (e.g. City Guard R3 "Implacable Foe") — this flag existed on
+                // 8 techniques but was never actually enforced anywhere; wiring it in now. Auto-applies for
+                // unconditional entries and stance-matched ones; shows a manual confirm checkbox for anything
+                // needing a GM/player judgment call (specific weapon, "lone opponent", "mounted", etc.) rather
+                // than guessing — same pattern used throughout this session for conditions Sandy can't verify.
+                const simpleActionEntries = Object.values(character.techniques || {})
+                  .map(t => typeof t === 'object' ? t.name : t)
+                  .filter(Boolean)
+                  .flatMap(name => (TECHNIQUE_ROLL_BONUSES[name] || []).filter(b => b.simpleAction).map(b => ({ name, ...b })));
+                const autoQualifies = simpleActionEntries.some(e =>
+                  (!e.conditional) || (e.stances && e.stances.includes(combatant.stance))
+                );
+                const manualEntries = simpleActionEntries.filter(e => e.conditional && !(e.stances && e.stances.includes(combatant.stance)));
+                const manualConfirmed = manualEntries.some(e => simpleActionConfirmed[e.name]);
+                const attackIsSimpleAction = autoQualifies || manualConfirmed;
+                return (<>
+                {manualEntries.length > 0 && !autoQualifies && (
+                  <div style={{ marginBottom: 6, fontSize: 11 }}>
+                    {manualEntries.map(e => (
+                      <label key={e.name} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: 'var(--text-muted)', marginBottom: 2 }}>
+                        <input type="checkbox" checked={!!simpleActionConfirmed[e.name]}
+                          onChange={ev => setSimpleActionConfirmed(p => ({ ...p, [e.name]: ev.target.checked }))} />
+                        {e.name}: this attack qualifies ({e.conditional}) — Simple Action instead of Full
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-p" onClick={() => {
                     onRoll({
                       skill: wSkill?.name || selectedWeapon.skill,
                       ring: pool.ringKey,
                       ringVal: pool.ringVal,
                       baseRoll: pool.roll,
                       baseKeep: pool.keep,
-                      tn: getTargetTN(selectedTarget) + (dualWieldPenalty || 0),
+                      tn: getTargetTN(selectedTarget) + (dualWieldPenalty || 0) + (equippedShieldPenalty || 0),
                       isAttack: true,
                       dr: selectedWeapon.dr,
                       weaponName: selectedWeapon.name,
-                      targetName: targetPool.find(e => e.id === selectedTarget)?.name,
+                      targetName: targetPool.find(t => t.id === selectedTarget)?.name,
                       targetId: selectedTarget,
                       currentVoid: character.current_void,
                       woundPenalty,
                       character,
                     });
-                    onSpendAction && onSpendAction('full');
+                    onSpendAction && onSpendAction(attackIsSimpleAction ? 'simple' : 'full');
                   }}>
                     Roll {selectedWeapon.name} — {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
+                    {attackIsSimpleAction && <span style={{ marginLeft: 5, fontSize: 10, opacity: 0.85 }}>(Simple Action)</span>}
                   </button>
-                );
+                </>);
               })()}
             </div>
           )}
@@ -876,6 +1000,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     style={{ fontSize: 12, width: 140, padding: '2px 5px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }} />
                 </div>
               )}
+              {selectedSkill.name === 'Acting' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Posing as (optional):</label>
+                  <input value={actingTempName} onChange={e => setActingTempName(e.target.value)}
+                    placeholder="e.g. Merchant Farrukh"
+                    style={{ fontSize: 12, width: 140, padding: '2px 5px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }} />
+                </div>
+              )}
               {isAtk && (
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Target:</div>
@@ -910,7 +1042,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
       {/* Move action pane */}
       {selectedAction === 'move' && (() => {
-        const waterRing = character?.water || combatant.water || 2;
+        const waterRing = getEffectiveWaterRing(character || combatant);
         const movesUsed = combatant._movesUsed || 0;
         const isFullAttack = combatant.stance === 'Full Attack';
         const maxMoves = isFullAttack ? 1 : 2;

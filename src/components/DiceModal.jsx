@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES, WEAPONS_LIST } from '../data/constants';
+import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES, DISADVANTAGE_ROLL_BONUSES, WEAPONS_LIST } from '../data/constants';
 import { rollN } from '../lib/utils';
 import { playSuccess, playFailure, playClick } from '../lib/sounds';
 import { triggerVoidSwirl } from './UI';
@@ -38,7 +38,7 @@ const SOCIAL_SKILLS = ['Commerce','Sincerity','Temptation','Courtier','Etiquette
 const LORE_SKILLS = ['Lore: Underworld','Lore: Law','Lore: History','Lore: Theology','Lore: Burning Sands','Lore: Ebonites','Lore: Khadi','Lore: Jackal','Lore: Undead','Lore: Yodotai History'];
 const SPELLCASTING_SKILLS = ['Spellcraft'];
 
-export function computeBonuses(character, skillName, isAttack, isDamage, currentStance) {
+export function computeBonuses(character, skillName, isAttack, isDamage, currentStance, activeEmphasis) {
   if (!character) return { extraRolled: 0, extraKept: 0, extraFlat: 0, freeRaises: 0, auto: [], conditional: [] };
 
   const isInitiative = skillName === 'Initiative' || skillName === 'INITIATIVE';
@@ -81,6 +81,22 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
     // Other conditional bonuses shown separately
     if (bonus.conditional) {
       conditionalItems.push({ note: bonus.note, condition: bonus.conditional, source: sourceName });
+      return;
+    }
+    // Emphasis-gated bonuses (e.g. Failure of Honesty's Sincerity/Deceit-only bonus) — auto-applies only
+    // when the player has that specific emphasis selected via PCTurnPanel's emphasis picker (passed through
+    // as activeEmphasis). Distinct from DiceModal's own separate "any emphasis → reroll 1s" mechanic, which
+    // doesn't care which specific emphasis was picked — this is for bonuses tied to one named emphasis only.
+    if (bonus.emphasisRequired) {
+      if (activeEmphasis === bonus.emphasisRequired) {
+        extraRolled += (bonus.rolled || 0);
+        extraKept   += (bonus.kept || 0);
+        extraFlat   += (bonus.flat || 0);
+        freeRaisesTotal += (bonus.freeRaises || 0);
+        if (bonus.note) autoNotes.push(bonus.note);
+      } else {
+        conditionalItems.push({ note: bonus.note, condition: `Only with "${bonus.emphasisRequired}" emphasis selected`, source: sourceName });
+      }
       return;
     }
     // Auto-apply
@@ -133,11 +149,18 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
     bonuses.forEach(b => processBonus(b, advName));
   });
 
+  // Process disadvantages (negative rolled/kept/flat values reduce the pool the same way processBonus adds them)
+  const charDisadvantages = (character.disadvantages || []).map(d => typeof d === 'string' ? d : d.name).filter(Boolean);
+  charDisadvantages.forEach(disName => {
+    const bonuses = DISADVANTAGE_ROLL_BONUSES[disName] || [];
+    bonuses.forEach(b => processBonus(b, disName));
+  });
+
   return { extraRolled, extraKept, extraFlat, freeRaises: freeRaisesTotal, auto: autoNotes, conditional: conditionalItems };
 }
 
 // ── Dice Modal ────────────────────────────────────────────────────────────────
-export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, disableReroll = false }) {
+export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, onUnluckyUsed, disableReroll = false }) {
   const [phase, setPhase] = useState('setup');
   const [raises, setRaises] = useState([]);
   const [incDamageRaises, setIncDamageRaises] = useState(0); // Increased Damage maneuver — stacks freely, 1+ raises
@@ -189,7 +212,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   // with isDamage=true and folded into dmgRoll/dmgKeep, gated the same way the main bonus computation is
   // (voidOnly bonuses only apply when the player has actually checked "Spend Void Point").
   const dmgBonuses = (context?.character && context?.skill && !isDisarmManeuver)
-    ? computeBonuses(context.character, context.skill, context.isAttack, true, context.character?.current_stance || 'Attack')
+    ? computeBonuses(context.character, context.skill, context.isAttack, true, context.character?.current_stance || 'Attack', context.activeEmphasis)
     : { extraRolled: 0, extraKept: 0 };
   if (!isDisarmManeuver && useVoid) {
     dmgRoll += dmgBonuses.extraRolled || 0;
@@ -220,7 +243,8 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
         context.skill,
         context.isAttack,
         context.isDamage,
-        context.character?.current_stance || 'Attack'
+        context.character?.current_stance || 'Attack',
+        context.activeEmphasis
       )
     : { extraRolled: 0, extraKept: 0, extraFlat: 0, freeRaises: 0, auto: [], conditional: [] };
 
@@ -242,23 +266,44 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
 
   // Compute totals including active conditionals (after bonuses)
   const activatedConds = bonuses.conditional.filter((_, i) => activeConditionals.includes(i));
-  const condExtraRolled = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.rolled || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.rolled || 0), 0);
-  const condExtraKept   = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.kept || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.kept || 0), 0);
-  const condFreeRaises  = activatedConds.reduce((s, c) => s + (TECHNIQUE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.freeRaises || ADVANTAGE_ROLL_BONUSES[c.source]?.find?.(b => b.note === c.note)?.freeRaises || 0), 0);
+  const findCondBonus = (source, note) => TECHNIQUE_ROLL_BONUSES[source]?.find?.(b => b.note === note) || ADVANTAGE_ROLL_BONUSES[source]?.find?.(b => b.note === note) || DISADVANTAGE_ROLL_BONUSES[source]?.find?.(b => b.note === note);
+  const condExtraRolled = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.rolled || 0), 0);
+  const condExtraKept   = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.kept || 0), 0);
+  const condFreeRaises  = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.freeRaises || 0), 0);
+  const condExtraFlat   = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.flat || 0), 0);
 
   // Derived roll counts — after all bonuses computed
   const voidBonus = useVoid ? 1 : 0;
   const techRolled = bonuses.extraRolled + condExtraRolled;
   const techKept   = bonuses.extraKept   + condExtraKept;
   const techFreeRaises = bonuses.freeRaises + condFreeRaises;
-  const rollCount = (context?.baseRoll || 2) + voidBonus + extraRoll + techRolled;
-  const keepCount = Math.min((context?.baseKeep || 2) + voidBonus + extraKeep + techKept, rollCount);
+  // `flat` bonuses/penalties apply straight to the TN (positive = harder, e.g. Phobia/Doubt; negative =
+  // easier). NOTE: this was computed by computeBonuses() and returned as `extraFlat` for a long time but
+  // never actually consumed anywhere — every advantage/disadvantage/technique using `flat:` was silently
+  // a no-op (the note displayed, the math didn't change). Fixed here rather than left broken.
+  // Doubt disadvantage: chosen School Skill always forces a wasted Raise, i.e. +5 TN. Per-character
+  // dynamic skill choice (like Weakness's trait, Great Potential's skill) — can't live in the static
+  // DISADVANTAGE_ROLL_BONUSES table, so checked directly here.
+  const doubtDisadvantage = (context?.character?.disadvantages || []).find(d => (d.name || d) === 'Doubt' && d.skill);
+  const doubtPenalty = doubtDisadvantage && doubtDisadvantage.skill === context?.skill ? 5 : 0;
+  // Missing Limb: reasonable approximation of "rolls involving the missing limb" by limb type — not
+  // exhaustive (a GM may still call for it on other rolls), but covers the clear, common cases.
+  const MISSING_LIMB_SKILLS = {
+    'Arm/Hand': ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves','Heavy Weapons','Chain Weapons','Sleight of Hand','Calligraphy','Craft: Poison','Craft: Weaponsmith','Craft: Armorsmith'],
+    'Leg/Foot': ['Athletics','Horsemanship','Stealth'],
+    'Eye': ['Archery','Assassin Ranged Weapons','Investigation'],
+  };
+  const missingLimbDisadvantage = (context?.character?.disadvantages || []).find(d => (d.name || d) === 'Missing Limb' && d.limb);
+  const missingLimbPenalty = missingLimbDisadvantage && (MISSING_LIMB_SKILLS[missingLimbDisadvantage.limb] || []).includes(context?.skill) ? 10 : 0;
+  const techFlat = bonuses.extraFlat + condExtraFlat + doubtPenalty + missingLimbPenalty;
+  const rollCount = Math.max(1, (context?.baseRoll || 2) + voidBonus + extraRoll + techRolled);
+  const keepCount = Math.max(1, Math.min((context?.baseKeep || 2) + voidBonus + extraKeep + techKept, rollCount));
   const freeRaiseReduction = ((context?.freeRaises || 0) + techFreeRaises + manualFreeRaises) * 5;
   const woundTNPenalty = context?.woundPenalty || 0;
   // Total raise POINTS spent, not button count — a multi-cost maneuver like "Disarm (3)" counts as
   // 3 raises toward TN, not 1, matching the actual L5R 4E raise cost for that maneuver.
   const raisePoints = raises.reduce((sum, r) => sum + maneuverCost(r), 0) + incDamageRaises;
-  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raisePoints * 5 + woundTNPenalty);
+  const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raisePoints * 5 + woundTNPenalty + techFlat);
 
   const toggleRaise = (r) => setRaises(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
@@ -333,6 +378,10 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
       setPhase('damage');
     } else {
       onResult && onResult(result, null);
+      // context.onComplete is a per-roll callback some callers (Shop's Appraise/Haggle, etc.) rely on for
+      // custom result handling that doesn't fit the central App.js skillOutcomeData pattern (e.g. updating
+      // component-local state). This was being set but never actually called — real bug, not by design.
+      context?.onComplete?.(total, Array.isArray(raises) ? raises.length : (raises || 0));
       setPhase('done');
     }
   };
@@ -345,6 +394,11 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
 
   const confirmDamage = () => {
     let dmg = [...dmgKept].reduce((s, i) => s + dmgDice[i].total, 0);
+    // Same flat-field bug as the TN fix above, but for damage: dmgBonuses.extraFlat (e.g. a technique's
+    // "+5k0 Damage" using flat instead of rolled/kept) was computed but never applied to the final total.
+    if (!isDisarmManeuver && useVoid) {
+      dmg += dmgBonuses.extraFlat || 0;
+    }
     // Feint (2 raises): add half the margin by which the attack roll exceeded the target's Armor TN
     // (after raises are factored into TN) to the damage roll, capped at 5x the attacker's Insight Rank.
     const isFeint = raises.includes('Feint (2)');
@@ -366,6 +420,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     const finalVoidSpent = (useVoid ? 1 : 0) + (useVoidSword ? 1 : 0);
     const finalResult = { ...rollResult, usedVoid: finalVoidSpent > 0, voidSpentCount: finalVoidSpent };
     onResult && onResult(finalResult, dmg);
+    context?.onComplete?.(finalResult.total, Array.isArray(finalResult.raises) ? finalResult.raises.length : (finalResult.raises || 0));
     setPhase('done');
   };
 
@@ -390,6 +445,20 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
           {woundTNPenalty > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--red)', padding: '4px 8px', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.3)', borderRadius: 4, marginBottom: '.5rem' }}>
               <i className="ti ti-heart-broken" style={{ fontSize: 11 }} />Wound penalty +{woundTNPenalty} TN already included in TN above
+            </div>
+          )}
+
+          {/* Doubt disadvantage alert */}
+          {doubtPenalty > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--red)', padding: '4px 8px', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.3)', borderRadius: 4, marginBottom: '.5rem' }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize: 11 }} />Doubt: +{doubtPenalty} TN (mandatory wasted Raise on {doubtDisadvantage.skill}) already included in TN above
+            </div>
+          )}
+
+          {/* Missing Limb alert */}
+          {missingLimbPenalty > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--red)', padding: '4px 8px', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.3)', borderRadius: 4, marginBottom: '.5rem' }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize: 11 }} />Missing Limb: +{missingLimbPenalty} TN (missing {missingLimbDisadvantage.limb}) already included in TN above
             </div>
           )}
 
@@ -426,12 +495,18 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
               </div>
             )}
             {(() => {
-              const maxRaises = context?.character?.void || context?.ringVal || null;
+              const voidRing = context?.character?.void || context?.ringVal || null;
+              // Great Potential: raises for the chosen Skill are capped by Skill Rank instead of Void Ring, if higher
+              const greatPotential = (context?.character?.advantages || []).find(a => (a.name || a) === 'Great Potential' && a.skill);
+              const gpSkillRank = greatPotential ? (context?.character?.skills || []).find(s => s.name === greatPotential.skill)?.rank : null;
+              const gpApplies = greatPotential && context?.skill === greatPotential.skill && gpSkillRank;
+              const maxRaises = gpApplies ? Math.max(voidRing || 0, gpSkillRank) : voidRing;
               if (!maxRaises) return null;
               const over = raisePoints > maxRaises;
               return (
                 <div style={{ fontSize: 11, color: over ? 'var(--red)' : 'var(--text-muted)', marginBottom: 4 }}>
                   Raise points spent: <strong style={{ color: over ? 'var(--red)' : 'var(--gold)' }}>{raisePoints}</strong> / {maxRaises} max
+                  {gpApplies && <span style={{ color: 'var(--gold-dim)' }}> (Great Potential: Skill Rank used)</span>}
                   {over && <span> — exceeds your maximum raises!</span>}
                 </div>
               );
@@ -737,6 +812,28 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                     if (onLuckUsed) onLuckUsed();
                   }}>
                   🍀 Luck ({usesLeft})
+                </button>
+              );
+            })()}
+            {/* Unlucky reroll — GM tells the player when to use it; same mechanism as Luck (fresh reroll,
+                player then picks which dice to keep from the new set), just tracked as a curse not a boon */}
+            {(() => {
+              const char = context?.character;
+              if (!char) return null;
+              const unluckyDis = (char.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
+              if (!unluckyDis) return null;
+              const unluckyRank = unluckyDis.rank || 1;
+              const usesLeft = unluckyDis.current_uses !== undefined ? unluckyDis.current_uses : unluckyRank;
+              if (usesLeft <= 0) return null;
+              return (
+                <button className="btn btn-sm" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
+                  title={`Unlucky: GM forces a reroll (${usesLeft} use${usesLeft !== 1 ? 's' : ''} remaining this session)`}
+                  onClick={() => {
+                    setDice(rollAllDice(rollCount));
+                    setKept(new Set());
+                    if (onUnluckyUsed) onUnluckyUsed();
+                  }}>
+                  💀 Unlucky ({usesLeft})
                 </button>
               );
             })()}
