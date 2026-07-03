@@ -2215,7 +2215,7 @@ export const TECHNIQUE_ROLL_BONUSES = {
 // ── Advantage Roll Bonuses ───────────────────────────────────────────────────────
 export const ADVANTAGE_ROLL_BONUSES = {
   // ── Coded roll bonuses — applied automatically in DiceModal ───────────────
-  'Balance':              [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Intimidation or Temptation', note: '+1k0 when adding Integrity to resist Intimidation/Temptation (Balance)' }],
+  'Balance':              [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Intimidation or Temptation via the Contested Roll tool, which now auto-suggests the Integrity flat modifier this depends on', note: '+1k0 when adding Integrity to resist Intimidation/Temptation (Balance)' }],
   'Clear Thinker':        [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'Contested Roll when being manipulated', note: '+1k0 Contested Rolls when being manipulated (Clear Thinker)' }],
   'Dangerous Beauty':     [{ skills: ['Temptation'], rolled: 1, kept: 0, conditional: 'vs members of opposite sex', note: '+1k0 Temptation vs opposite sex (Dangerous Beauty)' }],
   'Daredevil':            [{ skills: ['Athletics'], rolled: 2, kept: 0, voidOnly: true, note: '+3k1 total when spending Void on Athletics (Daredevil) — adds +2 rolled on top of base Void +1k1' }],

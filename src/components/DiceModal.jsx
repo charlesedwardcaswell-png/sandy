@@ -178,9 +178,13 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const [dmgKept, setDmgKept] = useState(new Set());
   const [finalDamage, setFinalDamage] = useState(null);
   const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
-  // Emphasis — character has an emphasis for this skill → may re-roll 1s
+  // Emphasis — reroll 1s only applies when the character actually owns the SPECIFIC emphasis that was
+  // selected for this roll (context.activeEmphasis, set via PCTurnPanel's picker), not merely "owns some
+  // emphasis for this skill." A player can select any emphasis to describe the nature of the roll (e.g.
+  // Brawling(Grappling) vs Brawling(Striking)) regardless of training — only an owned one grants the
+  // reroll. See BACKLOG.md's emphasis redesign notes for why this used to be wrong.
   const skillEmphases = context?.character?.skills?.find(s => s.name === context?.skill)?.emphases || [];
-  const hasEmphasis = skillEmphases.length > 0;
+  const hasEmphasis = !!context?.activeEmphasis && skillEmphases.includes(context.activeEmphasis);
   const [useEmphasis, setUseEmphasis] = useState(hasEmphasis); // auto-checked if applicable
   const [rerolledOnes, setRerolledOnes] = useState([]); // indices of dice that had 1s rerolled
   const [showAdvanced, setShowAdvanced] = useState(false); // collapsed by default
@@ -479,14 +483,14 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 {context?.skill}{context?.skillRank !== undefined && context?.skillRank !== null && <span style={{ color: 'var(--gold-dim)' }}> {context.skillRank}</span>} · TN {tn}
-                {context?.ring && <span> · {context.ring} {context.ringVal}</span>}
+                {context?.trait && <span> · {context.trait.charAt(0).toUpperCase() + context.trait.slice(1)} {context.traitVal}</span>}
               </div>
             </div>
           </div>
 
           {/* Raises — always visible */}
           <div className="modal-section">
-            <span className="modal-label">Raises <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>+5 TN each — harder but more effect</span></span>
+            <span className="modal-label">Raises <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>+5 TN each</span></span>
             {/* Per-roll raise explainer — passed as context.raiseExplainer for rolls like Haggle/Appraise
                 where the player needs to know what raises do before committing */}
             {context?.raiseExplainer && (
@@ -605,7 +609,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                 <span style={{ fontSize: 13 }}>
                   <strong style={{ color: 'var(--gold)' }}>Emphasis</strong>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>
-                    ({skillEmphases.join(', ')}) — re-roll kept 1s
+                    ({context.activeEmphasis}) — re-roll kept 1s
                   </span>
                 </span>
               </label>
@@ -733,11 +737,17 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
           </>)}
 
           {/* Roll button */}
-          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem', flexWrap: 'wrap' }}>
             <button className="btn btn-p btn-lg" onClick={doRoll}>
               <i className="ti ti-dice" style={{ marginRight: 4 }} /> Roll {rollCount}k{keepCount}{flatMod !== 0 ? ` ${flatMod >= 0 ? '+' : ''}${flatMod}` : ''} vs TN {tn}
             </button>
             <button className="btn" onClick={onClose}>Cancel</button>
+            {isAttack && !isDisarmManeuver && (
+              <div style={{ padding: '4px 10px', background: 'rgba(200,64,48,.12)', border: '1px solid rgba(200,64,48,.4)', borderRadius: 6, fontSize: 13, color: 'var(--red)', fontWeight: 700 }}
+                title="Upcoming damage pool if this attack hits, including any Increased Damage raises already selected">
+                💥 {dmgRoll}k{dmgKeep}
+              </div>
+            )}
           </div>
         </>)}
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES } from '../data/constants';
 import { getWoundRank, getEffectiveWaterRing } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -31,6 +31,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
   const [forgeryDocName, setForgeryDocName] = useState('');
   const [simpleActionConfirmed, setSimpleActionConfirmed] = useState({}); // techName -> bool, for Simple Action Attack techniques whose condition needs a GM/player call (weapon type, lone opponent, mounted, etc.)
+  const [showContestedPicker, setShowContestedPicker] = useState(false);
+  const [contestedOpponentId, setContestedOpponentId] = useState('');
+  const [contestedOpponentSkill, setContestedOpponentSkill] = useState('');
   const [actingTempName, setActingTempName] = useState('');
   const [selectedEmphasis, setSelectedEmphasis] = useState(null); // active emphasis for free raise
 
@@ -370,7 +373,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
     if (universalMasteryRaise > 0) bonusNotes.push(`Rank 5+ Mastery: Free Raise`);
     if (specificMasteryRaise > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
-    if (selectedEmphasis) bonusNotes.push(`Emphasis (${selectedEmphasis}): reroll 1s on kept dice`);
+    if (selectedEmphasis) {
+      const ownsSelectedEmphasis = ((character?.skills || []).find(s => s.name === selectedSkill.name)?.emphases || []).includes(selectedEmphasis);
+      bonusNotes.push(ownsSelectedEmphasis
+        ? `Emphasis (${selectedEmphasis}): reroll 1s on kept dice`
+        : `Emphasis (${selectedEmphasis}): untrained — describes the roll, no reroll bonus`);
+    }
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
@@ -380,6 +388,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       skill: selectedSkill.name,
       ring: pool.ringKey,
       ringVal: pool.ringVal,
+      trait: pool.traitKey,
+      traitVal: pool.traitVal,
       baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0) + qualityRollBonus,
       baseKeep: pool.keep + stanceKeep + qualityKeepBonus,
       tn,
@@ -877,6 +887,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       skill: wSkill?.name || selectedWeapon.skill,
                       ring: pool.ringKey,
                       ringVal: pool.ringVal,
+                      trait: pool.traitKey,
+                      traitVal: pool.traitVal,
                       baseRoll: pool.roll,
                       baseKeep: pool.keep,
                       tn: getTargetTN(selectedTarget) + (dualWieldPenalty || 0) + (equippedShieldPenalty || 0),
@@ -928,11 +940,19 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   id="manual-tn-input"
                   style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
               </div>
-              {/* Emphasis selector — free raise when applicable. Only shows emphases the character
-                  actually has — previously also suggested unowned emphases, which was confusing. */}
+              {/* Emphasis selector. Open to every emphasis the skill can have (SKILL_EMPHASES), not just
+                  ones the character owns — selecting an emphasis also describes the *nature* of the roll
+                  (e.g. Brawling(Grappling) vs Brawling(Striking)), which matters regardless of training.
+                  Owned emphases are tagged "reroll 1s" since only those grant that mechanical benefit.
+                  Exception: Craft: Poison emphases represent specific known recipes, not roll-flavor —
+                  kept owned-only, since "selecting" an unknown poison recipe isn't a rules-supported thing
+                  the way picking a combat approach is. Flagging this as an interpretation call, not a
+                  confirmed rule, in case it needs correcting. */}
               {(() => {
                 const skillObj = (character?.skills || []).find(s => s.name === selectedSkill.name);
-                const emphases = skillObj?.emphases || [];
+                const owned = skillObj?.emphases || [];
+                const isPoisonCraft = selectedSkill.name === 'Craft: Poison';
+                const emphases = isPoisonCraft ? owned : (SKILL_EMPHASES[selectedSkill.name] || []);
                 if (emphases.length === 0) return null;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
@@ -943,15 +963,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     </button>
                     {emphases.map(e => {
                       const active = selectedEmphasis === e;
+                      const isOwned = isPoisonCraft || owned.includes(e);
                       return (
                         <button key={e} onClick={() => setSelectedEmphasis(active ? null : e)}
                           style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10,
-                            border: `1px solid ${active ? 'var(--gold)' : 'var(--gold-dim)'}`,
+                            border: `1px solid ${active ? 'var(--gold)' : isOwned ? 'var(--gold-dim)' : 'var(--border)'}`,
                             background: active ? 'rgba(200,150,42,.18)' : 'transparent',
-                            color: active ? 'var(--gold)' : 'var(--text-secondary)',
-                            cursor: 'pointer', fontFamily: 'inherit',
+                            color: active ? 'var(--gold)' : isOwned ? 'var(--text-secondary)' : 'var(--text-muted)',
+                            cursor: 'pointer', fontFamily: 'inherit', fontStyle: isOwned ? 'normal' : 'italic',
                           }}>
-                          {e}{active && <span style={{ color: 'var(--gold)', fontSize: 10, marginLeft: 4 }}>reroll 1s</span>}
+                          {e}
+                          {active && isOwned && <span style={{ color: 'var(--gold)', fontSize: 10, marginLeft: 4 }}>reroll 1s</span>}
+                          {!isOwned && <span style={{ fontSize: 10, marginLeft: 4, opacity: .7 }}>(untrained)</span>}
                         </button>
                       );
                     })}
@@ -1020,6 +1043,41 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   </div>
                 </div>
               )}
+              {showContestedPicker && (
+                <div style={{ background: 'rgba(80,120,220,.08)', border: '1px solid #5078dc', borderRadius: 6, padding: '.5rem', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, color: '#7098f0', fontWeight: 600 }}>
+                    Contested Roll — your {selectedSkill.name} vs their chosen skill (costs a Full Action)
+                  </div>
+                  <select value={contestedOpponentId} onChange={e => { setContestedOpponentId(e.target.value); setContestedOpponentSkill(''); }} style={{ fontSize: 12 }}>
+                    <option value="">— choose opponent —</option>
+                    {targetPool.map(t => <option key={t.id} value={t.id}>{t.name.split(' —')[0]}</option>)}
+                  </select>
+                  {contestedOpponentId && (() => {
+                    const opp = targetPool.find(t => t.id === contestedOpponentId);
+                    const oppSkills = (opp?.skills || []).map(s => s.name);
+                    return (
+                      <select value={contestedOpponentSkill} onChange={e => setContestedOpponentSkill(e.target.value)} style={{ fontSize: 12 }}>
+                        <option value="">— their skill —</option>
+                        {oppSkills.map(s => <option key={s} value={s}>{s}</option>)}
+                        <option value={`Trait: Willpower`}>Trait: Willpower</option>
+                      </select>
+                    );
+                  })()}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-sm" style={{ borderColor: '#5078dc', color: '#7098f0' }}
+                      disabled={!contestedOpponentId || !contestedOpponentSkill}
+                      onClick={() => {
+                        if (onStartContestedRoll) onStartContestedRoll(selectedSkill.name, contestedOpponentId, contestedOpponentSkill);
+                        setShowContestedPicker(false);
+                        setContestedOpponentId('');
+                        setContestedOpponentSkill('');
+                      }}>
+                      Start Contested Roll
+                    </button>
+                    <button className="btn btn-sm" onClick={() => setShowContestedPicker(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                 <button className="btn btn-sm" onClick={() => { setShowSkillPicker(true); setSelectedSkill(null); }}>← Change</button>
                 <button className="btn btn-p" disabled={isAtk && !selectedTarget} onClick={() => {
@@ -1029,6 +1087,13 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 }}>
                   Roll {pool.roll}k{pool.keep}
                 </button>
+                {onStartContestedRoll && !showContestedPicker && (
+                  <button className="btn btn-sm" style={{ borderColor: '#5078dc', color: '#7098f0' }}
+                    onClick={() => setShowContestedPicker(true)}
+                    title="Start a Contested Roll using this skill against a chosen opponent's skill — costs a Full Action">
+                    <i className="ti ti-swords" style={{ marginRight: 4 }} />Contested Roll
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -54,7 +54,10 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
     }
   }, [characters, myCharId]);
 
-  // Player view — see all characters, create own, edit any (honour system)
+  // Player view — see all characters, but canEdit is restricted to characters this player has actually
+  // claimed (myCharIds). The old "edit any (honour system)" comment here was stale/inaccurate — canEdit
+  // does gate real edit capability (see CharacterSheet), it was just checking the wrong field (singular
+  // myCharId, which only ever holds the FIRST-claimed character) for anyone who'd claimed more than one.
   if (!isGM && !isPCView) {
     if (view === 'create') {
       return (
@@ -126,7 +129,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         {selId && characters.find(c => c.id === selId && !c.is_npc) && (
           <CharacterSheet
             char={characters.find(c => c.id === selId)}
-            isGM={false} canEdit={selId === myCharId}
+            isGM={false} canEdit={myCharIds.includes(selId)}
             onUpdate={onUpdateCharacter}
             myCharId={myCharId}
             onClaimCharacter={onClaimCharacter}
@@ -1270,6 +1273,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 ) : (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{char.faction}</div>
                 )}
+                {char.subfaction && (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.8 }}>{char.subfaction}</div>
+                )}
                 <div style={{ fontSize: 12, color: 'var(--gold-dim)' }}>{char.school} R{char.school_rank}</div>
                 <div style={{ marginTop: '.35rem', display: 'flex', gap: 4 }}>
                   <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => {
@@ -1347,9 +1353,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <button className="btn btn-sm" style={{ marginTop: '.4rem', fontSize: 11 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, marginBottom: '.3rem' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{char.school} · {char.faction}</span>
-            </div>
             {/* Armor TN / Init — prominent */}
             <div style={{ marginTop: '.4rem' }}>
               {(() => {
@@ -1358,6 +1361,20 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 const totalTN = baseTN + armorBns;
                 const equippedArmor = (char.equipment || []).find(e => e.equipped && (ARMOR_TN_BONUS[e.name] !== undefined || e.name?.toLowerCase().includes('armor') || e.name?.toLowerCase().includes('chain') || e.name?.toLowerCase().includes('lorica')));
                 const armorDesc = equippedArmor ? (GEAR_DESCRIPTIONS[equippedArmor.name] || '') : '';
+                // Best attack roll example — highest-rank combat skill the character actually has
+                const COMBAT_SKILLS = ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves','Assassin Ranged Weapons','Tahaddi'];
+                const bestCombatSkill = (char.skills || [])
+                  .filter(s => COMBAT_SKILLS.includes(s.name))
+                  .sort((a, b) => (b.rank || 0) - (a.rank || 0))[0];
+                const bestAttackPool = (() => {
+                  if (!bestCombatSkill) return null;
+                  const mapped = SKILL_TRAIT_MAP[bestCombatSkill.name] || { trait: 'Agility', ring: 'Fire' };
+                  const traitVal = char[mapped.trait.toLowerCase()] || 2;
+                  const ringVal = char[mapped.ring.toLowerCase()] || 2;
+                  return { roll: (bestCombatSkill.rank || 0) + traitVal, keep: ringVal, skillName: bestCombatSkill.name };
+                })();
+                // Equipped weapon damage example — whatever's currently wielded
+                const wieldedWeapon = (char.equipment || []).find(e => e.dr && e.inUse);
                 return (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                     <div>
@@ -1372,10 +1389,20 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic', maxWidth: 200, lineHeight: 1.4 }}>{armorDesc}</div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: 4 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
                       <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span>
                       </div>
+                      {bestAttackPool && (
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }} title={bestAttackPool.skillName}>
+                          Attack <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{bestAttackPool.roll}k{bestAttackPool.keep}</span>
+                        </div>
+                      )}
+                      {wieldedWeapon && (
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }} title={wieldedWeapon.name}>
+                          Damage <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{wieldedWeapon.dr}</span>
+                        </div>
+                      )}
                       <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span>
                       </div>
@@ -2364,12 +2391,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Uses this session:</span>
                         <div style={{ display: 'flex', gap: 3 }}>
                           {Array.from({ length: luckRank }, (_, i) => (
-                            <button key={i} onClick={() => updateAdv({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
-                              style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--gold)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--gold)' : 'transparent', cursor: 'pointer', padding: 0 }} />
+                            <button key={i} onClick={() => canEdit && isGM && updateAdv({ current_uses: i < usesLeft ? usesLeft - 1 : usesLeft + 1 })}
+                              style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${i < usesLeft ? 'var(--gold)' : 'var(--border)'}`, background: i < usesLeft ? 'var(--gold)' : 'transparent', cursor: canEdit && isGM ? 'pointer' : 'default', padding: 0 }} />
                           ))}
                         </div>
                         <span style={{ fontSize: 11, color: usesLeft > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{usesLeft}/{luckRank}</span>
-                        <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateAdv({ current_uses: luckRank })}>Reset</button>
+                        {canEdit && isGM && <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px' }} onClick={() => updateAdv({ current_uses: luckRank })}>Reset</button>}
                       </div>
                     );
                   })()}

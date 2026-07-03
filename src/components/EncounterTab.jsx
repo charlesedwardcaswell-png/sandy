@@ -1367,6 +1367,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const opposingSideKey = side === 'sideA' ? 'sideB' : 'sideA';
     const opposingChar = pcsMap[cr[opposingSideKey]?.id];
     const oppBonus = getOpponentDisadvantageBonus(opposingChar, sideData.skillName);
+    // Universal rule: defending against Intimidation or Temptation (Bribery/Seduction/etc.) adds the
+    // defender's own Integrity as a suggested flat modifier — pre-filled but still player/GM-adjustable
+    // in the roll modal, not silently forced, in case it doesn't apply to this specific situation.
+    const opposingSkill = cr[opposingSideKey]?.skillName;
+    const integrityDefenseBonus = (opposingSkill === 'Intimidation' || opposingSkill === 'Temptation') ? Math.round(full.integrity || 0) : 0;
 
     if (sideData.isTrait) {
       // Trait-only contested roll (e.g. Willpower vs. fear/manipulation): rolled = Trait + Insight Rank,
@@ -1381,7 +1386,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         character: full,
         currentVoid: full.current_void,
         label: `Contested Roll — ${sideData.skillName}`,
-        bonusNotes: oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : undefined,
+        suggestedFlatMod: integrityDefenseBonus || undefined,
+        bonusNotes: [
+          ...(oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : []),
+          ...(integrityDefenseBonus > 0 ? [`+${integrityDefenseBonus} Integrity vs ${opposingSkill}`] : []),
+        ],
         onComplete: (total) => {
           setEncounter(e => {
             const cur = e.contestedRoll;
@@ -1417,7 +1426,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       character: full,
       currentVoid: full.current_void,
       label: `Contested Roll — ${sideData.skillName}`,
-      bonusNotes: oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : undefined,
+      suggestedFlatMod: integrityDefenseBonus || undefined,
+      bonusNotes: [
+        ...(oppBonus.names.length > 0 ? [`+${oppBonus.rolled}k${oppBonus.kept} vs opponent's ${oppBonus.names.join(', ')}`] : []),
+        ...(integrityDefenseBonus > 0 ? [`+${integrityDefenseBonus} Integrity vs ${opposingSkill}`] : []),
+      ],
       onComplete: (total) => {
         setEncounter(e => {
           const cur = e.contestedRoll;
@@ -2899,6 +2912,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             advanceTurn();
           }}
           onSpendAction={spendAction}
+          onStartContestedRoll={(mySkillName, opponentId, opponentSkillName) => {
+            const opponent = combatants.find(c => c.id === opponentId);
+            if (!opponent) return;
+            startContestedRoll(pcsMap[active.id], mySkillName, opponent, opponentSkillName);
+            spendAction('full'); // Contested Rolls the player initiates cost a Full Action
+          }}
         />
       )}
       {active && active.type === 'npc' && isGM && !isPCView && (

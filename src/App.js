@@ -557,6 +557,18 @@ export default function App() {
 
   const safeChars = characters.filter(Boolean);
 
+  // Keep the open roll modal's character reference live, not a stale snapshot from when it opened.
+  // Without this, onLuckUsed/onUnluckyUsed (and anything else reading globalModal.character) always
+  // recompute from the ORIGINAL pre-roll character data — so repeated clicks within one roll session
+  // never see the previous click's own update, producing what looked like infinite Luck/Unlucky rerolls.
+  useEffect(() => {
+    if (!globalModal?.character?.id) return;
+    const live = safeChars.find(c => c.id === globalModal.character.id);
+    if (live && live !== globalModal.character) {
+      setGlobalModal(prev => prev ? { ...prev, character: live } : prev);
+    }
+  }, [safeChars, globalModal?.character?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const TIMES = ['Dawn','Morning','Midday','Afternoon','Dusk','Evening','Night'];
   const TIME_ICONS = { Dawn: '🌅', Morning: '☀️', Midday: '☀️', Afternoon: '🌤️', Dusk: '🌇', Evening: '🌆', Night: '🌙' };
   const [timeOfDay, setTimeOfDay] = useState('Morning');
@@ -893,7 +905,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v139</span>
+        <span className="hdr-game">The Tool — v142</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {

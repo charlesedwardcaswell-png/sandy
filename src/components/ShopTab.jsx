@@ -438,13 +438,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     }, 0);
   };
 
-  // Apply the 10%-off raises a player has banked from a successful haggle
+  // Haggle: success itself is a 10% discount off the marked-up price (NOT a switch to true base price).
+  // Each "10% off" raise stacks another 10% on top, capped at 70% total off.
   const cartFinalTotal = (shopId) => {
     const hr = haggleResults[shopId];
-    const useBase = !!hr?.success;
-    const base = cartTotal(shopId, useBase);
-    const discountStacks = hr?.raisesSpent?.discount10 || 0;
-    const discount = Math.min(0.7, discountStacks * 0.1); // soft cap so it never goes to 0 or negative
+    const base = cartTotal(shopId, false); // always the marked-up price — haggling never reveals/uses true base cost
+    if (!hr?.success) return Math.max(1, Math.round(base));
+    const discountStacks = 1 + (hr?.raisesSpent?.discount10 || 0); // the success itself counts as the first 10%
+    const discount = Math.min(0.7, discountStacks * 0.1);
     return Math.max(1, Math.round(base * (1 - discount)));
   };
 
@@ -844,7 +845,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             const cartItemCount = cart.items.reduce((s, i) => s + (i.qty || 1), 0);
             const cartHasItems = cart.items.length > 0;
             const discountedTotal = cartFinalTotal(shop.id);
-            const discountStacks = hr?.raisesSpent?.discount10 || 0;
+            const discountStacks = hr?.success ? 1 + (hr?.raisesSpent?.discount10 || 0) : 0;
             const discountPct = Math.min(70, discountStacks * 10);
             const shopkeeper = shop.shopkeeper_id ? (characters || []).find(c => c.id === shop.shopkeeper_id) : null;
             // Unspent raises waiting on the player to allocate (from the most recent haggle roll)
@@ -861,7 +862,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                   )}
                   {apr?.revealQuality && (
                     <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: '.04em', color: 'var(--green)', textTransform: 'uppercase' }}>
-                      APPRAISED — QUALITY REVEALED{apr?.revealTrueCost ? ' — MARKET PRICE REVEALED' : ''}
+                      APPRAISED — QUALITY REVEALED{apr?.revealTrueCost ? ' — BASE COSTS REVEALED' : ''}
                     </span>
                   )}
                 </div>
@@ -873,7 +874,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                     const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
                     const basePrice = item.is_magic ? (item.price || '?') : qualityPrice(item.price, item.quality);
                     const markedPrice = item.markup ? applyMarkup(qualityPrice(item.price, item.quality), item.markup) : basePrice;
-                    const shownPrice = apr?.revealTrueCost ? basePrice : markedPrice;
+                    // Current/purchase price is always shown — that's what the player will actually pay and
+                    // needs to see to make a decision. Base cost is shown ADDITIONALLY once Appraise reveals
+                    // it, as a comparison reference, not as a replacement for the real price.
+                    const shownPrice = markedPrice;
+                    const showBaseCost = apr?.revealTrueCost && item.markup && item.markup > 1.03;
                     const showQuality = !!apr?.revealQuality;
                     const inCart = cart.items.find(ci => ci.name === item.name && ci.quality === item.quality);
                     return (
@@ -904,10 +909,10 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                           </div>
                         )}
                         {!item.is_magic && <RulebookEntryButton itemName={item.name} />}
-                        <span style={{ fontSize: 12, color: apr?.revealTrueCost ? 'var(--green)' : qTier.color, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+                        <span style={{ fontSize: 12, color: qTier.color, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                           {shownPrice}
-                          {apr?.revealTrueCost && item.markup && item.markup > 1.03 && (
-                            <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>true cost</span>
+                          {showBaseCost && (
+                            <span style={{ fontSize: 9, color: 'var(--green)', display: 'block' }}>base: {basePrice}</span>
                           )}
                         </span>
                         {/* Quick buy */}
@@ -940,7 +945,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                       style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)' }}
                       title={myGrantedActions < 1
                         ? 'No Granted Actions available — ask your GM for one'
-                        : `Appraise — Commerce/Intelligence, TN ${shop.appraise_tn || 15}. Costs 1 Granted Action. Success reveals quality. 1st raise reveals true prices, extra raises bank +1k0 for Haggling.`}
+                        : `Appraise — Commerce/Intelligence, TN ${shop.appraise_tn || 15}. Costs 1 Granted Action. Success reveals quality. 1st raise reveals base prices, extra raises bank +1k0 for Haggling.`}
                       onClick={() => {
                         if (myGrantedActions < 1) return;
                         const commerceSkillForAppraise = (myChar.skills || []).find(s => s.name === 'Commerce');
@@ -961,7 +966,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             if (total >= tn) {
                               const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
                               setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
-                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — true prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
+                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — base prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
                             } else {
                               if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
                             }
@@ -1015,8 +1020,8 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                           🎲 Haggle succeeded! {pendingRaises} raise{pendingRaises !== 1 ? 's' : ''} to spend:
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem', lineHeight: 1.4 }}>
-                          Cart already switched to base prices (markup removed).
-                          {discountPct > 0 && <span style={{ color: 'var(--green)' }}> {discountPct}% discount applied so far.</span>}
+                          Haggle succeeded — 10% off already applied.
+                          {discountPct > 10 && <span style={{ color: 'var(--green)' }}> {discountPct}% total discount so far.</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green)', color: 'var(--green)' }}
@@ -1053,7 +1058,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                           style={{ borderColor: '#a060e0', color: '#c080f0' }}
                           title={myGrantedActions < 1
                             ? 'No Granted Actions available — ask your GM for one'
-                            : `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness. Costs 1 Granted Action.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success removes markup; each raise = 10% off or Integrity.`}
+                            : `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness. Costs 1 Granted Action.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success = 10% off; each raise = another 10% off, or Integrity instead.`}
                           onClick={() => {
                             if (myGrantedActions < 1) return;
                             const commerceSkill = (myChar.skills || []).find(s => s.name === 'Commerce');
@@ -1073,7 +1078,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               bonusNotes: bonusRoll > 0 ? [`+${bonusRoll}k0 from Appraise`] : [],
                               label: `Haggle ${shop.name} — opposing ${shopkeeper.name} rolled ${shopkeeperResult}`,
                               raiseExplainer: [
-                                '✓ Success — cart switches to true base prices (removes markup).',
+                                '✓ Success — 10% off the cart total.',
                                 '★ Each raise (after rolling) — choose one per raise:',
                                 '   • 10% off the cart total (stacks, capped at 70% off)',
                                 '   • "I can pay" — skip this raise\'s discount and gain Integrity for honesty.',
