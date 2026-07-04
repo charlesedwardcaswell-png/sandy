@@ -22,7 +22,7 @@ function ItemIcon({ category }) {
 
 // Faction row with a collapsible free-text notes field — casual party-wide tracking, editable by anyone,
 // not gated to GM-only like the NPC GM Notes field. Saves on blur to avoid per-keystroke realtime resets.
-function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes }) {
+export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes }) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(savedNotes);
   React.useEffect(() => { setDraft(savedNotes); }, [savedNotes]);

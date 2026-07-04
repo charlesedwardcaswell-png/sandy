@@ -373,7 +373,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
         : `${who}${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
       onLogEvent(icon, txt);
     }
-    if (success && isAttack) {
+    if (success && isAttack && !context?.isGrappleContact) {
       // Auto-explode damage dice too
       const newDmgDice = Array.from({ length: dmgRoll }, rollOneDie);
       setDmgDice(newDmgDice);
@@ -742,7 +742,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
               <i className="ti ti-dice" style={{ marginRight: 4 }} /> Roll {rollCount}k{keepCount}{flatMod !== 0 ? ` ${flatMod >= 0 ? '+' : ''}${flatMod}` : ''} vs TN {tn}
             </button>
             <button className="btn" onClick={onClose}>Cancel</button>
-            {isAttack && !isDisarmManeuver && (
+            {isAttack && !isDisarmManeuver && !context?.isGrappleContact && (
               <div style={{ padding: '4px 10px', background: 'rgba(200,64,48,.12)', border: '1px solid rgba(200,64,48,.4)', borderRadius: 6, fontSize: 13, color: 'var(--red)', fontWeight: 700 }}
                 title="Upcoming damage pool if this attack hits, including any Increased Damage raises already selected">
                 💥 {dmgRoll}k{dmgKeep}

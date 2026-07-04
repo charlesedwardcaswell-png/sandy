@@ -90,15 +90,19 @@ export const SKILL_EMPHASES = {
   'Tahaddi':         ['Assessment', 'Focus'], // LBS name for Iaijutsu
   'Brawling':        ['Grappling', 'Improvised Weapons', 'Strikes'], // LBS name for Jiujutsu; Martial Arts → Strikes
 
-  // Weapon skills
-  'Archery':         ['Composite Bow', 'Short Bow', 'Standard Bow'], // LBS name for Kyujutsu
-  'Chain Weapons':   ['Kusarigama', 'Manrikigusari'],
-  'Heavy Weapons':   ['War Axe', 'Mace', 'War Club', 'Tetsubo'],
-  'Knives':          ['Jambiya', 'Kindjal', 'Knife', 'Throwing Knife'],
-  'Polearms':        ['Khadja', 'Naginata', 'Bisento', 'Glaive'],
-  'Spears':          ['Spear', 'Lance', 'Pilum'],
-  'Staves':          ['Staff', 'Bo', 'Fighting Staff'],
-  'Swordsmanship':   ['Scimitar', 'Longsword', 'Shortsword', 'Gladius', 'Khopesh', 'Sayf-Saghir'], // LBS name for Kenjutsu
+  // Weapon skills — verified against the actual rulebook page text/image (previous data had real errors:
+  // extra weapons not in the book, missing ones that are). Spears/Polearms/Chain Weapons were read directly
+  // from the scanned page image since the OCR text badly interleaved two columns there — flagging that as
+  // slightly lower confidence than the others, which came from clean OCR text.
+  'Archery':         ['Composite Bow', 'Horse Archery', 'Short Bow'], // LBS name for Kyujutsu
+  'Assassin Ranged Weapons': ['Blowgun', 'Stone (Rokugani Tsubute)'], // was missing entirely before
+  'Chain Weapons':   ['Kama', 'Kusarigama', 'Manrikigusari', 'Nunchaku'],
+  'Heavy Weapons':   ['Heavy Club', 'Mace', 'War Axe'],
+  'Knives':          ['Adira', 'Jambiya', 'Kindjal', 'Pugio', 'Sikin'],
+  'Polearms':        ['Bisento', 'Glaive', 'Khadja', 'Scythe'],
+  'Spears':          ['Lance', 'Naginata', 'Pilum', 'Yari'],
+  'Staves':          ['Small Club', 'Staff'],
+  'Swordsmanship':   ['Claymore', 'Falchion', 'Gladius', 'Khopesh', 'Longsword', 'Najya', 'Sayf-Saghir', 'Scimitar', 'Shamshir'], // LBS name for Kenjutsu
 
   // ── High Skills ───────────────────────────────────────────────────────────
   'Acting':          ['Disguise', 'Faction', 'Profession'], // LBS: Clan → Faction
@@ -164,6 +168,70 @@ export const POISON_EMPHASES = {
   'Crafted Powder': { craftTN: 10, effect: 'Blindness/choking/itching/nausea (cheap)', category: 'Poison' },
 };
 
+
+// Poison status-effect definitions — same shape as STATUS_EFFECT_DEFS, one per POISON_EMPHASES entry.
+// This defines WHAT each poison does mechanically; it does not implement applying them (clicking a poison
+// in inventory to use it on a weapon/attack) — that's a separate, later feature per Charles, since items
+// don't trigger any actions yet. Where a poison's effect is really just an existing status (e.g. the
+// Blindness option on Poison Powder), appliesStatus points at that STATUS_EFFECT_DEFS key instead of
+// duplicating it.
+export const POISON_STATUS_EFFECTS = {
+  'Generic Poison': {
+    icon: '🧪', desc: '-1 to a Trait chosen by the GM, until the victim next sleeps.',
+    wearOff: 'Sleep', mechanical: null,
+  },
+  'Dripping Poison': {
+    icon: '🧪', desc: '-2 Strength immediately. Stamina roll TN 15 each hour, or the effect persists.',
+    wearOff: 'Pass Stamina TN 15 (rolled hourly)', mechanical: null,
+  },
+  'Wish You Dead': {
+    icon: '🧪', desc: '-1 Stamina and nausea for 8 hours (GM discretion on the mechanical nausea penalty).',
+    wearOff: '8 hours', mechanical: null,
+  },
+  'Fire Biter': {
+    icon: '🩸', desc: '-2 Agility immediately, plus 2k2 wounds as the poison spreads through the bloodstream.',
+    wearOff: 'Medicine treatment / GM discretion', mechanical: null,
+  },
+  'Night Milk': {
+    icon: '🧪', desc: 'Stamina roll TN 25 every minute, or take 2k1 wounds.',
+    wearOff: 'Antidote or poison runs its course (GM discretion)', mechanical: null,
+  },
+  'Hot Madness': {
+    icon: '🧪', desc: '-2 Intelligence and Willpower until the victim rests.',
+    wearOff: 'Rest', mechanical: null,
+  },
+  'Stolen Breath': {
+    icon: '🔇', desc: 'Total voice loss — cannot speak, or cast Sahir spells requiring incantation. Stamina TN 30 to shake off.',
+    wearOff: 'Pass Stamina TN 30', mechanical: null,
+  },
+  'Kirei-ko': {
+    icon: '🧪', desc: 'Slow-acting contact poison — -1 Stamina every 2 weeks of continued exposure.',
+    wearOff: 'Remove source of contact', mechanical: null,
+  },
+  'Fauntei Shi': {
+    icon: '☠️', desc: 'Lethal. Stamina roll TN 35 every 10 minutes, or die.',
+    wearOff: 'Antidote (GM discretion)', mechanical: null,
+  },
+  'Snake Venom': {
+    icon: '🐍', desc: '-1 Agility and Reflexes each hour until treated.',
+    wearOff: 'Medicine treatment', mechanical: null,
+  },
+  'Scorpion Venom': {
+    icon: '🦂', desc: '-1 Agility and Reflexes each hour until treated.',
+    wearOff: 'Medicine treatment', mechanical: null,
+  },
+  'Poison Powder': {
+    icon: '🧪', desc: 'Choose one on exposure: Blindness, Choking, Itching, or Nausea (crafter/GM discretion at time of use).',
+    wearOff: 'Varies by chosen effect', mechanical: null,
+    // "Blindness" option reuses the existing Blinded status rather than a separate poison-specific one
+    appliesStatus: { Blindness: 'Blinded' },
+  },
+  'Crafted Powder': {
+    icon: '🧪', desc: 'Cheaper version of Poison Powder — choose one on exposure: Blindness, Choking, Itching, or Nausea.',
+    wearOff: 'Varies by chosen effect', mechanical: null,
+    appliesStatus: { Blindness: 'Blinded' },
+  },
+};
 
 export const FACTION_ICONS = {
   'City Guard':          'ti-shield-filled',
@@ -879,6 +947,28 @@ export function getArmorBonus(equipment = []) {
 // Keep backward compatibility — GEAR_LIST is the name array
 export const GEAR_LIST = GEAR_LIST_NAMES;
 
+// Clothing items — equippable (one per slot), no combat effect. Quality tier above/below Standard
+// adjusts Status by ±0.1 per degree (Poor = -0.1, Standard = 0, Fine = +0.1, Masterwork = +0.2).
+// Slot is one of: cloak, clothes, shoes. Only one item per slot can be equipped at a time.
+export const CLOTHING_SLOTS = {
+  'Traveling Cloak': 'cloak',
+  'Suit of Clothes': 'clothes',
+  'Fine Clothes':    'clothes', // Fine quality — gives +0.1 Status built-in plus quality modifier
+  'Street Clothes':  'clothes',
+  'Robes':           'clothes',
+  'Robe':            'clothes',
+  'Tunic':           'clothes',
+  'Sandals':         'shoes',
+  'Shoes':           'shoes',
+};
+// Status bonus/penalty per quality tier for clothing
+export const CLOTHING_STATUS_DELTA = {
+  poor:        -0.1,
+  standard:    0,
+  fine:        0.1,
+  masterwork:  0.2,
+};
+
 export const NPC_BY_FACTION = {
   'City Guard':  { schools:['Soldier of the City Guard'] },
   'Dahab':       { schools:['Dahabi Enforcer','Dahabi Bargainer','Dahabi Merchant'] },
@@ -1477,6 +1567,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 3, fire: 2, water: 3,
     traits: { Stamina: 3, Strength: 6 },
     attack: '3k2', damage: '3k2', tn: 10, wpl: 10,
+    difficulty: 1, veteran: { tn: 2, wpl: 3, atk: '+1k0' },
     specials: [],
     gm_notes: 'Riding animal and beast of burden. Can go long periods without water. Attacks by biting. Bad-tempered. Horsemanship (Camel emphasis).',
   },
@@ -1485,6 +1576,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 3, fire: 1, water: 3,
     traits: { Agility: 3, Strength: 5 },
     attack: '3k2', damage: '6k3', tn: 10, wpl: 10,
+    difficulty: 1, veteran: { tn: 2, wpl: 3, atk: '+1k0' },
     specials: ['Fleet — uses Strength instead of Water for movement. TN 15 at gallop.'],
     gm_notes: 'Not native to Burning Sands. Status symbol for wealthy citizens.',
   },
@@ -1493,6 +1585,7 @@ export const CREATURES_LIBRARY = [
     air: 1, earth: 2, fire: 2, water: 1,
     traits: { Reflexes: 3, Stamina: 4, Agility: 4, Strength: 5 },
     attack: '5k4', damage: '5k2', tn: 20, wpl: 10,
+    difficulty: 2, veteran: { tn: 3, wpl: 4, atk: '+1k0' },
     reduction: 4,
     specials: [
       'Smash (Simple): Attack 5k4, Damage 5k2',
@@ -1507,6 +1600,7 @@ export const CREATURES_LIBRARY = [
     air: 1, earth: 1, fire: 1, water: 1,
     traits: { Reflexes: 3, Agility: 3, Awareness: 3 },
     attack: '3k2', damage: '1k1', tn: 20, wpl: 4,
+    difficulty: 1, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: ['Poison — successful attack forces target to resist snake venom.'],
     gm_notes: 'Common in the Burning Sands. Used as assassination tools by Assassins, Jackals, and Senpet.',
   },
@@ -1515,6 +1609,7 @@ export const CREATURES_LIBRARY = [
     air: 3, earth: 1, fire: 2, water: 2,
     traits: { Reflexes: 3, Agility: 4 },
     attack: '2k2', damage: '1k1', tn: 20, wpl: 2,
+    difficulty: 0.5, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
       'Nimble — moves through trees, walls, and structures freely as a Free Action.',
       'Theft — may attempt to steal a small item from a target as a Simple Action (opposed Agility/Sleight of Hand vs Reflexes/Defense).',
@@ -1526,6 +1621,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 2, fire: 2, water: 2,
     traits: { Reflexes: 3, Awareness: 3 },
     attack: '3k2', damage: '2k1', tn: 15, wpl: 4,
+    difficulty: 1, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
       'Pack Hunter — gains +1k0 to attack rolls for each additional jackal attacking the same target (max +3k0).',
       'Scent — cannot be surprised and ignores penalties for fighting in darkness.',
@@ -1537,6 +1633,7 @@ export const CREATURES_LIBRARY = [
     air: 1, earth: 4, fire: 2, water: 4,
     traits: { Stamina: 5, Strength: 6 },
     attack: '4k2', damage: '5k2', tn: 10, wpl: 12,
+    difficulty: 2, veteran: { tn: 2, wpl: 4, atk: '+1k0' },
     specials: [
       'Carapace 3 — thick hide reduces damage dice rolled by 3 (minimum 1 die).',
       'Ambush Predator — gains +2k0 to attack rolls when attacking from water or when target is unaware.',
@@ -1550,6 +1647,7 @@ export const CREATURES_LIBRARY = [
     air: 3, earth: 1, fire: 1, water: 1,
     traits: { Perception: 2 },
     attack: '3k2', damage: '1k1', tn: 15, wpl: 3,
+    difficulty: 0.5, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
       'Magic Resistance — Jinn attacks/effects suffer +10 TN; Jinn magic within 30\' suffers +20 TN.',
       'Mimicry — Repeats anything said within 30\' in the language of every listener present.',
@@ -1561,6 +1659,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 3, fire: 2, water: 4,
     traits: { Reflexes: 3, Agility: 3 },
     attack: '6k3', damage: '4k2', tn: 15, wpl: 8,
+    difficulty: 2, veteran: { tn: 3, wpl: 4, atk: '+1k0' },
     specials: [
       'Fear 1 — Willpower TN 10 to confront; fail by 15+ means flee.',
       'Immune to disease and poison.',
@@ -1574,6 +1673,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 3, fire: 2, water: 4,
     traits: { Reflexes: 6, Agility: 4, Strength: 6 },
     attack: '6k4', damage: '6k4', tn: 25, wpl: 6,
+    difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
       'Fear 3 — Willpower TN 20 to confront.',
       'Flight — movement rate of twenty times Water Ring.',
@@ -1587,6 +1687,7 @@ export const CREATURES_LIBRARY = [
     air: 1, earth: 5, fire: 3, water: 4,
     traits: { Stamina: 6, Strength: 7 },
     attack: '6k3', damage: '6k3', tn: 15, wpl: 14,
+    difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
       'Fear 2 — Willpower TN 15 to confront.',
       'Carapace 2 — thick scales reduce damage dice rolled by 2 (minimum 1).',
@@ -1602,6 +1703,7 @@ export const CREATURES_LIBRARY = [
     air: 3, earth: 5, fire: 3, water: 4,
     traits: { Reflexes: 4, Agility: 5 },
     attack: '8k5', damage: '7k4', tn: 25, wpl: 10,
+    difficulty: 5, veteran: { tn: 5, wpl: 8, atk: '+1k1' },
     specials: [
       'Carapace 3 — reduces damage dice rolled by 3 (min 1).',
       'False Form — can assume form of a beautiful local woman; shapeshifting, not illusion — no magic can penetrate it.',
@@ -1617,6 +1719,7 @@ export const CREATURES_LIBRARY = [
     air: 2, earth: 2, fire: 2, water: 2, void: 2,
     traits: {},
     attack: '4k2', damage: '4k2', tn: 10, wpl: 4,
+    difficulty: 2, veteran: { tn: 3, wpl: 4, atk: '+1k0' },
     specials: [
       'Invincible — no mortal weapon can slay a Jinn; if reduced past Out, returns to its realm.',
       'Shapeshifting — may change shape at will (self only).',
@@ -1628,6 +1731,7 @@ export const CREATURES_LIBRARY = [
     air: 3, earth: 3, fire: 4, water: 3, void: 4,
     traits: {},
     attack: '6k4', damage: '6k4', tn: 20, wpl: 6,
+    difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
       'Invincible — no mortal weapon can slay a Jinn.',
       'Shapeshifting — may change shape at will (self only).',

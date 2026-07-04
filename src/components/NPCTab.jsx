@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS, CREATURES_LIBRARY } from '../data/constants';
-import { repColor, repLabel, getArchetype, getSchoolMaxRank } from '../lib/utils';
+import { repColor, repLabel, getArchetype, getSchoolMaxRank, rollExplodingKeep } from '../lib/utils';
 
 // ── Faction lore blurbs ───────────────────────────────────────────────────────
 const FACTION_LORE = {
@@ -632,7 +632,93 @@ function LorePanel() {
 }
 
 // ── NPCTab ────────────────────────────────────────────────────────────────────
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
+// Proper component so useState (veteran toggle) is legal — was previously inside a .map() callback
+// which React's rules-of-hooks forbids.
+function CreatureCard({ creature, gmView, encActive, onCreateNPC, setEncounter }) {
+  const [veteranMode, setVeteranMode] = React.useState(false);
+  const eff = veteranMode && creature.veteran ? {
+    tn: creature.tn + creature.veteran.tn,
+    wpl: creature.wpl + creature.veteran.wpl,
+    attack: (() => {
+      const [r, k] = creature.attack.split('k').map(Number);
+      const [br, bk] = creature.veteran.atk.replace('+', '').split('k').map(Number);
+      return `${r + br}k${k + bk}`;
+    })(),
+  } : { tn: creature.tn, wpl: creature.wpl, attack: creature.attack };
+
+  return (
+    <div style={{ background: 'var(--bg-dark)', border: `1px solid ${veteranMode ? 'rgba(200,150,42,.4)' : 'var(--border)'}`, borderRadius: 5, padding: '.5rem .65rem', marginBottom: '.4rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.2rem' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: veteranMode ? 'var(--gold)' : 'var(--text-primary)' }}>{creature.name}</span>
+        {creature.veteran && gmView && (
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', borderColor: veteranMode ? 'var(--gold)' : 'var(--border)', color: veteranMode ? 'var(--gold)' : 'var(--text-muted)', background: veteranMode ? 'rgba(200,150,42,.12)' : 'transparent' }}
+            title="Veteran — tougher, more experienced version of this creature"
+            onClick={() => setVeteranMode(v => !v)}>
+            {veteranMode ? '★ Veteran' : '☆ Veteran'}
+          </button>
+        )}
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          ATK {eff.attack} | DMG {creature.damage} | TN {eff.tn} | {eff.wpl} W/lvl
+          {creature.difficulty && <span style={{ marginLeft: 6, color: 'var(--gold-dim)' }}>Threat {creature.difficulty}</span>}
+        </span>
+        {gmView && onCreateNPC && (
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
+            title="Save to NPC Log"
+            onClick={async () => {
+              await onCreateNPC({
+                name: veteranMode ? `${creature.name} (Veteran)` : creature.name,
+                faction: creature.category, school: creature.category,
+                rank: creature.difficulty || 1,
+                weapon: `${creature.name} (${eff.attack})`, weapon_dr: creature.damage,
+                rings: { Air: creature.air, Earth: creature.earth, Fire: creature.fire, Water: creature.water },
+                traits: creature.traits || {}, notes: creature.specials?.join('; ') || '',
+                is_visible_to_players: false, from_bestiary: true, is_party_asset: false, assigned_to: null,
+                ...(veteranMode && creature.veteran ? { veteran: true, tn_override: eff.tn, wpl_override: eff.wpl, atk_override: eff.attack } : {}),
+              });
+            }}>+ Log</button>
+        )}
+        {encActive && gmView && (
+          <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0 }}
+            onClick={() => {
+              const nc = {
+                id: 'npc_' + creature.id + '_' + Date.now(),
+                name: veteranMode ? `${creature.name} (Veteran)` : creature.name,
+                school: creature.category, rank: creature.difficulty || 1, faction: 'Monsters',
+                dr: creature.damage, drawnWeapon: `${creature.name} (${eff.attack})`,
+                reflexes: creature.traits?.Reflexes || creature.air || 2,
+                agility: creature.traits?.Agility || creature.fire || 2,
+                air: creature.air || 2, fire: creature.fire || 2,
+                wound: 0, stance: 'Attack', statusEffects: [], type: 'npc',
+                tn_override: eff.tn, wpl_override: eff.wpl,
+              };
+              setEncounter && setEncounter(prev => ({ ...prev, combatants: [...(prev.combatants || []), nc] }));
+            }}>+Enc</button>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: '.75rem', fontSize: 11, color: 'var(--text-muted)', marginBottom: creature.specials.length ? '.3rem' : 0 }}>
+        <span>Air {creature.air}</span><span>Earth {creature.earth}</span><span>Fire {creature.fire}</span><span>Water {creature.water}</span>
+        {creature.void && <span>Void {creature.void}</span>}
+        {Object.entries(creature.traits || {}).map(([t, v]) => (
+          <span key={t} style={{ color: 'var(--gold-dim)' }}>{t} {v}</span>
+        ))}
+      </div>
+      {creature.specials.length > 0 && (
+        <div style={{ marginTop: '.2rem' }}>
+          {creature.specials.map((s, i) => (
+            <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', paddingLeft: 6, borderLeft: '2px solid var(--gold-dim)', marginBottom: 2 }}>
+              <strong>Special:</strong> {s}
+            </div>
+          ))}
+        </div>
+      )}
+      {creature.gm_notes && gmView && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '.2rem' }}>{creature.gm_notes}</div>
+      )}
+    </div>
+  );
+}
+
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -666,7 +752,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
       type: 'npc',
       wound: 0,
       stance: 'Attack',
-      init: Math.floor(Math.random() * 6) + (ref || 3),
+      init: rollExplodingKeep(ref + rank, ref),
       dr: npc.weapon_dr || '3k2',
       drawnWeapon: npc.weapon ? `${npc.weapon} (${npc.weapon_dr || '3k2'})` : (npc.weapon_dr ? `Weapon (${npc.weapon_dr})` : 'Weapon (3k2)'),
       reflexes: ref, agility: agi,
@@ -722,7 +808,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
 
       {/* ── Grid view — player-friendly cards, name/icon/faction/school/notes ── */}
       {viewMode === 'grid' && (() => {
-        const visibleNPCs = searchedNPCs.filter(n => gmView || n.is_visible_to_players);
+        const visibleNPCs = searchedNPCs.filter(n => gmView || n.is_visible_to_players || n.is_party_asset);
         if (visibleNPCs.length === 0) return <Empty icon="ti-users" message="No NPCs visible yet." />;
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
@@ -736,6 +822,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                     <span style={{ color: n.disposition === 'friendly' ? '#4a8a40' : n.disposition === 'hostile' ? '#c84030' : 'var(--text-primary)' }}>{n.name}</span>
                     {n.disposition === 'friendly' && <span style={{ fontSize: 9, color: '#4a8a40' }} title="Friendly">◆</span>}
                     {n.disposition === 'hostile' && <span style={{ fontSize: 9, color: '#c84030' }} title="Hostile">✦</span>}
+                    {n.is_party_asset && !gmView && <span style={{ fontSize: 9, color: 'var(--green)', marginLeft: 2 }}>🐾</span>}
                   </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{n.faction}</div>
                   </div>
@@ -761,7 +848,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
         // Full-sheet NPCs (from characters table) in this faction
         const facFullNpcs = fullNpcs.filter(n => n.faction === fDef.name).map(n => ({ ...n, _isFull: true, is_visible_to_players: true }));
         const allFacNPCs = [...facNPCs, ...facFullNpcs];
-        const visibleNPCs = gmView ? allFacNPCs : allFacNPCs.filter(n => n.is_visible_to_players);
+        const visibleNPCs = gmView ? allFacNPCs : allFacNPCs.filter(n => n.is_visible_to_players || n.is_party_asset);
         if (hideEmpty && visibleNPCs.length === 0) return null;
         const rep = reps[fDef.name]?.reputation ?? 0;
         const isOpen = openFactions[fDef.name];
@@ -861,6 +948,28 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                           <i className="ti ti-user" style={{ fontSize: 11 }} />
                         </button>
                       )}
+                      {/* Party assignment — GM marks NPC as party asset and assigns to a player */}
+                      {gmView && !n._isFull && (
+                        <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          {n.is_party_asset ? (
+                            <>
+                              <span style={{ fontSize: 10, color: 'var(--green)', border: '1px solid rgba(74,138,64,.4)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>Party</span>
+                              <select value={n.assigned_to || ''} onChange={e => onUpdateNPC(n.id, { assigned_to: e.target.value || null })}
+                                onClick={e => e.stopPropagation()}
+                                style={{ fontSize: 10, padding: '0 2px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, maxWidth: 80 }}>
+                                <option value="">Player…</option>
+                                {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                              </select>
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '0 3px', color: 'var(--text-muted)' }}
+                                title="Remove from party" onClick={e => { e.stopPropagation(); onUpdateNPC(n.id, { is_party_asset: false, assigned_to: null }); }}>✕</button>
+                            </>
+                          ) : (
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 4px', color: 'var(--text-muted)' }}
+                              title="Add to party — makes this NPC a persistent party companion"
+                              onClick={e => { e.stopPropagation(); onUpdateNPC(n.id, { is_party_asset: true }); }}>+Party</button>
+                          )}
+                        </span>
+                      )}
                       {encActive && gmView && (
                         <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
                           onClick={e => { e.stopPropagation(); handleAddToEncounter(n); }}>+Enc</button>
@@ -892,67 +1001,8 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], onUpdateNP
                   <div key={cat} style={{ marginBottom: '.75rem' }}>
                     <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem', fontWeight: 600 }}>{cat}</div>
                     {CREATURES_LIBRARY.filter(c => c.category === cat).map(creature => (
-                      <div key={creature.id} style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 5, padding: '.5rem .65rem', marginBottom: '.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.2rem' }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{creature.name}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>ATK {creature.attack} | DMG {creature.damage} | TN {creature.tn} | {creature.wpl} W/lvl</span>
-                          {gmView && onCreateNPC && (
-                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0, borderColor: 'var(--gold-dim)', color: 'var(--gold)' }}
-                              title="Save to NPC Log — creates a reusable NPC entry from this bestiary creature"
-                              onClick={async () => {
-                                await onCreateNPC({
-                                  name: creature.name,
-                                  faction: creature.category,
-                                  school: creature.category,
-                                  rank: 1,
-                                  weapon: `${creature.name} (${creature.attack})`,
-                                  weapon_dr: creature.damage,
-                                  rings: { Air: creature.air, Earth: creature.earth, Fire: creature.fire, Water: creature.water },
-                                  traits: creature.traits || {},
-                                  notes: creature.specials?.join('; ') || '',
-                                  is_visible_to_players: false,
-                                });
-                              }}>+ Log</button>
-                          )}
-                          {encActive && gmView && (
-                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', flexShrink: 0 }}
-                              onClick={() => {
-                                const nc = {
-                                  id: 'npc_' + creature.id + '_' + Date.now(),
-                                  name: creature.name,
-                                  school: creature.category, rank: 1, faction: 'Monsters',
-                                  dr: creature.damage, drawnWeapon: `${creature.name} (${creature.attack})`,
-                                  reflexes: creature.traits?.Reflexes || creature.air || 2,
-                                  agility: creature.traits?.Agility || creature.fire || 2,
-                                  air: creature.air || 2, fire: creature.fire || 2,
-                                  wound: 0, stance: 'Attack', statusEffects: [], type: 'npc',
-                                };
-                                setEncounter && setEncounter(prev => ({ ...prev, combatants: [...(prev.combatants || []), nc] }));
-                              }}>+Enc</button>
-                          )}
-                        </div>
-                        {/* Rings */}
-                        <div style={{ display: 'flex', gap: '.75rem', fontSize: 11, color: 'var(--text-muted)', marginBottom: creature.specials.length ? '.3rem' : 0 }}>
-                          <span>Air {creature.air}</span><span>Earth {creature.earth}</span><span>Fire {creature.fire}</span><span>Water {creature.water}</span>
-                          {creature.void && <span>Void {creature.void}</span>}
-                          {Object.entries(creature.traits || {}).map(([t, v]) => (
-                            <span key={t} style={{ color: 'var(--gold-dim)' }}>{t} {v}</span>
-                          ))}
-                        </div>
-                        {/* Specials */}
-                        {creature.specials.length > 0 && (
-                          <div style={{ marginTop: '.2rem' }}>
-                            {creature.specials.map((s, i) => (
-                              <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', paddingLeft: 6, borderLeft: '2px solid var(--gold-dim)', marginBottom: 2 }}>
-                                <strong>Special:</strong> {s}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {creature.gm_notes && gmView && (
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '.2rem' }}>{creature.gm_notes}</div>
-                        )}
-                      </div>
+                      <CreatureCard key={creature.id} creature={creature} gmView={gmView}
+                        encActive={encActive} onCreateNPC={onCreateNPC} setEncounter={setEncounter} />
                     ))}
                   </div>
                 ))}

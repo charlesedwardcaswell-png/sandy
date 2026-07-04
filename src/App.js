@@ -253,7 +253,8 @@ function BookDropdown() {
 export default function App() {
   const [authMode, setAuthMode] = useState(() => localStorage.getItem('sandy_auth_mode') || null);
   const [playerUsername, setPlayerUsername] = useState(() => localStorage.getItem('sandy_player_username') || '');
-  const isGM = authMode === 'gm';
+  const isGM = authMode === 'gm' || authMode === 'developer';
+  const isDeveloper = authMode === 'developer';
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
 
@@ -266,7 +267,7 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { feedback, addFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
@@ -607,6 +608,7 @@ export default function App() {
     return (
       <AuthScreen
         onGMLogin={() => { localStorage.setItem('sandy_auth_mode', 'gm'); setAuthMode('gm'); }}
+        onDeveloperLogin={() => { localStorage.setItem('sandy_auth_mode', 'developer'); setAuthMode('developer'); }}
         onPlayerLogin={(username) => { localStorage.setItem('sandy_auth_mode', 'player'); localStorage.setItem('sandy_player_username', username || 'Player'); setAuthMode('player'); setPlayerUsername(username || 'Player'); setTimeout(() => push('ti-user', `${username || 'A player'} has joined the session`, { gmOnly: true }), 500); }}
         onObserver={() => { localStorage.setItem('sandy_auth_mode', 'observer'); setAuthMode('observer'); }}
       />
@@ -897,6 +899,9 @@ export default function App() {
           session={session}
           characters={safeChars}
           encounterLog={encounterLog}
+          reps={reps}
+          onUpdateRep={guardFn(handleUpdateRep)}
+          onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
           onConfirm={handleSessionEnd}
           onClose={() => setShowSessionEnd(false)}
         />
@@ -905,7 +910,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v142</span>
+        <span className="hdr-game">The Tool — v159</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1167,6 +1172,7 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             npcs={npcs}
             fullNpcs={safeChars.filter(c => c.is_npc)}
+            characters={safeChars.filter(c => !c.is_npc)}
             onUpdateFullNpc={guardFn(handleUpdateChar)}
             reps={reps}
             onUpdateNPC={guardFn(handleUpdateNPC)}
@@ -1231,11 +1237,30 @@ export default function App() {
             sessionLog={parsedSessionLog}
             allSessions={allSessions}
             activeSession={session}
-            onActivateSession={(id) => { sessionTransitionRef.current = true; activateSession(id).finally(() => setTimeout(() => { sessionTransitionRef.current = false; }, 3000)); }}
+            onActivateSession={(id) => {
+              sessionTransitionRef.current = true;
+              // Snapshot prepared quests BEFORE activation — session state (and the useQuests hook's bound
+              // sessionId) won't reflect the new active session until after this resolves and re-renders,
+              // so createQuest is called with an explicit session_id override (see useSupabase.js) rather
+              // than relying on that closure.
+              const prepSess = allSessions.find(s => s.id === id);
+              const prepQuests = prepSess?.prepared_quests || [];
+              activateSession(id).then(async () => {
+                for (const pq of prepQuests) {
+                  await handleCreateQuest({
+                    title: pq.title, description: pq.description || '', quest_type: pq.quest_type || 'main',
+                    status: 'active', is_visible: false, player_notes: '', gm_notes: '', sort_order: 0,
+                    session_id: id,
+                  });
+                }
+                if (prepQuests.length > 0) savePreparedQuests(id, []);
+              }).finally(() => setTimeout(() => { sessionTransitionRef.current = false; }, 3000));
+            }}
             onCreatePrepSession={createPrepSession}
             onDeleteSession={deleteSession}
             onRenumberSession={renumberSession}
             onSavePreparedEncounters={savePreparedEncounters}
+            onSavePreparedQuests={savePreparedQuests}
             npcsFromLog={npcs}
             skillLog={skillLog}
             eventLog={fullEventLog}
@@ -1279,6 +1304,8 @@ export default function App() {
         )}
         {tab === 'settings' && gmView && <SettingsTab
           onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
+          isDeveloper={isDeveloper}
+          isGM={isGM}
         />}
       </div>
 

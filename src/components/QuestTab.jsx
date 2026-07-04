@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Empty } from './UI';
 
-const QUEST_TYPES = {
+export const QUEST_TYPES = {
   main:   { label: 'Main Quest',   color: '#c84030', border: 'rgba(200,64,48,.5)',   bg: 'rgba(200,64,48,.06)'   },
   side:   { label: 'Side Quest',   color: '#4a7ac8', border: 'rgba(74,122,200,.5)',  bg: 'rgba(74,122,200,.06)'  },
   player: { label: 'Player Quest', color: '#4a8a40', border: 'rgba(74,138,64,.5)',   bg: 'rgba(74,138,64,.06)'   },

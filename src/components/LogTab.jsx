@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { Empty } from './UI';
 import { formatDate } from '../lib/utils';
 import EncounterBuilder from './EncounterBuilder';
+import { QUEST_TYPES } from './QuestTab';
 
 // ── LogTab ────────────────────────────────────────────────────────────────────
-export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
+export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, onSavePreparedQuests, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
   const [expandedSession, setExpandedSession] = useState({});
   const [showBuilderFor, setShowBuilderFor] = useState(null);
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [newSessionNum, setNewSessionNum] = useState(null);
   const [editingSessionNum, setEditingSessionNum] = useState(null);
   const [showNewSession, setShowNewSession] = useState(false);
+  const [showQuestFormFor, setShowQuestFormFor] = useState(null);
+  const [newQuest, setNewQuest] = useState({ title: '', quest_type: 'main', description: '' });
 
   const skillRows = Object.entries(skillLog || {}).sort((a, b) => b[1].total - a[1].total);
   const maxTotal = Math.max(...skillRows.map(([, v]) => v.total), 1);
@@ -44,6 +47,27 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
     };
     onSavePreparedEncounters && onSavePreparedEncounters(sessionId, [...(sess.prepared_encounters || []), prep]);
     setShowBuilderFor(null);
+  };
+
+  const savePrepQuest = (sessionId) => {
+    const sess = allSess.find(s => s.id === sessionId);
+    if (!sess || !newQuest.title.trim()) return;
+    const prep = {
+      id: 'prepq_' + Date.now(),
+      title: newQuest.title.trim(),
+      quest_type: newQuest.quest_type,
+      description: newQuest.description || '',
+      created_at: new Date().toISOString(),
+    };
+    onSavePreparedQuests && onSavePreparedQuests(sessionId, [...(sess.prepared_quests || []), prep]);
+    setNewQuest({ title: '', quest_type: 'main', description: '' });
+    setShowQuestFormFor(null);
+  };
+
+  const removePrepQuest = (sessionId, prepId) => {
+    const sess = allSess.find(s => s.id === sessionId);
+    if (!sess) return;
+    onSavePreparedQuests && onSavePreparedQuests(sessionId, (sess.prepared_quests || []).filter(p => p.id !== prepId));
   };
 
   // If the full encounter builder is open for a session, show it full-screen
@@ -115,6 +139,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
             const isPast = !s.is_active && s.closed_at;
             const isPrep = !s.is_active && !s.closed_at;
             const prep = s.prepared_encounters || [];
+            const prepQuests = s.prepared_quests || [];
             const exp = expandedSession[s.id];
             const sessionEncounters = encountersBySession[s.session_number] || [];
             const recap = s.recap || {};
@@ -151,13 +176,14 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                     )}
                   </span>
                   {(s.title || s.recap?.event) && (
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    <span style={{ fontFamily: "'El Messiri', serif", fontWeight: 700, fontSize: 19, color: 'var(--gold)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, letterSpacing: '.02em' }}>
                       {s.title || s.recap?.event}
                     </span>
                   )}
                   {isCurrent && <span style={{ fontSize: 10, color: 'var(--green)', border: '1px solid var(--green-dim)', borderRadius: 3, padding: '0 4px', flexShrink: 0 }}>ACTIVE</span>}
                   {isPrep && <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 4px', flexShrink: 0 }}>PREP</span>}
                   {prep.length > 0 && <span style={{ fontSize: 11, color: 'var(--gold-dim)', flexShrink: 0 }}>{prep.length} prepared</span>}
+                  {prepQuests.length > 0 && <span style={{ fontSize: 11, color: 'var(--gold-dim)', flexShrink: 0 }}>{prepQuests.length} quest{prepQuests.length !== 1 ? 's' : ''} prepped</span>}
                   {sessionEncounters.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{sessionEncounters.length} fought</span>}
                   {isGM && !isCurrent && (
                     <button className="btn btn-sm" title="Delete session"
@@ -284,6 +310,62 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                         ))}
                       </div>
                     )}
+                    {/* Prepared quests for this session — auto-created when the session becomes active */}
+                    {isGM && (
+                      <div style={{ marginTop: '.6rem' }}>
+                        <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>Prepared Quests</span>
+                          <button className="btn btn-sm btn-p" style={{ fontSize: 10 }}
+                            onClick={() => setShowQuestFormFor(showQuestFormFor === s.id ? null : s.id)}>
+                            + Add Quest
+                          </button>
+                        </div>
+                        {showQuestFormFor === s.id && (
+                          <div style={{ padding: '.5rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, marginBottom: '.4rem' }}>
+                            <input placeholder="Quest name *" autoFocus value={newQuest.title}
+                              onChange={e => setNewQuest(q => ({ ...q, title: e.target.value }))}
+                              style={{ width: '100%', marginBottom: '.35rem' }} />
+                            <div style={{ display: 'flex', gap: 4, marginBottom: '.35rem' }}>
+                              {Object.entries(QUEST_TYPES).filter(([k]) => k !== 'player').map(([k, qt]) => (
+                                <button key={k} className="btn btn-sm" style={{
+                                  fontSize: 10, borderColor: newQuest.quest_type === k ? qt.color : 'var(--border)',
+                                  color: newQuest.quest_type === k ? qt.color : 'var(--text-muted)',
+                                  background: newQuest.quest_type === k ? qt.bg : 'transparent',
+                                }} onClick={() => setNewQuest(q => ({ ...q, quest_type: k }))}>
+                                  {qt.label}
+                                </button>
+                              ))}
+                            </div>
+                            <textarea placeholder="Quest description" rows={2} value={newQuest.description}
+                              onChange={e => setNewQuest(q => ({ ...q, description: e.target.value }))}
+                              style={{ width: '100%', resize: 'vertical', marginBottom: '.35rem' }} />
+                            <div style={{ display: 'flex', gap: '.4rem' }}>
+                              <button className="btn btn-sm btn-p" disabled={!newQuest.title.trim()} onClick={() => savePrepQuest(s.id)}>Save</button>
+                              <button className="btn btn-sm" onClick={() => { setShowQuestFormFor(null); setNewQuest({ title: '', quest_type: 'main', description: '' }); }}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
+                        {prepQuests.length === 0 && showQuestFormFor !== s.id && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No prepared quests yet.</div>
+                        )}
+                        {prepQuests.map(p => {
+                          const qt = QUEST_TYPES[p.quest_type] || QUEST_TYPES.main;
+                          return (
+                            <div key={p.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', padding: '.3rem .5rem', background: 'rgba(107,78,40,.1)', borderRadius: 4, marginBottom: '.3rem', border: '1px solid var(--border)' }}>
+                              <i className="ti ti-target" style={{ fontSize: 12, color: qt.color }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{p.title}</div>
+                                <div style={{ fontSize: 11, color: qt.color }}>{qt.label}</div>
+                              </div>
+                              <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removePrepQuest(s.id, p.id)}>×</button>
+                            </div>
+                          );
+                        })}
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: prepQuests.length > 0 ? '.3rem' : 0 }}>
+                          Created automatically in the Quest Log when this session becomes active.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -294,7 +376,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
       {/* ── Skill Usage ────────────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-title"><i className="ti ti-chart-bar" style={{ marginRight: 4 }} />Skill Usage <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>(high session count = over-used skill)</span></div>
+        <div className="card-title"><i className="ti ti-chart-bar" style={{ marginRight: 4 }} />Skill Usage</div>
         {skillRows.length === 0 ? (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No skill rolls recorded yet this session.</div>
         ) : (

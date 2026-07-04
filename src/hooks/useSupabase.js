@@ -164,6 +164,14 @@ export function useActiveSession() {
     if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_encounters: prepEncounters }));
   };
 
+  const savePreparedQuests = async (sessionId, prepQuests) => {
+    if (!sessionId) return;
+    const { error } = await supabase.from('sessions').update({ prepared_quests: prepQuests }).eq('id', sessionId);
+    if (error) { console.error('savePreparedQuests failed:', error.message); return; }
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, prepared_quests: prepQuests } : s));
+    if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_quests: prepQuests }));
+  };
+
   const deleteSession = async (sessionId) => {
     await supabase.from('sessions').delete().eq('id', sessionId);
     setAllSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -188,7 +196,7 @@ export function useActiveSession() {
       .sort((a, b) => a.session_number - b.session_number));
   };
 
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, deleteSession, renumberSession, refetch: fetch };
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, deleteSession, renumberSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -418,9 +426,12 @@ export function useQuests(sessionId) {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createQuest = async (questData) => {
+    // session_id can be passed explicitly in questData to override the hook's bound sessionId — needed
+    // right after activating a different session, since the closure here is still bound to whatever
+    // session was active when useQuests(session?.id) last rendered (stale otherwise).
     const { data, error } = await supabase
       .from('quests')
-      .insert({ ...questData, game_id: GAME_ID, session_id: sessionId || null })
+      .insert({ ...questData, game_id: GAME_ID, session_id: questData.session_id ?? sessionId ?? null })
       .select()
       .single();
     if (error) { console.error('createQuest failed:', error.message, error.code); return null; }

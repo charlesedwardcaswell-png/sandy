@@ -1,3 +1,6 @@
+/* ── Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&display=swap');
+
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, -apple-system, sans-serif; background: #1a1208; color: #e8dcc8; min-height: 100vh; }

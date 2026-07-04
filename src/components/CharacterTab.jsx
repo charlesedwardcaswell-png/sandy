@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, SHIELDS, SHIELD_ATTACK_PENALTY, getShieldBonus, CREATURES_LIBRARY, getTechniqueAutomationStatus, getAdvantageAutomationStatus, getDisadvantageAutomationStatus } from '../data/constants';
+import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, SHIELDS, SHIELD_ATTACK_PENALTY, getShieldBonus, CREATURES_LIBRARY, getTechniqueAutomationStatus, getAdvantageAutomationStatus, getDisadvantageAutomationStatus, CLOTHING_SLOTS, CLOTHING_STATUS_DELTA } from '../data/constants';
 import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore, WeaponIcon, ArmorIcon, getWeaponIconType, RulebookEntryButton } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
 import { MagicItemBadge } from './MagicItemCreator';
 import SocialReferenceModal from './SocialReferenceModal';
 import { supabase } from '../lib/supabase';
-import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS, getEffectiveRankThresholds } from '../lib/utils';
+import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calcInsight, insightRankFor, traitXpCost, skillXpCost, nextRankThreshold, TRAIT_RING_MAP, RANK_THRESHOLDS, getEffectiveRankThresholds, getArmorTN } from '../lib/utils';
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
@@ -142,6 +142,31 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             onLogEvent={onLogEvent}
           />
         )}
+        {/* Companion sheet — assigned is_npc characters, view-only for the player */}
+        {!isGM && selId && (() => {
+          const myCharNames = (characters || []).filter(c => myCharIds.includes(c.id) && !c.is_npc).map(c => c.name);
+          const comp = characters.find(c => c.id === selId && c.is_npc && myCharNames.includes(c.claimed_by_name));
+          if (!comp) return null;
+          return (
+            <div>
+              <div style={{ fontSize: 12, color: '#80a8d8', marginBottom: '.4rem', padding: '.3rem .6rem', background: 'rgba(74,122,200,.08)', borderRadius: 4, border: '1px solid rgba(74,122,200,.25)' }}>
+                <i className="ti ti-paw" style={{ marginRight: 5 }} />Companion — assigned by GM. Stats are view-only; GM controls this character in encounters.
+              </div>
+              <CharacterSheet
+                char={comp}
+                isGM={false} canEdit={false}
+                onUpdate={onUpdateCharacter}
+                myCharId={myCharId}
+                onClaimCharacter={null}
+                onUnclaimCharacter={null}
+                onUpdateInventory={null}
+                partyInventoryItems={partyInventoryItems}
+                onRoll={onRoll} allChars={characters}
+                waterDroughtEnabled={waterDroughtEnabled}
+                portraitScale={portraitScale} onLogEvent={onLogEvent} />
+            </div>
+          );
+        })()}
         {jinnOpen && (
           <JinnRandomizer
             onClose={() => { setJinnOpen(false); setJinnSummonBonusLocal(null); if (onJinnSummonDone) onJinnSummonDone(); }}
@@ -200,8 +225,25 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
                 ))}
               </select>
             )}
+            {/* Companions assigned by GM — is_npc characters with claimed_by_name matching this player's character names */}
+            {!isGM && !isPCView && (() => {
+              const myCharNames = (characters || []).filter(c => myCharIds.includes(c.id) && !c.is_npc).map(c => c.name);
+              const companions = characters.filter(c => c.is_npc && myCharNames.includes(c.claimed_by_name));
+              if (companions.length === 0) return null;
+              return (
+                <select className="pc-sel"
+                  value={(!selNpcId && selId && companions.some(c => c.id === selId)) ? selId : ''}
+                  onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}
+                  style={{ borderColor: 'rgba(74,122,200,.4)', color: '#80a8d8' }}>
+                  <option value="" disabled>My Companions</option>
+                  {companions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} — {c.school || c.faction || 'Companion'}</option>
+                  ))}
+                </select>
+              );
+            })()}
             {/* 2 — Full NPC sheets (GM only) */}
-            {characters.filter(c => c.is_npc).length > 0 && (
+            {isGM && characters.filter(c => c.is_npc).length > 0 && (
               <select className="pc-sel"
                 value={(!selNpcId && selId && characters.find(c => c.id === selId)?.is_npc) ? selId : ''}
                 onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}
@@ -967,6 +1009,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const [skillTraitOverride, setSkillTraitOverride] = useState({}); // skillName -> trait key override
   const [expandedSkills, setExpandedSkills] = useState({}); // skillName -> bool
   const [readLipsDist, setReadLipsDist] = useState({}); // charId -> distance in feet, for the Read Lips advantage quick-roll
+  const [sendTarget, setSendTarget] = useState({}); // equipment index -> 'party' or a character id, for the "Send to..." dropdown
 
   const insight = calcInsight(char);
   const insightRank = insightRankFor(insight, char);
@@ -1194,12 +1237,32 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         />
       )}
 
-      {/* ── Player name banner ── */}
+      {/* ── Player name banner / GM companion assignment ── */}
       {(() => {
         const isMine = myCharId === char.id;
         const playerName = char.player_name;
+        // GM companion assignment — shown only on is_npc character sheets so GM can assign
+        // hirelings/animals/ghul/jinn to a player. The player sees their claimed companions in
+        // their character list and can view (but not control) them. NPCs never get downtime actions.
+        if (char.is_npc && isGM) {
+          const assigned = char.claimed_by_name;
+          const pcChars = (allChars || []).filter(c => !c.is_npc);
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.5rem .75rem', background: assigned ? 'rgba(74,122,200,.1)' : 'var(--bg-panel)', borderRadius: 5, border: `1px solid ${assigned ? 'rgba(74,122,200,.35)' : 'var(--border)'}` }}>
+              <i className="ti ti-paw" style={{ fontSize: 14, color: assigned ? '#80a8d8' : 'var(--text-muted)' }} />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>Assign to:</span>
+              <select value={assigned || ''} onChange={e => {
+                const val = e.target.value;
+                onUpdate && onUpdate(char.id, { claimed_by_name: val || null });
+              }} style={{ flex: 1, fontSize: 12, background: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 4px' }}>
+                <option value="">— Unassigned —</option>
+                {pcChars.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+              {assigned && <span style={{ fontSize: 11, color: '#80a8d8', flexShrink: 0 }}>assigned to {assigned}</span>}
+            </div>
+          );
+        }
         if (playerName) {
-          // Character is claimed — show who has it, and an unclaim button if it's mine
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: isMine ? 'rgba(74,138,64,.15)' : 'var(--bg-dark)', borderRadius: 5, border: `1px solid ${isMine ? 'rgba(74,138,64,.4)' : 'var(--border)'}` }}>
               <i className="ti ti-user-check" style={{ fontSize: 16, color: isMine ? 'var(--green)' : 'var(--gold-dim)' }} />
@@ -1356,9 +1419,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             {/* Armor TN / Init — prominent */}
             <div style={{ marginTop: '.4rem' }}>
               {(() => {
-                const baseTN = 5 + (char.reflexes || 2) * 5;
                 const armorBns = getArmorBonus(char.equipment || []);
-                const totalTN = baseTN + armorBns;
+                const totalTN = getArmorTN({ reflexes: char.reflexes, armorBonus: armorBns });
+                const baseTN = totalTN - armorBns;
                 const equippedArmor = (char.equipment || []).find(e => e.equipped && (ARMOR_TN_BONUS[e.name] !== undefined || e.name?.toLowerCase().includes('armor') || e.name?.toLowerCase().includes('chain') || e.name?.toLowerCase().includes('lorica')));
                 const armorDesc = equippedArmor ? (GEAR_DESCRIPTIONS[equippedArmor.name] || '') : '';
                 // Best attack roll example — highest-rank combat skill the character actually has
@@ -1377,11 +1440,28 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 const wieldedWeapon = (char.equipment || []).find(e => e.dr && e.inUse);
                 return (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                        <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{totalTN}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Armor TN</span>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {/* TN, Attack, and Damage as matched stat boxes — same size/style, vertically aligned,
+                          instead of TN standing alone as a huge number while Attack/Damage were tiny inline
+                          text off to the side. */}
+                      <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '4px 10px', minWidth: 68 }}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{totalTN}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Armor TN</div>
                       </div>
+                      {bestAttackPool && (
+                        <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '4px 10px', minWidth: 68 }} title={bestAttackPool.skillName}>
+                          <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{bestAttackPool.roll}k{bestAttackPool.keep}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Attack</div>
+                        </div>
+                      )}
+                      {wieldedWeapon && (
+                        <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '4px 10px', minWidth: 68 }} title={wieldedWeapon.name}>
+                          <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{wieldedWeapon.dr}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Damage</div>
+                        </div>
+                      )}
+                    </div>
+                    <div>
                       <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginTop: 1 }}>
                         {baseTN} base{armorBns > 0 ? ` + ${armorBns} ${equippedArmor ? equippedArmor.name.split('(')[0].trim() : 'armor'}` : ' (no armor)'}
                       </div>
@@ -1393,16 +1473,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span>
                       </div>
-                      {bestAttackPool && (
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }} title={bestAttackPool.skillName}>
-                          Attack <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{bestAttackPool.roll}k{bestAttackPool.keep}</span>
-                        </div>
-                      )}
-                      {wieldedWeapon && (
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }} title={wieldedWeapon.name}>
-                          Damage <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{wieldedWeapon.dr}</span>
-                        </div>
-                      )}
                       <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span>
                       </div>
@@ -1526,8 +1596,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 // sees which value (Sandy's sheets don't have per-viewer permissions to hook that into).
                 ...(perceivedIntegrityAdv ? [{ label: 'Perceived Integrity', value: perceivedIntegrityValue, color: '#e0c060', borderColor: '#c0a040', key: 'perceived_integrity', isDecimal: true, isDerived: true }] : []),
                 { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
-                { label: (char.disadvantages || []).some(d => (d.name || d) === 'Infamous') ? 'Infamy' : 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation' },
-                { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status' },
+                { label: (char.disadvantages || []).some(d => (d.name || d) === 'Infamous') ? 'Infamy' : 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation', isDecimal: true },
+                { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status', isDecimal: true },
                 // Water units — only shown in drought mode; GM can edit, players see their own
                 ...(waterDroughtEnabled && !char.is_npc ? [{ label: 'Water', value: char.water_units ?? 0, color: '#3a80c0', borderColor: '#2a60a0', key: 'water_units', isWater: true }] : []),
               ];
@@ -1549,8 +1619,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: isWater ? 5 : 1 }}>{label}{!isWater && !isDerived && <span style={{ color: borderColor, opacity: 0.6 }}> ?</span>}</div>
                 {canEdit && isGM && !isWater && !isDerived && (
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 3 }}>
-                    <button className="rep-btn" onClick={() => update(key, Math.max(0, +(value || 0) - (isDecimal ? 0.5 : 1)))}>−</button>
-                    <button className="rep-btn" onClick={() => update(key, +(value || 0) + (isDecimal ? 0.5 : 1))}>+</button>
+                    <button className="rep-btn" onClick={() => update(key, Math.max(0, Math.round((+(value || 0) - (isDecimal ? 0.1 : 1)) * 10) / 10))}>−</button>
+                    <button className="rep-btn" onClick={() => update(key, Math.round((+(value || 0) + (isDecimal ? 0.1 : 1)) * 10) / 10)}>+</button>
                   </div>
                 )}
                 {isWater && canEdit && isGM && (
@@ -1728,7 +1798,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         const ringKey = TRAIT_RING[activeTrait] || traitInfo.ring.toLowerCase();
                         const traitVal = char[activeTrait] || 2;
                         const ringVal = char[ringKey] || 2;
-                        const roll = s.rank + traitVal;
+                        // Crafty: treat rank 0 Low skills as rank 1 for display purposes too
+                        const LOW_SKILL_NAMES = new Set(SKILL_CATEGORIES['Low (Common/Criminal)'] || []);
+                        const charHasCrafty = (char.advantages || []).some(a => (a.name || a) === 'Crafty');
+                        const effectiveRank = (charHasCrafty && s.rank === 0 && LOW_SKILL_NAMES.has(s.name)) ? 1 : s.rank;
+                        const roll = effectiveRank + traitVal;
                         const keep = ringVal;
                         // Clickable: cycles through all 9 traits
                         const allTraits = Object.keys(TRAIT_RING);
@@ -1932,7 +2006,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             const eqSlot = getEquipSlot(e.name);
             const isArmor = eqSlot === 'armor' || e.item_type === 'Armor';
             const isShield = eqSlot === 'shield';
-            const canToggleWield = isWeapon || isArmor || isShield;
+            const clothingSlot = CLOTHING_SLOTS[e.name]; // 'cloak' | 'clothes' | 'shoes' | undefined
+            const isClothing = !!clothingSlot;
+            const canToggleWield = isWeapon || isArmor || isShield || isClothing;
             // Player can wield/wear their own gear even without full edit mode
             const canWield = canEdit || (myCharId === char.id);
             return (
@@ -1952,6 +2028,23 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           ? `${wielded[0].name} (${wielded[0].dr})`
                           : null;
                         onUpdate(char.id, { equipment: eq, current_weapon: currentWeapon });
+                      } else if (isClothing) {
+                        // Clothing: one per slot (cloak/clothes/shoes). Equipping a new item in the same
+                        // slot automatically removes the previously equipped one. Quality tier adjusts
+                        // Status by CLOTHING_STATUS_DELTA — delta is recomputed from all equipped clothing
+                        // so equipping/unequipping always lands on the correct total.
+                        const nowWorn = !e.equipped;
+                        const eq = (char.equipment || []).map((x, xi) => {
+                          if (xi === i) return { ...x, equipped: nowWorn };
+                          if (nowWorn && CLOTHING_SLOTS[x.name] === clothingSlot && x.equipped) return { ...x, equipped: false };
+                          return x;
+                        });
+                        const prevStatusFromClothing = (char.equipment || []).filter(x => CLOTHING_SLOTS[x.name] && x.equipped)
+                          .reduce((sum, x) => sum + (CLOTHING_STATUS_DELTA[x.quality || 'standard'] || 0), 0);
+                        const newStatusFromClothing = eq.filter(x => CLOTHING_SLOTS[x.name] && x.equipped)
+                          .reduce((sum, x) => sum + (CLOTHING_STATUS_DELTA[x.quality || 'standard'] || 0), 0);
+                        const newStatus = Math.round(((char.status || 1) - prevStatusFromClothing + newStatusFromClothing) * 10) / 10;
+                        onUpdate(char.id, { equipment: eq, status: newStatus });
                       } else {
                         // Armor / Shield / other single-slot items: toggle equipped, unequip any other
                         // item occupying the SAME slot (armor unequips armor, shield unequips shield —
@@ -1975,11 +2068,13 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       color: (isWeapon ? e.inUse : e.equipped) ? 'var(--gold)' : 'var(--text-muted)',
                       pointerEvents: canWield ? 'auto' : 'none', opacity: canWield ? 1 : 0.5,
                     }}
-                    title={isWeapon ? (e.inUse ? 'Currently wielding — click to sheathe' : 'Click to wield') : (e.equipped ? 'Currently worn — click to remove' : 'Click to wear')}
+                    title={isWeapon ? (e.inUse ? 'Currently wielding — click to sheathe' : 'Click to wield') : isClothing ? (e.equipped ? `Worn (${clothingSlot} slot) — click to remove` : `Click to wear (${clothingSlot} slot)`) : (e.equipped ? 'Currently worn — click to remove' : 'Click to wear')}
                   >
                     {isWeapon
                       ? (e.inUse ? '⚔ Wielding' : 'Wield')
-                      : (e.equipped ? '🛡 Worn' : 'Wear')}
+                      : isClothing
+                        ? (e.equipped ? '👘 Worn' : 'Wear')
+                        : (e.equipped ? '🛡 Worn' : 'Wear')}
                   </button>
                 )}
                 <span style={{ flex: 1, color: (isWeapon ? e.inUse : isArmor ? e.equipped : true) ? 'var(--text-primary)' : 'var(--text-muted)' }}
@@ -1989,6 +2084,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     return iconType ? <WeaponIcon type={iconType} size={14} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} /> : null;
                   })()}
                   {isArmor && <ArmorIcon size={13} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} />}
+                  {isClothing && e.equipped && (() => {
+                    const delta = CLOTHING_STATUS_DELTA[e.quality || 'standard'] || 0;
+                    if (delta === 0) return null;
+                    return <span style={{ fontSize: 10, color: delta > 0 ? 'var(--green)' : 'var(--red)', marginLeft: 4 }}>{delta > 0 ? `+${delta}` : delta} Status</span>;
+                  })()}
                   {e.name}
                   {GEAR_DESCRIPTIONS[e.name] && (
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5, fontStyle: 'italic', display: 'block', lineHeight: 1.3 }}>
@@ -2059,32 +2159,33 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 )}
                 <ScrollLore title={e.name} text={loreText || e.name} size={10} />
                 {canEdit && onUpdateInventory && (
-                  <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--text-muted)' }}
-                    title="Send to Party Inventory"
-                    onClick={() => {
-                      const item = char.equipment[i];
-                      update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                      onUpdateInventory({ items: [...(partyInventoryItems || []).filter(Boolean), { name: item.name, qty: 1, category: 'Gear', dr: item.dr || '', skill: item.skill || '' }] });
-                      onLogEvent && onLogEvent('ti-arrow-left', `${item.name} → ${char.name} to Party Inventory`);
-                    }}>→ Party</button>
-                )}
-                {canEdit && (allChars || []).filter(c => c.id !== char.id && !c.is_npc).length > 0 && (
-                  <select style={{ fontSize: 10, padding: '1px 3px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer' }}
-                    value=""
-                    onChange={ev => {
-                      const targetId = ev.target.value;
-                      if (!targetId) return;
-                      const targetChar = (allChars || []).find(c => c.id === targetId);
-                      if (!targetChar) return;
-                      const item = char.equipment[i];
-                      update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
-                      onUpdate(targetId, { equipment: [...(targetChar.equipment || []), { ...item, equipped: false, inUse: false }] });
-                    }}>
-                    <option value="">→ Player…</option>
-                    {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <>
+                    <select value={sendTarget[i] || ''} onChange={ev => setSendTarget(s => ({ ...s, [i]: ev.target.value }))}
+                      style={{ fontSize: 10, padding: '1px 3px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
+                      <option value="">Send to...</option>
+                      <option value="party">Party</option>
+                      {(allChars || []).filter(c => c.id !== char.id && !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', color: 'var(--text-muted)' }}
+                      disabled={!sendTarget[i]}
+                      title="Send this item to the chosen destination"
+                      onClick={() => {
+                        const item = char.equipment[i];
+                        const dest = sendTarget[i];
+                        update('equipment', (char.equipment || []).filter((_, idx) => idx !== i));
+                        if (dest === 'party') {
+                          onUpdateInventory({ items: [...(partyInventoryItems || []).filter(Boolean), { name: item.name, qty: 1, category: 'Gear', dr: item.dr || '', skill: item.skill || '' }] });
+                          onLogEvent && onLogEvent('ti-arrow-left', `${item.name} → ${char.name} to Party Inventory`);
+                        } else {
+                          const destChar = (allChars || []).find(c => c.id === dest);
+                          if (destChar) {
+                            onUpdate(dest, { equipment: [...(destChar.equipment || []), { ...item, equipped: false, inUse: false }] });
+                            onLogEvent && onLogEvent('ti-arrow-left', `${item.name}: ${char.name} → ${destChar.name}`);
+                          }
+                        }
+                        setSendTarget(s => ({ ...s, [i]: '' }));
+                      }}>Send</button>
+                  </>
                 )}
                 {canEdit && <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => removeEq(i)}>×</button>}
               </div>

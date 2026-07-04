@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
 import SocialReferenceModal from './SocialReferenceModal';
+import { FactionRow } from './PartyTab';
+import { FACTIONS_DATA } from '../data/constants';
 
 const COPPER_DEFAULTS = { Action: 15, Intrigue: 8, Travel: 5, Downtime: 3 };
 
-export default function SessionEndModal({ session, characters, encounterLog, onConfirm, onClose }) {
+export default function SessionEndModal({ session, characters, encounterLog, reps, onUpdateRep, onUpdateRepNotes, onConfirm, onClose }) {
   const [tab, setTab] = useState('xp');
   const [xpAmount, setXpAmount] = useState(3);
   const [xpReason, setXpReason] = useState('');
   const [selected, setSelected] = useState(
     characters.reduce((acc, c) => ({ ...acc, [c.id]: true }), {})
   );
-  const [recap, setRecap] = useState({ event: '', npcs: '', factions: '', loot: '', changes: '' });
+  // Trimmed to just the title/summary field — npcs/factions/loot/changes were free-text v1 fields that
+  // duplicated what's now live-tracked elsewhere (faction standing below, quest log, character sheets).
+  // "event" is kept because LogTab's session title display falls back to it (s.title || s.recap?.event).
+  const [recap, setRecap] = useState({ event: '' });
 
   // Per-character Integrity GM input (empty = no change)
   const [integrityAwards, setIntegrityAwards] = useState(
@@ -52,7 +57,7 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
         <div style={{ display: 'flex', gap: 4, marginBottom: '1rem', flexWrap: 'wrap' }}>
           <button className={`btn btn-sm ${tab === 'xp' ? 'btn-p' : ''}`} onClick={() => setTab('xp')}>XP & Copper</button>
           <button className={`btn btn-sm ${tab === 'awards' ? 'btn-p' : ''}`} onClick={() => setTab('awards')}>Integrity & Rep</button>
-          <button className={`btn btn-sm ${tab === 'recap' ? 'btn-p' : ''}`} onClick={() => setTab('recap')}>Session Recap</button>
+          <button className={`btn btn-sm ${tab === 'recap' ? 'btn-p' : ''}`} onClick={() => setTab('recap')}>Faction Adjustment</button>
         </div>
 
         {tab === 'xp' && (<>
@@ -158,20 +163,25 @@ export default function SessionEndModal({ session, characters, encounterLog, onC
         </>)}
 
         {tab === 'recap' && (<>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem' }}>Saved to session archive.</div>
-          {[
-            { key: 'event',    label: 'Most significant event',     ph: 'What happened that mattered most?' },
-            { key: 'npcs',     label: 'Key NPCs this session',      ph: 'Who did the party interact with?' },
-            { key: 'factions', label: 'Faction reputation changes', ph: 'Any notable shifts in standing?' },
-            { key: 'loot',     label: 'Loot / rewards distributed', ph: 'What did the party acquire?' },
-            { key: 'changes',  label: 'Character changes to apply', ph: 'School ranks, techniques, healing...' },
-          ].map(f => (
-            <div key={f.key} className="modal-section">
-              <span className="modal-label">{f.label}</span>
-              <textarea rows={2} placeholder={f.ph} value={recap[f.key]}
-                onChange={e => setRecap(r => ({ ...r, [f.key]: e.target.value }))} style={{ width: '100%', resize: 'vertical' }} />
-            </div>
-          ))}
+          <div className="modal-section">
+            <span className="modal-label">Session Title</span>
+            <input type="text" placeholder="What happened that mattered most?"
+              value={recap.event} onChange={e => setRecap(r => ({ ...r, event: e.target.value }))}
+              style={{ width: '100%' }} />
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '.75rem 0 .5rem' }}>
+            <i className="ti ti-shield-half" style={{ marginRight: 5 }} />Adjust faction standing for this session — applies immediately, same as the Party tab.
+          </div>
+          <div className="card">
+            {FACTIONS_DATA.map(fDef => {
+              const rep = reps?.[fDef.name]?.reputation ?? 0;
+              const savedNotes = reps?.[fDef.name]?.notes ?? '';
+              return (
+                <FactionRow key={fDef.name} fDef={fDef} rep={rep} savedNotes={savedNotes}
+                  gmView={true} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} />
+              );
+            })}
+          </div>
         </>)}
 
         <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem' }}>

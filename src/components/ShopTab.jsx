@@ -726,18 +726,19 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     persistShops(updated);
   };
 
-  const handlePurchase = (item, useBaseCost = false, shopOverride = null) => {
+  const handlePurchase = (item, useBaseCost = false, shopOverride = null, free = false) => {
     const shop = shopOverride || activeShop;
     const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
     const displayName = item.is_magic ? item.name : (item.quality && item.quality !== 'standard' ? `${qTier.label} ${item.name}` : item.name);
     // If haggling succeeded (useBaseCost), use base price; otherwise use marked-up price
     const displayedPrice = item.markup && !useBaseCost ? applyMarkup(item.price, item.markup) : item.price;
     const price = item.is_magic ? (item.price || '?') : qualityPrice(displayedPrice, item.quality);
-    const copperAmt = parseCopperAmount(useBaseCost ? item.price : (item.markup ? applyMarkup(item.price, item.markup) : item.price), item.quality);
+    // GM send-to is a free grant — no currency changes hands, so no copper cost or funds check applies.
+    const copperAmt = free ? 0 : parseCopperAmount(useBaseCost ? item.price : (item.markup ? applyMarkup(item.price, item.markup) : item.price), item.quality);
     const destName = purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'Character';
 
-    // Check if enough funds
-    if (copperAmt > 0) {
+    // Check if enough funds — skipped entirely for a free GM send
+    if (!free && copperAmt > 0) {
       const availableCopper = purchaseTarget === 'party'
         ? (inventory?.copper || 0)
         : ((characters || []).find(c => c.id === purchaseTarget)?.copper || 0);
@@ -912,15 +913,24 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                         <span style={{ fontSize: 12, color: qTier.color, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                           {shownPrice}
                           {showBaseCost && (
-                            <span style={{ fontSize: 9, color: 'var(--green)', display: 'block' }}>base: {basePrice}</span>
+                            <span style={{ fontSize: 10, color: 'var(--green)' }}> ({basePrice})</span>
                           )}
                         </span>
-                        {/* Quick buy */}
-                        <button className="btn btn-sm" style={{ fontSize: 11 }}
-                          title="Buy now at listed price — instant, no cart needed"
-                          onClick={() => handlePurchase(item, false, shop)}>
-                          Buy
-                        </button>
+                        {/* Quick buy (players) / Send-to (GM) — GM hands out loot for free via the
+                            destination picker above, rather than "buying" it from their own shop. */}
+                        {gmView ? (
+                          <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green)', color: 'var(--green)' }}
+                            title={`Send free to ${purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'selected destination'} (no cost — set destination above)`}
+                            onClick={() => handlePurchase(item, false, shop, true)}>
+                            <i className="ti ti-send" style={{ marginRight: 3 }} />Send
+                          </button>
+                        ) : (
+                          <button className="btn btn-sm" style={{ fontSize: 11 }}
+                            title="Buy now at listed price — instant, no cart needed"
+                            onClick={() => handlePurchase(item, false, shop)}>
+                            Buy
+                          </button>
+                        )}
                         {/* Add to cart */}
                         {!item.is_magic && (
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}

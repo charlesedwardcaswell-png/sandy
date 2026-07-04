@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, TRAITS, getArmorBonus } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore, triggerVoidSwirl, WeaponIcon, ArmorIcon, getWeaponIconType } from './UI';
-import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques, getEffectiveWaterRing } from '../lib/utils';
+import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques, getEffectiveWaterRing, getArmorTN } from '../lib/utils';
 import DiceModal, { computeBonuses } from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
 import EncounterBuilder, { NPCPicker, NPC_BY_FACTION, generateGroup } from './EncounterBuilder';
@@ -106,29 +106,24 @@ function CombatantVoidMenu({ c, currentVoid, maxVoid, onVoidDefense }) {
 }
 
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0 }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0, onShowSummary }) {
   const isNPC = c.type === 'npc';
   const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
   const wLabel = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'][c.wound] || 'Healthy';
   const pc = pcs?.[c.id];
-  const voidTnBoost = c.voidArmor ? 10 : 0;
   const armorBonus = getArmorBonus(pc?.equipment) || pc?.armorBonus || c.armorBonus || 0;
-  // Full Defense: Defense roll result adds half (rounded up) to base Armor TN
-  // Defense stance: adds Air Ring + Defense Skill Rank
-  // Full Attack: reduces Armor TN by 10
-  const fullDefBonus = c.stance === 'Full Defense' ? Math.ceil((c.fullDefenseBonus ?? 0) / 2) : 0;
-  const defenseStanceBonus = c.stance === 'Defense' ? ((c.air || 2) + (c.defenseSkillRank || 0)) : 0;
-  const fullAttackPenalty = c.stance === 'Full Attack' ? -10 : 0;
   // Jinn protection: "+TN to Be Hit = highest Ring" — check the combatant itself, not pcsMap. Spawned NPC
   // combatant ids (e.g. 'npc_full_<realId>_<timestamp>') never match the real character id pcsMap is keyed
   // by, so a pcsMap lookup here always silently returned undefined for any actual spawned Jinn. The combatant
   // object already carries techniques/faction/rings directly from the spawn fix, so check those instead.
   const jinnTNBonus = (c.faction === 'Jinn' && Object.values(c?.techniques || {}).some(t => typeof t === 'string' && t.includes('+TN to Be Hit = highest Ring')))
     ? Math.max(c.air || 2, c.earth || 2, c.fire || 2, c.water || 2) : 0;
-  const armorTN = c.stance === 'Full Defense'
-    ? 5 + (c.reflexes || 2) * 5 + armorBonus + fullDefBonus + voidTnBoost + jinnTNBonus
-    : 5 + (c.reflexes || 2) * 5 + armorBonus + defenseStanceBonus + fullAttackPenalty + voidTnBoost + jinnTNBonus;
+  const armorTN = getArmorTN({
+    reflexes: c.reflexes, armorBonus, stance: c.stance,
+    fullDefenseBonus: c.fullDefenseBonus, airRing: c.air, defenseSkillRank: c.defenseSkillRank,
+    voidArmor: c.voidArmor, jinnBonus: jinnTNBonus,
+  });
   const currentVoid = c.current_void ?? pc?.current_void ?? 0;
   const maxVoid = c.void || pc?.void || 2;
 
@@ -213,6 +208,12 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
               return <ScrollLore title={`${c.name} — ${c.school} Techniques`} text={techs.join('\n\n')} />;
             })()}
             {isMyChar && !isActive && <span style={{ fontSize: 10, color: 'var(--gold-dim)', border: '1px solid var(--gold-dim)', borderRadius: 3, padding: '0 3px' }}>YOU</span>}
+            {isGM && !isPCView && onShowSummary && (
+              <button onClick={() => onShowSummary(c)} title="View character summary (skills, advantages, disadvantages)"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>
+                <i className="ti ti-info-circle" style={{ fontSize: 13 }} />
+              </button>
+            )}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isNPC ? (c.sub || c.school || '') : c.school}
@@ -374,14 +375,14 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
     <div style={{
       background: 'var(--bg-panel)', borderRight: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`, borderTop: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`, borderBottom: `1px solid ${isMyChar ? avatarColor : 'var(--border)'}`,
       borderLeft: `3px solid ${isMyChar ? avatarColor : '#4a8a40'}`,
-      borderRadius: 6, padding: '.75rem', width: 160, position: 'relative',
+      borderRadius: 6, padding: '.75rem', width: 190, position: 'relative',
       boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
     }}>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '.5rem' }}>
-        <div style={{ width: 48, height: 62, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div style={{ width: 76, height: 98, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {avatarUrl && !imgErr
             ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
-            : <Silhouette type={avatarType} size={40} color={avatarColor} />}
+            : <Silhouette type={avatarType} size={64} color={avatarColor} />}
         </div>
       </div>
       <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
@@ -408,9 +409,6 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
         ) : (
           <span style={{ color: 'var(--gold-dim)' }}>Void {c.current_void || 0}/{pc?.void || c.void || 2}</span>
         )}
-      </div>
-      <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-        Armor TN <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15 }}>{5 + (c.reflexes || 2) * 5}</span>
       </div>
       {granted > 0 && (
         <div style={{ textAlign: 'center', padding: '4px', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '.4rem' }}>
@@ -1278,6 +1276,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
   const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
+  const [summaryCombatant, setSummaryCombatant] = useState(null); // GM click-for-summary popup (skills, advantages, disadvantages)
   // Disarm weapon choice — set when a successful Disarm hits a dual-wielding target,
   // requiring the attacker to pick which weapon to take
   const [disarmChoice, setDisarmChoice] = useState(null);
@@ -1544,7 +1543,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       const row = Math.max(0, Math.min(G - 1, centerY - Math.floor(npcList.length / 2) + i));
       return {
         ...n, wound: n.wound || 0, stance: 'Attack',
-        init: Math.floor(Math.random() * 10) + 4 + (n.rank || 1),
+        init: rollExplodingKeep((n.reflexes || 2) + (n.rank || 1), n.reflexes || 2),
         _initRolled: true,
         statusEffects: [], _action: null,
         gridX: col, gridY: row, startX: col, startY: row,
@@ -1748,6 +1747,44 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       success: result?.success ?? (typeof result === 'number' ? result >= (capturedModal.tn || 15) : false),
       ts: Date.now(),
     };
+    // Grapple contact roll resolution. Per the rulebook: contact succeeds → Contested Strength Roll to
+    // gain control. Per Core Rulebook p.83: "If the Free Raise is not used for a specific effect, it
+    // instead adds +5 to the character's total for that roll." So each raise spent strengthening the
+    // grapple on the contact roll becomes a flat +5 on the ensuing Contested Strength total — not extra
+    // dice. This never deals damage directly — control is tracked in encounter.grapples and resolved
+    // round-by-round via the Grapple Control panel (release/damage/re-contest).
+    if (capturedModal.isGrappleContact && capturedModal.targetId) {
+      if (result?.success) {
+        // Free Raise, per Core Rulebook p.83: "If the Free Raise is not used for a specific effect, it
+        // instead adds +5 to the character's total for that roll." Flat total bonus, not extra dice.
+        const raiseCount = result?.raises?.length || 0;
+        const freeRaiseBonus = raiseCount * 5;
+        const attackerStr = capturedModal.character?.strength || 2;
+        const target = combatants.find(c => c.id === capturedModal.targetId);
+        const defStr = target?.strength || pcsMap[capturedModal.targetId]?.strength || 2;
+        const atkTotal = rollExplodingKeep(attackerStr, attackerStr) + freeRaiseBonus;
+        const defTotal = rollExplodingKeep(defStr, defStr);
+        const attackerId = active?.id;
+        const controllerId = atkTotal > defTotal ? attackerId : capturedModal.targetId;
+        const heldId = controllerId === attackerId ? capturedModal.targetId : attackerId;
+        upEnc({
+          combatants: combatants.map(c => c.id === heldId
+            ? { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Grappled'), 'Grappled'] }
+            : c),
+          grapples: [
+            ...((encounter?.grapples || []).filter(g => g.attackerId !== attackerId && g.targetId !== capturedModal.targetId)),
+            { id: `${attackerId}-${capturedModal.targetId}-${Date.now()}`, attackerId, targetId: capturedModal.targetId, controllerId, heldId, previousControllerId: controllerId },
+          ],
+        });
+        onLogEvent && onLogEvent('ti-hand-grab', `Grapple — Contested Strength: ${atkTotal} vs ${defTotal}${freeRaiseBonus > 0 ? ` (+${freeRaiseBonus} flat from ${raiseCount} Free Raise${raiseCount !== 1 ? 's' : ''})` : ''} — ${controllerId === attackerId ? capturedModal.character?.name : capturedModal.targetName} gains control`);
+      } else {
+        onLogEvent && onLogEvent('ti-hand-grab', `Grapple contact failed — ${capturedModal.targetName || 'target'} avoids the grab`);
+      }
+      setRollBanner(banner);
+      setTimeout(() => setRollBanner(null), 5000);
+      return;
+    }
+
     if (damage !== null && damage !== undefined && capturedModal.targetId) {
       playDamage();
       const target = combatants.find(c => c.id === capturedModal.targetId);
@@ -1972,16 +2009,18 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     const atkDice = rollN(atkRolled).sort((a, b) => b - a);
     const atkTotal = atkDice.slice(0, atkKept).reduce((s, d) => s + d, 0) + (atkBonuses.extraFlat || 0);
 
-    // Target's real Armor TN — duplicates the formula CombatantCard computes for display (see BACKLOG.md's
-    // "Armor TN formula duplicated in 8+ places" note); reusing it exactly here rather than approximating.
+    // Target's real Armor TN — now the single shared getArmorTN() helper (see lib/utils.js), rather than a
+    // separately-maintained copy of the formula. This copy was previously missing the Jinn TN bonus that
+    // CombatantCard's display version has — an NPC attacking a Jinn-protected PC would have ignored it
+    // entirely. Fixed by computing it the same way CombatantCard does.
     const tArmorBonus = getArmorBonus(targetPC?.equipment) || target?.armorBonus || 0;
-    const tVoidTnBoost = target?.voidArmor ? 10 : 0;
-    const tFullDefBonus = target?.stance === 'Full Defense' ? Math.ceil((target?.fullDefenseBonus ?? 0) / 2) : 0;
-    const tDefenseStanceBonus = target?.stance === 'Defense' ? ((target?.air || 2) + (target?.defenseSkillRank || 0)) : 0;
-    const tFullAttackPenalty = target?.stance === 'Full Attack' ? -10 : 0;
-    const targetArmorTN = target?.stance === 'Full Defense'
-      ? 5 + (target?.reflexes || 2) * 5 + tArmorBonus + tFullDefBonus + tVoidTnBoost
-      : 5 + (target?.reflexes || 2) * 5 + tArmorBonus + tDefenseStanceBonus + tFullAttackPenalty + tVoidTnBoost;
+    const tJinnBonus = (target?.faction === 'Jinn' && Object.values(target?.techniques || {}).some(t => typeof t === 'string' && t.includes('+TN to Be Hit = highest Ring')))
+      ? Math.max(target?.air || 2, target?.earth || 2, target?.fire || 2, target?.water || 2) : 0;
+    const targetArmorTN = getArmorTN({
+      reflexes: target?.reflexes, armorBonus: tArmorBonus, stance: target?.stance,
+      fullDefenseBonus: target?.fullDefenseBonus, airRing: target?.air, defenseSkillRank: target?.defenseSkillRank,
+      voidArmor: target?.voidArmor, jinnBonus: tJinnBonus,
+    });
 
     const hit = atkTotal >= targetArmorTN;
     if (onLogEvent) onLogEvent(hit ? 'ti-sword' : 'ti-shield-x',
@@ -2067,10 +2106,17 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             </div>
           )}
 
-          {isGM && !isPCView && session && characters.length >= 2 && (
+          {isGM && !isPCView && session && (characters.length + fullNpcs.length) >= 2 && (
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               <DuelInitiator
-                combatants={characters.map(c => ({ ...c, type: 'pc' }))}
+                combatants={[
+                  ...characters.map(c => ({ ...c, type: 'pc' })),
+                  // fullNpcs are full stat-blocked NPCs (real reflexes/skills/void) — safe to duel.
+                  // npcsFromLog (lightweight bestiary spawns) are intentionally excluded here: they never
+                  // capture skills/void at spawn, so a Tahaddi duel involving one would silently use wrong
+                  // defaults (documented gotcha in sandy-current-state.md), not a real duel.
+                  ...fullNpcs.map(n => ({ ...n, type: 'npc' })),
+                ]}
                 pcsMap={pcsMap}
                 onStart={(challenger, defender) => {
                   const makeSide = (c) => ({
@@ -2198,6 +2244,70 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         )}
 
 
+
+        {/* Grapple Control panel — shown when the currently-active combatant controls an ongoing grapple.
+            Per the rulebook: each round the controller either releases or deals damage (holding the
+            target motionless); if not released, a new Contested Strength decides control for next round,
+            with the PREVIOUS controller getting a Free Raise (+1k1) on that re-contest roll. GM-adjudicated
+            like the rest of combat resolution. */}
+        {isGM && !isPCView && active && (encounter?.grapples || []).filter(g => g.controllerId === active.id).map(g => {
+          const held = combatants.find(c => c.id === g.heldId);
+          const controllerName = active.name;
+          const heldName = held?.name || 'target';
+          const clearGrapple = (extraCombatantPatch = {}) => {
+            upEnc({
+              combatants: combatants.map(c => c.id === g.heldId
+                ? { ...c, statusEffects: (c.statusEffects || []).filter(e => e !== 'Grappled'), ...extraCombatantPatch }
+                : c),
+              grapples: (encounter?.grapples || []).filter(x => x.id !== g.id),
+            });
+          };
+          return (
+            <div key={g.id} style={{ margin: '.5rem 0', padding: '.5rem .75rem', background: 'rgba(200,150,42,.08)', border: '1px solid var(--gold-dim)', borderRadius: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600, marginBottom: 4 }}>
+                <i className="ti ti-hand-grab" style={{ marginRight: 4 }} />{controllerName} controls the grapple on {heldName}
+              </div>
+              <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+                <button className="btn btn-sm" onClick={() => {
+                  clearGrapple();
+                  onLogEvent && onLogEvent('ti-hand-grab', `${controllerName} releases the grapple on ${heldName}`);
+                }}>Release Grapple</button>
+                <button className="btn btn-sm" style={{ borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => {
+                  // Unarmed damage, or the damage of any small weapon the grappler holds. Target held
+                  // motionless this round (Grappled status stays applied — grapple is not released).
+                  const drawnName = active.drawnWeapon?.split(' (')[0];
+                  const dr = (drawnName && drawnName !== 'Unarmed') ? (active.drawnWeapon.match(/\(([^)]+)\)/)?.[1] || '1k1') : '1k1';
+                  const [dmgRoll, dmgKeep] = dr.split('k').map(Number);
+                  const dmgTotal = rollExplodingKeep(dmgRoll || 1, dmgKeep || 1);
+                  gmWound(g.heldId, Math.ceil(dmgTotal / 5));
+                  onLogEvent && onLogEvent('ti-hand-grab', `${controllerName} holds ${heldName} motionless — grapple damage (${dr}): ${dmgTotal}`);
+                }}>Deal Damage (hold motionless)</button>
+                <button className="btn btn-sm" style={{ borderColor: '#5078dc', color: '#7098f0' }} onClick={() => {
+                  // Re-contest control — the PREVIOUS controller gets a Free Raise, which per Core Rulebook
+                  // p.83 adds a flat +5 to their total (not extra dice) when not spent on a specific effect.
+                  const controllerStr = (pcsMap[g.controllerId] || combatants.find(c => c.id === g.controllerId))?.strength || 2;
+                  const otherId = g.controllerId === g.attackerId ? g.targetId : g.attackerId;
+                  const otherStr = (pcsMap[otherId] || combatants.find(c => c.id === otherId))?.strength || 2;
+                  const ctrlTotal = rollExplodingKeep(controllerStr, controllerStr) + 5; // Free Raise: flat +5 for previous controller
+                  const otherTotal = rollExplodingKeep(otherStr, otherStr);
+                  const newControllerId = ctrlTotal >= otherTotal ? g.controllerId : otherId;
+                  const newHeldId = newControllerId === g.attackerId ? g.targetId : g.attackerId;
+                  upEnc({
+                    combatants: combatants.map(c => {
+                      if (c.id === newHeldId) return { ...c, statusEffects: [...(c.statusEffects || []).filter(e => e !== 'Grappled'), 'Grappled'] };
+                      if (c.id === g.heldId && g.heldId !== newHeldId) return { ...c, statusEffects: (c.statusEffects || []).filter(e => e !== 'Grappled') };
+                      return c;
+                    }),
+                    grapples: (encounter?.grapples || []).map(x => x.id === g.id
+                      ? { ...x, controllerId: newControllerId, heldId: newHeldId, previousControllerId: g.controllerId }
+                      : x),
+                  });
+                  onLogEvent && onLogEvent('ti-hand-grab', `Grapple re-contested: ${ctrlTotal} (${controllerName}, +5 Free Raise from prior control) vs ${otherTotal} — ${newControllerId === g.controllerId ? controllerName : heldName} retains/gains control`);
+                }}>Re-contest Control</button>
+              </div>
+            </div>
+          );
+        })}
 
         {/* Granted action roll panel — GM-granted extra actions */}
         {(() => {
@@ -2338,6 +2448,57 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           onLogEvent={onLogEvent}
         />
       )}
+
+      {/* GM character summary popup — click the info icon on any combatant card */}
+      {summaryCombatant && (() => {
+        const sc = summaryCombatant;
+        const full = pcsMap?.[sc.id] || sc; // full character record for PCs; combatant itself already has full data for NPCs (captured at spawn)
+        const skills = (full.skills || sc.skills || []).slice().sort((a, b) => (b.rank || 0) - (a.rank || 0));
+        const advantages = full.advantages || sc.advantages || [];
+        const disadvantages = full.disadvantages || sc.disadvantages || [];
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(8,5,2,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+            onClick={() => setSummaryCombatant(null)}>
+            <div className="modal" style={{ maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="modal-title">
+                <i className="ti ti-user-search" style={{ marginRight: 6 }} />{sc.name}
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>{sc.school || full.school || ''}</span>
+              </div>
+              <div className="modal-section">
+                <span className="modal-label">Skills</span>
+                {skills.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None recorded.</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+                  {skills.map((s, i) => (
+                    <span key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {s.name} <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{s.rank || 0}</span>
+                      {s.emphases?.length > 0 && <span style={{ color: 'var(--gold-dim)', fontSize: 10 }}> ({s.emphases.join(', ')})</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-section">
+                <span className="modal-label">Advantages</span>
+                {advantages.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None recorded.</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+                  {advantages.map((a, i) => (
+                    <span key={i} style={{ fontSize: 12, color: 'var(--green)' }}>{a.name || a}{a.rank ? ` (${a.rank})` : ''}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-section">
+                <span className="modal-label">Disadvantages</span>
+                {disadvantages.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None recorded.</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+                  {disadvantages.map((d, i) => (
+                    <span key={i} style={{ fontSize: 12, color: 'var(--red)' }}>{d.name || d}{d.rank ? ` (${d.rank})` : ''}</span>
+                  ))}
+                </div>
+              </div>
+              <button className="btn" style={{ marginTop: '.5rem' }} onClick={() => setSummaryCombatant(null)}>Close</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Roll result banner — local only, shown just to the player who rolled */}
       {rollBanner && (() => {
@@ -2713,6 +2874,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 isActive={c.id === active?.id}
                 isGM={isGM} isPCView={isPCView}
                 myCharId={myCharId} pcs={pcsMap}
+                onShowSummary={setSummaryCombatant}
                 onGMWound={gmWound}
                 onApplyStatus={applyStatus}
                 onRemoveStatus={removeStatus}
@@ -2747,7 +2909,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 ))}
                 {isGM && !isPCView && (
                   <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
-                    const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + (npc.reflexes || 3), statusEffects: [], _action: null };
+                    const nc = { ...npc, wound: 0, stance: 'Attack', init: rollExplodingKeep((npc.reflexes || 2) + (npc.rank || 1), npc.reflexes || 2), statusEffects: [], _action: null };
                     upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
                   }} />
                 )}
@@ -2815,6 +2977,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 isActive={c.id === active?.id}
                 isGM={isGM} isPCView={isPCView}
                 myCharId={myCharId} pcs={pcsMap}
+                onShowSummary={setSummaryCombatant}
                 onGMWound={gmWound}
                 onApplyStatus={applyStatus}
                 onRemoveStatus={removeStatus}
@@ -2844,7 +3007,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             {/* Reinforce mid-encounter */}
             {isGM && !isPCView && (
               <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
-                const nc = { ...npc, wound: 0, stance: 'Attack', init: Math.floor(Math.random() * 6) + (npc.reflexes || 3), statusEffects: [], _action: null };
+                const nc = { ...npc, wound: 0, stance: 'Attack', init: rollExplodingKeep((npc.reflexes || 2) + (npc.rank || 1), npc.reflexes || 2), statusEffects: [], _action: null };
                 upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
               }} />
             )}
