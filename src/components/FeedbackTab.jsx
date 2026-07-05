@@ -9,10 +9,10 @@ const TYPES = [
 ];
 
 // ── FeedbackTab ─────────────────────────────────────────────────────────────
-// Append-only feedback board, visible to all players. Three sections matching
-// TYPES above. Nothing can be edited or deleted from here by design — it's a
-// running record for Charles to triage between sessions, not a chat.
-export default function FeedbackTab({ feedback = [], onAddFeedback, username, isGM }) {
+// Append-only feedback board for players — visible to everyone, three sections matching TYPES
+// above. Players can't edit or delete their own posts (it's a running record, not a chat), but
+// the GM can delete individual entries to triage/clear the board between sessions.
+export default function FeedbackTab({ feedback = [], onAddFeedback, onDeleteFeedback, username, isGM }) {
   const [activeType, setActiveType] = useState('bug');
   const [draft, setDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -89,9 +89,16 @@ export default function FeedbackTab({ feedback = [], onAddFeedback, username, is
             {items.map(f => (
               <div key={f.id} style={{
                 background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8,
-                padding: '.6rem .8rem',
+                padding: '.6rem .8rem', position: 'relative',
               }}>
-                <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{f.body}</div>
+                {isGM && onDeleteFeedback && (
+                  <button className="btn btn-sm" onClick={() => onDeleteFeedback(f.id)}
+                    title="Delete this feedback entry"
+                    style={{ position: 'absolute', top: 6, right: 6, padding: '0 5px', fontSize: 11, lineHeight: '16px', color: 'var(--text-muted)' }}>
+                    ×
+                  </button>
+                )}
+                <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.4, whiteSpace: 'pre-wrap', paddingRight: isGM ? '1.5rem' : 0 }}>{f.body}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 8 }}>
                   <span>{f.author || 'Anonymous'}</span>
                   <span>·</span>

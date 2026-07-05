@@ -214,7 +214,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
 }
 
 // ── Main Map Tab ──────────────────────────────────────────────────────────────
-export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin, onDeletePin, timeOfDay }) {
+export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin, onDeletePin, timeOfDay, ringsOverlay = true }) {
   const NIGHT_TIMES = ['Evening', 'Night'];
   const isNight = NIGHT_TIMES.includes(timeOfDay);
   const [layer, setLayer] = useState('surface');
@@ -425,7 +425,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
 
         {/* Ring overlays — viewBox 100×100, preserveAspectRatio:none maps 1:1 to container pixels
              ry = % of container height, rx = ry/imgAspect → perfect circles on screen */}
-        {layer === 'surface' && imgAspect && (() => {
+        {layer === 'surface' && imgAspect && ringsOverlay && (() => {
           const ring = (ry, label) => {
             const rx = +(ry / imgAspect).toFixed(2);
             return <g key={ry}>

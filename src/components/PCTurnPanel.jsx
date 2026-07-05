@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES } from '../data/constants';
+import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES, ARROW_TYPES } from '../data/constants';
 import { getWoundRank, getEffectiveWaterRing, getArmorTN } from '../lib/utils';
 import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -283,6 +283,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const centerExtraKeep = hasCenterBonus ? 1 : 0;
   const centerBonus = combatant.stance === 'Center' ? (character?.school_rank || 1) : 0;
 
+  // Nocked arrow — a special arrow type marked inUse alongside the bow (own equipment toggle, not
+  // part of the Draw Weapon action). Only matters for Archery attacks. Falls back to Standard/no
+  // effect if nothing's nocked or the nocked item was used up.
+  const nockedArrowItem = (character?.equipment || []).find(e => e.isAmmo && e.inUse);
+  const nockedArrow = nockedArrowItem ? ARROW_TYPES[nockedArrowItem.name] : null;
+
   // Skill mastery bonuses (ranks 3, 5, 7). NOTE: real L5R 4E Bugei (combat) skill mastery abilities
   // (confirmed against a clean wiki source this session — see MASTERY_AUDIT.md) essentially never take
   // the form of "add a rolled die to this skill's own attack pool." They're damage-only bonuses, free
@@ -342,10 +348,13 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     // Previously this ignored the target's stance entirely — a target in Full Defense or Defense stance
     // would show a lower TN here than everywhere else in the app computed for them. Fixed via the shared
     // getArmorTN() helper, same as CombatantCard and the NPC attack resolver.
+    const isArcheryArrow = skillName === 'Archery' && nockedArrow;
     return getArmorTN({
       reflexes: t.reflexes, armorBonus: tArmor, stance: t.stance,
       fullDefenseBonus: t.fullDefenseBonus, airRing: t.air, defenseSkillRank: t.defenseSkillRank,
       voidArmor: t.voidArmor, jinnBonus, magicResistBonus,
+      excludeArmor: isArcheryArrow && nockedArrow.effect === 'ignoreArmor',
+      armorMultiplier: isArcheryArrow && nockedArrow.effect === 'doubleArmor' ? 2 : 1,
     });
   };
 
@@ -400,6 +409,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       if (magicResist) bonusNotes.push(`Target's Magic Resistance: +${(magicResist.rank || 1) * 3} Casting TN`);
     }
     if (centerBonus > 0) bonusNotes.push(`Center stance: +${centerBonus} flat (School Rank ${character.school_rank || 1})`);
+    if (hasCenterBonus) bonusNotes.push(`Center stance carry-over: +${centerExtraRoll}k${centerExtraKeep} (first action this turn)`);
     if (universalMasteryRaise > 0) bonusNotes.push(`Rank 5+ Mastery: Free Raise`);
     if (specificMasteryRaise > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: Free Raise`);
     if (selectedEmphasis) {
@@ -411,6 +421,42 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
+    // Arrow tracking — consume one arrow per Archery attack when the GM has the setting enabled.
+    // Doesn't block the attack when ammo runs out; just tracks and warns, GM discretion from there.
+    // The nocked arrow's own DR replaces the bow's when one is nocked (see effectiveDr below); its
+    // armor effect (ignore/double) is applied to target TN up in getTargetTN.
+    let effectiveDr = combatant.dr || '3k2';
+    if (isAttack && selectedSkill.name === 'Archery' && character) {
+      if (nockedArrowItem && nockedArrow) {
+        effectiveDr = nockedArrow.dr;
+        if (nockedArrow.effect === 'ignoreArmor') bonusNotes.push(`${nockedArrow.label} arrow: target's armor bonus ignored`);
+        else if (nockedArrow.effect === 'doubleArmor') bonusNotes.push(`${nockedArrow.label} arrow: target's armor bonus doubled (range halved — not enforced)`);
+        else if (nockedArrow.effect === 'signal') bonusNotes.push(`${nockedArrow.label} arrow: signaling/distraction only, not a real attack`);
+        if (arrowTracking) {
+          const idx = character.equipment.findIndex(x => x === nockedArrowItem);
+          const remaining = Math.max(0, (nockedArrowItem.count ?? 0) - 1);
+          if (onUpdateCharacter) {
+            const eq = character.equipment.map((x, xi) => xi === idx ? { ...x, count: remaining } : x);
+            onUpdateCharacter(character.id, { equipment: eq });
+          }
+          bonusNotes.push(remaining > 0 ? `${nockedArrow.label} arrow used — ${remaining} left` : `${nockedArrow.label} arrow used — none left!`);
+        }
+      } else if (arrowTracking) {
+        const quiverIdx = (character.equipment || []).findIndex(x => x.name?.startsWith('Quiver'));
+        if (quiverIdx >= 0) {
+          const quiver = character.equipment[quiverIdx];
+          const remaining = Math.max(0, (quiver.count ?? 60) - 1);
+          if (onUpdateCharacter) {
+            const eq = character.equipment.map((x, xi) => xi === quiverIdx ? { ...x, count: remaining } : x);
+            onUpdateCharacter(character.id, { equipment: eq });
+          }
+          bonusNotes.push(remaining > 0 ? `Arrow used — ${remaining} left in quiver` : `Arrow used — quiver empty!`);
+        } else {
+          bonusNotes.push(`No quiver equipped — arrow tracking on, nothing to consume`);
+        }
+      }
+    }
+
     const stanceKeep = isAttack ? stanceKeepBonus : 0;
 
     onRoll({
@@ -419,11 +465,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       ringVal: pool.ringVal,
       trait: pool.traitKey,
       traitVal: pool.traitVal,
-      baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0) + qualityRollBonus,
-      baseKeep: pool.keep + stanceKeep + qualityKeepBonus,
+      baseRoll: pool.roll + stanceBonus + (pool.masteryRoll || 0) + qualityRollBonus + centerExtraRoll,
+      baseKeep: pool.keep + stanceKeep + qualityKeepBonus + centerExtraKeep,
       tn,
       isAttack,
-      dr: combatant.dr || '3k2',
+      dr: effectiveDr,
       weaponName: combatant.drawnWeapon ? combatant.drawnWeapon.split(' (')[0] : null,
       targetName: target?.name || skillTarget || null,
       targetId: selectedTarget,
@@ -1279,7 +1325,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       {selectedAction === 'draw' && (() => {
         // Support up to 2 equipped weapons
       
-        const allWeapons = (character.equipment || []).filter(e => e.dr);
+        const allWeapons = (character.equipment || []).filter(e => e.dr && !e.isAmmo);
         const getWeaponData = (wStr) => {
           const wName = wStr.split(' (')[0];
           return WEAPONS_LIST.find(w => w.name === wName) || {};

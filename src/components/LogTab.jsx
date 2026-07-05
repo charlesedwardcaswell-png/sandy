@@ -15,8 +15,25 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
   const [showQuestFormFor, setShowQuestFormFor] = useState(null);
   const [newQuest, setNewQuest] = useState({ title: '', quest_type: 'main', description: '' });
 
-  const skillRows = Object.entries(skillLog || {}).sort((a, b) => b[1].total - a[1].total);
-  const maxTotal = Math.max(...skillRows.map(([, v]) => v.total), 1);
+  // All-Time skill usage = sum of each closed session's own recorded count, plus the live current
+  // session's count. The old "total" field on skillLog just incremented forever in memory with no
+  // session-boundary awareness, and got reset to {} whenever a session ended — so it was never a
+  // real all-time figure. This aggregates from what's actually persisted per session instead.
+  const allTimeTotals = {};
+  (sessionLog || []).forEach(s => {
+    if (s.is_active) return; // current session's live count comes from the skillLog prop instead
+    Object.entries(s.recap?.skill_log || {}).forEach(([skill, v]) => {
+      allTimeTotals[skill] = (allTimeTotals[skill] || 0) + (v.session || 0);
+    });
+  });
+  Object.entries(skillLog || {}).forEach(([skill, v]) => {
+    allTimeTotals[skill] = (allTimeTotals[skill] || 0) + (v.session || 0);
+  });
+
+  const skillRows = Object.entries({ ...Object.fromEntries(Object.keys(allTimeTotals).map(k => [k, {}])), ...(skillLog || {}) })
+    .map(([sk, v]) => [sk, { ...v, allTime: allTimeTotals[sk] || 0 }])
+    .sort((a, b) => b[1].allTime - a[1].allTime);
+  const maxTotal = Math.max(...skillRows.map(([, v]) => v.allTime), 1);
 
   const encountersBySession = (encounterLog || []).reduce((acc, e) => {
     const sn = e.session_number || 0;
@@ -224,15 +241,20 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                         </>)}
                         {/* Full archived event timeline for this closed session — dice rolled, equipment
                             changes, spells cast, everything that was logged while it was live. Previously
-                            this data was saved to event_log but never displayed once a session closed. */}
-                        {s.events && s.events.length > 0 && (
+                            this data was saved to event_log but never displayed once a session closed.
+                            Filters out gmOnly entries (character claims, NPC creation, etc.) for players,
+                            same as the live ticker already does — this view previously showed everyone
+                            everything regardless of viewer. */}
+                        {(() => {
+                          const visibleEvents = (s.events || []).filter(e => isGM || !e.gmOnly);
+                          return visibleEvents.length > 0 && (
                           <div style={{ marginTop: '.6rem' }}>
                             <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>
-                              Full Event Log <span style={{ fontWeight: 400, textTransform: 'none' }}>({s.events.length} events)</span>
+                              Full Event Log <span style={{ fontWeight: 400, textTransform: 'none' }}>({visibleEvents.length} events)</span>
                             </div>
                             <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1, border: '1px solid var(--border)', borderRadius: 4, padding: '.3rem' }}>
-                              {s.events.map((e, i) => (
-                                <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px', borderBottom: i < s.events.length - 1 ? '1px solid rgba(107,78,40,.1)' : 'none' }}>
+                              {visibleEvents.map((e, i) => (
+                                <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px', borderBottom: i < visibleEvents.length - 1 ? '1px solid rgba(107,78,40,.1)' : 'none' }}>
                                   <i className={`ti ${e.icon || 'ti-point'}`} style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }} />
                                   <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{e.text}</span>
                                   <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
@@ -242,7 +264,8 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                               ))}
                             </div>
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     )}
 
@@ -392,7 +415,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                   <td style={{ padding: '4px 6px', color: v.session > 3 ? 'var(--gold)' : 'var(--text-primary)', fontWeight: v.session > 3 ? 600 : 400 }}>{sk}</td>
                   <td style={{ padding: '4px 6px', textAlign: 'center', color: v.encounter > 0 ? 'var(--text-secondary)' : 'var(--text-muted)' }}>{v.encounter || 0}</td>
                   <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>{v.session || 0}</td>
-                  <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-muted)' }}>{v.total}</td>
+                  <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-muted)' }}>{v.allTime}</td>
                   <td style={{ padding: '4px 6px' }}>
                     <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-panel)', width: 80 }}>
                       <div style={{ height: '100%', borderRadius: 2, background: v.session > 5 ? 'var(--red)' : v.session > 2 ? 'var(--gold)' : 'var(--gold-dim)', width: `${Math.min((v.session / Math.max(...skillRows.map(([,x]) => x.session || 0), 1)) * 80, 80)}px` }} />

@@ -80,7 +80,8 @@ export function rollExplodingKeep(rolled, kept) {
 export function getArmorTN({
   reflexes = 2,
   armorBonus = 0,
-  excludeArmor = false,      // Grapple contact rolls: armor gives no TN bonus against them, per the rulebook
+  excludeArmor = false,      // Grapple contact rolls, and Armor Piercer arrows: armor gives no TN bonus
+  armorMultiplier = 1,       // Flesh Cutter arrows: armor's TN contribution doubles
   stance = null,
   fullDefenseBonus = 0,      // raw Defense roll result — half (rounded up) gets added for Full Defense
   airRing = 2,
@@ -90,7 +91,7 @@ export function getArmorTN({
   magicResistBonus = 0,      // Magic Resistance advantage vs. elemental spells (Spellcraft only)
 } = {}) {
   let tn = 5 + (reflexes || 2) * 5;
-  if (!excludeArmor) tn += (armorBonus || 0);
+  if (!excludeArmor) tn += (armorBonus || 0) * armorMultiplier;
   if (stance === 'Full Defense') tn += Math.ceil((fullDefenseBonus || 0) / 2);
   else if (stance === 'Defense') tn += (airRing || 2) + (defenseSkillRank || 0);
   else if (stance === 'Full Attack') tn -= 10;

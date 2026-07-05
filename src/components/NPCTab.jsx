@@ -668,7 +668,7 @@ function CreatureCard({ creature, gmView, encActive, onCreateNPC, setEncounter }
               await onCreateNPC({
                 name: veteranMode ? `${creature.name} (Veteran)` : creature.name,
                 faction: creature.category, school: creature.category,
-                rank: creature.difficulty || 1,
+                rank: Math.max(1, Math.round(creature.difficulty || 1)),
                 weapon: `${creature.name} (${eff.attack})`, weapon_dr: creature.damage,
                 rings: { Air: creature.air, Earth: creature.earth, Fire: creature.fire, Water: creature.water },
                 traits: creature.traits || {}, notes: creature.specials?.join('; ') || '',
@@ -718,7 +718,7 @@ function CreatureCard({ creature, gmView, encActive, onCreateNPC, setEncounter }
   );
 }
 
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onRefetch }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onViewNpc, onRefetch }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -759,6 +759,8 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
       air, earth, fire, water,
       statusEffects: [],
       archetype: getArchetype(npc.school) || 'warrior',
+      controllerId: npc.controller_id || null,
+      sourceId: npc.id, sourceType: 'npc',
     };
     setEncounter(e => ({ ...e, combatants: [...e.combatants, combatant].sort((a, b) => b.init - a.init) }));
   };
@@ -946,6 +948,13 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
                           onClick={e => { e.stopPropagation(); onViewCharacter(n.character_id); }}
                           title="View full character sheet">
                           <i className="ti ti-user" style={{ fontSize: 11 }} />
+                        </button>
+                      )}
+                      {!n._isFull && !n.character_id && onViewNpc && (
+                        <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 5px' }}
+                          onClick={e => { e.stopPropagation(); onViewNpc(n.id); }}
+                          title="View NPC sheet">
+                          <i className="ti ti-user-bolt" style={{ fontSize: 11 }} />
                         </button>
                       )}
                       {/* Party assignment — GM marks NPC as party asset and assigns to a player */}

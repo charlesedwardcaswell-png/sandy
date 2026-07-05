@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ROUND_LIMITS } from '../data/constants';
+import { ROUND_LIMITS, CREATURES_LIBRARY, CREATURE_TYPE_CATEGORIES } from '../data/constants';
 import { calcDifficulty, diffColor, pick } from '../lib/utils';
 
 // ── Shared encounter data ─────────────────────────────────────────────────────
@@ -59,8 +59,14 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
   const [school, setSchool] = useState('');
   const [rank, setRank] = useState(1);
   const [logSel, setLogSel] = useState('');
-  const factions = Object.keys(NPC_BY_FACTION);
+  const [creatureType, setCreatureType] = useState('');
+  const [creatureId, setCreatureId] = useState('');
+  const factions = Object.keys(NPC_BY_FACTION).filter(f => f !== 'Creatures');
   const schools = faction ? NPC_BY_FACTION[faction] || [] : [];
+  const isCreatureMode = faction === 'Creatures';
+  const creatureChoices = creatureType
+    ? CREATURES_LIBRARY.filter(c => (CREATURE_TYPE_CATEGORIES[creatureType] || []).includes(c.category))
+    : [];
 
   const add = () => {
     if (!school) return;
@@ -74,6 +80,23 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
       wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
     });
     setSchool(''); setFaction(''); setRank(1);
+  };
+
+  const addCreature = () => {
+    const creature = CREATURES_LIBRARY.find(c => c.id === creatureId);
+    if (!creature) return;
+    onAdd({
+      id: 'npc_' + creature.id + '_' + Date.now(),
+      name: creature.name,
+      school: creature.category, rank: creature.difficulty || 1, faction: 'Monsters',
+      dr: creature.damage, drawnWeapon: `${creature.name} (${creature.attack})`,
+      reflexes: creature.traits?.Reflexes || creature.air || 2,
+      agility: creature.traits?.Agility || creature.fire || 2,
+      air: creature.air || 2, earth: creature.earth || 2, fire: creature.fire || 2, water: creature.water || 2,
+      tn_override: creature.tn, wpl_override: creature.wpl,
+      wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
+    });
+    setFaction(''); setCreatureType(''); setCreatureId('');
   };
 
   const addFromLog = () => {
@@ -90,6 +113,8 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
       air: (n.rings?.Air) || (n.rank || 1),
       fire: (n.rings?.Fire) || (n.rank || 1),
       wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
+      controllerId: n.controller_id || null,
+      sourceId: n.id, sourceType: 'npc',
     });
     setLogSel('');
   };
@@ -108,24 +133,39 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
           <button className="btn btn-sm btn-p" disabled={!logSel} onClick={addFromLog} style={{ fontSize: 12 }}>Add</button>
         </div>
       )}
-      {/* From Library — faction/school/rank dropdowns */}
+      {/* From Library — faction/school/rank dropdowns, or Creatures/Monsters bestiary */}
       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); }} style={{ fontSize: 12 }}>
+        <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); setCreatureType(''); setCreatureId(''); }} style={{ fontSize: 12 }}>
           <option value="">From Library…</option>
           {factions.map(f => <option key={f} value={f}>{f}</option>)}
+          <option value="Creatures">Creatures / Monsters</option>
         </select>
-        {faction && (
+        {faction && !isCreatureMode && (
           <select value={school} onChange={e => setSchool(e.target.value)} style={{ fontSize: 12 }}>
             <option value="">School</option>
             {schools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
-        {school && (
+        {isCreatureMode && (
+          <select value={creatureType} onChange={e => { setCreatureType(e.target.value); setCreatureId(''); }} style={{ fontSize: 12 }}>
+            <option value="">Type</option>
+            <option value="Creatures">Creatures</option>
+            <option value="Monsters">Monsters</option>
+          </select>
+        )}
+        {isCreatureMode && creatureType && (
+          <select value={creatureId} onChange={e => setCreatureId(e.target.value)} style={{ fontSize: 12 }}>
+            <option value="">Creature</option>
+            {creatureChoices.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        {!isCreatureMode && school && (
           <select value={rank} onChange={e => setRank(+e.target.value)} style={{ width: 60, fontSize: 12 }}>
             {Array.from({ length: 5 }, (_, i) => <option key={i + 1} value={i + 1}>R{i + 1}</option>)}
           </select>
         )}
-        {school && <button className="btn btn-sm btn-p" onClick={add} style={{ fontSize: 12 }}>{label}</button>}
+        {!isCreatureMode && school && <button className="btn btn-sm btn-p" onClick={add} style={{ fontSize: 12 }}>{label}</button>}
+        {isCreatureMode && creatureId && <button className="btn btn-sm btn-p" onClick={addCreature} style={{ fontSize: 12 }}>{label}</button>}
       </div>
     </div>
   );

@@ -269,11 +269,11 @@ export default function App() {
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
   const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
-  const { feedback, addFeedback } = useFeedback();
+  const { feedback, addFeedback, deleteFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
   const { pins, createPin, updatePin, deletePin } = useMapPins();
   const { reps, updateRep, updateRepNotes } = useFactionReputation();
-  const { log: encounterLog, addEntry: addEncounterEntry } = useEncounterLog();
+  const { log: encounterLog, addEntry: addEncounterEntry, refetch: refetchEncounterLog } = useEncounterLog();
   const { inventory, updateInventory } = useGroupInventory();
   const { sessionLog, refetch: refetchSessionLog } = useSessionLog();
 
@@ -419,6 +419,9 @@ export default function App() {
   const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
   const [disableReroll, setDisableReroll] = useState(false);
   const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
+  const [ringsOverlay, setRingsOverlay] = useState(true);
+  const [arrowTracking, setArrowTracking] = useState(false);
+  const [startingCP, setStartingCP] = useState(45);
   const [partyWater, setPartyWater] = useState(0);
   const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
 
@@ -431,6 +434,9 @@ export default function App() {
     if (settings.jinn_art_url) setJinnArtUrl(settings.jinn_art_url);
     if (settings.disable_reroll !== undefined) setDisableReroll(!!settings.disable_reroll);
     if (settings.water_drought_enabled !== undefined) setWaterDroughtEnabled(!!settings.water_drought_enabled);
+    if (settings.rings_overlay !== undefined) setRingsOverlay(!!settings.rings_overlay);
+    if (settings.arrow_tracking !== undefined) setArrowTracking(!!settings.arrow_tracking);
+    if (settings.starting_cp !== undefined) setStartingCP(settings.starting_cp || 45);
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
   };
@@ -478,6 +484,7 @@ export default function App() {
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
   const [viewCharId, setViewCharId] = useState(null);
+  const [viewNpcId, setViewNpcId] = useState(null);
   const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
   const [purchaseBanner, setPurchaseBanner] = useState(null); // local only — not broadcast
   const [rollBanner, setRollBanner] = useState(null); // local only — not broadcast; only the rolling player sees their own result
@@ -509,7 +516,11 @@ export default function App() {
   const openRoll = (ctx) => {
     const rollingChar = ctx.character || safeChars.find(c => c.id === myCharId);
     const woundPenalty = ctx.woundPenalty !== undefined ? ctx.woundPenalty : computeWoundPenalty(rollingChar);
-    setGlobalModal({ ...ctx, woundPenalty });
+    // rollId forces a fresh DiceModal mount per roll (see key={globalModal.rollId} below) — without
+    // it, if globalModal ever goes from one non-null context straight to another, React reuses the
+    // same instance and stale phase/dice/rollResult state can leak into the new roll.
+    const rollId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    setGlobalModal({ ...ctx, woundPenalty, rollId });
   };
 
   // My character — stored in localStorage, player picks once
@@ -785,8 +796,16 @@ export default function App() {
       if (ticker.length > 0) {
         await saveEventLog(session.id, ticker.map(e => ({ icon: e.icon, text: e.text, ts: typeof e.ts === 'string' ? e.ts : e.ts.toISOString() })));
       }
+      // endSession does a raw overwrite of the recap column (not a merge), so anything already saved
+      // there via the separate merge-patch pathway — GM Notes, Player Notes (SessionNotesSection),
+      // skill_log (debounced from logSkillUse) — has to be folded in here explicitly, or ending the
+      // session silently destroys it. This was the root of skill usage vanishing after "End Session".
+      let liveRecap = {};
+      try { liveRecap = JSON.parse(session.recap || '{}'); } catch { /* ignore parse errors */ }
       const stampedRecap = {
+        ...liveRecap,
         ...recap,
+        skill_log: skillLog,
         _stamp: `Week ${campaignWeek}, Day ${campaignDay} — ${timeOfDay}`,
       };
       await endSession(session.id, JSON.stringify(stampedRecap));
@@ -910,7 +929,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v159</span>
+        <span className="hdr-game">The Tool — v167</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1109,6 +1128,7 @@ export default function App() {
           <CharacterTab
             isGM={isGM} isPCView={isPCView}
             isPlayer={isPlayer}
+            startingCP={startingCP}
             characters={safeChars}
             npcs={npcs}
             onUpdateNPC={guardFn(handleUpdateNPC)}
@@ -1122,6 +1142,8 @@ export default function App() {
             onUnclaimCharacter={guardFn(unclaimCharacter)}
             jumpToCharId={viewCharId}
             onClearJump={() => setViewCharId(null)}
+            jumpToNpcId={viewNpcId}
+            onClearNpcJump={() => setViewNpcId(null)}
             jinnArtUrl={jinnArtUrl}
             onJinnSummoned={(jinnName) => {
               handleSetEncounter(e => ({ ...e, jinnBanner: { name: jinnName, artUrl: jinnArtUrl, ts: Date.now() } }));
@@ -1155,6 +1177,9 @@ export default function App() {
             onSavePreparedEncounters={enc => savePreparedEncounters(session?.id, enc)}
             onGlobalRoll={openRoll}
             portraitScale={portraitScale}
+            onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
+            onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
+            arrowTracking={arrowTracking}
           />
         )}
         {tab === 'map' && (
@@ -1165,6 +1190,7 @@ export default function App() {
             onUpdatePin={guardFn(updatePin)}
             onDeletePin={guardFn(deletePin)}
             timeOfDay={timeOfDay}
+            ringsOverlay={ringsOverlay}
           />
         )}
         {tab === 'npc' && (
@@ -1184,6 +1210,7 @@ export default function App() {
             encounter={encounter}
             setEncounter={handleSetEncounter}
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
+            onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
           />
         )}
         {tab === 'quest' && (
@@ -1272,6 +1299,7 @@ export default function App() {
           <FeedbackTab
             feedback={feedback}
             onAddFeedback={addFeedback}
+            onDeleteFeedback={guardFn(deleteFeedback)}
             username={isGM ? 'GM' : (playerUsername || 'Player')}
             isGM={isGM}
           />
@@ -1303,7 +1331,7 @@ export default function App() {
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab
-          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
+          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, encounterLog: refetchEncounterLog, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
           isDeveloper={isDeveloper}
           isGM={isGM}
         />}
@@ -1528,6 +1556,7 @@ export default function App() {
 
       {globalModal && (
         <DiceModal
+          key={globalModal.rollId}
           context={globalModal}
           onClose={() => setGlobalModal(null)}
           onLogEvent={push}

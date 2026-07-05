@@ -50,8 +50,11 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
   return (
     <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: 460 }}>
-        <div className="modal-title">
-          <i className="ti ti-player-stop" /> End Session {sessionNum}
+        <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+          <span><i className="ti ti-player-stop" /> End Session {sessionNum}</span>
+          <input type="text" placeholder="Session title — what happened that mattered most?"
+            value={recap.event} onChange={e => setRecap(r => ({ ...r, event: e.target.value }))}
+            style={{ flex: 1, minWidth: 180, fontSize: 13 }} />
         </div>
 
         <div style={{ display: 'flex', gap: 4, marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -163,12 +166,6 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
         </>)}
 
         {tab === 'recap' && (<>
-          <div className="modal-section">
-            <span className="modal-label">Session Title</span>
-            <input type="text" placeholder="What happened that mattered most?"
-              value={recap.event} onChange={e => setRecap(r => ({ ...r, event: e.target.value }))}
-              style={{ width: '100%' }} />
-          </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '.75rem 0 .5rem' }}>
             <i className="ti ti-shield-half" style={{ marginRight: 5 }} />Adjust faction standing for this session — applies immediately, same as the Party tab.
           </div>

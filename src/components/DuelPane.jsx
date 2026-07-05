@@ -303,11 +303,16 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
 
   const getDmgPool = (side) => {
     const c = pc(side);
-    const weapon = c?.drawnWeapon;
-    const drStr = (weapon?.dr || '1k1').toLowerCase();
+    // c comes from pcsMap (full character objects), which don't carry an encounter-combatant
+    // "drawnWeapon" string — that field only exists on combatants. Look up the actually-equipped/
+    // wielded weapon from the character's own equipment instead (same source Combat Preview uses).
+    const wielded = (c?.equipment || []).find(e => e.dr && e.inUse && !e.isAmmo);
+    const drStr = (wielded?.dr || '1k1').toLowerCase();
     const [r, k] = drStr.split('k').map(Number);
-    const raises = (duel.strikeFirstRaises?.[side] || 0) + (strikeRaises[side] || 0);
-    return { rolled: r || 1, kept: k || 1, label: `${r || 1}k${k || 1}` };
+    const strength = c?.strength || 2;
+    const rolled = (r || 1) + strength;
+    const kept = k || 1;
+    return { rolled, kept, label: `${rolled}k${kept}` };
   };
 
   const canAct = (side) => isGM || (side === 'challenger' && isChallenger) || (side === 'defender' && isDefender);

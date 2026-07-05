@@ -325,17 +325,26 @@ export function useFeedback() {
     return data;
   };
 
-  // Real-time subscription — so everyone sees new feedback live without refreshing
+  const deleteFeedback = async (id) => {
+    const { error } = await supabase.from('feedback').delete().eq('id', id).eq('game_id', GAME_ID);
+    if (error) { console.error('deleteFeedback error:', error.message); return false; }
+    setFeedback(prev => prev.filter(f => f.id !== id));
+    return true;
+  };
+
+  // Real-time subscription — so everyone sees new feedback (and deletions) live without refreshing
   useEffect(() => {
     const sub = supabase
       .channel('feedback_' + GAME_ID)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feedback', filter: `game_id=eq.${GAME_ID}` },
         payload => setFeedback(prev => prev.some(f => f.id === payload.new.id) ? prev : [payload.new, ...prev]))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'feedback', filter: `game_id=eq.${GAME_ID}` },
+        payload => setFeedback(prev => prev.filter(f => f.id !== payload.old?.id)))
       .subscribe();
     return () => supabase.removeChannel(sub);
   }, []);
 
-  return { feedback, addFeedback, loading, refetch: fetch };
+  return { feedback, addFeedback, deleteFeedback, loading, refetch: fetch };
 }
 
 // ── NPCs ──────────────────────────────────────────────────────────────────────

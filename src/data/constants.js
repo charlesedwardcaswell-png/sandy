@@ -632,20 +632,20 @@ export const SCHOOL_DATA = {
   'Dahabi Merchant': { faction:'Dahab', type:'Diplomat', integrity:4.5, bonus_trait:'Awareness', skills:['Commerce','Courtier','Sincerity','Etiquette','Lore: Underworld','Temptation','Storytelling'], techniques:{1:'Master of the Subtle Flow',2:'Upstanding Citizen',3:'An Eye for a Deal',4:'Silver Tongued Devil',5:'Merchant King'}, equipment:['Longsword','Knife','Fine Clothes','Traveling Pack'], starting_copper:5 },
   'Qabal Agent': { faction:'Qabal', type:'Diplomat', integrity:1.5, bonus_trait:'Perception', skills:['Sincerity','Etiquette','Forgery','Investigation','Sleight of Hand','Stealth','Commerce'], techniques:{1:'No One of Import',2:'A Good Excuse',3:'Unassailable Reputation',4:'The Ordered Bolthole',5:'Pillar of the Community'}, equipment:['Knife','Clothes','Cloak','Calligraphy Kit'], starting_copper:5 },
   'Qabal Summoner': { faction:'Qabal', type:'Sahir', integrity:2.5, bonus_trait:'Intelligence', skills:['Calligraphy','Divination','Spellcraft','Lore: Theology','Lore: History','Meditation','Etiquette'], techniques:{1:'The Crucible of Knowledge'}, equipment:['Staff','Knife','Clothes','Traveling Pack'], starting_copper:5 },
-  'Assassin Slayer': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Agility', skills:['Acting','Athletics','Sincerity','Stealth','Lore: Underworld','Knives','Assassin Ranged Weapons'], techniques:{1:'All Shadows Walk in the Light',2:'Rite of Assassination',3:'Let Him Bleed',4:'Blood Calls for Blood',5:'Swifter Than Life Itself'}, equipment:['Knife','Jambiya','Fine Robes','Traveling Pack'], starting_copper:10 },
-  'Assassin Keeper': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Etiquette','Investigation','Swordsmanship','Lore: Burning Sands','Stealth'], techniques:{1:"The Keeper's Courage",2:"The Keeper's Judgment",3:"The Keeper's Justice",4:"The Keeper's Art",5:'By the Force of Will Alone'}, equipment:['Longsword','Shortsword','Composite Bow','Light Armor','Robes'], starting_copper:3 },
-  'Blood-Sworn': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Strength', skills:['Athletics','Battle','Defense','Swordsmanship','Polearms','Lore: Theology','Knives'], techniques:{1:'Blessed by the Crystal',2:'Your Blood is My Blood',3:'Fortification in Form',4:'To Fight for the Future',5:'One is Never Truly Alone'}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:5 },
-  'Children of Midnight': { faction:'Ashalan', type:'Sahir', integrity:4.5, bonus_trait:'Awareness', skills:['Divination','Lore: History','Medicine','Meditation','Spellcraft','Lore: Theology','Lore: Burning Sands'], techniques:{1:'Wisdom of the Stars'}, equipment:['Scimitar','Khadja','Robe','Traveling Pack'], starting_copper:5 },
-  'Heart-Seekers': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Willpower', skills:['Battle','Defense','Investigation','Lore: Khadi','Spellcraft','Stealth','Swordsmanship'], techniques:{1:'Truth is My Ally',2:'Diligence is the Best Teacher',3:'One Mind, One Action',4:'Bane of the Heartless',5:'My Will is My Fortress'}, equipment:['Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:3 },
+  'Assassin Slayer': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Agility', skills:['Acting','Athletics','Sincerity','Stealth','Lore: Underworld','Knives','Assassin Ranged Weapons'], techniques:{1:'All Shadows Walk in the Light',2:'Rite of Assassination',3:'Let Him Bleed',4:'Blood Calls for Blood',5:'Swifter Than Life Itself'}, equipment:['Knife','Jambiya','Throwing Stone','Fine Robes','Traveling Pack'], starting_copper:10 },
+  'Assassin Keeper': { faction:'Assassins', type:'Ninja', integrity:1.5, bonus_trait:'Reflexes', skills:['Athletics','Defense','Etiquette','Investigation','Swordsmanship','Lore: Burning Sands','Stealth'], techniques:{1:"The Keeper's Courage",2:"The Keeper's Judgment",3:"The Keeper's Justice",4:"The Keeper's Art",5:'By the Force of Will Alone'}, equipment:['Sayf-saghir','Shortsword','Composite Bow','Light Armor','Robes'], starting_copper:3 },
+  'Blood-Sworn': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Strength', skills:['Athletics','Battle','Defense','Swordsmanship','Polearms','Lore: Theology','Knives'], techniques:{1:'Blessed by the Crystal',2:'Your Blood is My Blood',3:'Fortification in Form',4:'To Fight for the Future',5:'One is Never Truly Alone'}, equipment:['Ashalan Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:5 },
+  'Children of Midnight': { faction:'Ashalan', type:'Sahir', integrity:4.5, bonus_trait:'Awareness', skills:['Divination','Lore: History','Medicine','Meditation','Spellcraft','Lore: Theology','Lore: Burning Sands'], techniques:{1:'Wisdom of the Stars'}, equipment:['Ashalan Scimitar','Khadja','Robe','Traveling Pack'], starting_copper:5 },
+  'Heart-Seekers': { faction:'Ashalan', type:'Warrior', integrity:5.5, bonus_trait:'Willpower', skills:['Battle','Defense','Investigation','Lore: Khadi','Spellcraft','Stealth','Swordsmanship'], techniques:{1:'Truth is My Ally',2:'Diligence is the Best Teacher',3:'One Mind, One Action',4:'Bane of the Heartless',5:'My Will is My Fortress'}, equipment:['Ashalan Scimitar','Khadja','Composite Bow','Light Armor','Robe'], starting_copper:3 },
   "Ra'Shari Knife-Fighter": { faction:"Ra'Shari", type:'Warrior', integrity:3.5, bonus_trait:'Agility', skills:['Temptation','Defense','Divination','Knives','Perform: Dancing','Tahaddi','Athletics'], techniques:{1:'The Endless Dance',2:'Flashing Talons',3:'Through the Cracks',4:'Two Knives, Two Wounds',5:'Strike to Slay'}, equipment:['Knife','Knife','Staff','Clothes','Cloak'], starting_copper:5 },
   "Ra'Shari Trader": { faction:"Ra'Shari", type:'Diplomat', integrity:2.5, bonus_trait:'Intelligence', skills:['Temptation','Commerce','Courtier','Etiquette','Lore: Underworld','Sincerity','Storytelling'], techniques:{1:'Opening Offer',2:'Acquiring the Goods',3:'Making the Deal',4:'Expediency is Important',5:'The Perfect Supplier'}, equipment:['Staff','Clothes','Cloak','Scales'], starting_copper:10 },
   "Ra'Shari Diviner": { faction:"Ra'Shari", type:'Sahir', integrity:3.5, bonus_trait:'Perception', skills:['Temptation','Divination','Medicine','Spellcraft','Lore: Theology','Perform: Dancing','Lore: Burning Sands'], techniques:{1:'The Whispers of the Song'}, equipment:['Knife','Staff','Clothes','Cloak','Traveling Pack'], starting_copper:5 },
-  'Senpet Legionnaire': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Reflexes', skills:['Battle','Defense','Hunting','Swordsmanship','Lore: Theology','Athletics','Spears'], techniques:{1:'Divine Insight',2:'Divine Strength',3:'Divine Retribution',4:'The Gods Protect Me',5:'The Gods Guide my Hand'}, equipment:['Khopesh','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
-  'Senpet Charioteer': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Archery','Battle','Horsemanship','Swordsmanship','Lore: Theology','Defense','Athletics'], techniques:{1:'Ride Into Battle',2:'Swift Volley',3:'Speed is my Armor',4:'Ruthless Advance',5:'Deadly Strike'}, equipment:['Khopesh','Composite Bow','Chain Shirt','Sandals'], starting_copper:5 },
+  'Senpet Legionnaire': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Reflexes', skills:['Battle','Defense','Hunting','Swordsmanship','Lore: Theology','Athletics','Spears'], techniques:{1:'Divine Insight',2:'Divine Strength',3:'Divine Retribution',4:'The Gods Protect Me',5:'The Gods Guide my Hand'}, equipment:['Khopesh','Senpet Chain Shirt','Sandals','Tunic'], starting_copper:5 },
+  'Senpet Charioteer': { faction:'Senpet', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Archery','Battle','Horsemanship','Swordsmanship','Lore: Theology','Defense','Athletics'], techniques:{1:'Ride Into Battle',2:'Swift Volley',3:'Speed is my Armor',4:'Ruthless Advance',5:'Deadly Strike'}, equipment:['Khopesh','Composite Longbow','Senpet Chain Shirt','Sandals'], starting_copper:5 },
   'Senpet Sahir': { faction:'Senpet', type:'Sahir', integrity:3.5, bonus_trait:'Intelligence', skills:['Defense','Medicine','Meditation','Spellcraft','Lore: Theology','Battle','Lore: History'], techniques:{1:'By the Grace of the Gods'}, equipment:['Sandals','Tunic','Traveling Pack'], starting_copper:5 },
   'Yodotai Legionnaire': { faction:'Yodotai', type:'Warrior', integrity:4.5, bonus_trait:'Agility', skills:['Battle','Defense','Horsemanship','Lore: Yodotai History','Spears','Swordsmanship','Athletics'], techniques:{1:'Tortoise Formation',2:'In Close Quarters',3:'Deadly Strike (Legionnaire)',4:'Wedge Formation',5:'With My Brothers'}, equipment:['Gladius','Pilum','Lorica Segmentata','Sandals','Tunic'], starting_copper:5 },
-  'Yodotai Mercenary': { faction:'Yodotai', type:'Diplomat', integrity:3.5, bonus_trait:'Reflexes', skills:['Intimidation','Defense','Etiquette','Spears','Swordsmanship','Sincerity','Battle'], techniques:{1:'Importance of Speed',2:'Stranger in a Foreign Land',3:'Unfriendly Glare',4:'Combat Diplomacy',5:'Hoplon Bash'}, equipment:['Gladius','Pilum','Chain Shirt','Sandals','Tunic'], starting_copper:5 },
-  'Ebonite Templar': { faction:'Ebonites', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Defense','Investigation','Lore: Law','Lore: Theology','Swordsmanship','Lore: Ebonites','Athletics'], techniques:{1:'Tapping the Inner Strength',2:'By Thy Will',3:'The Ebon Hand',4:'By Word Or By Sword',5:'Will of the Stone'}, equipment:['Longsword','Knife','Light Armor','Sturdy Clothing'], starting_copper:10 },
+  'Yodotai Mercenary': { faction:'Yodotai', type:'Diplomat', integrity:3.5, bonus_trait:'Reflexes', skills:['Intimidation','Defense','Etiquette','Spears','Swordsmanship','Sincerity','Battle'], techniques:{1:'Importance of Speed',2:'Stranger in a Foreign Land',3:'Unfriendly Glare',4:'Combat Diplomacy',5:'Hoplon Bash'}, equipment:['Gladius','Pilum','Yodotai Chain Shirt','Sandals','Tunic'], starting_copper:5 },
+  'Ebonite Templar': { faction:'Ebonites', type:'Warrior', integrity:5.5, bonus_trait:'Reflexes', skills:['Defense','Investigation','Lore: Law','Lore: Theology','Swordsmanship','Lore: Ebonites','Athletics'], techniques:{1:'Tapping the Inner Strength',2:'By Thy Will',3:'The Ebon Hand',4:'By Word Or By Sword',5:'Will of the Stone'}, equipment:['Ebonite Longsword','Knife','Ebonite Armor','Sturdy Clothing'], starting_copper:10 },
   'Jani': { faction:'Jackals', type:'Warrior', integrity:1.5, bonus_trait:'Agility', skills:['Athletics','Brawling','Knives','Acting','Assassin Ranged Weapons','Staves','Lore: Underworld'], techniques:{1:'Quicker Than the Eye',2:'What the Eye Sees, What the Ear Hears',3:'Strike Quickly, Strike True',4:'Seen and Not Noticed',5:'Blinding Speed'}, equipment:['Knife','Light Armor','Street Clothes'], starting_copper:1 },
   'Necromancer': { faction:'Jackals', type:'Sahir', integrity:0.5, bonus_trait:'Intelligence', skills:['Medicine','Knives','Lore: Jackal','Lore: Undead','Lore: History','Spellcraft','Staves'], techniques:{1:'Initiate of Undeath',2:'Master of Undeath and Death',3:'Creator of Undeath',4:'Leader of Undead',5:'Agent of Death'}, equipment:['Knife','Staff','Robe','Sandals'], starting_copper:2 },
   'Kabir': { faction:'Jackals', type:'Diplomat', integrity:2.5, bonus_trait:'Awareness', skills:['Courtier','Sincerity','Knives','Medicine','Craft: Poison','Sleight of Hand','Lore: Underworld'], techniques:{1:'Rotting the Foundation',2:'A Honeyed Tongue',3:'Killing with Subtlety',4:'Tearing Out the Foundation',5:'Jackal Ambassador'}, equipment:['Knife','Apothecary Kit','Clothes','Shoes'], starting_copper:2 },
@@ -668,23 +668,53 @@ export const WEAPONS_LIST = [
   { name:'Kindjal',      dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Spear',        dr:'2k2', skill:'Spears',        price:'5c',  size:'large',  twoHanded:true,  special:'Thrown 1k2/30ft' },
   { name:'Lance',        dr:'1k2', skill:'Spears',        price:'15c', size:'large',  twoHanded:true,  special:'3k4 charging; mounted only' },
-  { name:'Khadja',       dr:'1k3', skill:'Polearms',      price:'—',   size:'large',  twoHanded:true,  special:'Ashalan' },
+  { name:'Khadja',       dr:'1k3', skill:'Polearms',      price:'—',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan' },
   { name:'Pilum',        dr:'2k2', skill:'Spears',        price:'—',   size:'large',  twoHanded:true,  special:'Yodotai; throwable' },
   { name:'Staff',        dr:'0k2', skill:'Staves',        price:'1c',  size:'large',  twoHanded:true,  special:'Free Raise Knockdown' },
   { name:'Heavy Club',   dr:'1k3', skill:'Heavy Weapons', price:'2c',  size:'large',  twoHanded:true,  special:'Str 3 req' },
   { name:'Mace',         dr:'0k2', skill:'Heavy Weapons', price:'2c',  size:'medium', twoHanded:false, special:'Str 3 req; –10 armor TN' },
   { name:'War Axe',      dr:'0k3', skill:'Heavy Weapons', price:'1c',  size:'medium', twoHanded:false, special:'One-handed' },
   { name:'Standard Bow', dr:'2k2', skill:'Archery',       price:'10c', size:'large',  twoHanded:true,  special:'Range 300ft; two-handed ranged — cannot dual wield' },
-  { name:'Shortbow',     dr:'2k2', skill:'Archery',       price:'5c',  size:'large',  twoHanded:true,  special:'Range 100ft; two-handed ranged — cannot dual wield' },
+  { name:'Shortbow',     dr:'2k2', skill:'Archery',       price:'5c',  size:'large',  twoHanded:true,  special:'Range 100ft; two-handed ranged — cannot dual wield; free-action draw' },
+  { name:'Horseback Bow', dr:'4k2', skill:'Archery',      price:'20c', size:'large',  twoHanded:true,  special:'Str 3 (min 1) required; Range 400ft; −10 TN penalty used on foot' },
+  { name:'Weighted Chain', dr:'2k1', skill:'Chain',       price:'5c',  size:'medium', twoHanded:false, special:'2 Free Raises to Disarm/Knockdown; a failed contest grapples the target' },
+  { name:'Small Club',   dr:'0k2', skill:'Staves',        price:'—',   size:'small',  twoHanded:false, special:'Sold in pairs (50 pool); Emphasis: both clubs together deal 1k3, no penalty' },
+  { name:'Blowgun',      dr:'—',  skill:'Assassin Ranged Weapons', price:'—', size:'small', twoHanded:false, special:'Range 30ft; deals a flat 1 wound rank on hit (not a dice roll — apply manually, not automated); often poisoned; armor TN doubled' },
+  { name:'Throwing Stone', dr:'1k1', skill:'Assassin Ranged Weapons', price:'—', size:'small', twoHanded:false, special:'Free or 2 pool; no Strength bonus to damage; 10s do not explode' },
+  // Ashalan (mostly loot/steal/persuade-only per the conversion doc — not stocked in any shop, but
+  // available here so Ashalan-faction characters and NPCs can actually equip their signature gear)
+  { name:'Adiva',        dr:'2k1', skill:'Knives',        price:'—',   size:'small',  twoHanded:false, faction:'Ashalan', special:'Ashalan; loot/steal only; +1k0 to attack rolls in knife fights' },
+  { name:'Ashalan Scimitar', dr:'4k2', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; most common Ashalan weapon; +1k0 to attack rolls; Void spend gives +1 kept die on damage' },
+  { name:'Falchion',     dr:'3k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; 4k2 if crysteel; +1k0 to attack rolls even non-crysteel; Void spend gives +1 kept die on damage' },
+  { name:'Ashalan Scythe', dr:'1k4', skill:'Unique',      price:'1c',  size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 2k4/Polearms) — loot/steal only' },
+  { name:'The Khadja',   dr:'4k4', skill:'Polearms',      price:'—',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; unique legendary artifact, not for sale; crysteel, Masterwork; once per day, an extra attack for 4 rounds' },
+  { name:'Najya',        dr:'3k2', skill:'Unique-Knives', price:'—',   size:'medium', twoHanded:false, faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 4k2/Swordsmanship) — cannot be purchased' },
+  { name:"Blades of the Blood-Sworn", dr:'2k3', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; not for sale; crysteel — auto Fine quality, harms oni/the Lying Darkness; Void spend gives +1 kept die on damage' },
+  // Assassin
+  { name:'Sayf-saghir',  dr:'2k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, faction:'Assassin', special:'Assassin; Void spend gives +1 kept die on damage' },
+  { name:'Choking Cord', dr:'1k1', skill:'Chain',         price:'1c',  size:'small',  twoHanded:false, faction:'Assassin', special:'Assassin; deals damage only while controlling a grapple (per turn); Free Raise to initiate a grapple vs an unaware target' },
+  // Senpet
+  { name:'Shamshir',     dr:'2k2', skill:'Swordsmanship', price:'10c', size:'medium', twoHanded:false, isSword:true, faction:'Senpet', special:'Senpet; light scimitar, common secondary weapon; Void spend gives +1 kept die on damage' },
+  { name:'Composite Longbow', dr:'2k2', skill:'Archery', price:'30c', size:'large',  twoHanded:true,  faction:'Senpet', special:'Senpet; Str 3 required; Range 400ft; damage scales with arrows used' },
+  // Yodotai
+  { name:'Claymore',     dr:'3k3', skill:'Swordsmanship', price:'10c', size:'large',  twoHanded:true,  faction:'Yodotai', special:'Yodotai; Str 3 required; gets a Heavy Weapon Strength bonus; Void spend gives +1 kept die on damage' },
+  { name:'Pugio',        dr:'1k1', skill:'Knives',        price:'1c',  size:'small',  twoHanded:false, faction:'Yodotai', special:'Yodotai; standard secondary weapon; free draw; throwable 30ft' },
+  // Ebonite
+  { name:'Ebonite Longsword', dr:'3k2', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ebonite', special:"Ebonite; Order members only, else arrested on sight; individually hand-crafted, one per new templar; Void spend gives +1 kept die on damage" },
   { name:'Unarmed',      dr:'1k1', skill:'Brawling',      price:'—',   size:'small',  twoHanded:false, special:'Default when no weapon drawn' },
 ];
 
 export const GEAR_LIST_NAMES = [
   'Partial Armor (+3 TN)','Light Armor (+5 TN)','Heavy Armor (+10 TN)','Riding Armor (+8 TN)',
+  // Faction armor — TN bonuses already existed in ARMOR_TN_BONUS, just weren't selectable here
+  'Lorica Segmentata','Senpet Chain Shirt','Yodotai Chain Shirt','Half-Plate','Ebonite Armor','Adaga',
   'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil',
   'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
   'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
   'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
+  // Arrow types — reference/inventory items with their own DR. Not wired into the attack roller as
+  // switchable ammo yet (Archery attacks always use the bow's own DR) — that's a bigger follow-up.
+  'Armor Piercing Arrows (20)','Flesh Cutter Arrows (20)','Signal Arrows (10)',
   'Musical Instrument','Book / Scroll','Writing Paper','Whetstone',
   'Generic Poison (dose)','Fire Biter (dose)','Night Milk (dose)','Snake Venom (dose)',
   'Spider Venom (dose)','Wish You Dead (dose)','Stolen Breath (dose)','Hot Madness (dose)',
@@ -721,6 +751,15 @@ export const GEAR_DESCRIPTIONS = {
   'Coin Purse':              'A sturdy pouch for carrying copper. Holds up to 100 coins securely.',
   'Personal Seal':           'A carved seal used to authenticate documents. Grants +1k0 to Calligraphy rolls for official documents.',
   'Quiver (60 arrows)':      '60 arrows for a bow. Standard load for an archer.',
+  'Armor Piercing Arrows (20)': 'Ignores the target\'s armor TN bonus. 4 pool per arrow.',
+  'Flesh Cutter Arrows (20)': 'Armor TN doubled against these; range halved. 5 pool per arrow.',
+  'Signal Arrows (10)':      'A loud whistle on flight — signaling or distraction only, not a combat arrow. 10 pool per arrow.',
+  'Lorica Segmentata':       'Yodotai armor. +5 Armor TN; +5 TN penalty to Stealth only.',
+  'Senpet Chain Shirt':      'Senpet armor. +5 Armor TN; +3 TN penalty to Agility/Reflexes rolls; no bonus vs piercing.',
+  'Yodotai Chain Shirt':     'Yodotai armor. +7 Armor TN; +5 TN penalty to Agility/Reflexes rolls; no bonus vs piercing.',
+  'Half-Plate':              'Yodotai armor. +10 Armor TN; +10 TN penalty to Agility/Reflexes rolls; Carapace 4 vs Swordsmanship/Knives weapons.',
+  'Ebonite Armor':           'Order members only — wearing this without being Order invites arrest. +5 Armor TN; +5 TN penalty to Athletics/Stealth.',
+  'Adaga':                   'Senpet body armor (not a shield despite the name). +5 Armor TN; +5 TN penalty to Agility/Reflexes rolls.',
   'Musical Instrument':      'A specific instrument (specify type). Required for Perform skill rolls.',
   'Book / Scroll':           'A written text. May grant a Free Raise on a relevant Lore roll if studied.',
   'Writing Paper':           'Paper and basic writing implements. Required for written communication.',
@@ -1560,6 +1599,21 @@ export const TECHNIQUE_DESCRIPTIONS = {
 // ── Creature Library ──────────────────────────────────────────────────────────
 // Static bestiary — always available in the Monsters faction, no DB records needed.
 // attack/damage use LBS dice notation (e.g. '6k3'). tn = TN to Be Hit. wpl = Wounds per Level.
+// Bestiary categories grouped into the two GM-facing "Type" buckets (used by the encounter
+// "From Library" picker and the Quick NPC Creator — single source of truth for both).
+// Arrow types — nocked alongside a bow, overriding the bow's own DR with the arrow's. Effects:
+// 'ignoreArmor' (Armor Piercer) zeroes the target's armor bonus for TN purposes; 'doubleArmor'
+// (Flesh Cutter) doubles it instead (per the rules: "Armor TN doubled; range halved" — the range
+// half isn't enforced since no range/distance system exists elsewhere in Sandy either).
+export const ARROW_TYPES = {
+  'Quiver (60 arrows)':          { dr: '2k2', effect: null,          label: 'Standard' },
+  'Armor Piercing Arrows (20)':  { dr: '1k2', effect: 'ignoreArmor', label: 'Armor Piercer' },
+  'Flesh Cutter Arrows (20)':    { dr: '2k3', effect: 'doubleArmor', label: 'Flesh Cutter' },
+  'Signal Arrows (10)':          { dr: '0k1', effect: 'signal',      label: 'Signal' },
+};
+
+export const CREATURE_TYPE_CATEGORIES = { Creatures: ['Animal'], Monsters: ['Supernatural', 'Demonic', 'Undead', 'Jinn'] };
+
 export const CREATURES_LIBRARY = [
   // ── Animals ─────────────────────────────────────────────────────────────────
   {

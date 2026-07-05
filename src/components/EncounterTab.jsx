@@ -106,7 +106,7 @@ function CombatantVoidMenu({ c, currentVoid, maxVoid, onVoidDefense }) {
 }
 
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0, onShowSummary }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0, onShowSummary, onViewCharacter, onViewNpc }) {
   const isNPC = c.type === 'npc';
   const isMyChar = c.id === myCharId;
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][c.wound] || '#4a8a40';
@@ -178,7 +178,10 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, pcs, onGMWound, 
           const pw = Math.round((enlarged ? 36 : 28) * portraitScale);
           const ph = Math.round((enlarged ? 46 : 36) * portraitScale);
           return (
-        <div style={{ width: pw, height: ph, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s' }}>
+        <div style={{ width: pw, height: ph, borderRadius: 4, background: 'var(--bg-deep)', border: `1px solid ${isActive ? 'var(--gold)' : avatarColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', transition: 'all .2s',
+          cursor: isNPC && c.sourceId ? 'pointer' : 'default' }}
+          onClick={isNPC && c.sourceId ? () => (c.sourceType === 'character' ? onViewCharacter && onViewCharacter(c.sourceId) : onViewNpc && onViewNpc(c.sourceId)) : undefined}
+          title={isNPC && c.sourceId ? 'View NPC sheet' : undefined}>
           {avatarUrl
             ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
             : null}
@@ -359,7 +362,7 @@ function VoidButton() {
 }
 
 // ── Party Card — extracted as a proper component so useState is legal ─────────
-function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combatants, onUpdateCharacter, upEnc }) {
+function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combatants, onUpdateCharacter, upEnc, onViewCharacter }) {
   const [imgErr, setImgErr] = useState(false);
   const wR = getWoundRank(c.current_wounds || 0, (c.earth || 2) * 17, c.earth || 2);
   const wColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
@@ -379,7 +382,10 @@ function PartyCard({ c, pcsMap, myCharId, isGM, isPCView, grantedActions, combat
       boxShadow: isMyChar ? `0 0 12px ${avatarColor}33` : 'none',
     }}>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '.5rem' }}>
-        <div style={{ width: 76, height: 98, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div
+          onClick={c.is_npc && onViewCharacter ? () => onViewCharacter(c.id) : undefined}
+          title={c.is_npc && onViewCharacter ? 'View NPC sheet' : undefined}
+          style={{ width: 76, height: 98, background: 'var(--bg-deep)', borderRadius: 5, border: `1px solid ${avatarColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: c.is_npc && onViewCharacter ? 'pointer' : 'default' }}>
           {avatarUrl && !imgErr
             ? <img src={avatarUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
             : <Silhouette type={avatarType} size={64} color={avatarColor} />}
@@ -1258,6 +1264,8 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
                 dr: n.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
                 drawnWeapon: n.current_weapon || (n.equipment?.find(e => e.dr)?.name) || 'Weapon (3k2)',
                 wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: false,
+                controllerId: n.controller_id || null,
+                sourceId: n.id, sourceType: 'character',
               });
               e.target.value = '';
             }}>
@@ -1272,7 +1280,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0 }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false }) {
   const { state, setup, combatants, activeTurn, dmgBanner, envQuirk, round } = encounter;
   const battlefieldConditions = encounter.battlefieldConditions || {};
   const [modal, setModal] = useState(null);
@@ -1534,6 +1542,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
         drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
         statusEffects: [], _action: null,
         gridX: col, gridY: row, startX: col, startY: row,
+        _arrowStart: (pc.equipment || []).find(e => e.name?.startsWith('Quiver'))?.count ?? null,
       };
     });
 
@@ -1628,7 +1637,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       next = { ...actions, simple: remaining };
       if (remaining <= 0) next.full = 0;
     }
-    const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next } : x);
+    const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next, _centerBonusPending: false } : x);
     upEnc({ combatants: newCombatants });
     // Player manually passes turn with the Pass Turn button — no auto-advance
   };
@@ -1735,8 +1744,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     setModal(null);
     if (!capturedModal) return;
 
-    // Track skill usage
-    if (capturedModal.skill && onLogSkill) onLogSkill(capturedModal.skill);
+    // Track skill usage — PC-driven rolls only. NPC/GM turns always pass character: null (same
+    // pattern used throughout this file), so this keeps GM actions out of player skill stats.
+    if (capturedModal.skill && capturedModal.character && onLogSkill) onLogSkill(capturedModal.skill);
 
     // Broadcast result to all players via encounter state
     const banner = {
@@ -1981,6 +1991,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
     if (pcsMap[id]) onUpdateCharacter(id, { current_weapon: primaryWeapon, current_weapons: weaponList });
   };
 
+  // Knife and Shortbow are free to draw/ready per the rules — every other weapon costs the
+  // Simple Action. Free only when every weapon in the resulting draw is one of these two.
+  const isFreeWeaponDraw = (weapon) => {
+    const weaponList = Array.isArray(weapon) ? weapon : (weapon ? [weapon] : []);
+    if (weaponList.length === 0) return true;
+    return weaponList.every(w => /^(Knife|Shortbow)\b/.test(w || ''));
+  };
+
   const handleSetNPCAction = (npcId, action) => {
     setNpcTargets(p => ({ ...p, [npcId]: action }));
     if (action === 'Attack') setTargeting(npcId);
@@ -2068,6 +2086,24 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
       env_quirk: envQuirk || null,
     };
     if (onAddEncounterEntry) await onAddEncounterEntry(entry);
+    // Recover 50% of arrows consumed this encounter (rounded down) — the rest are lost, broken,
+    // or unrecoverable. Players don't get to freely top off; the only other ways back to full are
+    // buying more (Shop) or, later, crafting. Compares live quiver count against the snapshot taken
+    // when the PC joined the encounter (_arrowStart), since consumption happens live via onUpdateCharacter
+    // and isn't otherwise tracked per-encounter.
+    for (const c of combatants) {
+      if (c.type !== 'pc' || c._arrowStart == null) continue;
+      const pc = pcsMap[c.id];
+      const quiverIdx = (pc?.equipment || []).findIndex(e => e.name?.startsWith('Quiver'));
+      if (quiverIdx < 0) continue;
+      const currentCount = pc.equipment[quiverIdx].count ?? 60;
+      const consumed = Math.max(0, c._arrowStart - currentCount);
+      if (consumed <= 0) continue;
+      const recovered = Math.floor(consumed / 2);
+      const eq = pc.equipment.map((x, xi) => xi === quiverIdx ? { ...x, count: currentCount + recovered } : x);
+      onUpdateCharacter(c.id, { equipment: eq });
+      if (onLogEvent) onLogEvent('ti-arrow-back', `${pc.name} recovers ${recovered} of ${consumed} arrows spent this encounter`);
+    }
     upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs, grantedActions: {} });
     setNpcTargets({});
     setTargeting(null);
@@ -2162,23 +2198,27 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                     <button key={n} className="btn btn-sm" style={{ fontSize: 11 }}
                       onClick={() => {
                         const all = {};
-                        characters.forEach(c => { all[c.id] = (grantedActions[c.id] || 0) + n; });
+                        // Only claimed PC rows — never is_npc rows, and never an unclaimed/orphaned PC row.
+                        // NPCs (Full or Quick) only get Granted Actions if the GM intentionally bumps them
+                        // individually via their own +/- controls.
+                        characters.filter(c => !c.is_npc && c.claimed_by_name).forEach(c => { all[c.id] = (grantedActions[c.id] || 0) + n; });
                         upEnc({ grantedActions: { ...grantedActions, ...all } });
                       }}>+{n} action{n > 1 ? 's' : ''}</button>
                   ))}
                   <button className="btn btn-sm" style={{ fontSize: 11, color: 'var(--text-muted)' }}
                     onClick={() => {
                       const all = {};
-                      characters.forEach(c => { all[c.id] = 0; });
+                      characters.filter(c => !c.is_npc && c.claimed_by_name).forEach(c => { all[c.id] = 0; });
                       upEnc({ grantedActions: { ...grantedActions, ...all } });
                     }}>Clear all</button>
                 </div>
               )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                {characters.map(c => (
+                {characters.filter(c => !c.is_npc || c.is_party_asset).map(c => (
                   <PartyCard key={c.id} c={c} pcsMap={pcsMap} myCharId={myCharId}
                     isGM={isGM} isPCView={isPCView} grantedActions={grantedActions}
-                    combatants={combatants} onUpdateCharacter={onUpdateCharacter} upEnc={upEnc} />
+                    combatants={combatants} onUpdateCharacter={onUpdateCharacter} upEnc={upEnc}
+                    onViewCharacter={onViewCharacter} />
                 ))}
               </div>
             </>
@@ -2315,7 +2355,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           const myChar = myCharId ? characters.find(c => c.id === myCharId) : null;
           if (!myGranted || !myChar) return null;
           // Build drawnWeapon from character's actually-wielded equipment
-          const wieldedWeapons = (myChar.equipment || []).filter(e => e.dr && e.inUse);
+          const wieldedWeapons = (myChar.equipment || []).filter(e => e.dr && e.inUse && !e.isAmmo);
           const drawnWeapon = wieldedWeapons.length > 0
             ? `${wieldedWeapons[0].name} (${wieldedWeapons[0].dr})`
             : null;
@@ -2353,6 +2393,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 onUpdateCharacter={onUpdateCharacter}
                 onPass={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
                 onSpendAction={() => upEnc({ grantedActions: { ...grantedActions, [myCharId]: Math.max(0, myGranted - 1) } })}
+                arrowTracking={arrowTracking}
               />
             </div>
           );
@@ -2884,6 +2925,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                 portraitScale={portraitScale}
                 onVoidDefense={handleVoidDefense}
                 onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
+                onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
               />
             ))}
             {/* When grid is on, show enemies in the same left column */}
@@ -2989,6 +3031,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
                   if (action === 'Attack') setTargeting(npcId);
                 }}
                 onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
+                onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
               />
             ))}
             {/* NPC attack target selection */}
@@ -3059,7 +3102,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           showGrid={showGrid}
           onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
-          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
+          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
           onMoveAction={() => {
             // Track moves used and activate grid if not already visible
             const movesUsed = (active._movesUsed || 0) + 1;
@@ -3081,9 +3124,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
             startContestedRoll(pcsMap[active.id], mySkillName, opponent, opponentSkillName);
             spendAction('full'); // Contested Rolls the player initiates cost a Full Action
           }}
+          arrowTracking={arrowTracking}
         />
       )}
-      {active && active.type === 'npc' && isGM && !isPCView && (
+      {active && active.type === 'npc' && (isGM || active.controllerId === myCharId) && !isPCView && (
         <PCTurnPanel
           combatant={active}
           character={null}
@@ -3092,7 +3136,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, ses
           actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
           onRoll={(ctx) => setModal({ ...ctx, combatantId: active.id })}
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
-          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); spendAction('simple'); }}
+          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
           onPass={advanceTurn}
           onSpendAction={spendAction}
         />

@@ -65,9 +65,15 @@ async function importCampaign(backup) {
 // ── Danger action button ──────────────────────────────────────────────────────
 function DangerAction({ label, description, onConfirm }) {
   const [step, setStep] = useState(0);
+  const [result, setResult] = useState(null);
   const handleClick = async () => {
     if (step === 0) { setStep(1); return; }
-    if (step === 1) { await onConfirm(); setStep(2); setTimeout(() => setStep(0), 2000); }
+    if (step === 1) {
+      const r = await onConfirm();
+      setResult(r || { ok: true, message: 'Done' });
+      setStep(2);
+      setTimeout(() => { setStep(0); setResult(null); }, r?.ok === false ? 5000 : 2500);
+    }
   };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.6rem 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
@@ -78,7 +84,9 @@ function DangerAction({ label, description, onConfirm }) {
       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         {step === 1 && <span style={{ fontSize: 12, color: 'var(--red)' }}>Are you sure?</span>}
         {step === 2
-          ? <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Done</span>
+          ? <span style={{ fontSize: 13, color: result?.ok === false ? 'var(--red)' : 'var(--green)' }}>
+              {result?.ok === false ? `✗ ${result.message}` : `✓ ${result?.message || 'Done'}`}
+            </span>
           : <button className={`btn btn-sm ${step === 1 ? 'btn-d' : ''}`} onClick={handleClick}>
               {step === 0 ? label : 'Confirm'}
             </button>
@@ -161,19 +169,24 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const fileRef = useRef(null);
 
   const SETTINGS = ['Streets','Sewers','Desert','Palace','Indoors',"Khan's Warcamp","Barracks Lounge"];
-  const [mapUrl, setMapUrl] = useState('https://i.imgur.com/6fuMHqq.jpeg');
-  const [mapUrlNight, setMapUrlNight] = useState('');
+  const DEFAULT_MAP_URL = 'https://i.imgur.com/6fuMHqq.jpeg';
+  const DEFAULT_MAP_URL_NIGHT = 'https://i.imgur.com/H9d7S7C.jpeg';
+  const DEFAULT_JINN_ART_URL = 'https://i.imgur.com/AwZ72Fq.jpeg';
+  const [mapUrl, setMapUrl] = useState(DEFAULT_MAP_URL);
+  const [mapUrlNight, setMapUrlNight] = useState(DEFAULT_MAP_URL_NIGHT);
   const [musicUrl, setMusicUrl] = useState('');
   const [settingUrls, setSettingUrls] = useState({});
-  const [jinnArtUrl, setJinnArtUrl] = useState('https://i.imgur.com/AwZ72Fq.jpeg');
+  const [jinnArtUrl, setJinnArtUrl] = useState(DEFAULT_JINN_ART_URL);
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
   const [disableReroll, setDisableReroll] = useState(false);
   const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
+  const [ringsOverlay, setRingsOverlay] = useState(true);
   const [portraitScale, setPortraitScale] = useState(1.0);
   const [downtimeMode, setDowntimeMode] = useState('gm_granted'); // 'unlimited' | 'gm_granted' | 'set_number'
   const [downtimeActionsPerChar, setDowntimeActionsPerChar] = useState(3);
   const [arrowTracking, setArrowTracking] = useState(false);
+  const [startingCP, setStartingCP] = useState(45);
   const [gmPwEdit, setGmPwEdit] = useState('');
   const [gmPwSaved, setGmPwSaved] = useState(false);
 
@@ -188,10 +201,12 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         if (data.settings.round_limits) setRoundLimits({ Action: '', Intrigue: '5', Travel: '3', ...data.settings.round_limits });
         if (data.settings.disable_reroll !== undefined) setDisableReroll(!!data.settings.disable_reroll);
         if (data.settings.water_drought_enabled !== undefined) setWaterDroughtEnabled(!!data.settings.water_drought_enabled);
+        if (data.settings.rings_overlay !== undefined) setRingsOverlay(!!data.settings.rings_overlay);
         if (data.settings.portrait_scale !== undefined) setPortraitScale(data.settings.portrait_scale || 1.0);
         if (data.settings.downtime_mode) setDowntimeMode(data.settings.downtime_mode);
         if (data.settings.downtime_actions_per_char) setDowntimeActionsPerChar(data.settings.downtime_actions_per_char);
         if (data.settings.arrow_tracking !== undefined) setArrowTracking(!!data.settings.arrow_tracking);
+        if (data.settings.starting_cp !== undefined) setStartingCP(data.settings.starting_cp || 45);
       }
     });
   }, []);
@@ -199,7 +214,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -213,18 +228,19 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
 
   const wipeTable = async (table, filter = {}, afterRefetch) => {
     // Supabase requires neq filter alongside eq to allow bulk deletes without RLS issues
-    let q = supabase.from(table).delete().eq('game_id', GAME_ID).neq('id', '00000000-0000-0000-0000-000000000000');
+    let q = supabase.from(table).delete({ count: 'exact' }).eq('game_id', GAME_ID).neq('id', '00000000-0000-0000-0000-000000000000');
     Object.entries(filter).forEach(([k, v]) => { q = q.eq(k, v); });
-    const { error } = await q;
-    if (error) { console.error(`Wipe ${table} failed:`, error.message); return; }
+    const { error, count } = await q;
+    if (error) { console.error(`Wipe ${table} failed:`, error.message); return { ok: false, message: error.message }; }
     if (afterRefetch) afterRefetch();
+    return { ok: true, message: `Removed ${count ?? 0} row${count === 1 ? '' : 's'}` };
   };
 
   const wipeEverything = async () => {
     // Wipe all campaign data — use before handing tool to another group
     // Order matters: children before parents
     await wipeTable('quests');
-    await wipeTable('encounter_log');
+    await wipeTable('encounter_log', {}, onWipe.encounterLog);
     await wipeTable('map_pins');
     await wipeTable('npcs');
     await wipeTable('characters');
@@ -244,14 +260,16 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     if (onWipe.quests) onWipe.quests();
     if (onWipe.session) onWipe.session();
     if (onWipe.shops) onWipe.shops();
+    return { ok: true, message: 'Campaign reset' };
   };
 
   const wipeAllShops = async () => {
     const { data: gameRow } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const updated = { ...(gameRow?.settings || {}), shops_v2: [] };
     const { error } = await supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
-    if (error) { console.error('wipeAllShops failed:', error.message); return; }
+    if (error) { console.error('wipeAllShops failed:', error.message); return { ok: false, message: error.message }; }
     if (onWipe.shops) onWipe.shops();
+    return { ok: true, message: 'Shops cleared' };
   };
 
   const clearActiveSession = async () => {
@@ -262,14 +280,15 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
       .eq('game_id', GAME_ID)
       .eq('is_active', true)
       .single();
-    if (error || !data) { console.warn('No active session to clear'); return; }
+    if (error || !data) { return { ok: false, message: 'No active session to clear' }; }
     // End it without archiving — wipe encounter_data, mark inactive, no recap
     const { error: updateError } = await supabase
       .from('sessions')
       .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
       .eq('id', data.id);
-    if (updateError) { console.error('clearActiveSession failed:', updateError.message); }
+    if (updateError) { console.error('clearActiveSession failed:', updateError.message); return { ok: false, message: updateError.message }; }
     if (onWipe.session) onWipe.session();
+    return { ok: true, message: 'Session cleared' };
   };
 
   const wipeAllSessions = async () => {
@@ -279,10 +298,20 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
       .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
       .eq('game_id', GAME_ID)
       .eq('is_active', true);
-    // Then delete all session rows
-    const { error } = await supabase.from('sessions').delete().eq('game_id', GAME_ID);
-    if (error) { console.error('wipeAllSessions failed:', error.message); return; }
+    // Then delete all session rows — must go through wipeTable's .neq(id, zero-uuid) workaround,
+    // same as every other wipe here, or Supabase RLS silently deletes zero rows.
+    const result = await wipeTable('sessions');
+    // A session's "log" — the completed-encounter history (name, setting, party, rounds) — lives in
+    // a separate encounter_log table, not on the session row itself. Wiping sessions without also
+    // wiping this left old encounter history behind, which is what "session wipe doesn't wipe the
+    // session log" was actually pointing at. Wipe it too, and refresh both so the UI updates immediately
+    // instead of only clearing on the next full page reload.
+    const logResult = await wipeTable('encounter_log', {}, onWipe.encounterLog);
     if (onWipe.session) onWipe.session();
+    if (!result.ok || !logResult.ok) {
+      return { ok: false, message: [!result.ok && `sessions: ${result.message}`, !logResult.ok && `encounter log: ${logResult.message}`].filter(Boolean).join('; ') };
+    }
+    return { ok: true, message: `${result.message} (sessions), ${logResult.message} (encounter log)` };
   };
 
   const handleExport = async () => {
@@ -371,7 +400,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <input type="checkbox" checked={disableReroll} onChange={e => setDisableReroll(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Disable Player Rerolls</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the reroll option from the dice roller for all players (Luck/Unlucky still GM-adjudicated).</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the reroll button from the dice roller for all players. Luck and Unlucky rerolls are separate — players spend those themselves and are unaffected by this setting.</div>
               </div>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
@@ -412,8 +441,24 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
           </div>
 
           <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <div className="card-title"><i className="ti ti-user-plus" style={{ marginRight: 6 }} />Character Creation</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
+              Character Points available to spend on traits and skills when building a new PC. L5R 4E default is 45.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 90 }}>Starting CP:</span>
+              <button className="rep-btn" onClick={() => setStartingCP(n => Math.max(1, n - 5))}>−</button>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--gold)', minWidth: 32, textAlign: 'center' }}>{startingCP}</span>
+              <button className="rep-btn" onClick={() => setStartingCP(n => n + 5)}>+</button>
+              {startingCP !== 45 && (
+                <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setStartingCP(45)}>Reset to Default (45)</button>
+              )}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div className="card-title"><i className="ti ti-hourglass" style={{ marginRight: 6 }} />Round Limits</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>Leave blank for no limit.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem' }}>Gives a warning on the last round. GM can keep going.</div>
             {['Action','Intrigue','Travel'].map(t => {
               const val = roundLimits[t];
               const isUnlimited = !val || val === '';
@@ -458,16 +503,35 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>City Map</div>
-            <input value={mapUrl} onChange={e => setMapUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ width: '100%', marginBottom: '.75rem' }} />
+            <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.5rem' }}>
+              <input value={mapUrl} onChange={e => setMapUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ flex: 1 }} />
+              <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setMapUrl(DEFAULT_MAP_URL); saveImageSettings(); }}>Use Default</button>
+            </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>City Map (Night)</div>
-            <input value={mapUrlNight} onChange={e => setMapUrlNight(e.target.value)} onBlur={saveImageSettings} placeholder="Leave blank to disable night mode" style={{ width: '100%', marginBottom: '.75rem' }} />
+            <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.5rem' }}>
+              <input value={mapUrlNight} onChange={e => setMapUrlNight(e.target.value)} onBlur={saveImageSettings} placeholder="Leave blank to disable night mode" style={{ flex: 1 }} />
+              <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setMapUrlNight(DEFAULT_MAP_URL_NIGHT); saveImageSettings(); }}>Use Default</button>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={ringsOverlay}
+                onChange={e => { setRingsOverlay(e.target.checked); setTimeout(saveImageSettings, 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Rings Overlay</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shows the district-ring guide lines (Outer City, Merchant District, Faction Quarter, Noble District, Palace) on the surface map layer.</div>
+              </div>
+            </label>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>Background Music</div>
             <input value={musicUrl} onChange={e => setMusicUrl(e.target.value)} onBlur={saveImageSettings} placeholder="Direct audio URL (.mp3, .ogg...)" style={{ width: '100%', marginBottom: '.75rem' }} />
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>Jinn Art</div>
-            <input value={jinnArtUrl} onChange={e => setJinnArtUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ width: '100%', marginBottom: '.75rem' }} />
+            <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem' }}>
+              <input value={jinnArtUrl} onChange={e => setJinnArtUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ flex: 1 }} />
+              <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setJinnArtUrl(DEFAULT_JINN_ART_URL); saveImageSettings(); }}>Use Default</button>
+            </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.5rem', fontWeight: 600 }}>Encounter Setting Backgrounds</div>
             {SETTINGS.map(s => (
@@ -489,7 +553,13 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               </div>
             </div>
           </div>
-          <button className="btn btn-p btn-sm" onClick={saveImageSettings}>{imagesSaved ? '✓ Saved' : 'Save Image Settings'}</button>
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button className="btn btn-p btn-sm" onClick={saveImageSettings}>{imagesSaved ? '✓ Saved' : 'Save Image Settings'}</button>
+            <button className="btn btn-sm" onClick={() => {
+              setMapUrl(DEFAULT_MAP_URL); setMapUrlNight(DEFAULT_MAP_URL_NIGHT); setJinnArtUrl(DEFAULT_JINN_ART_URL);
+              setTimeout(saveImageSettings, 0);
+            }}>Default All</button>
+          </div>
         </>
       )}
 
@@ -538,12 +608,17 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
             <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory — cannot be undone" onConfirm={wipeAllShops} />
             <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
-            <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0" onConfirm={async () => { await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); }} />
+            <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0" onConfirm={async () => { const { error } = await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); return error ? { ok: false, message: error.message } : { ok: true, message: 'Inventory cleared' }; }} />
             <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests', {}, onWipe.quests)} />
-            <DangerAction label="Wipe Encounter Log" description="Clears the full encounter history" onConfirm={() => wipeTable('encounter_log')} />
-            <DangerAction label="Wipe All NPCs" description="Removes every NPC from the log" onConfirm={() => wipeTable('npcs', {}, onWipe.npcs)} />
-            <DangerAction label="Wipe All Characters" description="Deletes every player character — use before a new campaign" onConfirm={() => wipeTable('characters', {}, onWipe.characters)} />
-            <DangerAction label="Reset Faction Reputation" description="Sets all faction reputations back to 0" onConfirm={async () => { await supabase.from('faction_reputation').update({ reputation: 0 }).eq('game_id', GAME_ID); }} />
+            <DangerAction label="Wipe Encounter Log" description="Clears the history of past completed encounters (name, setting, party, enemies, rounds) — this is a record of what happened, not the live in-progress encounter." onConfirm={() => wipeTable('encounter_log', {}, onWipe.encounterLog)} />
+            <DangerAction label="Wipe All NPCs" description="Removes every NPC — both Quick NPCs (the log) and Full NPCs (promoted character-sheet NPCs)." onConfirm={async () => {
+              const a = await wipeTable('npcs', {}, onWipe.npcs);
+              const b = await wipeTable('characters', { is_npc: true }, onWipe.characters);
+              if (!a.ok || !b.ok) return { ok: false, message: [!a.ok && a.message, !b.ok && b.message].filter(Boolean).join('; ') };
+              return { ok: true, message: `${a.message} (Quick), ${b.message} (Full)` };
+            }} />
+            <DangerAction label="Wipe Player Characters" description="Deletes every player character — use before a new campaign. Does not touch Full NPCs; use Wipe All NPCs for those." onConfirm={() => wipeTable('characters', { is_npc: false }, onWipe.characters)} />
+            <DangerAction label="Reset Faction Reputation" description="Sets all faction reputations back to 0" onConfirm={async () => { const { error } = await supabase.from('faction_reputation').update({ reputation: 0 }).eq('game_id', GAME_ID); return error ? { ok: false, message: error.message } : { ok: true, message: 'Reputation reset' }; }} />
           </div>
         </>
       )}

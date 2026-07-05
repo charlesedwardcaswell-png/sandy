@@ -121,6 +121,23 @@ const BUNDLE_PRESETS = {
     gItem('Personal Seal', '25 copper', 'fine', 'uncommon'), gItem('Apothecary Kit', '25 copper', 'fine', 'common'),
     gItem('Medicine Kit', '20 copper', 'fine', 'common'), gItem('Writing Paper', '5 copper', 'standard', 'always'),
   ]},
+  // ── Exotic Goods — a fence/rare-goods dealer. Faction weapons that are normally loot/steal-only
+  // (Ashalan, Senpet, Yodotai, Assassin) can surface here at low odds, since this is where such things
+  // plausibly end up. Deliberately excludes items the rules mark as truly not-for-sale or unique
+  // (The Khadja, Najya, Blades of the Blood-Sworn, Ebonite Longsword — Order-only, arrest risk).
+  'Exotic Goods': { icon: 'ti-diamond', tier: 'superior', items: [
+    wItem('Adiva', 'fine', 'rare'), wItem('Ashalan Scimitar', 'fine', 'rare'), wItem('Falchion', 'fine', 'rare'),
+    wItem('Ashalan Scythe', 'standard', 'rare'),
+    wItem('Sayf-saghir', 'fine', 'uncommon'), wItem('Choking Cord', 'standard', 'uncommon'),
+    wItem('Shamshir', 'fine', 'uncommon'), wItem('Composite Longbow', 'fine', 'rare'),
+    wItem('Claymore', 'fine', 'rare'), wItem('Pugio', 'standard', 'uncommon'),
+    wItem('Weighted Chain', 'standard', 'uncommon'), wItem('Small Club', 'standard', 'uncommon'),
+    wItem('Blowgun', 'standard', 'rare'), wItem('Throwing Stone', 'standard', 'common'),
+    wItem('Horseback Bow', 'fine', 'rare'),
+    gItem('Armor Piercing Arrows (20)', '4 copper', 'standard', 'uncommon'),
+    gItem('Flesh Cutter Arrows (20)', '5 copper', 'standard', 'uncommon'),
+    gItem('Signal Arrows (10)', '10 copper', 'standard', 'common'),
+  ]},
 };
 
 function newShop(name, markupTier='fair') {
@@ -175,7 +192,19 @@ function parseCopperAmount(priceStr, qualityKey) {
 const CATALOGUE = [
   {
     category: 'Weapons',
-    items: WEAPONS_LIST.map(w => ({ name: w.name, price: w.price || '5 copper', dr: w.dr || '', defaultQuality: 'standard' })),
+    items: WEAPONS_LIST.filter(w => !w.faction).map(w => ({ name: w.name, price: w.price || '5 copper', dr: w.dr || '', defaultQuality: 'standard' })),
+  },
+  {
+    // Faction-specific weapons plus other unusual gear (special-ammo arrows) — GM's manual add tool,
+    // so this includes even the not-for-sale/unique items (The Khadja, Najya, etc.) at GM discretion,
+    // unlike the automated random shop stock which deliberately leaves those out.
+    category: 'Unusual',
+    items: [
+      ...WEAPONS_LIST.filter(w => w.faction).map(w => ({ name: w.name, price: w.price || '—', dr: w.dr || '', defaultQuality: 'standard' })),
+      { name: 'Armor Piercing Arrows (20)', price: '4 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Flesh Cutter Arrows (20)', price: '5 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Signal Arrows (10)', price: '10 copper', dr: '', defaultQuality: 'standard' },
+    ],
   },
   {
     category: 'Armor & Shields',
@@ -184,6 +213,12 @@ const CATALOGUE = [
       { name: 'Light Armor (+5 TN)',    price: '20 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Heavy Armor (+10 TN)',   price: '40 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Riding Armor (+8 TN)',   price: '30 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Lorica Segmentata',      price: '25 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Senpet Chain Shirt',     price: '20 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Yodotai Chain Shirt',    price: '25 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Half-Plate',            price: '45 copper', dr: '', defaultQuality: 'standard' },
+      { name: 'Ebonite Armor',          price: '—', dr: '', defaultQuality: 'standard' },
+      { name: 'Adaga',                  price: '20 copper', dr: '', defaultQuality: 'standard' },
       ...SHIELDS.map(s => ({ name: s.name, price: s.price?.endsWith('c') ? s.price.replace('c', ' copper') : (s.price || '10 copper'), dr: '', defaultQuality: 'standard' })),
     ],
   },
