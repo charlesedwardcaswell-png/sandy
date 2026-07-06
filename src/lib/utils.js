@@ -203,8 +203,18 @@ export function hasLineOfSight(x0, y0, x1, y1, gridTiles) {
   for (let i = 0; i < maxSteps; i++) {
     if (x === x1 && y === y1) return true;
     const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x += sx; }
-    if (e2 <= dx) { err += dx; y += sy; }
+    const stepX = e2 >= dy, stepY = e2 <= dx;
+    const prevX = x, prevY = y;
+    if (stepX) { err += dy; x += sx; }
+    if (stepY) { err += dx; y += sy; }
+    if (stepX && stepY) {
+      // Diagonal step — corner rule: light can't cut between two walls that only touch at a
+      // shared corner. Blocked only if BOTH flanking orthogonal cells are walls (a single wall
+      // corner doesn't block), matching the same rule applied to movement pathfinding.
+      const flankA = tiles[`${prevX + sx},${prevY}`]?.type === 'wall';
+      const flankB = tiles[`${prevX},${prevY + sy}`]?.type === 'wall';
+      if (flankA && flankB) return false;
+    }
     if (x === x1 && y === y1) return true;
     if (tiles[`${x},${y}`]?.type === 'wall') return false;
   }

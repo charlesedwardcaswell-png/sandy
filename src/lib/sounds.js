@@ -1,5 +1,8 @@
 // ── Basic synthesized sound cues — no external audio files needed ─────────────
 // Respects a localStorage mute flag ('sandy_sound_enabled', default on).
+import diceRollUrl from '../assets/sounds/dice-roll.mp3';
+import loginUrl from '../assets/sounds/login.mp3';
+import tileClickUrl from '../assets/sounds/tile-click.mp3';
 
 let ctx = null;
 function getCtx() {
@@ -10,6 +13,35 @@ function getCtx() {
   }
   return ctx;
 }
+
+// ── File-based sound effects — real audio files, lazily loaded (created once, reused) so nothing
+// plays or even fetches until its context is actually reached. Each still respects the same mute
+// flag as the synthesized cues above.
+const audioCache = {};
+function getAudio(url) {
+  if (!audioCache[url]) audioCache[url] = new Audio(url);
+  return audioCache[url];
+}
+function playFile(url) {
+  if (!isSoundEnabled()) return;
+  try {
+    const a = getAudio(url);
+    a.currentTime = 0;
+    a.play().catch(() => { /* ignore — e.g. blocked before any user gesture yet */ });
+  } catch { /* never break gameplay over a sound cue */ }
+}
+
+// Dice starting to roll — the physical rolling sound, separate from playSuccess/playFailure
+// (which are the tonal result cues that fire once the roll resolves).
+export function playDiceRoll() { playFile(diceRollUrl); }
+
+// Login screen — plays on the actual login action (button click), not on mount: most browsers
+// block audio before any user gesture has happened on the page, so a mount-triggered sound would
+// silently fail. Login/role selection is the first real click, so it's the right place.
+export function playLogin() { playFile(loginUrl); }
+
+// Stance and action buttons (PCTurnPanel) — a short click for tactile feedback.
+export function playTileClick() { playFile(tileClickUrl); }
 
 export function isSoundEnabled() {
   const v = localStorage.getItem('sandy_sound_enabled');

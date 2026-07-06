@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES, DISADVANTAGE_ROLL_BONUSES, WEAPONS_LIST } from '../data/constants';
 import { rollN } from '../lib/utils';
-import { playSuccess, playFailure, playClick } from '../lib/sounds';
+import { playSuccess, playFailure, playClick, playDiceRoll } from '../lib/sounds';
 import { triggerVoidSwirl } from './UI';
 
 // Parse the raise cost embedded in a maneuver label, e.g. "Disarm (3)" -> 3. Generic RAISE_OPTIONS
@@ -345,6 +345,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     setKept(new Set());
     setRollResult(null);
     setPhase('rolling');
+    playDiceRoll();
   };
 
   const toggleKeep = (i) => {

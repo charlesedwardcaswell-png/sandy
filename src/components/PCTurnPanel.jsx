@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES, ARROW_TYPES } from '../data/constants';
 import { getWoundRank, getEffectiveWaterRing, getArmorTN } from '../lib/utils';
+import { playTileClick } from '../lib/sounds';
 import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false, quickTargetRequest = null }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false, quickTargetRequest = null, onUndoMove }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -85,7 +86,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               return (
                 <button key={s} className="opt-btn"
                   style={{ fontSize: 13, padding: '4px 10px', borderColor: col, color: isSel ? 'var(--bg-deep)' : col, background: isSel ? col : 'transparent' }}
-                  onClick={() => onStanceChange(s)}>
+                  onClick={() => { playTileClick(); onStanceChange(s); }}>
                   {s === 'Full Attack' ? 'F.Attack' : s === 'Full Defense' ? 'F.Defense' : s}
                 </button>
               );
@@ -516,6 +517,10 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   const actions = actionsLeft || { full: 1, simple: 2 };
   const noActionsLeft = actions.full <= 0 && actions.simple <= 0;
+  // Once any action (including movement) has been taken this turn, stance is locked — matches the
+  // same "has this combatant acted" signal used elsewhere (actions.full/simple below their fresh-turn
+  // defaults of 1/2).
+  const stanceLocked = actions.full < 1 || actions.simple < 2;
 
   return (
     <div style={{
@@ -727,15 +732,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             const col = stanceColors[s] || 'var(--gold)';
             return (
               <button key={s}
-                onClick={() => { onStanceChange(s); setSelectedAction(null); setStanceConfirmed(true); }}
+                disabled={stanceLocked}
+                title={stanceLocked ? "Stance is locked once you've taken an action this turn" : undefined}
+                onClick={() => { if (stanceLocked) return; playTileClick(); onStanceChange(s); setSelectedAction(null); setStanceConfirmed(true); }}
                 style={{
                   padding: stanceChosen ? '4px 10px' : '10px 18px',
-                  borderRadius: 5, fontFamily: 'inherit', cursor: 'pointer',
+                  borderRadius: 5, fontFamily: 'inherit', cursor: stanceLocked ? 'not-allowed' : 'pointer',
                   fontSize: stanceChosen ? 12 : 15, fontWeight: isActive ? 700 : (stanceChosen ? 400 : 500),
                   background: isActive ? col + '33' : col + '11',
                   border: `2px solid ${isActive ? col : col + '55'}`,
                   color: isActive ? col : col + 'aa',
                   boxShadow: isActive ? `0 0 10px ${col}55` : 'none',
+                  opacity: stanceLocked && !isActive ? 0.4 : 1,
                   transition: 'all .2s',
                   flex: stanceChosen ? undefined : '1 1 calc(33% - .5rem)',
                   minWidth: stanceChosen ? undefined : 90,
@@ -772,6 +780,15 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </div>
       ) : (
       <>
+      {showGrid && !combatant._tookNonMoveAction && combatant.gridX !== undefined && combatant.startX !== undefined
+        && (combatant.gridX !== combatant.startX || combatant.gridY !== combatant.startY) && onUndoMove && (
+        <div style={{ textAlign: 'center', marginBottom: '.5rem' }}>
+          <button className="btn btn-sm" style={{ borderColor: '#6a50d0', color: '#a090e0' }}
+            onClick={onUndoMove}>
+            <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Undo Movement
+          </button>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
         {[
           { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       actionType: 'Full',   color: '#c84030',
@@ -802,6 +819,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           <button key={action.id}
             title={action.title || action.label}
             onClick={() => {
+              playTileClick();
               if (action.id === 'defend') {
                 // Clicking Full Defense: switch to stance AND immediately roll
                 onStanceChange('Full Defense');
@@ -834,7 +852,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               else if (action.id === 'move') {
                 setSelectedAction('move');
                 // Full Attack: movement is free (no action cost)
-                if (combatant.stance !== 'Full Attack') { if (onSpendAction) onSpendAction('simple'); }
+                if (combatant.stance !== 'Full Attack') { if (onSpendAction) onSpendAction('simple', true); }
                 if (onMoveAction) onMoveAction();
               }
               else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }

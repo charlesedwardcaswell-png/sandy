@@ -269,7 +269,7 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { feedback, addFeedback, deleteFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
@@ -441,7 +441,7 @@ export default function App() {
   // disagree until the next reload or theme change.
   const themeUserKey = isDeveloper ? 'dev' : isGM ? 'gm' : (isPlayer ? (playerUsername || 'Player') : null);
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('sandy_theme') || 'default'; } catch { return 'default'; }
+    try { return localStorage.getItem('sandy_theme') || 'void'; } catch { return 'void'; }
   });
   const [themeLoaded, setThemeLoaded] = useState(false);
   // Load this identity's saved theme once its key becomes known (i.e. once logged in)
@@ -488,6 +488,8 @@ export default function App() {
   const [arrowTracking, setArrowTracking] = useState(false);
   const [downtimeMode, setDowntimeMode] = useState('gm_granted'); // 'unlimited' | 'gm_granted' | 'set_number'
   const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
+  const [hideFeedbackTab, setHideFeedbackTab] = useState(false);
+  const [playerGlowDefault, setPlayerGlowDefault] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
   const [partyWater, setPartyWater] = useState(0);
   const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
@@ -505,6 +507,8 @@ export default function App() {
     if (settings.arrow_tracking !== undefined) setArrowTracking(!!settings.arrow_tracking);
     if (settings.downtime_mode) setDowntimeMode(settings.downtime_mode);
     if (settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!settings.hide_shop_from_players);
+    if (settings.hide_feedback_tab !== undefined) setHideFeedbackTab(!!settings.hide_feedback_tab);
+    if (settings.player_glow_default !== undefined) setPlayerGlowDefault(!!settings.player_glow_default);
     if (settings.starting_cp !== undefined) setStartingCP(settings.starting_cp || 45);
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
@@ -981,7 +985,7 @@ export default function App() {
     }
   };
 
-  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...((!hideShopFromPlayers || gmView) ? ['shop'] : []), 'feedback', ...(gmView ? ['settings', 'preparation'] : []), ...(isDeveloper ? ['tileset'] : [])];
+  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...((!hideShopFromPlayers || gmView) ? ['shop'] : []), ...(hideFeedbackTab ? [] : ['feedback']), ...(gmView ? ['settings', 'preparation'] : []), ...(isDeveloper ? ['tileset'] : [])];
   const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings', tileset: 'Tileset', preparation: 'Preparation' };
   const handleTabChange = (id) => {
     setTab(id);
@@ -1006,7 +1010,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v175</span>
+        <span className="hdr-game">The Tool — v176</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1294,6 +1298,7 @@ export default function App() {
             onLogEvent={encounter?.trainingSession ? (() => {}) : push}
             preparedEncounters={session?.prepared_encounters || []}
             onSavePreparedEncounters={enc => savePreparedEncounters(session?.id, enc)}
+            playerGlowDefault={playerGlowDefault}
             onGlobalRoll={openRoll}
             portraitScale={portraitScale}
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
@@ -1395,7 +1400,7 @@ export default function App() {
             isPlayer={isPlayer}
           />
         )}
-        {tab === 'feedback' && (
+        {tab === 'feedback' && !hideFeedbackTab && (
           <FeedbackTab
             feedback={feedback}
             onAddFeedback={addFeedback}
@@ -1428,6 +1433,8 @@ export default function App() {
               handleSetEncounter(e => ({ ...e, shopOpen: opening }));
               push('ti-shopping-cart', opening ? 'The Bazaar is open — browse the Shop tab.' : 'The Bazaar has closed.', { highlight: opening });
             } : undefined}
+            hideShopFromPlayers={hideShopFromPlayers}
+            onSetHideShopFromPlayers={handleSetHideShopFromPlayers}
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab
@@ -1449,9 +1456,8 @@ export default function App() {
           onCreatePrepSession={createPrepSession}
           onSavePreparedEncounters={savePreparedEncounters}
           npcsFromLog={npcs}
-          hideShopFromPlayers={hideShopFromPlayers}
-          onSetHideShopFromPlayers={handleSetHideShopFromPlayers}
           onCreateQuest={guardFn(handleCreateQuest)}
+          onUnretireSession={unretireSession}
         />}
         {tab === 'tileset' && isDeveloper && <TilesetTab isDeveloper={isDeveloper} />}
       </div>

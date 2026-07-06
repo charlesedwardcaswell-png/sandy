@@ -405,7 +405,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 }
 
 
-export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false }) {
+export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false, hideShopFromPlayers = false, onSetHideShopFromPlayers }) {
   const gmView = isGM && !isPCView;
 
   // All shops — loaded from/saved to Supabase
@@ -416,11 +416,15 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   // UI state
   const [purchaseTarget, setPurchaseTarget] = useState(myCharId || 'party');
   const [showPoisonRef, setShowPoisonRef] = useState(false);
+  const [newShopName, setNewShopName] = useState('');
+  const [newShopMarkupTier, setNewShopMarkupTier] = useState('fair');
+  const [showNewShop, setShowNewShop] = useState(false);
   const [showCatalogue, setShowCatalogue] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customDr, setCustomDr] = useState('');
   const [customQuality, setCustomQuality] = useState('standard');
+  const [editingShopName, setEditingShopName] = useState(false);
   const [randomTheme, setRandomTheme] = useState('auto');
   const [insufficientFunds, setInsufficientFunds] = useState(null);
   // Appraisal: { shopId, revealQuality: true, revealTrueCost: bool } — set after successful roll
@@ -429,6 +433,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [lastActionWasAppraise, setLastActionWasAppraise] = useState(false);
   const [hagglingItem, setHagglingItem] = useState(null); // item being haggled // { needed, have, item } // auto | weapons | armor | apothecary | general | black | outfitter | scribe | superior | sahir
   const [randomQuality, setRandomQuality] = useState('standard'); // standard | fine | superior
+  const [shopNameInput, setShopNameInput] = useState('');
 
   // Cart state: { [shopId]: { items: [{...item, qty}] } }
   const [carts, setCarts] = useState({});
@@ -610,9 +615,32 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   };
 
   // Shop management
+  const createShop = () => {
+    const name = newShopName.trim() || 'New Shop';
+    const shop = newShop(name, newShopMarkupTier);
+    const updated = [...shops, shop];
+    updateShops(updated);
+    setActiveShopId(shop.id);
+    setNewShopName('');
+    setNewShopMarkupTier('fair');
+    setShowNewShop(false);
+  };
+
+  const deleteShop = (id) => {
+    const updated = shops.filter(s => s.id !== id);
+    updateShops(updated);
+    if (activeShopId === id) setActiveShopId(updated[0]?.id || null);
+  };
+
   const toggleShopOpen = (id) => {
     const updated = shops.map(s => s.id === id ? { ...s, open: !s.open } : s);
     updateShops(updated);
+  };
+
+  const renameShop = (id, name) => {
+    const updated = shops.map(s => s.id === id ? { ...s, name } : s);
+    updateShops(updated);
+    setEditingShopName(false);
   };
 
   const loadBundle = (bundleName) => {
@@ -1214,16 +1242,48 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             }}>
               {shop.open ? '👁' : '🚫'}
             </button>
-            <div style={{ width: 4, borderRadius: '0 4px 4px 0', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
+            {/* Delete (only when active) */}
+            {activeShopId === shop.id && shops.length > 1 && (
+              <button onClick={() => deleteShop(shop.id)} title="Delete this shop" style={{
+                padding: '.3rem .35rem', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                background: 'var(--bg-panel)', borderRight: `1px solid var(--border)`, borderTop: `1px solid var(--border)`, borderBottom: `1px solid var(--border)`, borderLeft: 'none', borderRadius: '0 4px 4px 0',
+                color: 'var(--red)',
+              }}>×</button>
+            )}
+            {activeShopId !== shop.id && (
+              <div style={{ width: 4, borderRadius: '0 4px 4px 0', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
+            )}
           </div>
         ))}
+        {/* New shop */}
+        {showNewShop ? (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input value={newShopName} onChange={e => setNewShopName(e.target.value)}
+              placeholder="Shop name" autoFocus style={{ fontSize: 12, padding: '3px 7px', width: 120 }}
+              onKeyDown={e => { if (e.key === 'Enter') createShop(); if (e.key === 'Escape') setShowNewShop(false); }} />
+            <select value={newShopMarkupTier} onChange={e => setNewShopMarkupTier(e.target.value)} style={{ fontSize: 12, padding: '3px 5px' }}>
+              <option value="fair">Fair (1-3% over)</option>
+              <option value="medium">Medium (5-20% over)</option>
+              <option value="high">High (1-50% over)</option>
+            </select>
+            <button className="btn btn-sm btn-p" style={{ fontSize: 11 }} onClick={createShop}>Create</button>
+            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowNewShop(false)}>✕</button>
+          </div>
+        ) : (
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowNewShop(true)}>+ New Shop</button>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', marginLeft: 8 }}
+          title="Removes the Shop tab from players entirely. The GM still sees it.">
+          <input type="checkbox" checked={hideShopFromPlayers} onChange={e => onSetHideShopFromPlayers && onSetHideShopFromPlayers(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
+          Hide Shop Tab From Players
+        </label>
       </div>
 
       {/* No shops yet */}
       {!loaded && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading…</div>}
       {loaded && shops.length === 0 && (
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
-          No shops yet. {isGM ? 'Create one in Preparation → Shop Manager.' : 'Check back later.'}
+          No shops yet. Create one above.
         </div>
       )}
 
@@ -1231,6 +1291,19 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         <>
           {/* Active shop controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
+            {/* Rename */}
+            {editingShopName ? (
+              <>
+                <input value={shopNameInput} onChange={e => setShopNameInput(e.target.value)} autoFocus
+                  style={{ fontSize: 13, padding: '2px 6px', width: 150 }}
+                  onKeyDown={e => { if (e.key === 'Enter') renameShop(activeShopId, shopNameInput); if (e.key === 'Escape') setEditingShopName(false); }} />
+                <button className="btn btn-sm btn-p" style={{ fontSize: 11 }} onClick={() => renameShop(activeShopId, shopNameInput)}>✓ Rename</button>
+                <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setEditingShopName(false)}>Cancel</button>
+              </>
+            ) : (
+              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { setShopNameInput(activeShop.name); setEditingShopName(true); }}>✎ Rename</button>
+            )}
+
             {/* Load bundle */}
             <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowCatalogue(true)}>
               <i className="ti ti-layout-list" style={{ marginRight: 4, fontSize: 11 }} />Stock from Catalogue

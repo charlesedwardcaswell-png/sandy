@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
-import { TILE_TYPES } from './EncounterTab';
+import { TILE_TYPES, ATLAS_COLUMNS, ATLAS_SIZE, ATLAS_TILE } from './EncounterTab';
 import { NPCPicker } from './EncounterBuilder';
 
 // Same 7 environment themes used elsewhere in the app for setting art (SettingsTab's SETTINGS list),
@@ -37,6 +37,7 @@ export default function GridCreatorTab({ isDeveloper }) {
   // self-contained, shareable file.
   const [prebuiltNpcs, setPrebuiltNpcs] = useState([]); // [{ ...npcData, x, y }] — x/y null until placed
   const [placingNpcIdx, setPlacingNpcIdx] = useState(null); // index into prebuiltNpcs currently awaiting a grid click
+  const [atlasUrl, setAtlasUrl] = useState(''); // Master Atlas (Tileset tab) — preview here so the painter shows real tileset art, not just labeled colors
 
   const CELL = 20;
   const W = size * CELL;
@@ -46,6 +47,7 @@ export default function GridCreatorTab({ isDeveloper }) {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       const grids = data?.settings?.saved_battle_grids || [];
       setSavedGrids([...grids].sort((a, b) => (a.label || '').localeCompare(b.label || ''))); // label starts with environment type
+      setAtlasUrl(data?.settings?.master_atlas_url || '');
       setLoaded(true);
     });
   }, []);
@@ -185,11 +187,35 @@ export default function GridCreatorTab({ isDeveloper }) {
               <line x1={0} y1={i * CELL} x2={W} y2={i * CELL} stroke="rgba(107,78,40,.25)" strokeWidth="0.5" />
             </g>
           ))}
+          {atlasUrl && (
+            <defs>
+              {[...new Set(Object.values(displayTiles).filter(Boolean).map(t => t.type))]
+                .filter(type => ATLAS_COLUMNS[type] !== undefined)
+                .map(type => {
+                  const col = ATLAS_COLUMNS[type];
+                  const scale = CELL / ATLAS_TILE;
+                  return (
+                    <pattern key={`atlas-${type}`} id={`gc-atlas-pat-${type}`} width={CELL} height={CELL} patternUnits="userSpaceOnUse">
+                      <image href={atlasUrl}
+                        x={-col * ATLAS_TILE * scale} y={-themeRow * ATLAS_TILE * scale}
+                        width={ATLAS_SIZE * scale} height={ATLAS_SIZE * scale} />
+                    </pattern>
+                  );
+                })}
+            </defs>
+          )}
           {Object.entries(displayTiles).map(([key, t]) => {
             if (!t) return null;
             const def = TILE_TYPES.find(tt => tt.key === t.type);
             if (!def) return null;
             const [tx, ty] = key.split(',').map(Number);
+            const hasAtlas = atlasUrl && ATLAS_COLUMNS[t.type] !== undefined;
+            if (hasAtlas) {
+              return (
+                <rect key={`tile-${key}`} x={tx * CELL} y={ty * CELL} width={CELL} height={CELL}
+                  fill={`url(#gc-atlas-pat-${t.type})`} style={{ pointerEvents: 'none' }} />
+              );
+            }
             return (
               <g key={`tile-${key}`} style={{ pointerEvents: 'none' }}>
                 <rect x={tx * CELL + 1} y={ty * CELL + 1} width={CELL - 2} height={CELL - 2} fill={def.color} opacity="0.5" rx="1" />

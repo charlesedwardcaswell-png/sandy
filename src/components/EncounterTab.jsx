@@ -462,13 +462,27 @@ export const TILE_TYPES = [
   { key: 'misc4',     label: 'Misc 4',    short: 'MISC4', color: '#606060' },
 ];
 
+// Master Atlas column mapping — a 768×768 image, 12×12 grid of 64×64 tiles (see Tileset tab; rows
+// are tilesets/themes, matching GridCreatorTab's themeRow). Columns are terrain "look" types, in
+// the same order as TILE_TYPES but excluding PC Start — that's a pure mechanical marker, never a
+// terrain texture, so it always renders as its plain colored/labeled block regardless of atlas or
+// Default Tiles Only. 13 tile types, 12 atlas columns — PC Start is the one deliberately left out.
+export const ATLAS_COLUMNS = TILE_TYPES.filter(t => !t.isPcStart).reduce((acc, t, i) => { acc[t.key] = i; return acc; }, {});
+export const ATLAS_SIZE = 768;  // full atlas image, both dimensions
+export const ATLAS_GRID = 12;   // 12×12 tiles
+export const ATLAS_TILE = ATLAS_SIZE / ATLAS_GRID; // 64px per source tile
+
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightingMode = true, onSetLightingMode, litCells = null, onQuickTarget }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightingMode = true, onSetLightingMode, litCells = null, onQuickTarget, playerGlow = false, onSetPlayerGlow, atlasUrl = '', tileDefaultImages = {}, themeRow = null }) {
   const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
   const [selected, setSelected] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
   const [localPing, setLocalPing] = useState(null);
   const [zoom, setZoom] = useState(1.0); // 1.0 = full grid, 0.5 = zoomed in 2×
+  // GM-only visual toggle — hides the scene background image so the plain tile-type color blocks
+  // (and their mechanical effects) are easy to read without the artsy overlay competing for attention.
+  // Purely local/informational, not synced to players.
+  const [defaultTilesOnly, setDefaultTilesOnly] = useState(false);
   const [dragging, setDragging] = useState(null);   // { id, startX, startY }
   const [dragPos, setDragPos] = useState(null);      // { svgX, svgY } current drag position in SVG coords
   // Right-click token context menu — "Attack"/"Skill" quick-target, filtered by melee/ranged reach
@@ -510,13 +524,17 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
   const getSVGCoords = (e) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    const scaleX = W / rect.width;
-    const scaleY = W / rect.height;
+    // Read the SVG's actual current viewBox rather than assuming it's always "0 0 W W" — when zoomed
+    // in (viewBox smaller than the full grid), screen-to-cell math must offset/scale by the viewBox's
+    // own origin and size, or clicks/drags land on the wrong cell relative to what's visually zoomed in.
+    const vb = (svgRef.current?.getAttribute('viewBox') || `0 0 ${W} ${W}`).split(' ').map(Number);
+    const [vx, vy, vw, vh] = vb;
+    const svgX = ((e.clientX - rect.left) / rect.width) * vw + vx;
+    const svgY = ((e.clientY - rect.top) / rect.height) * vh + vy;
     return {
-      svgX: (e.clientX - rect.left) * scaleX,
-      svgY: (e.clientY - rect.top) * scaleY,
-      gridX: Math.floor(((e.clientX - rect.left) * scaleX) / CELL),
-      gridY: Math.floor(((e.clientY - rect.top) * scaleY) / CELL),
+      svgX, svgY,
+      gridX: Math.floor(svgX / CELL),
+      gridY: Math.floor(svgY / CELL),
     };
   };
 
@@ -607,6 +625,14 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
           if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) continue;
           const nKey = `${nx},${ny}`;
           if (tiles[nKey]?.type === 'wall') continue; // walls block the path outright, not just the destination
+          // Diagonal step — corner rule: can't cut between two walls that only touch at a shared
+          // corner. Blocked only if BOTH flanking orthogonal cells are walls (a single wall corner
+          // doesn't block), matching the same rule now applied to light's line-of-sight raycast.
+          if (ddx !== 0 && ddy !== 0) {
+            const flankA = tiles[`${cur.x + ddx},${cur.y}`]?.type === 'wall';
+            const flankB = tiles[`${cur.x},${cur.y + ddy}`]?.type === 'wall';
+            if (flankA && flankB) continue;
+          }
           const stepCost = (ddx !== 0 && ddy !== 0 ? 2 : 1) + (leavingDifficult ? 1 : 0);
           const newCost = cur.cost + stepCost;
           if (newCost > maxRange) continue;
@@ -670,11 +696,9 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
 
   const handleDblClick = (e) => {
     if (editMode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scaleX = (gridSize * CELL) / rect.width;
-    const scaleY = (gridSize * CELL) / rect.height;
-    const x = Math.floor(((e.clientX - rect.left) * scaleX) / CELL);
-    const y = Math.floor(((e.clientY - rect.top) * scaleY) / CELL);
+    const coords = getSVGCoords(e);
+    if (!coords) return;
+    const { gridX: x, gridY: y } = coords;
     if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) return;
     // Find the pinging player's token — prefer whichever of their characters is actually on the grid
     const myToken = combatants.find(c => myIds.includes(c.id) && c.gridX !== undefined) || combatants.find(c => myIds.includes(c.id));
@@ -720,6 +744,27 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
     setSelected(selected === id ? null : id);
   };
 
+  // Arrow keys move the currently selected token one square at a time — same validation path as
+  // clicking a destination cell (occupancy, walls, lighting-step, range), just driven by keyboard.
+  useEffect(() => {
+    if (!selected || editMode) return;
+    const DIRS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const onKeyDown = (e) => {
+      const dir = DIRS[e.key];
+      if (!dir) return;
+      e.preventDefault(); // don't let arrow keys scroll the page while a token is selected
+      if (!canMoveToken(selected)) return;
+      const tok = combatants.find(c => c.id === selected);
+      if (!tok || tok.gridX === undefined) return;
+      const nx = tok.gridX + dir[0], ny = tok.gridY + dir[1];
+      if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return;
+      handleCellClick(nx, ny);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, editMode, combatants, gridSize]);
+
   const getTokenColor = (c) => {
     const pc = pcsMap[c.id];
     if (pc?.avatar_color) return pc.avatar_color;
@@ -745,6 +790,20 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
               style={{ margin: 0, cursor: isGM ? 'pointer' : 'default' }} />
             Lighting
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, textTransform: 'none', cursor: isGM ? 'pointer' : 'default', color: playerGlow ? 'var(--gold)' : 'var(--text-muted)' }}
+            title="Each PC token emits its own 3-square light radius (walls still block it)">
+            <input type="checkbox" checked={playerGlow} disabled={!isGM}
+              onChange={e => onSetPlayerGlow && onSetPlayerGlow(e.target.checked)}
+              style={{ margin: 0, cursor: isGM ? 'pointer' : 'default' }} />
+            Players Glow
+          </label>
+          {isGM && (
+            <button onClick={() => setDefaultTilesOnly(v => !v)}
+              title="Force plain labeled tile colors instead of Master Atlas/tileset graphics, and hide the scene background image — see the mechanical effects clearly without any artsy overlay"
+              style={{ background: defaultTilesOnly ? 'rgba(200,150,42,.3)' : 'rgba(107,78,40,.3)', border: `1px solid ${defaultTilesOnly ? 'var(--gold)' : 'rgba(107,78,40,.5)'}`, color: defaultTilesOnly ? 'var(--gold)' : 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 10, lineHeight: 1.6 }}>
+              {defaultTilesOnly ? 'Showing Default Tiles' : 'Default Tiles Only'}
+            </button>
+          )}
           {isGM && (
             <button onClick={() => { setEditMode(m => !m); setBrush(null); setSelected(null); setDragging(null); }}
               title="Paint terrain tiles onto the grid"
@@ -822,21 +881,16 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
             if (editMode) return;
             if (dragging) return;
             if (!selected) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            // With viewBox zoom: scale from screen coords to SVG coords, then to grid cells
-            const svgW = parseFloat(e.currentTarget.getAttribute('width')) || W;
-            const vb = (e.currentTarget.getAttribute('viewBox') || `0 0 ${W} ${W}`).split(' ').map(Number);
-            const [vx, vy, vw, vh] = vb;
-            const x = Math.floor((((e.clientX - rect.left) / rect.width) * vw + vx) / CELL);
-            const y = Math.floor((((e.clientY - rect.top)  / rect.height) * vh + vy) / CELL);
-            handleCellClick(x, y);
+            const coords = getSVGCoords(e);
+            if (!coords) return;
+            handleCellClick(coords.gridX, coords.gridY);
           }}
           onMouseMove={handleSVGMouseMove}
           onMouseUp={handleSVGMouseUp}
           onMouseLeave={() => { setHoverCell(null); if (dragging) { setDragging(null); setDragPos(null); } if (isPainting) commitPaint(); }}
           onDoubleClick={handleDblClick}>
 
-          {settingBg && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
+          {settingBg && !defaultTilesOnly && <image href={settingBg} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
 
           {Array.from({ length: gridSize + 1 }, (_, i) => (
             <g key={i}>
@@ -845,12 +899,48 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
             </g>
           ))}
 
-          {/* Terrain tiles — text stand-ins until the master atlas image exists */}
+          {/* Master Atlas patterns — one per unique tile type actually on this grid (not per cell),
+              so the browser only crops as many sub-regions of the shared atlas image as needed. */}
+          {atlasUrl && themeRow !== null && themeRow !== undefined && !defaultTilesOnly && (
+            <defs>
+              {[...new Set(Object.values(displayTiles).filter(Boolean).map(t => t.type))]
+                .filter(type => ATLAS_COLUMNS[type] !== undefined)
+                .map(type => {
+                  const col = ATLAS_COLUMNS[type];
+                  const scale = CELL / ATLAS_TILE; // atlas source px → this grid's render px
+                  return (
+                    <pattern key={`atlas-${type}`} id={`atlas-pat-${type}`} width={CELL} height={CELL} patternUnits="userSpaceOnUse">
+                      <image href={atlasUrl}
+                        x={-col * ATLAS_TILE * scale} y={-themeRow * ATLAS_TILE * scale}
+                        width={ATLAS_SIZE * scale} height={ATLAS_SIZE * scale} />
+                    </pattern>
+                  );
+                })}
+            </defs>
+          )}
+
+          {/* Terrain tiles — Master Atlas graphic if a tileset row + atlas image are both set (and
+              Default Tiles Only isn't on), else a per-type default image (Tileset tab), else the
+              plain color+label stand-in. */}
           {Object.entries(displayTiles).map(([key, t]) => {
             if (!t) return null;
             const def = TILE_TYPES.find(tt => tt.key === t.type);
             if (!def) return null;
             const [tx, ty] = key.split(',').map(Number);
+            const hasAtlas = !defaultTilesOnly && atlasUrl && themeRow !== null && themeRow !== undefined && ATLAS_COLUMNS[t.type] !== undefined;
+            const defaultImg = !defaultTilesOnly && !hasAtlas && tileDefaultImages[t.type];
+            if (hasAtlas) {
+              return (
+                <rect key={`tile-${key}`} x={tx * CELL} y={ty * CELL} width={CELL} height={CELL}
+                  fill={`url(#atlas-pat-${t.type})`} style={{ pointerEvents: 'none' }} />
+              );
+            }
+            if (defaultImg) {
+              return (
+                <image key={`tile-${key}`} href={defaultImg} x={tx * CELL} y={ty * CELL} width={CELL} height={CELL}
+                  preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: 'none' }} />
+              );
+            }
             return (
               <g key={`tile-${key}`} style={{ pointerEvents: 'none' }}>
                 <rect x={tx * CELL + 1} y={ty * CELL + 1} width={CELL - 2} height={CELL - 2} fill={def.color} opacity="0.4" rx="2" />
@@ -970,6 +1060,20 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
                 <circle cx={cx} cy={cy} r={r + 1} fill={ringColor + '33'} stroke={isDead ? '#600010' : ringColor} strokeWidth="1.5" opacity={isDead ? 0.5 : 1} />
                 <circle cx={cx} cy={cy} r={r} fill={isDead ? '#1a0808' : '#1a1208'} />
                 {tokenUrl ? (() => {
+                  if (pc?.token_circle) {
+                    // Old behavior, opt-in per character: crop into a circle via clipPath.
+                    const clipId = `tok-circle-${c.id.replace(/[^a-z0-9]/gi, '')}`;
+                    return (
+                      <>
+                        <defs>
+                          <clipPath id={clipId}><circle cx={cx} cy={cy} r={r} /></clipPath>
+                        </defs>
+                        <image href={tokenUrl} x={cx - r} y={cy - r} width={r * 2} height={r * 2}
+                          clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
+                          opacity={isDead ? 0.4 : 1} />
+                      </>
+                    );
+                  }
                   // Fit the portrait's width to the token square and keep its real aspect ratio —
                   // taller portraits extend upward above the square instead of being squashed/cropped
                   // into a circle. Bottom edge stays anchored at the square's base (cy + r).
@@ -1029,6 +1133,16 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
                 <circle cx={dragPos.svgX} cy={dragPos.svgY} r={r + 1} fill="rgba(200,150,42,.2)" stroke="var(--gold)" strokeWidth="2" />
                 <circle cx={dragPos.svgX} cy={dragPos.svgY} r={r} fill="#1a1208" />
                 {tokenUrl ? (() => {
+                  if (pc?.token_circle) {
+                    const clipId = `drag-ghost-circle-${dragging.id.replace(/[^a-z0-9]/gi, '')}`;
+                    return (
+                      <>
+                        <defs><clipPath id={clipId}><circle cx={dragPos.svgX} cy={dragPos.svgY} r={r} /></clipPath></defs>
+                        <image href={tokenUrl} x={dragPos.svgX - r} y={dragPos.svgY - r} width={r * 2} height={r * 2}
+                          clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice" />
+                      </>
+                    );
+                  }
                   const aspect = tokenAspects[tokenUrl] || 1;
                   const w = r * 2;
                   const h = aspect > 0 ? w / aspect : w;
@@ -1518,7 +1632,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted' }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted', playerGlowDefault = false }) {
   // Ownership checks must use the full set of characters this player controls, not just the
   // first-ever-claimed one — a player with two claimed characters was invisible to every
   // "is this mine" check below whenever their second character was the one up. Falls back to
@@ -1549,28 +1663,49 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   const GRID_SIZE = setup?.gridSize || 24;
   // Per-cell terrain data — sparse map keyed "x,y" -> { type, radius? } (radius only used by 'light' tiles)
   const gridTiles = encounter.gridTiles || {};
+  // Master Atlas + per-type default images (Tileset tab, dev-only) — fetched once here and passed
+  // down to BattleGrid, which does the actual atlas-column cropping per tile type/theme row.
+  const [atlasUrl, setAtlasUrl] = useState('');
+  const [tileDefaultImages, setTileDefaultImages] = useState({});
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      setAtlasUrl(data?.settings?.master_atlas_url || '');
+      setTileDefaultImages(data?.settings?.tile_default_images || {});
+    });
+  }, []);
   const lightingMode = encounter.lightingMode !== false; // on by default
+  const playerGlow = !!encounter.playerGlow; // PC tokens emit their own light radius — off unless the encounter set it (from the GM Settings default at start, or toggled live)
+  // Fills a radius (Euclidean, wall-blocked via the shared raycast) around a source cell into `set`
+  const fillLightRadius = (set, lx, ly, radius) => {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.sqrt(dx * dx + dy * dy) > radius) continue;
+        const nx = lx + dx, ny = ly + dy;
+        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+        // Walls block light — a cell within radius but behind a wall from the light source's
+        // point of view doesn't get lit, same raycast used for (future) ranged-attack LOS blocking.
+        if (!hasLineOfSight(lx, ly, nx, ny, gridTiles)) continue;
+        set.add(`${nx},${ny}`);
+      }
+    }
+  };
   const litCells = React.useMemo(() => {
     if (!lightingMode) return null;
     const set = new Set();
     Object.entries(gridTiles).forEach(([key, t]) => {
       if (t?.type !== 'light') return;
       const [lx, ly] = key.split(',').map(Number);
-      const radius = t.radius || 3;
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          if (Math.sqrt(dx * dx + dy * dy) > radius) continue;
-          const nx = lx + dx, ny = ly + dy;
-          if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
-          // Walls block light — a cell within radius but behind a wall from the light source's
-          // point of view doesn't get lit, same raycast used for (future) ranged-attack LOS blocking.
-          if (!hasLineOfSight(lx, ly, nx, ny, gridTiles)) continue;
-          set.add(`${nx},${ny}`);
-        }
-      }
+      fillLightRadius(set, lx, ly, t.radius || 3);
     });
+    if (playerGlow) {
+      (combatants || []).forEach(c => {
+        if (c.type !== 'pc' || c.gridX === undefined || c.gridY === undefined) return;
+        fillLightRadius(set, c.gridX, c.gridY, 3);
+      });
+    }
     return set;
-  }, [gridTiles, lightingMode, GRID_SIZE]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridTiles, lightingMode, playerGlow, combatants, GRID_SIZE]);
   // Enemy cards are hidden from players (not the GM) while their token sits outside every light radius
   const isEnemyShrouded = (c) => {
     if (isGM && !isPCView) return false;
@@ -1791,8 +1926,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   };
 
   const beginEncounter = (s) => {
+    // Participants can include both PCs and Full NPCs (characters table rows with is_npc: true,
+    // e.g. a promoted named villain) — default to PCs only when nothing's been explicitly chosen,
+    // since auto-joining every Full NPC in the roster to every encounter would be surprising.
     const participantIds = s.participantIds || characters.filter(c => !c.is_npc).map(c => c.id);
-    const participants = characters.filter(c => participantIds.includes(c.id) && !c.is_npc);
+    const participants = characters.filter(c => participantIds.includes(c.id));
     const G = s.gridSize || 24;
     const centerY = Math.floor(G / 2);
     const tiles = s.gridTiles || {};
@@ -1828,24 +1966,35 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
 
     const pcCombatants = participants.map((pc, i) => {
       let col, row;
-      if (pcStartSeeds.length > 0) {
+      // Full NPCs (checked Participants, is_npc: true) spawn on the enemy side like other NPCs,
+      // rather than competing with real PCs for the PC Start tiles / party-side column.
+      if (pc.is_npc) {
+        col = G - 3;
+        row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.filter(p => p.is_npc).length / 2) + i));
+      } else if (pcStartSeeds.length > 0) {
         const seed = pcStartSeeds[i % pcStartSeeds.length];
         const cell = findNearestFreeCell(G, tiles, occupied, seed.x, seed.y);
-        if (cell) { col = cell.x; row = cell.y; occupied.add(`${col},${row}`); }
+        if (cell) { col = cell.x; row = cell.y; }
         // else: leave col/row undefined — PC lands in the unplaced-combatant tray, same as when
         // the grid is entirely full for a mid-encounter add.
       } else {
         col = 2;
         row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.length / 2) + i));
-        occupied.add(`${col},${row}`);
       }
+      if (col !== undefined) occupied.add(`${col},${row}`);
       const ref = pc.reflexes || 2;
       const ir = pc.insight_rank || pc.school_rank || 1;
-      const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
-      const sorted = [...dice].sort((a,b) => b - a);
-      const baseInit = sorted.slice(0, ref).reduce((s,d) => s + d, 0);
+      // Full NPCs are GM-controlled, no player to interactively roll/reroll — auto-roll like other
+      // NPC combatants (rollExplodingKeep) instead of the PC's roll-and-keep-highest formula.
+      const baseInit = pc.is_npc
+        ? rollExplodingKeep(ref + ir, ref)
+        : (() => {
+            const dice = Array.from({length: ref + ir}, () => Math.floor(Math.random() * 10) + 1);
+            const sorted = [...dice].sort((a,b) => b - a);
+            return sorted.slice(0, ref).reduce((s,d) => s + d, 0);
+          })();
       return {
-        id: pc.id, name: pc.name, type: 'pc',
+        id: pc.id, name: pc.name, type: pc.is_npc ? 'npc' : 'pc',
         school: pc.school, faction: pc.faction,
         reflexes: pc.reflexes, agility: pc.agility, air: pc.air, fire: pc.fire,
         earth: pc.earth || 2, water: pc.water || 2, strength: pc.strength || 2,
@@ -1856,7 +2005,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         wound: getWoundRank(pc.current_wounds, pc.max_wounds),
         stance: 'Attack',
         init: baseInit,
-        _initRolled: false, // players can reroll their own initiative
+        _initRolled: !!pc.is_npc, // Full NPCs: already rolled, no reroll UI. PCs: players can reroll their own.
         dr: pc.current_weapon?.match(/\((\dk\d)\)/)?.[1] || '3k2',
         drawnWeapon: pc.current_weapon || 'Unarmed (1k1)',
         statusEffects: [], _action: null,
@@ -1866,7 +2015,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     });
 
     const all = [...pcCombatants, ...npcCombatants].sort((a, b) => b.init - a.init);
-    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {} });
+    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {}, playerGlow: playerGlowDefault });
     setNpcTargets({});
   };
 
@@ -1887,7 +2036,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       const centerCarryBonus = currentCombatant?.stance === 'Center' ? (currentCombatant._centerBonus || true) : false;
       nextCombatants = nextCombatants.map((c, i) => {
         let updated = i === nextIdx
-          ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0,
+          ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0, _tookNonMoveAction: false,
               // Refresh startX/Y to current position at start of each turn — range is measured from here
               startX: c.gridX !== undefined ? c.gridX : c.startX,
               startY: c.gridY !== undefined ? c.gridY : c.startY }
@@ -1968,7 +2117,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   };
 
   // Spend an action for the active combatant; auto-advance if spent
-  const spendAction = (type = 'full') => {
+  const spendAction = (type = 'full', isMove = false) => {
     const c = combatants[activeTurn];
     if (!c) return;
     const actions = c._actionsLeft || { full: 1, simple: 2 };
@@ -1980,7 +2129,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       next = { ...actions, simple: remaining };
       if (remaining <= 0) next.full = 0;
     }
-    const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next, _centerBonusPending: false } : x);
+    const newCombatants = combatants.map((x, i) => i === activeTurn ? { ...x, _actionsLeft: next, _centerBonusPending: false, ...(isMove ? {} : { _tookNonMoveAction: true }) } : x);
     upEnc({ combatants: newCombatants });
     // Player manually passes turn with the Pass Turn button — no auto-advance
   };
@@ -3337,6 +3486,11 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
               lightingMode={lightingMode}
               litCells={litCells}
               onSetLightingMode={(val) => upEnc({ lightingMode: val })}
+              playerGlow={playerGlow}
+              onSetPlayerGlow={(val) => upEnc({ playerGlow: val })}
+              atlasUrl={atlasUrl}
+              tileDefaultImages={tileDefaultImages}
+              themeRow={setup?.themeRow}
               onQuickTarget={(targetId, action) => setQuickTargetRequest({ targetId, action, ts: Date.now() })}
               onPaintTiles={(patch) => {
                 const merged = { ...gridTiles };
@@ -3498,6 +3652,18 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
             upEnc({
               combatants: combatants.map(c => c.id === active.id ? { ...c, _movesUsed: movesUsed } : c),
               showGrid: true, // auto-open grid when moving
+            });
+          }}
+          onUndoMove={() => {
+            const movesUsed = active._movesUsed || 0;
+            upEnc({
+              combatants: combatants.map(c => c.id === active.id ? {
+                ...c,
+                gridX: c.startX, gridY: c.startY,
+                _movesUsed: 0,
+                _actionsLeft: { ...(c._actionsLeft || { full: 1, simple: 2 }), simple: Math.min(2, (c._actionsLeft?.simple ?? 2) + movesUsed) },
+                statusEffects: (c.statusEffects || []).filter(e => !e.startsWith('Terrain: ')),
+              } : c),
             });
           }}
           onPass={(freeActionText) => {

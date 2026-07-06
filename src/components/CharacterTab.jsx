@@ -1411,9 +1411,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         return null;
       })()}
 
-      {/* ── Top card: Portrait + Name/Avatar + Rings + Status/Wounds ── */}
+      {/* ── Card 1: Portrait + Identity ── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* Portrait column — large, scaleable by GM setting */}
           {avatarUrl && !imgError ? (
@@ -1542,8 +1542,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <input type="text" value={tokenDraft} onChange={e => setTokenDraft(e.target.value)}
                   onBlur={() => { if (tokenDraft !== (char.token_url || '')) update('token_url', tokenDraft); }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
-                  placeholder="https://... (leave blank to use silhouette)" style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem' }}>
+                  placeholder="https://... (leave blank to use silhouette)" style={{ width: '100%', fontSize: 12, marginBottom: '.35rem' }} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', cursor: 'pointer' }}
+                  title="On: crop the token into a circle (the old way). Off: fit the image's width to the token square, keep its real aspect ratio, and let it bleed upward if taller.">
+                  <input type="checkbox" checked={!!char.token_circle} onChange={e => update('token_circle', e.target.checked)} />
+                  Crop token to a circle
+                </label>                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: '.5rem' }}>
                   {AVATAR_TYPES.map(at => (
                     <div key={at.id} onClick={() => update('avatar_type', at.id)} title={at.label}
                       style={{ width: 28, height: 36, borderRadius: 3, background: avatarType === at.id ? avatarColor + '22' : 'var(--bg-panel)', border: `1px solid ${avatarType === at.id ? avatarColor : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -1644,11 +1648,14 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               })()}
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* ── Rings Diagram — five interlocking rings, prominent top-center ── */}
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-            {(() => {
-              const RING_COLORS = { Air: '#a0c0e0', Earth: '#80c090', Fire: '#e09050', Water: '#60b0d0', Void: '#c0a0e0' };
+      {/* ── Card 2: Rings Diagram — five interlocking rings ── */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {(() => {
+            const RING_COLORS = { Air: '#a0c0e0', Earth: '#80c090', Fire: '#e09050', Water: '#60b0d0', Void: '#c0a0e0' };
               const rings = [
                 { key: 'Fire',  val: char.fire,  cx: 145, cy: 70,  traits: [['Agility', char.agility],['Intelligence', char.intelligence]], side: 'left' },
                 { key: 'Air',   val: char.air,   cx: 255, cy: 70,  traits: [['Reflexes', char.reflexes],['Awareness', char.awareness]], side: 'right' },
@@ -1658,8 +1665,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               ];
               const W = 430, H = 290;
               return (
-                <div style={{ position: 'relative' }}>
-                  <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
+                <div style={{ position: 'relative', width: '100%', maxWidth: W }}>
+                  <svg viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible', width: '100%', height: 'auto', display: 'block' }}>
                     {/* Decorative interlocking ring strokes */}
                     {rings.map(r => (
                       <circle key={r.key + '_ring'} cx={r.cx} cy={r.cy} r={62}
@@ -1745,6 +1752,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               );
             })()}
           </div>
+        </div>
+
+      {/* ── Card 3: Wounds & Social Stats ── */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* ── Social Stats — top right column ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90, order: 3 }}>

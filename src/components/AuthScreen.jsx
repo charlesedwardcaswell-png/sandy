@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GM_PASSWORD, GAME_ID } from '../data/constants';
 import { supabase } from '../lib/supabase';
+import { playLogin } from '../lib/sounds';
 
 export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLogin }) {
   const [selected, setSelected] = useState(null);
@@ -22,21 +23,21 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLo
   const tryLogin = () => {
     setError('');
     // Developer backdoor — works regardless of which slot is selected; never displayed in UI
-    if (pw === 'dev') { onDeveloperLogin(); return; }
+    if (pw === 'dev') { playLogin(); onDeveloperLogin(); return; }
     if (selected === 'gm') {
-      if (pw === gmPassword) { onGMLogin(); return; }
+      if (pw === gmPassword) { playLogin(); onGMLogin(); return; }
       setError('Incorrect GM password.');
     } else if (selected === 'player') {
       // Try named accounts first
       if (playerAccounts.length > 0) {
         const match = playerAccounts.find(a => a.username.toLowerCase() === username.toLowerCase() && a.password === pw);
-        if (match) { onPlayerLogin(match.username); return; }
+        if (match) { playLogin(); onPlayerLogin(match.username); return; }
         // Fallback: if no username, try password-only match against any account
-        if (!username && playerAccounts.some(a => a.password === pw)) { onPlayerLogin('Player'); return; }
+        if (!username && playerAccounts.some(a => a.password === pw)) { playLogin(); onPlayerLogin('Player'); return; }
         setError('Incorrect username or password.');
       } else {
         // Fallback to old single password
-        if (pw === 'test') { onPlayerLogin('Player'); return; }
+        if (pw === 'test') { playLogin(); onPlayerLogin('Player'); return; }
         setError('Incorrect player password.');
       }
     }
@@ -84,7 +85,7 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLo
         )}
 
         <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-          <button className="btn btn-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }} onClick={onObserver}>
+          <button className="btn btn-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }} onClick={() => { playLogin(); onObserver(); }}>
             <i className="ti ti-eye" style={{ fontSize: 12, marginRight: 4 }} />
             Enter as Observer (read-only)
           </button>

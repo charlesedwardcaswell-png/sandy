@@ -199,6 +199,7 @@ export default function EncounterBuilder({
     participantIds: null,
     gridSize: 24,
     presetGridId: null,
+    themeRow: null,
     gridTiles: {},
     ...initialSetup,
   });
@@ -261,14 +262,14 @@ export default function EncounterBuilder({
             <select value={s.presetGridId || ''} style={{ width: '100%' }} onChange={e => {
               const g = savedGrids.find(g => g.id === e.target.value);
               const keepManual = (s.selectedNPCs || []).filter(n => !n._fromPresetGrid);
-              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, selectedNPCs: keepManual }); return; }
+              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual }); return; }
               // Prebuilt NPCs (built-in library only) painted onto this saved grid in the Battle Grid
               // Creator — carry their saved x/y through as gridX/gridY so beginEncounter places them
               // there directly instead of using its automatic column-based placement.
               const prebuilt = (g.prebuiltNpcs || [])
                 .filter(n => n.x !== null && n.x !== undefined && n.y !== null && n.y !== undefined)
                 .map(n => ({ ...n, id: n.id || `npc_preset_${Date.now()}_${Math.random()}`, gridX: n.x, gridY: n.y, _fromPresetGrid: true }));
-              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, selectedNPCs: [...keepManual, ...prebuilt] });
+              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt] });
             }}>
               <option value="">— None, set up manually —</option>
               {savedGrids.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
@@ -355,7 +356,9 @@ export default function EncounterBuilder({
           )}
         </div>
 
-        {/* Participants — only shown in live mode */}
+        {/* Participants — only shown in live mode. Includes both PCs and Full NPCs (characters
+            table rows with is_npc: true, e.g. a promoted named villain) — Full NPCs default to
+            unchecked so they don't silently auto-join every encounter; PCs default to checked. */}
         {mode === 'live' && (
           <div style={{ marginBottom: '1rem' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Participants</span>
@@ -364,16 +367,18 @@ export default function EncounterBuilder({
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
                 {characters.map(c => {
-                  const participantIds = s.participantIds || characters.map(ch => ch.id);
+                  const defaultIds = characters.filter(ch => !ch.is_npc).map(ch => ch.id);
+                  const participantIds = s.participantIds || defaultIds;
                   const included = participantIds.includes(c.id);
                   return (
                     <label key={c.id} className="chk-row" style={{ border: '1px solid var(--border)', borderRadius: 5, padding: '.3rem .6rem', margin: 0, cursor: 'pointer', opacity: included ? 1 : .5 }}>
                       <input type="checkbox" checked={included} onChange={() => {
-                        const current = s.participantIds || characters.map(ch => ch.id);
+                        const current = s.participantIds || defaultIds;
                         const next = included ? current.filter(id => id !== c.id) : [...current, c.id];
                         upS({ participantIds: next });
                       }} />
                       {c.name}
+                      {c.is_npc && <span style={{ fontSize: 10, color: 'var(--gold-dim)', marginLeft: 4 }}>NPC</span>}
                     </label>
                   );
                 })}

@@ -128,6 +128,21 @@ export function useActiveSession() {
     return data;
   };
 
+  // Restores an archived session (started and/or closed) back to prepped status — doesn't touch any
+  // of its recorded history (recap, encounter_log, etc.), just flips it back to selectable in Session
+  // Prep. Refuses to unretire the CURRENTLY active session (that's what "End Session" is for).
+  const unretireSession = async (sessionId) => {
+    const target = allSessions.find(s => s.id === sessionId);
+    if (!target || target.id === session?.id) return;
+    const { data, error } = await supabase.from('sessions')
+      .update({ is_active: false, closed_at: null })
+      .eq('id', sessionId)
+      .select()
+      .single();
+    if (error) { console.error('unretireSession failed:', error.message); return; }
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? data : s));
+  };
+
   const endSession = async (sessionId, recap = '') => {
     await supabase
       .from('sessions')
@@ -212,7 +227,7 @@ export function useActiveSession() {
       .sort((a, b) => a.session_number - b.session_number));
   };
 
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: fetch };
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────

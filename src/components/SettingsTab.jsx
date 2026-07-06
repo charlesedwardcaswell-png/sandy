@@ -182,6 +182,8 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const [portraitScale, setPortraitScale] = useState(1.0);
   const [downtimeMode, setDowntimeMode] = useState('gm_granted'); // 'unlimited' | 'gm_granted' | 'set_number'
   const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
+  const [hideFeedbackTab, setHideFeedbackTab] = useState(false);
+  const [playerGlowDefault, setPlayerGlowDefault] = useState(false);
   const [downtimeActionsPerChar, setDowntimeActionsPerChar] = useState(3);
   const [arrowTracking, setArrowTracking] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
@@ -204,6 +206,8 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         if (data.settings.portrait_scale !== undefined) setPortraitScale(data.settings.portrait_scale || 1.0);
         if (data.settings.downtime_mode) setDowntimeMode(data.settings.downtime_mode);
         if (data.settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!data.settings.hide_shop_from_players);
+        if (data.settings.hide_feedback_tab !== undefined) setHideFeedbackTab(!!data.settings.hide_feedback_tab);
+        if (data.settings.player_glow_default !== undefined) setPlayerGlowDefault(!!data.settings.player_glow_default);
         if (data.settings.downtime_actions_per_char) setDowntimeActionsPerChar(data.settings.downtime_actions_per_char);
         if (data.settings.arrow_tracking !== undefined) setArrowTracking(!!data.settings.arrow_tracking);
         if (data.settings.starting_cp !== undefined) setStartingCP(data.settings.starting_cp || 45);
@@ -214,7 +218,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers, hide_feedback_tab: hideFeedbackTab, player_glow_default: playerGlowDefault } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
@@ -569,6 +573,26 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Rings Overlay</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shows the district-ring guide lines (Outer City, Merchant District, Faction Quarter, Noble District, Palace) on the surface map layer.</div>
+              </div>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={hideFeedbackTab}
+                onChange={e => { setHideFeedbackTab(e.target.checked); setTimeout(saveImageSettings, 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide Feedback Tab</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab entirely — for everyone, including the GM. Unlike the Shop tab's hide toggle, there's no GM-only exception.</div>
+              </div>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={playerGlowDefault}
+                onChange={e => { setPlayerGlowDefault(e.target.checked); setTimeout(saveImageSettings, 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Players Glow (default)</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>New encounters start with each PC token emitting its own 3-square light radius (walls still block it), on top of any GM-painted light tiles. Can still be toggled per-encounter next to the Lighting checkbox on the Battle Grid.</div>
               </div>
             </label>
 

@@ -10,7 +10,7 @@ import { QuestCreateForm } from './QuestTab';
 // Quest creation is the one exception: available here too (in addition to the Quests tab, per Charles)
 // via the same shared QuestCreateForm, since prepping a session is a natural place to jot down a new
 // objective without leaving Preparation.
-export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [], characters = [], onSaveReveals, onCreatePrepSession, onSavePreparedEncounters, npcsFromLog = [], onCreateQuest }) {
+export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [], characters = [], onSaveReveals, onCreatePrepSession, onSavePreparedEncounters, npcsFromLog = [], onCreateQuest, onUnretireSession }) {
   const [sessionId, setSessionId] = useState('');
   const [shops, setShops] = useState([]);
   const [gmInventory, setGmInventory] = useState([]);
@@ -57,6 +57,11 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
 
   const pcChars = characters.filter(c => !c.is_npc);
   const preppedSessions = allSessions.filter(s => !s.is_active && !s.closed_at);
+  // Archived = anything that's been started and/or closed — once a prepped session is used, it drops
+  // out of the picker above (correct, it's no longer "prepped"), but Charles wants a way to still find
+  // and, if needed, un-retire it back to prepped status without losing any of its recorded history.
+  const archivedSessions = allSessions.filter(s => s.is_active || s.closed_at);
+  const [archivedId, setArchivedId] = useState('');
 
   useEffect(() => {
     const activeSess = allSessions.find(s => s.id === sessionId);
@@ -151,6 +156,23 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
             <option value="">— choose a prepared session —</option>
             {preppedSessions.map(s => <option key={s.id} value={s.id}>{s.title || `Session ${s.session_number}`}</option>)}
           </select>
+        )}
+        {archivedSessions.length > 0 && (
+          <div style={{ marginTop: '.5rem', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={archivedId} onChange={e => setArchivedId(e.target.value)} style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
+              <option value="">— archived (started/closed) sessions —</option>
+              {archivedSessions.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.title || `Session ${s.session_number}`}{s.is_active ? ' (active)' : s.closed_at ? ' (closed)' : ''}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-sm" disabled={!archivedId || archivedSessions.find(s => s.id === archivedId)?.is_active}
+              title={archivedSessions.find(s => s.id === archivedId)?.is_active ? "Can't un-retire the currently active session — use End Session for that" : 'Move this session back to Prepared (its recap, encounter log, etc. are untouched)'}
+              onClick={() => { if (onUnretireSession && archivedId) { onUnretireSession(archivedId); setArchivedId(''); } }}>
+              <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Un-retire
+            </button>
+          </div>
         )}
       </div>
 
