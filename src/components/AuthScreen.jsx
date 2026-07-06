@@ -8,19 +8,23 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLo
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [playerAccounts, setPlayerAccounts] = useState([]);
+  // Live GM password: defaults to the constant, but a developer can override it
+  // from Settings → Players & Passwords (games.gm_password) without a code deploy.
+  const [gmPassword, setGmPassword] = useState(GM_PASSWORD);
 
   useEffect(() => {
-    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+    supabase.from('games').select('settings, gm_password').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.player_accounts) setPlayerAccounts(data.settings.player_accounts);
+      if (data?.gm_password) setGmPassword(data.gm_password);
     });
   }, []);
 
   const tryLogin = () => {
     setError('');
     // Developer backdoor — works regardless of which slot is selected; never displayed in UI
-    if (pw === '9595') { onDeveloperLogin(); return; }
+    if (pw === 'dev') { onDeveloperLogin(); return; }
     if (selected === 'gm') {
-      if (pw === GM_PASSWORD) { onGMLogin(); return; }
+      if (pw === gmPassword) { onGMLogin(); return; }
       setError('Incorrect GM password.');
     } else if (selected === 'player') {
       // Try named accounts first

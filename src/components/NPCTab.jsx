@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS, CREATURES_LIBRARY } from '../data/constants';
-import { repColor, repLabel, getArchetype, getSchoolMaxRank, rollExplodingKeep } from '../lib/utils';
+import { repColor, repLabel, getArchetype, getSchoolMaxRank, rollExplodingKeep, findFreeGridCell } from '../lib/utils';
 
 // ── Faction lore blurbs ───────────────────────────────────────────────────────
 const FACTION_LORE = {
@@ -762,7 +762,11 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
       controllerId: npc.controller_id || null,
       sourceId: npc.id, sourceType: 'npc',
     };
-    setEncounter(e => ({ ...e, combatants: [...e.combatants, combatant].sort((a, b) => b.init - a.init) }));
+    setEncounter(e => {
+      const pos = findFreeGridCell(e.setup?.gridSize, e.gridTiles, e.combatants);
+      const placed = pos ? { ...combatant, gridX: pos.x, gridY: pos.y, startX: pos.x, startY: pos.y } : combatant;
+      return { ...e, combatants: [...e.combatants, placed].sort((a, b) => b.init - a.init) };
+    });
   };
 
   return (
@@ -926,8 +930,12 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
                         <span
                           style={{ flex: 1, color: n.disposition === 'friendly' ? '#4a8a40' : n.disposition === 'hostile' ? '#c84030' : 'var(--text-primary)' }}
                           onDoubleClick={e => { if (gmView) { e.stopPropagation(); setEditingNPCId(n.id); setEditingNPCName(n.name); } }}
-                          title={gmView ? 'Double-click to rename' : ''}
+                          title={gmView ? 'Double-click to rename' : `Faction standing: ${rep > 0 ? '+' : ''}${rep}`}
                         >
+                          {rep !== 0 && (
+                            <span title={`Faction standing: ${rep > 0 ? '+' : ''}${rep}`}
+                              style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginRight: 5, background: rep > 0 ? '#4a8a40' : '#c84030' }} />
+                          )}
                           {n.disposition === 'friendly' && <span style={{ fontSize: 9, marginRight: 3 }}>◆</span>}
                           {n.disposition === 'hostile' && <span style={{ fontSize: 9, marginRight: 3 }}>✦</span>}
                           {n.name}

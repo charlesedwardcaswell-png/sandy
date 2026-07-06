@@ -6,7 +6,7 @@ import SpellConstellation from './SpellConstellation';
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false, quickTargetRequest = null }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -26,6 +26,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     setStanceConfirmed(false);
     setSelectedAction(null);
   }, [combatantId]);
+  // Right-click token context menu on the Battle Grid sets this — jump straight to the chosen
+  // action with the target preselected, instead of requiring the target/action buttons below.
+  useEffect(() => {
+    if (!quickTargetRequest) return;
+    setSelectedTarget(quickTargetRequest.targetId);
+    setSelectedAction(quickTargetRequest.action);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickTargetRequest?.ts]);
   const [spellRaises, setSpellRaises] = useState(0);
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast

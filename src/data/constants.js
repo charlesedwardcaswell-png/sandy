@@ -1,6 +1,6 @@
 // ── Game constants ────────────────────────────────────────────────────────────
 export const GAME_ID = '843ba09a-1e47-46b3-80f0-b7b5279f9de0';
-export const GM_PASSWORD = 'gm1234';
+export const GM_PASSWORD = 'gm';
 
 export const WOUND_RANKS = ['Healthy','Nicked','Grazed','Hurt','Injured','Crippled','Down','Out'];
 export const WOUND_COLORS = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'];
@@ -401,6 +401,7 @@ export const POISONS_LIST = [
     craftTN: 10,
     craftNotes: '3 Raises: increase Trait loss to -2 or lower additional Trait. Void cannot be reduced.',
     disease: 'Causes same Trait loss again on day 2.',
+    craftInputItem: 'Belladonna Berries', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#6a6a30',
   },
   {
@@ -414,6 +415,7 @@ export const POISONS_LIST = [
     craftTN: 20,
     craftNotes: 'Administered via thread dripped into a sleeping victim. TN rises +5 per hour.',
     disease: 'Incubates 1 day; manifests overnight. Loss of energy and motivation.',
+    craftInputItem: 'Shosuro Poppy Pods', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#6a4a20',
   },
   {
@@ -427,6 +429,7 @@ export const POISONS_LIST = [
     craftTN: 55,
     craftNotes: 'TN 50 to identify only. No known cure in the Burning Sands.',
     disease: 'No natural disease kills as effectively.',
+    craftInputItem: 'Strychnos Nut Crystals', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#8a1a1a',
   },
   {
@@ -440,6 +443,7 @@ export const POISONS_LIST = [
     craftTN: 25,
     craftNotes: '2 Raises: +1k1 damage OR +1 Agility penalty. Agility penalty lasts full day.',
     disease: 'Contact or ingested. Effects every morning. Agility penalty reduced to -1.',
+    craftInputItem: 'Red Cinnabar Clay', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#8a3a10',
   },
   {
@@ -453,6 +457,7 @@ export const POISONS_LIST = [
     craftTN: 30,
     craftNotes: '2 Raises: extends duration by 1 day. Cannot kill via Trait loss alone.',
     disease: 'Effects reapplied daily. 0 Int or Will triggers coma; death after 3 days untreated.',
+    craftInputItem: 'Dried Madder-Root Bundle', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#7a4a6a',
   },
   {
@@ -466,6 +471,7 @@ export const POISONS_LIST = [
     craftTN: 35,
     craftNotes: 'Heal TN reduced by 5 per Stamina point lost. Recovery: +1 Stamina per 2 weeks of rest after exposure ends.',
     disease: 'Effects continue 1 week after exposure ends.',
+    craftInputItem: 'Oleander Nectar', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#4a6a4a',
   },
   {
@@ -492,6 +498,7 @@ export const POISONS_LIST = [
     craftTN: 10,
     craftNotes: 'TN 30 to synthesize without actual venom. 2 Raises: adds blindness after 2 failed rolls.',
     disease: 'Rolls measured in days. Joint aches and spasms.',
+    craftInputItem: 'Venom-Milking Vial (snake) or Preserved Stinger Venom (scorpion)', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#5a6a20',
   },
   {
@@ -518,6 +525,7 @@ export const POISONS_LIST = [
     craftTN: 30,
     craftNotes: 'TN 40 to diagnose as poison (requires Antidote emphasis). Closely resembles disease.',
     disease: 'Mechanically identical to Isora Anger disease.',
+    craftInputItem: 'Strangle-Weed Petals', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#4a5a6a',
   },
   {
@@ -531,6 +539,7 @@ export const POISONS_LIST = [
     craftTN: 25,
     craftNotes: '1 Raise: extends duration by 8 hours.',
     disease: '+1 Stamina loss per day, fatigue added to nausea.',
+    craftInputItem: 'Black Lotus Extract', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#6a3a5a',
   },
 ];
@@ -543,6 +552,7 @@ export const POWDERS_LIST = [
     craft: 'Intelligence / Poison TN 25 per dose (1 copper ingredients). +2 Raises per extra effect. +1 Raise: safe to spit from own mouth.',
     effects: ['Blindness', 'Choking (Stamina TN 15 per action or lose it)', 'Itching (-10 Initiative)', 'Nausea (-1 rolled die on Stamina/Agility)'],
     note: 'Flushing with water reduces duration by 3 rounds per round spent. No unskilled penalty on attack.',
+    craftInputItem: 'Ground Arsenic Ore', craftInputCost: '1 Copper', dosesProduced: 1,
     color: '#7a3a3a',
   },
   {
@@ -552,6 +562,7 @@ export const POWDERS_LIST = [
     craft: 'Craft (Powders) TN 10 per dose. Free materials (dirt/refuse). +2 Raises per extra effect.',
     effects: ['Blindness', 'Choking (Stamina TN 15 per action or lose it)', 'Itching (-10 Initiative)'],
     note: 'Easier to craft and explain. Masks grant +10 TN to be hit by any powder attack.',
+    craftInputItem: 'Bleached Gypsum Dust', craftInputCost: 'Free', dosesProduced: 1,
     color: '#6a5a30',
   },
 ];
@@ -954,10 +965,20 @@ export function getShieldBonus(equipment = []) {
   (equipment || []).forEach(item => {
     if (!item.equipped) return;
     const shieldData = SHIELDS.find(s => s.name === item.name);
-    if (!shieldData) return;
-    tnBonus = Math.max(tnBonus, shieldData.tnBonus);
-    reduction = Math.max(reduction, shieldData.reduction);
-    penalty = Math.min(penalty, SHIELD_ATTACK_PENALTY[shieldData.size] || 0); // most negative wins
+    if (shieldData) {
+      tnBonus = Math.max(tnBonus, shieldData.tnBonus);
+      reduction = Math.max(reduction, shieldData.reduction);
+      penalty = Math.min(penalty, SHIELD_ATTACK_PENALTY[shieldData.size] || 0); // most negative wins
+      return;
+    }
+    // Reskinned/renamed shield items (Item Creator's base-item picker, base category "Shield") carry
+    // their own explicit tn_bonus/reduction/size fields instead of matching a SHIELDS entry by name —
+    // without this, a renamed shield silently lost its bonus entirely once its name no longer matched.
+    if (item.is_shield && typeof item.tn_bonus === 'number') {
+      tnBonus = Math.max(tnBonus, item.tn_bonus);
+      if (typeof item.reduction === 'number') reduction = Math.max(reduction, item.reduction);
+      if (item.size) penalty = Math.min(penalty, SHIELD_ATTACK_PENALTY[item.size] || 0);
+    }
   });
   return { tnBonus, reduction, attackPenalty: penalty };
 }
@@ -970,6 +991,7 @@ export function getArmorBonus(equipment = []) {
   (equipment || []).forEach(item => {
     if (!item.equipped) return;
     if (SHIELDS.some(s => s.name === item.name)) return; // shields handled separately by getShieldBonus, added below
+    if (item.is_shield) return; // reskinned shield item — also handled by getShieldBonus, not body armor
     // Magic armor items (from MagicItemCreator) carry an explicit tn_bonus field — check that first
     if (typeof item.tn_bonus === 'number') { best = Math.max(best, item.tn_bonus); return; }
     const name = item.name || '';

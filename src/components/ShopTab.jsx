@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, GAME_ID, POISONS_LIST, SHIELDS } from '../data/constants';
 import PoisonReferenceModal from './PoisonReferenceModal';
-import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
+import { MagicItemBadge } from './MagicItemCreator';
 import { RulebookEntryButton } from './UI';
 import { supabase } from '../lib/supabase';
 import { rollExplodingKeep } from '../lib/utils';
@@ -38,8 +38,13 @@ const BUNDLE_PRESETS = {
     wItem('Spear', 'standard', 'common'), wItem('Staff', 'standard', 'uncommon'), wItem('Heavy Club', 'standard', 'uncommon'),
     wItem('War Axe', 'standard', 'uncommon'), wItem('Standard Bow', 'standard', 'always'), wItem('Shortbow', 'standard', 'common'),
     wItem('Kindjal', 'standard', 'uncommon'),
-    // Ammo and weapon-shop staples — always stocked, every weapons dealer needs arrows
+    // Ammo and weapon-shop staples — always stocked, every weapons dealer needs arrows.
+    // All four ARROW_TYPES bundles, not just the standard quiver — combat automation (Nock,
+    // Armor Piercing, Flesh Cutter, Signal) keys off these exact names.
     gItem('Quiver (60 arrows)', '2 copper', 'standard', 'always'),
+    gItem('Armor Piercing Arrows (20)', '4 copper', 'standard', 'always'),
+    gItem('Flesh Cutter Arrows (20)', '5 copper', 'standard', 'always'),
+    gItem('Signal Arrows (10)', '10 copper', 'standard', 'always'),
     gItem('Whetstone', '1 copper', 'standard', 'common'),
     // Shields — a weapons dealer plausibly stocks them alongside blades and bows
     sItem('Large Wooden Shield', 'standard', 'common'), sItem('Scutum', 'standard', 'uncommon'), sItem('Parma', 'standard', 'common'),
@@ -140,7 +145,7 @@ const BUNDLE_PRESETS = {
   ]},
 };
 
-function newShop(name, markupTier='fair') {
+export function newShop(name, markupTier='fair') {
   return { id: Date.now().toString(), name, open: false, items: [], markup_tier: markupTier, appraise_tn: 15, shopkeeper_id: null };
 }
 
@@ -411,16 +416,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   // UI state
   const [purchaseTarget, setPurchaseTarget] = useState(myCharId || 'party');
   const [showPoisonRef, setShowPoisonRef] = useState(false);
-  const [showMagicCreator, setShowMagicCreator] = useState(false);
-  const [newShopName, setNewShopName] = useState('');
-  const [newShopMarkupTier, setNewShopMarkupTier] = useState('fair');
-  const [showNewShop, setShowNewShop] = useState(false);
   const [showCatalogue, setShowCatalogue] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customDr, setCustomDr] = useState('');
   const [customQuality, setCustomQuality] = useState('standard');
-  const [editingShopName, setEditingShopName] = useState(false);
   const [randomTheme, setRandomTheme] = useState('auto');
   const [insufficientFunds, setInsufficientFunds] = useState(null);
   // Appraisal: { shopId, revealQuality: true, revealTrueCost: bool } — set after successful roll
@@ -429,7 +429,6 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [lastActionWasAppraise, setLastActionWasAppraise] = useState(false);
   const [hagglingItem, setHagglingItem] = useState(null); // item being haggled // { needed, have, item } // auto | weapons | armor | apothecary | general | black | outfitter | scribe | superior | sahir
   const [randomQuality, setRandomQuality] = useState('standard'); // standard | fine | superior
-  const [shopNameInput, setShopNameInput] = useState('');
 
   // Cart state: { [shopId]: { items: [{...item, qty}] } }
   const [carts, setCarts] = useState({});
@@ -583,6 +582,23 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     });
   }, []);
 
+  // Live-refresh: games.settings can change from elsewhere (another GM tab, a
+  // different subsystem writing settings) — subscribe so shops_v2 updates reflect
+  // without needing a page reload. Only touches `shops`/`activeShopId`; never
+  // wholesale-replaces other local UI state.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`shoptab-games-${GAME_ID}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${GAME_ID}` }, (payload) => {
+        const newShops = payload.new?.settings?.shops_v2;
+        if (!newShops) return;
+        setShops(newShops);
+        setActiveShopId(prev => (prev && newShops.some(s => s.id === prev)) ? prev : (newShops[0]?.id || null));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   const persistShops = async (updatedShops) => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     await supabase.from('games').update({ settings: { ...(current?.settings || {}), shops_v2: updatedShops } }).eq('id', GAME_ID);
@@ -594,32 +610,9 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   };
 
   // Shop management
-  const createShop = () => {
-    const name = newShopName.trim() || 'New Shop';
-    const shop = newShop(name, newShopMarkupTier);
-    const updated = [...shops, shop];
-    updateShops(updated);
-    setActiveShopId(shop.id);
-    setNewShopName('');
-    setNewShopMarkupTier('fair');
-    setShowNewShop(false);
-  };
-
-  const deleteShop = (id) => {
-    const updated = shops.filter(s => s.id !== id);
-    updateShops(updated);
-    if (activeShopId === id) setActiveShopId(updated[0]?.id || null);
-  };
-
   const toggleShopOpen = (id) => {
     const updated = shops.map(s => s.id === id ? { ...s, open: !s.open } : s);
     updateShops(updated);
-  };
-
-  const renameShop = (id, name) => {
-    const updated = shops.map(s => s.id === id ? { ...s, name } : s);
-    updateShops(updated);
-    setEditingShopName(false);
   };
 
   const loadBundle = (bundleName) => {
@@ -750,15 +743,6 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     if (!activeShop) return;
     const shopItem = { ...item, price: magicItemPrice(item), quality: 'fine', visible: true };
     updateActiveItems([...(activeShop.items || []), shopItem]);
-  };
-
-  const addMagicItemToShopById = (shopId, item) => {
-    const shop = shops.find(s => s.id === shopId);
-    if (!shop) return;
-    const shopItem = { ...item, price: magicItemPrice(item), quality: 'fine', visible: true };
-    const updated = shops.map(s => s.id === shopId ? { ...s, items: [...(s.items || []), shopItem] } : s);
-    setShops(updated);
-    persistShops(updated);
   };
 
   const handlePurchase = (item, useBaseCost = false, shopOverride = null, free = false) => {
@@ -1190,31 +1174,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
           }}
         />
       )}
-      {showMagicCreator && (
-        <MagicItemCreator
-          onClose={() => setShowMagicCreator(false)}
-          characters={pcChars}
-          shops={shops}
-          onCreateForShop={shops.length > 0 ? addMagicItemToShopById : undefined}
-          onCreateForParty={(item) => {
-            onUpdateInventory({ items: [...(inventory.items || []).filter(Boolean), { ...item, qty: 1, category: 'Magic' }] });
-          }}
-          onCreateForCharacter={(charId, item) => {
-            const char = characters.find(c => c.id === charId);
-            if (char) onUpdateCharacter(charId, { equipment: [...(char.equipment || []), { ...item, equipped: true, inUse: false }] });
-          }}
-        />
-      )}
-
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>
           <i className="ti ti-shopping-cart" style={{ marginRight: 8 }} />The Bazaar
         </div>
-        <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'rgba(160,100,220,.5)', color: '#c0a0e0' }}
-          onClick={() => setShowMagicCreator(true)}>
-          ✦ Create Magic Item
-        </button>
         {activeShop && (activeShop.name === 'Black Market' || activeShop.name.toLowerCase().includes('apothecary') || activeShop.name.toLowerCase().includes('black')) && (
           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: '#6a3a3a', color: '#c08040' }}
             onClick={() => setShowPoisonRef(true)}>⚗ Poisons</button>
@@ -1250,43 +1214,16 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             }}>
               {shop.open ? '👁' : '🚫'}
             </button>
-            {/* Delete (only when active) */}
-            {activeShopId === shop.id && shops.length > 1 && (
-              <button onClick={() => deleteShop(shop.id)} title="Delete this shop" style={{
-                padding: '.3rem .35rem', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
-                background: 'var(--bg-panel)', borderRight: `1px solid var(--border)`, borderTop: `1px solid var(--border)`, borderBottom: `1px solid var(--border)`, borderLeft: 'none', borderRadius: '0 4px 4px 0',
-                color: 'var(--red)',
-              }}>×</button>
-            )}
-            {activeShopId !== shop.id && (
-              <div style={{ width: 4, borderRadius: '0 4px 4px 0', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
-            )}
+            <div style={{ width: 4, borderRadius: '0 4px 4px 0', borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', borderLeft: 'none', background: 'var(--bg-panel)', height: '100%' }} />
           </div>
         ))}
-        {/* New shop */}
-        {showNewShop ? (
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input value={newShopName} onChange={e => setNewShopName(e.target.value)}
-              placeholder="Shop name" autoFocus style={{ fontSize: 12, padding: '3px 7px', width: 120 }}
-              onKeyDown={e => { if (e.key === 'Enter') createShop(); if (e.key === 'Escape') setShowNewShop(false); }} />
-            <select value={newShopMarkupTier} onChange={e => setNewShopMarkupTier(e.target.value)} style={{ fontSize: 12, padding: '3px 5px' }}>
-              <option value="fair">Fair (1-3% over)</option>
-              <option value="medium">Medium (5-20% over)</option>
-              <option value="high">High (1-50% over)</option>
-            </select>
-            <button className="btn btn-sm btn-p" style={{ fontSize: 11 }} onClick={createShop}>Create</button>
-            <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowNewShop(false)}>✕</button>
-          </div>
-        ) : (
-          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowNewShop(true)}>+ New Shop</button>
-        )}
       </div>
 
       {/* No shops yet */}
       {!loaded && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading…</div>}
       {loaded && shops.length === 0 && (
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
-          No shops yet. Create one above.
+          No shops yet. {isGM ? 'Create one in Preparation → Shop Manager.' : 'Check back later.'}
         </div>
       )}
 
@@ -1294,19 +1231,6 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         <>
           {/* Active shop controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
-            {/* Rename */}
-            {editingShopName ? (
-              <>
-                <input value={shopNameInput} onChange={e => setShopNameInput(e.target.value)} autoFocus
-                  style={{ fontSize: 13, padding: '2px 6px', width: 150 }}
-                  onKeyDown={e => { if (e.key === 'Enter') renameShop(activeShopId, shopNameInput); if (e.key === 'Escape') setEditingShopName(false); }} />
-                <button className="btn btn-sm btn-p" style={{ fontSize: 11 }} onClick={() => renameShop(activeShopId, shopNameInput)}>✓ Rename</button>
-                <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setEditingShopName(false)}>Cancel</button>
-              </>
-            ) : (
-              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => { setShopNameInput(activeShop.name); setEditingShopName(true); }}>✎ Rename</button>
-            )}
-
             {/* Load bundle */}
             <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => setShowCatalogue(true)}>
               <i className="ti ti-layout-list" style={{ marginRight: 4, fontSize: 11 }} />Stock from Catalogue

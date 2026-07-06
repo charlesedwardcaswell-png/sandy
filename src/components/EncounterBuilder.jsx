@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ROUND_LIMITS, CREATURES_LIBRARY, CREATURE_TYPE_CATEGORIES } from '../data/constants';
+import React, { useState, useEffect } from 'react';
+import { ROUND_LIMITS, CREATURES_LIBRARY, CREATURE_TYPE_CATEGORIES, GAME_ID } from '../data/constants';
+import { supabase } from '../lib/supabase';
 import { calcDifficulty, diffColor, pick } from '../lib/utils';
 
 // ── Shared encounter data ─────────────────────────────────────────────────────
@@ -197,9 +198,19 @@ export default function EncounterBuilder({
     selectedNPCs: [],
     participantIds: null,
     gridSize: 24,
+    presetGridId: null,
+    gridTiles: {},
     ...initialSetup,
   });
   const upS = patch => setS(prev => ({ ...prev, ...patch }));
+  const [savedGrids, setSavedGrids] = useState([]);
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      const grids = data?.settings?.saved_battle_grids || [];
+      setSavedGrids([...grids].sort((a, b) => (a.label || '').localeCompare(b.label || ''))); // label starts with environment type, so this sorts by environment first
+    });
+  }, []);
 
   const defaultName = `Session ${sessionNumber || '?'} — ${s.setting || '?'} — ${s.type || '?'}`;
   const diff = calcDifficulty(s.selectedNPCs || []);
@@ -215,7 +226,7 @@ export default function EncounterBuilder({
         {preparedEncounters.length > 0 && (
           <select style={{ fontSize: 12, marginLeft: 'auto' }} value="" onChange={e => {
             const p = preparedEncounters.find(p => p.id === e.target.value);
-            if (p) upS({ type: p.type || s.type, setting: p.setting || s.setting, name: p.name || '', desc: p.notes || '', notes: p.notes || '', selectedNPCs: p.npcs || [] });
+            if (p) upS({ type: p.type || s.type, setting: p.setting || s.setting, name: p.name || '', desc: p.notes || '', notes: p.notes || '', selectedNPCs: p.npcs || [], gridSize: p.gridSize || s.gridSize, bgUrl: p.bgUrl || '', presetGridId: p.presetGridId || null, gridTiles: p.gridTiles || {} });
           }}>
             <option value="">Load from prepared…</option>
             {preparedEncounters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -243,13 +254,37 @@ export default function EncounterBuilder({
           })()}
         </div>
 
+        {/* Prebuilt battle grid */}
+        {savedGrids.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Prebuilt Grid <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional)</span></span>
+            <select value={s.presetGridId || ''} style={{ width: '100%' }} onChange={e => {
+              const g = savedGrids.find(g => g.id === e.target.value);
+              const keepManual = (s.selectedNPCs || []).filter(n => !n._fromPresetGrid);
+              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, selectedNPCs: keepManual }); return; }
+              // Prebuilt NPCs (built-in library only) painted onto this saved grid in the Battle Grid
+              // Creator — carry their saved x/y through as gridX/gridY so beginEncounter places them
+              // there directly instead of using its automatic column-based placement.
+              const prebuilt = (g.prebuiltNpcs || [])
+                .filter(n => n.x !== null && n.x !== undefined && n.y !== null && n.y !== undefined)
+                .map(n => ({ ...n, id: n.id || `npc_preset_${Date.now()}_${Math.random()}`, gridX: n.x, gridY: n.y, _fromPresetGrid: true }));
+              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, selectedNPCs: [...keepManual, ...prebuilt] });
+            }}>
+              <option value="">— None, set up manually —</option>
+              {savedGrids.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Battle grid size */}
-        <div style={{ marginBottom: '1rem' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Battle Grid Size</span>
-          <div>{[12, 24, 36, 48].map(g => (
-            <button key={g} className={`opt-btn ${(s.gridSize || 24) === g ? 'sel' : ''}`} onClick={() => upS({ gridSize: g })}>{g}×{g}</button>
-          ))}</div>
-        </div>
+        {!s.presetGridId && (
+          <div style={{ marginBottom: '1rem' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Battle Grid Size</span>
+            <div>{[12, 24, 36, 48].map(g => (
+              <button key={g} className={`opt-btn ${(s.gridSize || 24) === g ? 'sel' : ''}`} onClick={() => upS({ gridSize: g })}>{g}×{g}</button>
+            ))}</div>
+          </div>
+        )}
 
         {/* Setting */}
         <div style={{ marginBottom: '1rem' }}>
@@ -278,13 +313,15 @@ export default function EncounterBuilder({
         </div>
 
         {/* Grid background image URL */}
-        <div style={{ marginBottom: '1rem' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>
-            Grid Background URL <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional — shown faintly behind grid)</span>
-          </span>
-          <input type="text" value={s.bgUrl || ''} onChange={e => upS({ bgUrl: e.target.value })}
-            placeholder="https://..." style={{ width: '100%' }} />
-        </div>
+        {!s.presetGridId && (
+          <div style={{ marginBottom: '1rem' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>
+              Grid Background URL <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional — shown faintly behind grid)</span>
+            </span>
+            <input type="text" value={s.bgUrl || ''} onChange={e => upS({ bgUrl: e.target.value })}
+              placeholder="https://..." style={{ width: '100%' }} />
+          </div>
+        )}
 
         {/* NPCs */}
         <div style={{ marginBottom: '1rem' }}>
@@ -304,7 +341,8 @@ export default function EncounterBuilder({
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '3px 0', fontSize: 13, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
                   <span style={{ flex: 1 }}>{n.name}</span>
                   {n.fromLog && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>log</span>}
-                  {!n.fromLog && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{n.personality}</span>}
+                  {n._fromPresetGrid && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>grid ({n.gridX},{n.gridY})</span>}
+                  {!n.fromLog && !n._fromPresetGrid && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{n.personality}</span>}
                   <button className="btn btn-sm btn-d" style={{ fontSize: 11, padding: '1px 5px' }} onClick={() => upS({ selectedNPCs: s.selectedNPCs.filter((_, j) => j !== i) })}>×</button>
                 </div>
               ))}

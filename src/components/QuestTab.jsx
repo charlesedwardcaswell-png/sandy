@@ -15,6 +15,52 @@ const STATUS_STYLE = {
   carried_over: 'q-carried',
 };
 
+// GM "new objective" form — shared between QuestTab (Quests tab) and Preparation → Session Prep,
+// per Charles's call that quest creation should be available in both places, not moved out of Quests.
+export function QuestCreateForm({ quests, onCreateQuest, onCancel }) {
+  const [newQ, setNewQ] = useState({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
+  const parents = (quests || []).filter(Boolean).filter(q => !q.parent_quest_id);
+
+  const createQuest = async () => {
+    if (!newQ.title.trim()) return;
+    await onCreateQuest({ ...newQ, status: 'active', player_notes: '', gm_notes: '', sort_order: (quests || []).length });
+    setNewQ({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
+    if (onCancel) onCancel();
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card-title">New Objective</div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: '.5rem', flexWrap: 'wrap' }}>
+        {Object.entries(QUEST_TYPES).map(([k, qt]) => (
+          <button key={k} className="btn btn-sm"
+            style={{ borderColor: newQ.quest_type === k ? qt.color : 'var(--border)', color: newQ.quest_type === k ? qt.color : 'var(--text-muted)', background: newQ.quest_type === k ? qt.bg : 'transparent' }}
+            onClick={() => setNewQ({ ...newQ, quest_type: k })}>
+            {qt.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+        <input placeholder="Objective title *" autoFocus value={newQ.title} onChange={e => setNewQ({ ...newQ, title: e.target.value })} style={{ width: '100%' }} onKeyDown={e => e.key === 'Enter' && createQuest()} />
+        <textarea rows={2} placeholder="Description" value={newQ.description} onChange={e => setNewQ({ ...newQ, description: e.target.value })} style={{ width: '100%', resize: 'vertical' }} />
+        {/* Parent quest selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Slave to:</span>
+          <select value={newQ.parent_quest_id || ''} onChange={e => setNewQ({ ...newQ, parent_quest_id: e.target.value || null })} style={{ flex: 1, fontSize: 12 }}>
+            <option value="">— stand-alone quest —</option>
+            {parents.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+        </div>
+        <label className="chk-row"><input type="checkbox" checked={newQ.is_visible} onChange={e => setNewQ({ ...newQ, is_visible: e.target.checked })} /> Reveal to players immediately</label>
+        <div style={{ display: 'flex', gap: '.5rem' }}>
+          <button className="btn btn-p btn-sm" disabled={!newQ.title.trim()} onClick={createQuest}>Add</button>
+          {onCancel && <button className="btn btn-sm" onClick={onCancel}>Cancel</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Quest player notes with local state — saves on blur to prevent per-keystroke re-render reset
 function QuestNotes({ q, onUpdateQuest }) {
   const [localNotes, setLocalNotes] = React.useState(q.player_notes || '');
@@ -158,20 +204,12 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = f
 
 export default function QuestTab({ isGM, isPCView, session, quests, onCreateQuest, onUpdateQuest, onDeleteQuest }) {
   const [showNew, setShowNew] = useState(false);
-  const [newQ, setNewQ] = useState({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
   const [showPlayerNew, setShowPlayerNew] = useState(false);
   const [playerQ, setPlayerQ] = useState({ title: '', description: '' });
   const [hideCompleted, setHideCompleted] = useState(false);
   const gmView = isGM && !isPCView;
 
   const visibleQuests = (gmView ? quests : quests.filter(q => q.is_visible)).filter(Boolean);
-
-  const createQuest = async () => {
-    if (!newQ.title.trim()) return;
-    await onCreateQuest({ ...newQ, status: 'active', player_notes: '', gm_notes: '', sort_order: quests.length });
-    setNewQ({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
-    setShowNew(false);
-  };
 
   const createPlayerQuest = async () => {
     if (!playerQ.title.trim()) return;
@@ -221,35 +259,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
 
       {/* GM new quest form */}
       {showNew && gmView && (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="card-title">New Objective</div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: '.5rem', flexWrap: 'wrap' }}>
-            {Object.entries(QUEST_TYPES).map(([k, qt]) => (
-              <button key={k} className="btn btn-sm"
-                style={{ borderColor: newQ.quest_type === k ? qt.color : 'var(--border)', color: newQ.quest_type === k ? qt.color : 'var(--text-muted)', background: newQ.quest_type === k ? qt.bg : 'transparent' }}
-                onClick={() => setNewQ({ ...newQ, quest_type: k })}>
-                {qt.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-            <input placeholder="Objective title *" autoFocus value={newQ.title} onChange={e => setNewQ({ ...newQ, title: e.target.value })} style={{ width: '100%' }} onKeyDown={e => e.key === 'Enter' && createQuest()} />
-            <textarea rows={2} placeholder="Description" value={newQ.description} onChange={e => setNewQ({ ...newQ, description: e.target.value })} style={{ width: '100%', resize: 'vertical' }} />
-            {/* Parent quest selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Slave to:</span>
-              <select value={newQ.parent_quest_id || ''} onChange={e => setNewQ({ ...newQ, parent_quest_id: e.target.value || null })} style={{ flex: 1, fontSize: 12 }}>
-                <option value="">— stand-alone quest —</option>
-                {parents.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-            </div>
-            <label className="chk-row"><input type="checkbox" checked={newQ.is_visible} onChange={e => setNewQ({ ...newQ, is_visible: e.target.checked })} /> Reveal to players immediately</label>
-            <div style={{ display: 'flex', gap: '.5rem' }}>
-              <button className="btn btn-p btn-sm" disabled={!newQ.title.trim()} onClick={createQuest}>Add</button>
-              <button className="btn btn-sm" onClick={() => setShowNew(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
+        <QuestCreateForm quests={quests} onCreateQuest={onCreateQuest} onCancel={() => setShowNew(false)} />
       )}
 
       {/* Player suggestion form */}

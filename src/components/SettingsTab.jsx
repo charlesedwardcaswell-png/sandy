@@ -2,12 +2,11 @@ import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 
-const PLAYER_PASSWORD = 'test';
 const BACKUP_FORMAT_VERSION = 1; // bump only if the backup JSON's own shape changes, not for new tables/columns
 
 // ── Export campaign ───────────────────────────────────────────────────────────
 async function exportCampaign() {
-  const tables = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions'];
+  const tables = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions','feedback'];
   const backup = { backup_format_version: BACKUP_FORMAT_VERSION, exported_at: new Date().toISOString(), game_id: GAME_ID, game: null, tables: {} };
 
   // Game settings row — image config, player accounts, passwords, etc. Part of a full campaign backup.
@@ -37,7 +36,7 @@ async function exportCampaign() {
 async function importCampaign(backup) {
   if (!backup?.tables || typeof backup.tables !== 'object') throw new Error('Invalid backup file — missing campaign data.');
 
-  const ORDER = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions'];
+  const ORDER = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions','feedback'];
 
   // Game settings — update the existing row in place. Every other table has a
   // foreign key pointing at games, so we never delete/recreate this one.
@@ -159,9 +158,7 @@ function PlayerAccounts() {
 // ── SettingsTab ───────────────────────────────────────────────────────────────
 export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = false }) {
   const [subTab, setSubTab] = useState('gameplay');
-  const [playerPw, setPlayerPw] = useState(PLAYER_PASSWORD);
-  const [pwSaved, setPwSaved] = useState(false);
-  const [status, setStatus] = useState('');
+
   const [exportStatus, setExportStatus] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [importStep, setImportStep] = useState(0);
@@ -184,11 +181,13 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const [ringsOverlay, setRingsOverlay] = useState(true);
   const [portraitScale, setPortraitScale] = useState(1.0);
   const [downtimeMode, setDowntimeMode] = useState('gm_granted'); // 'unlimited' | 'gm_granted' | 'set_number'
+  const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
   const [downtimeActionsPerChar, setDowntimeActionsPerChar] = useState(3);
   const [arrowTracking, setArrowTracking] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
   const [gmPwEdit, setGmPwEdit] = useState('');
   const [gmPwSaved, setGmPwSaved] = useState(false);
+  const [gmPwStatus, setGmPwStatus] = useState('');
 
   React.useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
@@ -204,6 +203,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         if (data.settings.rings_overlay !== undefined) setRingsOverlay(!!data.settings.rings_overlay);
         if (data.settings.portrait_scale !== undefined) setPortraitScale(data.settings.portrait_scale || 1.0);
         if (data.settings.downtime_mode) setDowntimeMode(data.settings.downtime_mode);
+        if (data.settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!data.settings.hide_shop_from_players);
         if (data.settings.downtime_actions_per_char) setDowntimeActionsPerChar(data.settings.downtime_actions_per_char);
         if (data.settings.arrow_tracking !== undefined) setArrowTracking(!!data.settings.arrow_tracking);
         if (data.settings.starting_cp !== undefined) setStartingCP(data.settings.starting_cp || 45);
@@ -214,16 +214,10 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const saveImageSettings = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers } })
       .eq('id', GAME_ID);
     if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
     else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
-  };
-
-  const savePlayerPassword = async () => {
-    const { error } = await supabase.from('games').update({ player_password: playerPw }).eq('id', GAME_ID);
-    if (error) { setStatus('Error saving — does games table have player_password column?'); }
-    else { setPwSaved(true); setStatus('Updated. Change in AuthScreen.jsx → PLAYER_PASSWORD.'); setTimeout(() => setPwSaved(false), 3000); }
   };
 
   const wipeTable = async (table, filter = {}, afterRefetch) => {
@@ -291,6 +285,52 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     return { ok: true, message: 'Session cleared' };
   };
 
+  // Narrower than Clear Active Session — resets the in-progress combat/encounter state back to idle
+  // WITHOUT ending or archiving the session itself. Useful for a stuck/corrupted encounter mid-session.
+  const wipeCurrentEncounter = async () => {
+    const { data, error } = await supabase.from('sessions').select('id').eq('game_id', GAME_ID).eq('is_active', true).single();
+    if (error || !data) return { ok: false, message: 'No active session' };
+    const { error: updateError } = await supabase.from('sessions').update({ encounter_data: null }).eq('id', data.id);
+    if (updateError) { console.error('wipeCurrentEncounter failed:', updateError.message); return { ok: false, message: updateError.message }; }
+    if (onWipe.session) onWipe.session();
+    return { ok: true, message: 'Current encounter reset to idle' };
+  };
+
+  // Clears prepared_encounters (the GM's saved/prepped encounter drafts) off every session row —
+  // does not touch the sessions themselves or any live/in-progress encounter.
+  const wipeSavedEncounters = async () => {
+    const { error, count } = await supabase.from('sessions').update({ prepared_encounters: [] }, { count: 'exact' }).eq('game_id', GAME_ID);
+    if (error) { console.error('wipeSavedEncounters failed:', error.message); return { ok: false, message: error.message }; }
+    if (onWipe.session) onWipe.session();
+    if (onWipe.sessionLog) onWipe.sessionLog();
+    return { ok: true, message: `Cleared prepared encounters from ${count ?? 0} session(s)` };
+  };
+
+  // Clears the GM's Inventory staging list (Preparation > Item Creator) — does not touch party
+  // inventory or character equipment, since items already handed off are no longer in this list.
+  const wipeGmInventory = async () => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games').update({ settings: { ...(current?.settings || {}), gm_inventory: [] } }).eq('id', GAME_ID);
+    if (error) { console.error('wipeGmInventory failed:', error.message); return { ok: false, message: error.message }; }
+    return { ok: true, message: "GM's Inventory cleared" };
+  };
+
+  // Narrower than Wipe All Sessions — deletes only prepared (not-yet-started, not-yet-archived)
+  // session rows, leaving the active session and all archived history untouched.
+  const wipeSavedSessions = async () => {
+    const { data: prepped } = await supabase.from('sessions').select('id').eq('game_id', GAME_ID).eq('is_active', false).is('closed_at', null);
+    const ids = (prepped || []).map(s => s.id);
+    if (ids.length === 0) return { ok: true, message: 'No prepared sessions to remove' };
+    // Same FK guard as Wipe All Sessions — quests can reference a session's id
+    await supabase.from('quests').update({ session_id: null }).in('session_id', ids);
+    const { error, count } = await supabase.from('sessions').delete({ count: 'exact' }).in('id', ids);
+    if (error) { console.error('wipeSavedSessions failed:', error.message); return { ok: false, message: error.message }; }
+    if (onWipe.session) onWipe.session();
+    if (onWipe.sessionLog) onWipe.sessionLog();
+    if (onWipe.quests) onWipe.quests();
+    return { ok: true, message: `Removed ${count ?? 0} prepared session(s)` };
+  };
+
   const wipeAllSessions = async () => {
     // First kill the active session if one exists
     await supabase
@@ -298,6 +338,13 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
       .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
       .eq('game_id', GAME_ID)
       .eq('is_active', true);
+    // quests.session_id has a foreign key to sessions.id — deleting a session that any quest still
+    // references throws a 409 (violates foreign key constraint "quests_session_id_fkey"). Since every
+    // session is about to be gone anyway, null out the reference on all quests first rather than
+    // deleting the quests themselves.
+    const { error: questFkError } = await supabase.from('quests').update({ session_id: null }).eq('game_id', GAME_ID);
+    if (questFkError) console.error('clear quests.session_id failed:', questFkError.message);
+    else if (onWipe.quests) onWipe.quests();
     // Then delete all session rows — must go through wipeTable's .neq(id, zero-uuid) workaround,
     // same as every other wipe here, or Supabase RLS silently deletes zero rows.
     const result = await wipeTable('sessions');
@@ -308,6 +355,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     // instead of only clearing on the next full page reload.
     const logResult = await wipeTable('encounter_log', {}, onWipe.encounterLog);
     if (onWipe.session) onWipe.session();
+    if (onWipe.sessionLog) onWipe.sessionLog();
     if (!result.ok || !logResult.ok) {
       return { ok: false, message: [!result.ok && `sessions: ${result.message}`, !logResult.ok && `encounter log: ${logResult.message}`].filter(Boolean).join('; ') };
     }
@@ -605,10 +653,14 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             <DangerAction label="⚠ WIPE EVERYTHING" description="Deletes ALL campaign data — characters, NPCs, sessions, quests, shops, map pins, inventory, reputation. Use after exporting a backup to hand the tool to a new group." onConfirm={wipeEverything} />
             <div style={{ height: 1, background: 'var(--border)', margin: '.5rem 0' }} />
             <DangerAction label="Clear Active Session" description="Ends the current session without archiving it — wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
+            <DangerAction label="Wipe Current Encounter" description="Resets the in-progress encounter back to idle WITHOUT ending the session — use for a stuck/corrupted encounter" onConfirm={wipeCurrentEncounter} />
+            <DangerAction label="Wipe Saved Encounters" description="Clears every session's prepared/drafted encounters — does not touch the sessions themselves or any live encounter" onConfirm={wipeSavedEncounters} />
             <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
+            <DangerAction label="Wipe Saved Sessions" description="Deletes only prepared (not-yet-started) sessions — leaves the active session and archived history untouched" onConfirm={wipeSavedSessions} />
             <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory — cannot be undone" onConfirm={wipeAllShops} />
             <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
             <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0" onConfirm={async () => { const { error } = await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); return error ? { ok: false, message: error.message } : { ok: true, message: 'Inventory cleared' }; }} />
+            <DangerAction label="Wipe GM Inventory" description="Clears the GM's Inventory staging list (Preparation \u2192 Item Creator) — items already handed off are unaffected" onConfirm={wipeGmInventory} />
             <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests', {}, onWipe.quests)} />
             <DangerAction label="Wipe Encounter Log" description="Clears the history of past completed encounters (name, setting, party, enemies, rounds) — this is a record of what happened, not the live in-progress encounter." onConfirm={() => wipeTable('encounter_log', {}, onWipe.encounterLog)} />
             <DangerAction label="Wipe All NPCs" description="Removes every NPC — both Quick NPCs (the log) and Full NPCs (promoted character-sheet NPCs)." onConfirm={async () => {
@@ -640,26 +692,16 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                       style={{ fontSize: 13, width: 160, fontFamily: 'monospace' }} />
                     <button className="btn btn-sm btn-p" disabled={!gmPwEdit.trim()} onClick={async () => {
                       const { error } = await supabase.from('games').update({ gm_password: gmPwEdit.trim() }).eq('id', GAME_ID);
-                      if (!error) { setGmPwSaved(true); setTimeout(() => setGmPwSaved(false), 3000); }
+                      if (error) { setGmPwStatus('Error saving — does games table have a gm_password column?'); }
+                      else { setGmPwSaved(true); setGmPwStatus(''); setGmPwEdit(''); setTimeout(() => setGmPwSaved(false), 3000); }
                     }}>{gmPwSaved ? '✓ Saved' : 'Update'}</button>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Developer-only. Also update GM_PASSWORD in constants.js to match, or the change only persists per-session.</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Developer-only. Takes effect immediately for new logins — no code change or redeploy needed.</div>
+                  {gmPwStatus && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: '.25rem' }}>{gmPwStatus}</div>}
                 </div>
               ) : (
-                <div>
-                  <div style={{ fontSize: 13, fontFamily: 'monospace', padding: '.4rem .6rem', background: 'var(--bg-panel)', borderRadius: 4, display: 'inline-block', color: 'var(--text-secondary)' }}>gm1234</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>Change in <code>src/data/constants.js</code> → GM_PASSWORD</div>
-                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Set by the developer. Not shown here.</div>
               )}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Player Password</div>
-              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                <input type="text" value={playerPw} onChange={e => setPlayerPw(e.target.value)}
-                  style={{ fontSize: 13, width: 160, fontFamily: 'monospace' }} />
-                <button className="btn btn-sm btn-p" onClick={savePlayerPassword}>{pwSaved ? '✓ Saved' : 'Update'}</button>
-              </div>
-              {status && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>{status}</div>}
             </div>
           </div>
         </>

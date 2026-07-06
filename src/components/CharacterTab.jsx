@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45 }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked = false, encounterActive = false, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45 }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -19,6 +19,9 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
   const [addEq, setAddEq] = useState('');
   const [jinnOpen, setJinnOpen] = useState(false);
   const [jinnSummonBonusLocal, setJinnSummonBonusLocal] = useState(null);
+  const [promoteError, setPromoteError] = useState(null); // surfaces a visible message if Promote to Full Character silently fails
+  const [noSessionWarning, setNoSessionWarning] = useState(false);
+  const [claimEncounterNotice, setClaimEncounterNotice] = useState(false);
 
   // Allow parent to trigger Jinn Randomizer via ref (from spell cast)
   React.useEffect(() => {
@@ -121,7 +124,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
               </select>
             );
           })()}
-          <button className="btn btn-sm btn-p" onClick={() => setView('create')}>
+          <button className="btn btn-sm btn-p" onClick={() => { if (sessionLocked) { setNoSessionWarning(true); return; } setNoSessionWarning(false); setView('create'); }}>
             <i className="ti ti-plus" style={{ fontSize: 12 }} /> New Character
           </button>
           {selId && onClaimCharacter && (() => {
@@ -133,7 +136,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             return (
               <button
                 className={`btn btn-sm ${isMine ? 'btn-p' : ''}`}
-                onClick={() => onClaimCharacter(selId)}
+                onClick={() => { if (encounterActive && !isMine) setClaimEncounterNotice(true); onClaimCharacter(selId); }}
                 title={isMine ? 'Click to unclaim this character' : claimedByOther ? `Controlled by ${claimedBy} — click to also claim` : 'Claim this character as one you control (you can control multiple)'}
                 style={isMine ? {} : claimedByOther ? { borderColor: '#4a8a40', color: '#6aba60' } : { borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
               >
@@ -154,6 +157,20 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             </button>
           )}
         </div>
+        {noSessionWarning && (
+          <div style={{ fontSize: 12, color: 'var(--red, #c84030)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-alert-triangle" style={{ fontSize: 12 }} />
+            You can't create a character right now — there's no active session. Ask your GM to start one.
+            <button onClick={() => setNoSessionWarning(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
+          </div>
+        )}
+        {claimEncounterNotice && (
+          <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-alert-triangle" style={{ fontSize: 12 }} />
+            Heads up — an encounter is currently active. Claiming a character mid-encounter can be confusing (turn order, granted actions, etc.) — it went through, just flagging it.
+            <button onClick={() => setClaimEncounterNotice(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
+          </div>
+        )}
         {playerChars.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
             No characters yet — create yours above.
@@ -365,6 +382,9 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
         const alreadyPromoted = !!npc.character_id && characters.some(c => c.id === npc.character_id);
 
         const promoteNpc = async () => {
+          setPromoteError(null);
+          if (!onCreateCharacter) { setPromoteError('Promote failed: character creation is unavailable right now (no active session?).'); return; }
+          try {
           const techs = {};
           npcTechniques.forEach(t => { techs[t.rank] = t.text; });
           const rank = npc.rank || 1;
@@ -423,6 +443,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             setSelNpcId(null);
             setSelId(newChar.id);
             setEditMode(true);
+          } else {
+            setPromoteError('Promote failed: character creation returned no result — check the browser console for a Supabase error.');
+          }
+          } catch (err) {
+            console.error('promoteNpc error:', err);
+            setPromoteError(`Promote failed: ${err.message || err}`);
           }
         };
 
@@ -438,6 +464,27 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
             <div style={{ fontSize: 12, color: npc.is_visible_to_players ? 'var(--green)' : 'var(--text-muted)', marginBottom: '.75rem' }}>
               {npc.is_visible_to_players ? '● Visible to players' : '○ Hidden from players'}
             </div>
+
+            {onUpdateNPC && (
+              <div style={{ marginBottom: '.75rem', padding: '.5rem .6rem', background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 5 }}>
+                <label className="chk-row" style={{ fontSize: 11, color: npc.is_party_asset ? 'var(--green)' : 'var(--text-muted)' }}
+                  title="Party members show up in every player's Character tab so anyone can view the sheet or opt in to control it">
+                  <input type="checkbox" checked={!!npc.is_party_asset}
+                    onChange={e => onUpdateNPC(npc.id, { is_party_asset: e.target.checked, ...(e.target.checked ? {} : { controller_id: null }) })} />
+                  Party Asset
+                </label>
+                {npc.is_party_asset && (
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Assign to:</span>
+                    <select value={npc.controller_id || ''} onChange={e => onUpdateNPC(npc.id, { controller_id: e.target.value || null })}
+                      style={{ fontSize: 11, flex: 1, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
+                      <option value="">— Unassigned (players may self-claim) —</option>
+                      {characters.filter(c => !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Stats block — computed same way as Promote ── */}
             {(() => {
@@ -592,6 +639,9 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, characters, npc
               <button className="btn btn-sm btn-p" onClick={promoteNpc}>
                 <i className="ti ti-arrow-up" style={{ fontSize: 11, marginRight: 4 }} /> Promote to Full Character
               </button>
+            )}
+            {promoteError && (
+              <div style={{ fontSize: 12, color: 'var(--red, #c84030)', marginTop: '.5rem' }}>{promoteError}</div>
             )}
           </div>
         );
@@ -1143,7 +1193,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const [imgError, setImgError] = useState(false);
   useEffect(() => { setImgError(false); }, [avatarUrl]);
   const [urlDraft, setUrlDraft] = useState(char.avatar_url || '');
+  const [descDraft, setDescDraft] = useState(char.description || '');
   useEffect(() => { setUrlDraft(char.avatar_url || ''); }, [char.id, char.avatar_url]);
+  useEffect(() => { setDescDraft(char.description || ''); }, [char.id, char.description]);
   const [tokenDraft, setTokenDraft] = useState(char.token_url || '');
   useEffect(() => { setTokenDraft(char.token_url || ''); }, [char.id, char.token_url]);
 
@@ -1464,6 +1516,20 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   )}
                 </div>
               </div>
+            {/* Description — physical appearance / backstory, free text */}
+            <div style={{ marginBottom: '.5rem' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>Description</div>
+              {canEdit ? (
+                <textarea value={descDraft} onChange={e => setDescDraft(e.target.value)}
+                  onBlur={() => { if (descDraft !== (char.description || '')) update('description', descDraft); }}
+                  placeholder="Physical description, mannerisms, backstory…" rows={3}
+                  style={{ width: '100%', fontSize: 12, resize: 'vertical' }} />
+              ) : (
+                char.description
+                  ? <div style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{char.description}</div>
+                  : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No description yet.</div>
+              )}
+            </div>
             {/* Avatar picker */}
             {showAvatarPicker && canEdit && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>

@@ -166,6 +166,122 @@ export function getPinColor(type) {
   return PIN_COLORS[type] || '#c8962a';
 }
 
+// ── Grid distance / reach (for the token right-click targeting menu) ──────────
+// Chebyshev (king-move) distance — diagonal counts the same as straight. This is deliberately
+// different from movement cost (diagonal steps cost 2 there) and is only used for "is this
+// target in melee/ranged reach" checks, per Charles: "let melee range include diagonal, not
+// movement or ranged attacks though" (ranged has no distance cap for now, just an adjacency
+// exclusion, so this only really matters for the melee-reach check).
+export function chebyshevDist(x1, y1, x2, y2) {
+  return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2));
+}
+
+// Spears and Polearms get 2-square melee reach; everything else is strict adjacency (1).
+export function getMeleeReach(skillName) {
+  return (skillName === 'Spears' || skillName === 'Polearms') ? 2 : 1;
+}
+
+// Archery and Assassin Ranged Weapons are the only ranged combat skills in Sandy today.
+export function isRangedSkill(skillName) {
+  return skillName === 'Archery' || skillName === 'Assassin Ranged Weapons';
+}
+
+// ── Line of sight ────────────────────────────────────────────────────────────
+// Bresenham line between two grid cells — returns false if any wall tile lies strictly
+// between them (not counting the origin or destination cell itself). Used by the lighting
+// system (a light source doesn't illuminate through a wall) and intended for reuse by
+// ranged-attack LOS blocking once attack range enforcement exists.
+export function hasLineOfSight(x0, y0, x1, y1, gridTiles) {
+  const tiles = gridTiles || {};
+  if (tiles[`${x1},${y1}`]?.type === 'wall') return false;
+  let x = x0, y = y0;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  // Cap iterations to the grid's own reasonable bound so a bad input can never hang the loop
+  const maxSteps = (Math.abs(x1 - x0) + Math.abs(y1 - y0)) * 2 + 4;
+  for (let i = 0; i < maxSteps; i++) {
+    if (x === x1 && y === y1) return true;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+    if (x === x1 && y === y1) return true;
+    if (tiles[`${x},${y}`]?.type === 'wall') return false;
+  }
+  return true;
+}
+
+// A combatant is "In Melee" whenever a hostile (opposite-side) combatant with a grid position is
+// within adjacency (Chebyshev distance 1) — computed live from current positions rather than stored
+// as a status tag, since any single combatant's move can change several others' melee status at once
+// and a stored flag would go stale. Exists so other systems (ranged/spell penalties while in melee,
+// etc.) have a single, reliable place to check this rather than each re-deriving it.
+export function isInMelee(combatant, allCombatants) {
+  if (!combatant || combatant.gridX === undefined || combatant.gridY === undefined) return false;
+  return (allCombatants || []).some(other =>
+    other.id !== combatant.id &&
+    other.type !== combatant.type &&
+    other.gridX !== undefined && other.gridY !== undefined &&
+    chebyshevDist(combatant.gridX, combatant.gridY, other.gridX, other.gridY) <= 1
+  );
+}
+
+// ── Grid placement ──────────────────────────────────────────────────────────
+// Finds the first free, non-wall cell for a combatant added mid-encounter (e.g. via
+// NPCTab's "+Enc" button or the in-combat "Spawn Enemy"/reinforce panels). Without this,
+// those combatants were added to initiative but never got gridX/gridY, so they only ever
+// showed up in the grid's small "unplaced" tray instead of appearing on the battlefield.
+// Scans from the enemy-side column (mirroring beginEncounter's placement) outward.
+export function findFreeGridCell(gridSize, gridTiles, occupiedCombatants) {
+  const G = gridSize || 24;
+  const tiles = gridTiles || {};
+  const occupied = new Set(
+    (occupiedCombatants || [])
+      .filter(c => c.gridX !== undefined && c.gridY !== undefined)
+      .map(c => `${c.gridX},${c.gridY}`)
+  );
+  const isBlocked = (x, y) => {
+    const key = `${x},${y}`;
+    if (occupied.has(key)) return true;
+    if (tiles[key]?.type === 'wall') return true;
+    return false;
+  };
+  const startCol = Math.max(0, G - 3);
+  // Search outward from the enemy-side column first, then sweep the whole grid.
+  for (const col of [startCol, ...Array.from({ length: G }, (_, i) => i).filter(c => c !== startCol)]) {
+    for (let row = 0; row < G; row++) {
+      if (!isBlocked(col, row)) return { x: col, y: row };
+    }
+  }
+  return null; // grid is entirely full/blocked — caller leaves the combatant unplaced
+}
+
+// Finds the nearest free, non-wall, unoccupied cell to a given point, expanding outward ring
+// by ring (Chebyshev distance) until one is found or the grid is exhausted. Used by the PC Start
+// tile: if a PC's designated start tile is already taken, cascade outward to the nearest open cell.
+export function findNearestFreeCell(gridSize, gridTiles, occupied, startX, startY) {
+  const G = gridSize || 24;
+  const tiles = gridTiles || {};
+  const isBlocked = (x, y) => {
+    if (x < 0 || y < 0 || x >= G || y >= G) return true;
+    const key = `${x},${y}`;
+    if (occupied.has(key)) return true;
+    if (tiles[key]?.type === 'wall') return true;
+    return false;
+  };
+  if (!isBlocked(startX, startY)) return { x: startX, y: startY };
+  for (let radius = 1; radius <= G; radius++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue; // only the new outer ring
+        const x = startX + dx, y = startY + dy;
+        if (!isBlocked(x, y)) return { x, y };
+      }
+    }
+  }
+  return null; // grid is entirely full/blocked — caller leaves the combatant unplaced
+}
+
 // ── Difficulty ────────────────────────────────────────────────────────────────
 export function calcDifficulty(npcs, partyRank = 2) {
   // Use creature.difficulty for bestiary entries (was silently rank 1 for all creatures regardless of

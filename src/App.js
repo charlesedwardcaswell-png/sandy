@@ -15,6 +15,8 @@ import LogTab from './components/LogTab';
 import FeedbackTab from './components/FeedbackTab';
 import SessionEndModal from './components/SessionEndModal';
 import SettingsTab from './components/SettingsTab';
+import TilesetTab from './components/TilesetTab';
+import PreparationTab from './components/PreparationTab';
 import PCTurnPanel from './components/PCTurnPanel';
 import DiceModal from './components/DiceModal';
 import DuelPane from './components/DuelPane';
@@ -267,7 +269,7 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { feedback, addFeedback, deleteFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
@@ -275,6 +277,43 @@ export default function App() {
   const { reps, updateRep, updateRepNotes } = useFactionReputation();
   const { log: encounterLog, addEntry: addEncounterEntry, refetch: refetchEncounterLog } = useEncounterLog();
   const { inventory, updateInventory } = useGroupInventory();
+
+  // Reveal model: apply a session's prepared_reveals (quest/npc/shop ids + gm-inventory items to hand
+  // off) the moment that session becomes active. Nothing is created — these already exist; this just
+  // flips visibility or moves items, matching how prepared_encounters already works for encounters.
+  const applySessionReveals = async (sessionId) => {
+    const sess = allSessions.find(s => s.id === sessionId);
+    const reveals = sess?.prepared_reveals;
+    if (!reveals) return;
+    const { questIds = [], npcIds = [], shopIds = [], gmInventoryItemIds = [], npcAssignments = {} } = reveals;
+
+    await Promise.all(questIds.map(id => updateQuest(id, { is_visible: true })));
+    await Promise.all(npcIds.map(id => updateNPC(id, {
+      is_visible_to_players: true,
+      ...(npcAssignments[id] ? { controller_id: npcAssignments[id] } : {}),
+    })));
+
+    if (shopIds.length > 0 || gmInventoryItemIds.length > 0) {
+      const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+      const settings = current?.settings || {};
+      const patch = {};
+      if (shopIds.length > 0) {
+        patch.shops_v2 = (settings.shops_v2 || []).map(s => shopIds.includes(s.id) ? { ...s, open: true } : s);
+      }
+      if (gmInventoryItemIds.length > 0) {
+        const gmInv = settings.gm_inventory || [];
+        const toGive = gmInv.filter(i => gmInventoryItemIds.includes(i.id));
+        patch.gm_inventory = gmInv.filter(i => !gmInventoryItemIds.includes(i.id));
+        if (toGive.length > 0) {
+          const newItems = toGive.map(({ id, added_at, ...rest }) => ({ ...rest, added_at: new Date().toISOString() }));
+          updateInventory({ items: [...(inventory?.items || []).filter(Boolean), ...newItems] });
+        }
+      }
+      await supabase.from('games').update({ settings: { ...settings, ...patch } }).eq('id', GAME_ID);
+      // Note: ShopTab holds its own local shops_v2 copy fetched once on mount, not a live subscription —
+      // a shop revealed here won't visually flip to "open" in an already-open Shop tab until it remounts.
+    }
+  };
   const { sessionLog, refetch: refetchSessionLog } = useSessionLog();
 
   // ── Session lock ──────────────────────────────────────────────────────────────
@@ -315,7 +354,7 @@ export default function App() {
       if (incoming.activeTurn !== prev.activeTurn && incoming.combatants?.length) {
         const active = incoming.combatants[incoming.activeTurn % Math.max(1, incoming.combatants.length)];
         if (active?.type === 'pc') {
-          const isMine = active.id === myCharId;
+          const isMine = myCharIds.includes(active.id);
           if (isMine) playYourTurn();
           setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
         }
@@ -395,14 +434,40 @@ export default function App() {
     try { localStorage.setItem('sandy_zoom', zoom); } catch {}
   }, [zoom]);
 
-  // Theme
+  // Theme — per-login-user, not per-browser. GM and Developer each get one shared theme; players get
+  // one per Player Account username (a generic 'Player' bucket if logged in with no named account).
+  // Stored in games.settings.user_themes = { [key]: themeId }. One-time fetch on login + write on
+  // change (not a live subscription) — two simultaneous sessions under the same identity may briefly
+  // disagree until the next reload or theme change.
+  const themeUserKey = isDeveloper ? 'dev' : isGM ? 'gm' : (isPlayer ? (playerUsername || 'Player') : null);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('sandy_theme') || 'default'; } catch { return 'default'; }
   });
+  const [themeLoaded, setThemeLoaded] = useState(false);
+  // Load this identity's saved theme once its key becomes known (i.e. once logged in)
+  useEffect(() => {
+    if (!themeUserKey) { setThemeLoaded(true); return; }
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      const saved = data?.settings?.user_themes?.[themeUserKey];
+      if (saved) setTheme(saved);
+      setThemeLoaded(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeUserKey]);
+  // Apply + persist. Gated on themeLoaded so we don't overwrite this identity's saved theme with the
+  // localStorage default before the fetch above has resolved.
   useEffect(() => {
     document.body.className = theme === 'default' ? '' : `theme-${theme}`;
     try { localStorage.setItem('sandy_theme', theme); } catch {}
-  }, [theme]);
+    if (!themeLoaded || !themeUserKey) return;
+    (async () => {
+      const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+      const settings = current?.settings || {};
+      const user_themes = { ...(settings.user_themes || {}), [themeUserKey]: theme };
+      await supabase.from('games').update({ settings: { ...settings, user_themes } }).eq('id', GAME_ID);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, themeLoaded, themeUserKey]);
   const THEMES = [
     { id: 'default', label: 'Desert',  icon: '☀' },
     { id: 'arcane',  label: 'Arcane',  icon: '✦' },
@@ -421,6 +486,8 @@ export default function App() {
   const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
   const [ringsOverlay, setRingsOverlay] = useState(true);
   const [arrowTracking, setArrowTracking] = useState(false);
+  const [downtimeMode, setDowntimeMode] = useState('gm_granted'); // 'unlimited' | 'gm_granted' | 'set_number'
+  const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
   const [partyWater, setPartyWater] = useState(0);
   const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
@@ -436,6 +503,8 @@ export default function App() {
     if (settings.water_drought_enabled !== undefined) setWaterDroughtEnabled(!!settings.water_drought_enabled);
     if (settings.rings_overlay !== undefined) setRingsOverlay(!!settings.rings_overlay);
     if (settings.arrow_tracking !== undefined) setArrowTracking(!!settings.arrow_tracking);
+    if (settings.downtime_mode) setDowntimeMode(settings.downtime_mode);
+    if (settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!settings.hide_shop_from_players);
     if (settings.starting_cp !== undefined) setStartingCP(settings.starting_cp || 45);
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
@@ -483,6 +552,7 @@ export default function App() {
   });
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
+  const [startSessionChoice, setStartSessionChoice] = useState(''); // '' = New Session, else a prepared session's id
   const [viewCharId, setViewCharId] = useState(null);
   const [viewNpcId, setViewNpcId] = useState(null);
   const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
@@ -548,7 +618,7 @@ export default function App() {
       if (next.state === 'active' && next.activeTurn !== prev.activeTurn) {
         const active = next.combatants[next.activeTurn % Math.max(1, next.combatants.length)];
         if (active?.type === 'pc') {
-          const isMine = active.id === myCharId;
+          const isMine = myCharIds.includes(active.id);
           if (isMine) playYourTurn();
           setTimeout(() => push('ti-bolt', `${active.name}'s turn`, { highlight: isMine }), 0);
         }
@@ -565,7 +635,7 @@ export default function App() {
       if (isGM || touchesDuel || touchesTurn || touchesBanner) saveEncounterDebounced(next);
       return next;
     });
-  }, [saveEncounterDebounced, isGM, myCharId]);
+  }, [saveEncounterDebounced, isGM, myCharIds]);
 
   const safeChars = characters.filter(Boolean);
 
@@ -743,6 +813,13 @@ export default function App() {
     // Realtime subscription on games table will propagate this change to all other clients automatically
   };
 
+  const handleSetHideShopFromPlayers = async (val) => {
+    setHideShopFromPlayers(val);
+    const { data } = await supabase.from('games').select('settings').eq('id', GAME_ID).maybeSingle();
+    const updated = { ...(data?.settings || {}), hide_shop_from_players: val };
+    supabase.from('games').update({ settings: updated }).eq('id', GAME_ID);
+  };
+
   const handleUpdateRepNotes = async (faction, notes) => {
     await updateRepNotes(faction, notes);
   };
@@ -904,8 +981,8 @@ export default function App() {
     }
   };
 
-  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', 'shop', 'feedback', ...(gmView ? ['settings'] : [])];
-  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings' };
+  const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...((!hideShopFromPlayers || gmView) ? ['shop'] : []), 'feedback', ...(gmView ? ['settings', 'preparation'] : []), ...(isDeveloper ? ['tileset'] : [])];
+  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings', tileset: 'Tileset', preparation: 'Preparation' };
   const handleTabChange = (id) => {
     setTab(id);
     try { localStorage.setItem('sandy_tab', id); } catch {}
@@ -929,7 +1006,7 @@ export default function App() {
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
         <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v167</span>
+        <span className="hdr-game">The Tool — v175</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1089,24 +1166,63 @@ export default function App() {
           </button>
           <div style={{ flex: 1 }} />
           {!session
-            ? <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => {
-                sessionTransitionRef.current = true;
-                startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1)
-                  .then(() => {
-                    // Luck and Unlucky pips recharge fully at the start of each new session
-                    safeChars.filter(c => !c.is_npc).forEach(char => {
-                      const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
-                      const unluckyDis = (char.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
-                      const patch = {};
-                      if (luckAdv) patch.advantages = (char.advantages || []).map(a => (a.name || '').startsWith('Luck') ? { ...a, current_uses: a.rank || 1 } : a);
-                      if (unluckyDis) patch.disadvantages = (char.disadvantages || []).map(d => (d.name || d) === 'Unlucky' ? { ...d, current_uses: d.rank || 1 } : d);
-                      if (Object.keys(patch).length > 0) handleUpdateChar(char.id, patch);
-                    });
-                  })
-                  .finally(() => { setTimeout(() => { sessionTransitionRef.current = false; }, 3000); });
-              }}>
-                <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session
-              </button>
+            ? (() => {
+                const rechargeLuckUnlucky = () => {
+                  safeChars.filter(c => !c.is_npc).forEach(char => {
+                    const luckAdv = (char.advantages || []).find(a => (a.name || '').startsWith('Luck'));
+                    const unluckyDis = (char.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
+                    const patch = {};
+                    if (luckAdv) patch.advantages = (char.advantages || []).map(a => (a.name || '').startsWith('Luck') ? { ...a, current_uses: a.rank || 1 } : a);
+                    if (unluckyDis) patch.disadvantages = (char.disadvantages || []).map(d => (d.name || d) === 'Unlucky' ? { ...d, current_uses: d.rank || 1 } : d);
+                    if (Object.keys(patch).length > 0) handleUpdateChar(char.id, patch);
+                  });
+                };
+                const preppedSessions = allSessions.filter(s => !s.is_active && !s.closed_at);
+                return (
+                  <>
+                    {preppedSessions.length > 0 && (
+                      <select value={startSessionChoice} onChange={e => setStartSessionChoice(e.target.value)}
+                        style={{ fontSize: 12, marginRight: 6 }}>
+                        <option value="">New Session</option>
+                        {preppedSessions.map(s => (
+                          <option key={s.id} value={s.id}>{s.title || `Session ${s.session_number}`}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button className="btn btn-sm" style={{ borderColor: 'var(--green-dim)', color: 'var(--green)' }} onClick={() => {
+                      sessionTransitionRef.current = true;
+                      const launch = startSessionChoice
+                        ? activateSession(startSessionChoice)
+                        : startSession((allSessions.length > 0 ? Math.max(...allSessions.map(s => s.session_number || 0)) : 0) + 1);
+                      launch
+                        .then(async () => {
+                          rechargeLuckUnlucky();
+                          if (startSessionChoice) {
+                            // Materialize prepared quests into real Quest rows before revealing anything —
+                            // previously only LogTab's per-session "Make Active Session" button did this;
+                            // the header Start Session control skipped it entirely. Consolidated here so
+                            // there's a single, correct activation path regardless of which UI starts it.
+                            const prepSess = allSessions.find(s => s.id === startSessionChoice);
+                            const prepQuests = prepSess?.prepared_quests || [];
+                            for (const pq of prepQuests) {
+                              await handleCreateQuest({
+                                title: pq.title, description: pq.description || '', quest_type: pq.quest_type || 'main',
+                                status: 'active', is_visible: false, player_notes: '', gm_notes: '', sort_order: 0,
+                                session_id: startSessionChoice,
+                              });
+                            }
+                            if (prepQuests.length > 0) await savePreparedQuests(startSessionChoice, []);
+                            applySessionReveals(startSessionChoice);
+                          }
+                          setStartSessionChoice('');
+                        })
+                        .finally(() => { setTimeout(() => { sessionTransitionRef.current = false; }, 3000); });
+                    }}>
+                      <i className="ti ti-player-play" style={{ fontSize: 12 }} /> Start Session
+                    </button>
+                  </>
+                );
+              })()
             : <button className="btn btn-sm btn-d" onClick={() => setShowSessionEnd(true)}>
                 <i className="ti ti-player-stop" style={{ fontSize: 12 }} /> End Session → Archive
               </button>
@@ -1128,6 +1244,8 @@ export default function App() {
           <CharacterTab
             isGM={isGM} isPCView={isPCView}
             isPlayer={isPlayer}
+            sessionLocked={sessionLocked}
+            encounterActive={encounter?.state === 'active'}
             startingCP={startingCP}
             characters={safeChars}
             npcs={npcs}
@@ -1164,6 +1282,7 @@ export default function App() {
             isGM={isGM} isPCView={isPCView}
             characters={safeChars}
             myCharId={myCharId}
+            myCharIds={myCharIds}
             session={session}
             encounter={encounter}
             setEncounter={handleSetEncounter}
@@ -1180,6 +1299,7 @@ export default function App() {
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
             onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
             arrowTracking={arrowTracking}
+            downtimeMode={downtimeMode}
           />
         )}
         {tab === 'map' && (
@@ -1264,26 +1384,6 @@ export default function App() {
             sessionLog={parsedSessionLog}
             allSessions={allSessions}
             activeSession={session}
-            onActivateSession={(id) => {
-              sessionTransitionRef.current = true;
-              // Snapshot prepared quests BEFORE activation — session state (and the useQuests hook's bound
-              // sessionId) won't reflect the new active session until after this resolves and re-renders,
-              // so createQuest is called with an explicit session_id override (see useSupabase.js) rather
-              // than relying on that closure.
-              const prepSess = allSessions.find(s => s.id === id);
-              const prepQuests = prepSess?.prepared_quests || [];
-              activateSession(id).then(async () => {
-                for (const pq of prepQuests) {
-                  await handleCreateQuest({
-                    title: pq.title, description: pq.description || '', quest_type: pq.quest_type || 'main',
-                    status: 'active', is_visible: false, player_notes: '', gm_notes: '', sort_order: 0,
-                    session_id: id,
-                  });
-                }
-                if (prepQuests.length > 0) savePreparedQuests(id, []);
-              }).finally(() => setTimeout(() => { sessionTransitionRef.current = false; }, 3000));
-            }}
-            onCreatePrepSession={createPrepSession}
             onDeleteSession={deleteSession}
             onRenumberSession={renumberSession}
             onSavePreparedEncounters={savePreparedEncounters}
@@ -1304,7 +1404,7 @@ export default function App() {
             isGM={isGM}
           />
         )}
-        {tab === 'shop' && (
+        {tab === 'shop' && (!hideShopFromPlayers || gmView) && (
           <ShopTab
             isGM={isGM} isPCView={isPCView}
             onWipeShops={shopWipeRef}
@@ -1331,10 +1431,29 @@ export default function App() {
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab
-          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, encounterLog: refetchEncounterLog, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
+          onWipe={{ quests: refetchQuests, npcs: refetchNpcs, characters: refetchChars, session: refetchSession, sessionLog: refetchSessionLog, encounterLog: refetchEncounterLog, shops: () => { if (shopWipeRef.current) shopWipeRef.current(); } }}
           isDeveloper={isDeveloper}
           isGM={isGM}
         />}
+        {tab === 'preparation' && gmView && <PreparationTab
+          isDeveloper={isDeveloper}
+          characters={safeChars}
+          onUpdateCharacter={guardFn(handleUpdateChar)}
+          inventory={inventory}
+          onUpdateInventory={guardFn(updateInventory)}
+          onLogEvent={push}
+          allSessions={allSessions}
+          quests={quests}
+          npcs={npcs}
+          onSaveReveals={savePreparedReveals}
+          onCreatePrepSession={createPrepSession}
+          onSavePreparedEncounters={savePreparedEncounters}
+          npcsFromLog={npcs}
+          hideShopFromPlayers={hideShopFromPlayers}
+          onSetHideShopFromPlayers={handleSetHideShopFromPlayers}
+          onCreateQuest={guardFn(handleCreateQuest)}
+        />}
+        {tab === 'tileset' && isDeveloper && <TilesetTab isDeveloper={isDeveloper} />}
       </div>
 
       {/* Jinn Summoning Flash Banner — shown to all players when a Jinn is summoned */}
@@ -1766,11 +1885,11 @@ export default function App() {
         />
       )}
 
-      {/* Global Sticky Turn Panel — shows on any tab when it's myCharId's turn */}
+      {/* Global Sticky Turn Panel — shows on any tab when any character this player controls is up */}
       {encounter.state === 'active' && (() => {
         const activeCombatant = encounter.combatants[encounter.activeTurn % Math.max(1, encounter.combatants.length)];
-        const isMyTurnGlobal = activeCombatant?.id === myCharId;
-        const myChar = isMyTurnGlobal ? safeChars.find(c => c.id === myCharId) : null;
+        const isMyTurnGlobal = myCharIds.includes(activeCombatant?.id);
+        const myChar = isMyTurnGlobal ? safeChars.find(c => c.id === activeCombatant.id) : null;
         if (!isMyTurnGlobal || !myChar || tab === 'encounter') return null; // don't double-render on encounter tab
         const enemies = encounter.combatants.filter(c => c.type === 'npc');
         return (
@@ -1778,11 +1897,11 @@ export default function App() {
             combatant={activeCombatant}
             character={myChar}
             enemies={enemies}
-            allies={safeChars.filter(c => c.id !== myCharId)}
+            allies={safeChars.filter(c => c.id !== activeCombatant.id)}
             allCharacters={safeChars}
             onRoll={(ctx) => openRoll({ ...ctx, character: myChar })}
-            onStanceChange={(stance) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, stance } : c) }))}
-            onDrawWeapon={(weapon) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === myCharId ? { ...c, drawnWeapon: weapon } : c) }))}
+            onStanceChange={(stance) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === activeCombatant.id ? { ...c, stance } : c) }))}
+            onDrawWeapon={(weapon) => handleSetEncounter(e => ({ ...e, combatants: e.combatants.map(c => c.id === activeCombatant.id ? { ...c, drawnWeapon: weapon } : c) }))}
             onPass={() => handleSetEncounter(e => ({ ...e, activeTurn: e.activeTurn + 1 }))}
             onUpdateCharacter={handleUpdateChar}
             onUpdateInventory={updateInventory}

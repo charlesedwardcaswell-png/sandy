@@ -5,13 +5,10 @@ import EncounterBuilder from './EncounterBuilder';
 import { QUEST_TYPES } from './QuestTab';
 
 // ── LogTab ────────────────────────────────────────────────────────────────────
-export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onActivateSession, onCreatePrepSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, onSavePreparedQuests, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
+export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, onSavePreparedQuests, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
   const [expandedSession, setExpandedSession] = useState({});
   const [showBuilderFor, setShowBuilderFor] = useState(null);
-  const [newSessionTitle, setNewSessionTitle] = useState('');
-  const [newSessionNum, setNewSessionNum] = useState(null);
   const [editingSessionNum, setEditingSessionNum] = useState(null);
-  const [showNewSession, setShowNewSession] = useState(false);
   const [showQuestFormFor, setShowQuestFormFor] = useState(null);
   const [newQuest, setNewQuest] = useState({ title: '', quest_type: 'main', description: '' });
 
@@ -42,8 +39,12 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
     return acc;
   }, {});
 
-  const allSess = allSessions || [];
-  const nextSessionNum = allSess.length > 0 ? Math.max(...allSess.map(s => s.session_number || 0)) + 1 : 1;
+  // Prep-only (not-yet-started) sessions now live exclusively in Preparation → Session Prep — Log stays
+  // "pure record keeping" and only ever shows sessions that are active or have actually been played.
+  // rawSess keeps the full list for renumbering collision checks (still need to avoid colliding with a
+  // hidden prep session's number even though it isn't rendered here).
+  const rawSess = allSessions || [];
+  const allSess = rawSess.filter(s => s.is_active || s.closed_at);
 
   const savePrepEncounter = (sessionId, setup) => {
     const sess = allSess.find(s => s.id === sessionId);
@@ -54,6 +55,10 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
       setting: setup.setting || '',
       type: setup.type || 'Action',
       notes: setup.notes || setup.desc || '',
+      gridSize: setup.gridSize || 24,
+      bgUrl: setup.bgUrl || '',
+      presetGridId: setup.presetGridId || null,
+      gridTiles: setup.gridTiles || {},
       npcs: (setup.selectedNPCs || []).map(n => ({
         ...n,
         // strip live-encounter-only fields for storage
@@ -114,47 +119,16 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
     <div>
       {/* ── Session List ───────────────────────────────────────────────────── */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-            <i className="ti ti-list" style={{ marginRight: 5 }} />Campaign Sessions
-          </div>
-          {isGM && (
-            <button className="btn btn-sm btn-p" onClick={() => setShowNewSession(s => !s)}>
-              <i className="ti ti-plus" style={{ fontSize: 11 }} /> Prep Session
-            </button>
-          )}
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
+          <i className="ti ti-list" style={{ marginRight: 5 }} />Campaign Sessions
         </div>
 
-        {isGM && showNewSession && (() => {
-          const chosenNum = newSessionNum ?? nextSessionNum;
-          const numTaken = allSess.some(s => s.session_number === chosenNum);
-          const doCreate = () => {
-            onCreatePrepSession && onCreatePrepSession(chosenNum, newSessionTitle);
-            setNewSessionTitle(''); setNewSessionNum(null); setShowNewSession(false);
-          };
-          return (
-            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', alignItems: 'center', padding: '.5rem .75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 5, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Session #</span>
-                <input type="number" min="1" value={chosenNum} onChange={e => setNewSessionNum(parseInt(e.target.value) || nextSessionNum)}
-                  style={{ width: 52, fontSize: 13, textAlign: 'center' }} />
-                {numTaken && <span style={{ fontSize: 10, color: 'var(--gold)' }}>⚠ Will shift existing sessions up</span>}
-              </div>
-              <input style={{ flex: 1, fontSize: 13, minWidth: 120 }} placeholder="Title (optional)" value={newSessionTitle} onChange={e => setNewSessionTitle(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') doCreate(); }} />
-              <button className="btn btn-sm btn-p" onClick={doCreate}>Create</button>
-              <button className="btn btn-sm" onClick={() => { setShowNewSession(false); setNewSessionNum(null); }}>✕</button>
-            </div>
-          );
-        })()}
-
         {allSess.length === 0 ? (
-          <Empty icon="ti-calendar" message="No sessions yet. Start a session using the bar above, or prep a future session here." />
+          <Empty icon="ti-calendar" message="No sessions yet. Start one using the bar above, or prep a future session from Preparation → Session Prep." />
         ) : (
           allSess.map(s => {
             const isCurrent = s.is_active;
             const isPast = !s.is_active && s.closed_at;
-            const isPrep = !s.is_active && !s.closed_at;
             const prep = s.prepared_encounters || [];
             const prepQuests = s.prepared_quests || [];
             const exp = expandedSession[s.id];
@@ -180,8 +154,8 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                         }}
                         onBlur={() => setEditingSessionNum(null)}
                         style={{ fontSize: 12, background: 'var(--bg-panel)', color: 'var(--gold)', border: '1px solid var(--gold-dim)', borderRadius: 3 }}>
-                        {Array.from({ length: Math.max(nextSessionNum, s.session_number) + 2 }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>Session {n}{allSess.some(x => x.session_number === n && x.id !== s.id) ? ' ⚠' : ''}</option>
+                        {Array.from({ length: Math.max(rawSess.length > 0 ? Math.max(...rawSess.map(x => x.session_number || 0)) + 1 : 1, s.session_number) + 2 }, (_, i) => i + 1).map(n => (
+                          <option key={n} value={n}>Session {n}{rawSess.some(x => x.session_number === n && x.id !== s.id) ? ' ⚠' : ''}</option>
                         ))}
                       </select>
                     ) : (
@@ -198,7 +172,6 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                     </span>
                   )}
                   {isCurrent && <span style={{ fontSize: 10, color: 'var(--green)', border: '1px solid var(--green-dim)', borderRadius: 3, padding: '0 4px', flexShrink: 0 }}>ACTIVE</span>}
-                  {isPrep && <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 3, padding: '0 4px', flexShrink: 0 }}>PREP</span>}
                   {prep.length > 0 && <span style={{ fontSize: 11, color: 'var(--gold-dim)', flexShrink: 0 }}>{prep.length} prepared</span>}
                   {prepQuests.length > 0 && <span style={{ fontSize: 11, color: 'var(--gold-dim)', flexShrink: 0 }}>{prepQuests.length} quest{prepQuests.length !== 1 ? 's' : ''} prepped</span>}
                   {sessionEncounters.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{sessionEncounters.length} fought</span>}
@@ -214,15 +187,6 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
                 {exp && (
                   <div style={{ background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', padding: '.5rem .75rem' }}>
-                    {/* GM controls */}
-                    {isGM && !isCurrent && isPrep && (
-                      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.6rem' }}>
-                        <button className="btn btn-sm btn-p" onClick={() => onActivateSession && onActivateSession(s.id)}>
-                          <i className="ti ti-player-play" style={{ fontSize: 11 }} /> Make Active Session
-                        </button>
-                      </div>
-                    )}
-
                     {/* Past session recap */}
                     {isPast && (
                       <div style={{ marginBottom: '.6rem' }}>

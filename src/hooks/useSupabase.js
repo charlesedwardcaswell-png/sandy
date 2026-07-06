@@ -35,9 +35,13 @@ export function useActiveSession() {
   const [session, setSession] = useState(null);
   const [allSessions, setAllSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const fetch = useCallback(async () => {
-    setLoading(true);
+    // Only the very first load should show the full-page spinner — a background refetch
+    // (e.g. after Wipe All Sessions) must not flip this back to true, since App.js swaps its
+    // entire render tree for <Loading/> while this is true, unmounting and resetting all UI state.
+    if (!hasLoadedOnce.current) setLoading(true);
     const { data } = await supabase
       .from('sessions')
       .select('*')
@@ -47,6 +51,7 @@ export function useActiveSession() {
     setAllSessions(all);
     setSession(all.find(s => s.is_active) || null);
     setLoading(false);
+    hasLoadedOnce.current = true;
   }, []);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -172,6 +177,17 @@ export function useActiveSession() {
     if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_quests: prepQuests }));
   };
 
+  // prepared_reveals associates EXISTING quests/npcs/shops/gm-inventory-items with a not-yet-started
+  // session by id — nothing is created here. Actually revealing/moving them happens when the session
+  // activates (see applySessionReveals in App.js), matching the "reveal, don't materialize" model.
+  const savePreparedReveals = async (sessionId, prepReveals) => {
+    if (!sessionId) return;
+    const { error } = await supabase.from('sessions').update({ prepared_reveals: prepReveals }).eq('id', sessionId);
+    if (error) { console.error('savePreparedReveals failed:', error.message); return; }
+    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, prepared_reveals: prepReveals } : s));
+    if (session?.id === sessionId) setSession(prev => ({ ...prev, prepared_reveals: prepReveals }));
+  };
+
   const deleteSession = async (sessionId) => {
     await supabase.from('sessions').delete().eq('id', sessionId);
     setAllSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -196,16 +212,17 @@ export function useActiveSession() {
       .sort((a, b) => a.session_number - b.session_number));
   };
 
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, deleteSession, renumberSession, refetch: fetch };
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────
 export function useCharacters() {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const fetch = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnce.current) setLoading(true);
     const { data } = await supabase
       .from('characters')
       .select('*')
@@ -213,6 +230,7 @@ export function useCharacters() {
       .order('created_at');
     setCharacters(data || []);
     setLoading(false);
+    hasLoadedOnce.current = true;
   }, []);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -715,33 +733,4 @@ export function useSessionLog() {
   useEffect(() => { fetch(); }, [fetch]);
 
   return { sessionLog, loading, refetch: fetch };
-}
-
-// ── Game passwords ─────────────────────────────────────────────────────────────
-export function useGamePasswords() {
-  const [playerPassword, setPlayerPassword] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('games')
-      .select('player_password')
-      .eq('id', GAME_ID)
-      .single();
-    setPlayerPassword(data?.player_password || '');
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  const savePlayerPassword = async (pw) => {
-    await supabase
-      .from('games')
-      .update({ player_password: pw })
-      .eq('id', GAME_ID);
-    setPlayerPassword(pw);
-  };
-
-  return { playerPassword, loading, savePlayerPassword };
 }

@@ -112,8 +112,9 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
         <MagicItemCreator
           onClose={() => setShowMagicCreator(false)}
           characters={pcChars}
+          defaultMagic
           onCreateForParty={(item) => {
-            onUpdateInventory({ items: [...items, { ...item, qty: 1, category: 'Magic', added_at: new Date().toISOString() }] });
+            onUpdateInventory({ items: [...items, { ...item, added_at: new Date().toISOString() }] });
           }}
           onCreateForCharacter={(charId, item) => {
             const char = characters.find(c => c.id === charId);
@@ -190,7 +191,12 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                 return (
                   <div key={c.id} className="party-card">
                     <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                      <Silhouette type={getArchetype(c.school)} size={36} />
+                      {(c.avatar_url || '').trim()
+                        ? <img src={c.avatar_url.trim()} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                        : null}
+                      <Silhouette type={getArchetype(c.school)} size={36} color={c.avatar_color}
+                        style={{ display: (c.avatar_url || '').trim() ? 'none' : undefined }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{c.name}</div>
