@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES, ARROW_TYPES } from '../data/constants';
-import { getWoundRank, getEffectiveWaterRing, getArmorTN } from '../lib/utils';
+import { getWoundRank, getEffectiveWaterRing, getArmorTN, chebyshevDist, getMeleeReach, isRangedSkill, hasLineOfSight } from '../lib/utils';
 import { playTileClick } from '../lib/sounds';
 import SpellConstellation from './SpellConstellation';
 
 // ── PC Turn Panel ─────────────────────────────────────────────────────────────
 // Shown at the bottom of the screen ONLY when it's this PC's turn
 // and only visible to that specific PC (and GM in PC view)
-export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false, quickTargetRequest = null, onUndoMove }) {
+export default function PCTurnPanel({ combatant, character, enemies, allies = [], isNPCTurn, actionsLeft, onRoll, onStanceChange, onDrawWeapon, onPass, onSpendAction, onUpdateCharacter, allCharacters = [], onUpdateInventory, partyInventoryItems = [], showGrid = false, onMoveAction, onStartContestedRoll, arrowTracking = false, quickTargetRequest = null, onUndoMove, gridTiles = {} }) {
   const [selectedAction, setSelectedAction] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -50,6 +50,26 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [selectedEmphasis, setSelectedEmphasis] = useState(null); // active emphasis for free raise
 
   if (!isNPCTurn && !character) return null;
+
+  // Attack range/reach/LOS check — same rule as the Battle Grid's right-click quick-target menu:
+  // melee is reach-enforced, ranged has no max range cap but is blocked by walls (line of sight).
+  // No grid position on either side (non-grid encounter, or a combatant never placed) means there's
+  // nothing to check against — attack is always allowed in that case. Defined here (before the
+  // isNPCTurn early return) so both the GM-controlled-NPC panel and the PC panel below can use it.
+  const getRangeIssue = (target) => {
+    const hasPos = combatant?.gridX !== undefined && target?.gridX !== undefined;
+    if (!hasPos) return '';
+    const dist = chebyshevDist(combatant.gridX, combatant.gridY, target.gridX, target.gridY);
+    const losBlocked = !hasLineOfSight(combatant.gridX, combatant.gridY, target.gridX, target.gridY, gridTiles);
+    const drawnNames = combatant?.drawnWeapons?.length ? combatant.drawnWeapons : (combatant?.drawnWeapon ? [combatant.drawnWeapon] : ['Unarmed (1k1)']);
+    const usable = drawnNames.some(dn => {
+      const skillName = WEAPONS_LIST.find(w => w.name === (dn || '').split(' (')[0])?.skill || 'Brawling';
+      return isRangedSkill(skillName) ? (dist > 1 && !losBlocked) : dist <= getMeleeReach(skillName);
+    });
+    if (usable) return '';
+    if (dist <= 1) return 'No ranged weapon drawn — target is adjacent';
+    return losBlocked ? 'No line of sight — a wall blocks the shot' : 'Target out of melee reach — no ranged weapon drawn';
+  };
 
   // NPC turn — simplified panel for GM
   if (isNPCTurn) {
@@ -139,11 +159,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           <div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem' }}>Select target:</div>
             <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', marginBottom: '.5rem' }}>
-              {enemies.filter(e => e.wound < 7).map(e => (
-                <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12 }} onClick={() => setSelectedTarget(e.id)}>
-                  {e.name}
-                </button>
-              ))}
+              {enemies.filter(e => e.wound < 7).map(e => {
+                const rangeIssue = getRangeIssue(e);
+                return (
+                  <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12, opacity: rangeIssue ? 0.4 : 1, cursor: rangeIssue ? 'not-allowed' : 'pointer' }}
+                    disabled={!!rangeIssue} title={rangeIssue || undefined}
+                    onClick={() => { if (rangeIssue) return; setSelectedTarget(e.id); }}>
+                    {e.name}
+                  </button>
+                );
+              })}
             </div>
             {selectedTarget && (
               <button className="btn btn-p" style={{ fontSize: 13, padding: '.4rem .8rem' }} onClick={() => {
@@ -908,13 +933,22 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 </label>
               )}
               <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                {targetPool.filter(e => e.wound < 7).map(e => (
-                  <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} onClick={() => setSelectedTarget(e.id)}
-                    style={allies.includes(e) ? { borderColor: 'var(--green-dim)', color: 'var(--green)' } : undefined}>
-                    {e.name.split(' —')[0]}
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>TN {getTargetTN(e.id)}</span>
-                  </button>
-                ))}
+                {targetPool.filter(e => e.wound < 7).map(e => {
+                  const rangeIssue = getRangeIssue(e);
+                  return (
+                    <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`}
+                      disabled={!!rangeIssue}
+                      title={rangeIssue || undefined}
+                      onClick={() => { if (rangeIssue) return; setSelectedTarget(e.id); }}
+                      style={{
+                        ...(allies.includes(e) ? { borderColor: 'var(--green-dim)', color: 'var(--green)' } : undefined),
+                        ...(rangeIssue ? { opacity: 0.4, cursor: 'not-allowed' } : undefined),
+                      }}>
+                      {e.name.split(' —')[0]}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>TN {getTargetTN(e.id)}</span>
+                    </button>
+                  );
+                })}
                 {targetPool.filter(e => e.wound < 7).length === 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No valid targets</span>}
               </div>
             </div>
@@ -1192,11 +1226,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>Target:</div>
                   <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                    {targetPool.filter(e => e.wound < 7).map(e => (
-                      <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12 }} onClick={() => setSelectedTarget(e.id)}>
-                        {e.name.split(' —')[0]}
-                      </button>
-                    ))}
+                    {targetPool.filter(e => e.wound < 7).map(e => {
+                      const rangeIssue = getRangeIssue(e);
+                      return (
+                        <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12, opacity: rangeIssue ? 0.4 : 1, cursor: rangeIssue ? 'not-allowed' : 'pointer' }}
+                          disabled={!!rangeIssue} title={rangeIssue || undefined}
+                          onClick={() => { if (rangeIssue) return; setSelectedTarget(e.id); }}>
+                          {e.name.split(' —')[0]}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import { TILE_TYPES, ATLAS_COLUMNS, ATLAS_SIZE, ATLAS_TILE } from './EncounterTab';
 import { NPCPicker } from './EncounterBuilder';
+import { generateSewersGrid } from '../lib/utils';
 
 // Same 7 environment themes used elsewhere in the app for setting art (SettingsTab's SETTINGS list),
 // mapped to atlas rows 0-6 per the master_atlas design doc. Rows 7-11 are reserved for future sets.
@@ -39,6 +40,15 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [placingNpcIdx, setPlacingNpcIdx] = useState(null); // index into prebuiltNpcs currently awaiting a grid click
   const [atlasUrl, setAtlasUrl] = useState(''); // Master Atlas (Tileset tab) — preview here so the painter shows real tileset art, not just labeled colors
 
+  // Doodads: dev-defined multi-square props (Settings → Tileset → Doodad Library), placed here.
+  // Placing one auto-assigns its tileType to every cell in its footprint (a plain width×height
+  // rectangle for now — see DoodadLibraryPanel comment for the planned irregular-footprint extension),
+  // then the doodad's own image renders on top of that footprint.
+  const [doodadLibrary, setDoodadLibrary] = useState([]); // [{id, name, width, height, imageUrl, tileType}]
+  const [placedDoodads, setPlacedDoodads] = useState([]); // [{id, defId, x, y}] — x/y null until placed
+  const [placingDoodadIdx, setPlacingDoodadIdx] = useState(null);
+  const [doodadDimFilter, setDoodadDimFilter] = useState(''); // "2x1" etc. — '' means "all"
+
   const CELL = 20;
   const W = size * CELL;
   const displayTiles = { ...tiles, ...paintBuffer };
@@ -48,6 +58,7 @@ export default function GridCreatorTab({ isDeveloper }) {
       const grids = data?.settings?.saved_battle_grids || [];
       setSavedGrids([...grids].sort((a, b) => (a.label || '').localeCompare(b.label || ''))); // label starts with environment type
       setAtlasUrl(data?.settings?.master_atlas_url || '');
+      setDoodadLibrary(data?.settings?.doodad_library || []);
       setLoaded(true);
     });
   }, []);
@@ -76,6 +87,25 @@ export default function GridCreatorTab({ isDeveloper }) {
     return { x, y };
   };
 
+  // Stamps a doodad's tileType across its whole footprint (clamped to the grid bounds) directly into
+  // the committed tiles state — this is the "auto-convert the terrain" behavior, a real state write,
+  // not just a visual overlay pretending the tiles changed.
+  const stampFootprint = (def, x, y, clear = false) => {
+    setTiles(prev => {
+      const next = { ...prev };
+      for (let dx = 0; dx < def.width; dx++) {
+        for (let dy = 0; dy < def.height; dy++) {
+          const cx = x + dx, cy = y + dy;
+          if (cx < 0 || cx >= size || cy < 0 || cy >= size) continue;
+          const key = `${cx},${cy}`;
+          if (clear) delete next[key];
+          else next[key] = { type: def.tileType };
+        }
+      }
+      return next;
+    });
+  };
+
   const confirmSaveGrid = async () => {
     if (!saveName.trim() || !envType.trim()) return;
     const label = `${envType} - ${saveName} - ${size}x${size}`;
@@ -84,7 +114,7 @@ export default function GridCreatorTab({ isDeveloper }) {
     // Non-devs can't see or change the lock checkbox — preserve whatever lock state an existing entry already had
     const priorLocked = activeGridId ? (existing.find(g => g.id === activeGridId)?.locked || false) : false;
     const locked = isDeveloper ? saveLocked : priorLocked;
-    const entry = { id: activeGridId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, locked, createdAt: Date.now() };
+    const entry = { id: activeGridId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, locked, createdAt: Date.now() };
     const next = activeGridId ? existing.map(g => g.id === activeGridId ? entry : g) : [...existing, entry];
     const { error } = await supabase.from('games')
       .update({ settings: { ...(current?.settings || {}), saved_battle_grids: next } })
@@ -105,6 +135,8 @@ export default function GridCreatorTab({ isDeveloper }) {
     setSaveLocked(!!g.locked);
     setPrebuiltNpcs(g.prebuiltNpcs || []);
     setPlacingNpcIdx(null);
+    setPlacedDoodads(g.doodads || []);
+    setPlacingDoodadIdx(null);
   };
 
   const deleteGrid = async (id) => {
@@ -117,6 +149,9 @@ export default function GridCreatorTab({ isDeveloper }) {
   };
 
   if (!loaded) return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>;
+
+  const doodadDims = [...new Set(doodadLibrary.map(d => `${d.width}x${d.height}`))].sort();
+  const visibleDoodads = doodadDimFilter ? doodadLibrary.filter(d => `${d.width}x${d.height}` === doodadDimFilter) : doodadLibrary;
 
   return (
     <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', maxWidth: 1000, margin: '0 auto' }}>
@@ -165,10 +200,22 @@ export default function GridCreatorTab({ isDeveloper }) {
           )}
         </div>
 
-        <svg viewBox={`0 0 ${W} ${W}`} width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: (placingNpcIdx !== null || brush) ? 'crosshair' : 'default', userSelect: 'none' }}
+        <svg viewBox={`0 0 ${W} ${W}`} width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: (placingNpcIdx !== null || placingDoodadIdx !== null || brush) ? 'crosshair' : 'default', userSelect: 'none' }}
           onMouseDown={e => {
             const c = cellFromEvent(e);
             if (!c) return;
+            if (placingDoodadIdx !== null) {
+              const inst = placedDoodads[placingDoodadIdx];
+              const def = doodadLibrary.find(d => d.id === inst?.defId);
+              if (def) {
+                // Clear the old footprint first if this doodad was already placed (i.e. being moved)
+                if (inst.x !== null && inst.x !== undefined) stampFootprint(def, inst.x, inst.y, true);
+                stampFootprint(def, c.x, c.y, false);
+                setPlacedDoodads(prev => prev.map((p, i) => i === placingDoodadIdx ? { ...p, x: c.x, y: c.y } : p));
+              }
+              setPlacingDoodadIdx(null);
+              return;
+            }
             if (placingNpcIdx !== null) {
               setPrebuiltNpcs(prev => prev.map((n, i) => i === placingNpcIdx ? { ...n, x: c.x, y: c.y } : n));
               setPlacingNpcIdx(null);
@@ -235,6 +282,18 @@ export default function GridCreatorTab({ isDeveloper }) {
               </g>
             );
           })}
+          {/* Doodads render on top of their (already auto-converted) footprint tiles */}
+          {placedDoodads.map((inst, i) => {
+            if (inst.x === null || inst.x === undefined || inst.y === null || inst.y === undefined) return null;
+            const def = doodadLibrary.find(d => d.id === inst.defId);
+            if (!def) return null;
+            return (
+              <image key={`doodad-${inst.id || i}`} href={def.imageUrl}
+                x={inst.x * CELL} y={inst.y * CELL} width={def.width * CELL} height={def.height * CELL}
+                opacity={placingDoodadIdx === i ? 0.5 : 1}
+                preserveAspectRatio="xMidYMax meet" style={{ pointerEvents: 'none' }} />
+            );
+          })}
         </svg>
         {placingNpcIdx !== null && (
           <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
@@ -242,10 +301,31 @@ export default function GridCreatorTab({ isDeveloper }) {
             <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingNpcIdx(null)}>Cancel</button>
           </div>
         )}
+        {placingDoodadIdx !== null && (
+          <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
+            Click the grid to place: <strong>{doodadLibrary.find(d => d.id === placedDoodads[placingDoodadIdx]?.defId)?.name}</strong>
+            <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingDoodadIdx(null)}>Cancel</button>
+          </div>
+        )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: '.75rem', flexWrap: 'wrap' }}>
           <button className="btn btn-p" onClick={() => setShowSaveForm(v => !v)}>{activeGridId ? 'Save Changes…' : 'Save As…'}</button>
-          <button className="btn" onClick={() => { setActiveGridId(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); }}>New Grid</button>
+          <button className="btn" onClick={() => { setActiveGridId(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); }}>New Grid</button>
+          <button className="btn" style={{ borderColor: 'rgba(60,140,180,.5)', color: '#7ab8d0' }}
+            title="Procedurally generates a connected tunnel network — narrow confined corridors, a water channel, occasional junction chambers. Replaces the current tiles."
+            onClick={() => {
+              setTiles(generateSewersGrid(size));
+              setPaintBuffer({});
+              setPrebuiltNpcs([]);
+              setPlacingNpcIdx(null);
+              setPlacedDoodads([]);
+              setPlacingDoodadIdx(null);
+              setThemeRow(THEMES.indexOf('Sewers'));
+              setEnvType('Sewers');
+              setEnvIsCustom(false);
+            }}>
+            <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Sewers)
+          </button>
         </div>
 
         {showSaveForm && (
@@ -311,6 +391,63 @@ export default function GridCreatorTab({ isDeveloper }) {
                 title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
             </div>
           ))}
+        </div>
+
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>
+            Doodads <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(defined in Settings → Tileset, dev-only)</span>
+          </div>
+          {doodadLibrary.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None defined yet.</div>
+          ) : (
+            <>
+              <select value={doodadDimFilter} onChange={e => setDoodadDimFilter(e.target.value)} style={{ fontSize: 12, width: '100%', marginBottom: 6 }}>
+                <option value="">All dimensions</option>
+                {doodadDims.map(dim => <option key={dim} value={dim}>{dim}</option>)}
+              </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                {visibleDoodads.map(def => (
+                  <button key={def.id} onClick={() => {
+                    setPlacedDoodads(prev => {
+                      const next = [...prev, { id: `doodadinst_${Date.now()}_${Math.random()}`, defId: def.id, x: null, y: null }];
+                      setPlacingDoodadIdx(next.length - 1);
+                      return next;
+                    });
+                  }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', background: 'rgba(107,78,40,.08)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
+                    <img src={def.imageUrl} alt={def.name} style={{ width: 24, height: 24, objectFit: 'contain', background: 'var(--bg-panel)', borderRadius: 3 }}
+                      onError={e => { e.target.style.visibility = 'hidden'; }} />
+                    <span style={{ fontSize: 12, flex: 1, color: 'var(--text-primary)' }}>{def.name}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{def.width}×{def.height}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {placedDoodads.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {placedDoodads.map((inst, i) => {
+                const def = doodadLibrary.find(d => d.id === inst.defId);
+                const isPlaced = inst.x !== null && inst.x !== undefined;
+                return (
+                  <div key={inst.id || i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginTop: 4,
+                    background: placingDoodadIdx === i ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
+                    <span style={{ fontSize: 12, flex: 1 }}>{def?.name || '(unknown)'}</span>
+                    <span style={{ fontSize: 11, color: isPlaced ? 'var(--green)' : 'var(--text-muted)' }}>
+                      {isPlaced ? `(${inst.x},${inst.y})` : 'unplaced'}
+                    </span>
+                    <button onClick={() => setPlacingDoodadIdx(i)} title="Place on grid" style={{ fontSize: 11, padding: '2px 6px' }}>
+                      {isPlaced ? 'Move' : 'Place'}
+                    </button>
+                    <button onClick={() => {
+                      if (isPlaced && def) stampFootprint(def, inst.x, inst.y, true);
+                      setPlacedDoodads(prev => prev.filter((_, j) => j !== i));
+                      if (placingDoodadIdx === i) setPlacingDoodadIdx(null);
+                    }} title="Remove (also clears its footprint tiles)" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>

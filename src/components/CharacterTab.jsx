@@ -22,6 +22,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
   const [promoteError, setPromoteError] = useState(null); // surfaces a visible message if Promote to Full Character silently fails
   const [noSessionWarning, setNoSessionWarning] = useState(false);
   const [claimEncounterNotice, setClaimEncounterNotice] = useState(false);
+  const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
 
   // Allow parent to trigger Jinn Randomizer via ref (from spell cast)
   React.useEffect(() => {
@@ -53,19 +54,25 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
     }
   }, [jumpToNpcId, npcs, onClearNpcJump]);
 
-  // Set initial selection — prefer myCharId (claimed character) over first non-NPC character
+  // Set initial selection — prefer a claimed character over the first non-NPC character. This must
+  // NOT run every time `characters` gets a new array reference (which happens on basically every
+  // parent render) and treat an intentionally-selected Full NPC as "invalid" just because NPCs are
+  // filtered out of playerCharsNow below — that was overwriting a just-completed jump-to-NPC-sheet
+  // (see the jump effect above) back to the player's own character on the very next render.
   useEffect(() => {
     const playerCharsNow = characters.filter(c => !c.is_npc);
     if (playerCharsNow.length > 0) {
-      const claimed = myCharId && playerCharsNow.find(c => c.id === myCharId);
-      const current = selId && playerCharsNow.find(c => c.id === selId);
+      const claimed = playerCharsNow.find(c => myIds.includes(c.id));
+      // Valid = currently selected id still exists as ANY character (PC or NPC) — checking against
+      // ALL characters, not just playerCharsNow, so a legitimate NPC-sheet selection isn't clobbered.
+      const current = selId && characters.find(c => c.id === selId);
       if (!current) {
-        // No valid selection — default to claimed character or first
+        // No valid selection — default to a claimed character or the first PC
         setSelId(claimed ? claimed.id : playerCharsNow[0].id);
       }
       // Do NOT forcibly reset to claimed if user has manually navigated elsewhere
     }
-  }, [characters, myCharId]);
+  }, [characters, myIds]);
 
   // Player view — see all characters, but canEdit is restricted to characters this player has actually
   // claimed (myCharIds). The old "edit any (honour system)" comment here was stale/inaccurate — canEdit
@@ -1411,8 +1418,11 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         return null;
       })()}
 
+      {/* ── Identity/Rings/Wounds row — sits side by side when there's room, stacks on narrow screens */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+
       {/* ── Card 1: Portrait + Identity ── */}
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card" style={{ margin: 0, flex: '1 1 340px' }}>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* Portrait column — large, scaleable by GM setting */}
@@ -1652,7 +1662,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
       </div>
 
       {/* ── Card 2: Rings Diagram — five interlocking rings ── */}
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card" style={{ margin: 0, flex: '1 1 320px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {(() => {
             const RING_COLORS = { Air: '#a0c0e0', Earth: '#80c090', Fire: '#e09050', Water: '#60b0d0', Void: '#c0a0e0' };
@@ -1755,7 +1765,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         </div>
 
       {/* ── Card 3: Wounds & Social Stats ── */}
-      <div className="card" style={{ marginBottom: '1rem' }}>
+      <div className="card" style={{ margin: 0, flex: '1 1 280px' }}>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* ── Social Stats — top right column ── */}
@@ -1872,6 +1882,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             })()}
           </div>
         </div>
+      </div>
+
       </div>
 
       <div className="g2">

@@ -200,6 +200,7 @@ export default function EncounterBuilder({
     gridSize: 24,
     presetGridId: null,
     themeRow: null,
+    doodads: [],
     gridTiles: {},
     ...initialSetup,
   });
@@ -255,21 +256,29 @@ export default function EncounterBuilder({
           })()}
         </div>
 
+        {/* Grid vs. non-grid (theater-of-mind) decision — made once, at setup, not toggled mid-fight.
+            Undefined (existing saved setups from before this existed) defaults to true — unchanged
+            behavior for anything already in flight. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '1rem', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <input type="checkbox" checked={s.useGrid !== false} onChange={e => upS({ useGrid: e.target.checked })} />
+          Use Battle Grid <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(unchecked = theater-of-mind — no positions, no range/reach checks)</span>
+        </label>
+
         {/* Prebuilt battle grid */}
-        {savedGrids.length > 0 && (
+        {s.useGrid !== false && savedGrids.length > 0 && (
           <div style={{ marginBottom: '1rem' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Prebuilt Grid <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional)</span></span>
             <select value={s.presetGridId || ''} style={{ width: '100%' }} onChange={e => {
               const g = savedGrids.find(g => g.id === e.target.value);
               const keepManual = (s.selectedNPCs || []).filter(n => !n._fromPresetGrid);
-              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual }); return; }
+              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual, doodads: [] }); return; }
               // Prebuilt NPCs (built-in library only) painted onto this saved grid in the Battle Grid
               // Creator — carry their saved x/y through as gridX/gridY so beginEncounter places them
               // there directly instead of using its automatic column-based placement.
               const prebuilt = (g.prebuiltNpcs || [])
                 .filter(n => n.x !== null && n.x !== undefined && n.y !== null && n.y !== undefined)
                 .map(n => ({ ...n, id: n.id || `npc_preset_${Date.now()}_${Math.random()}`, gridX: n.x, gridY: n.y, _fromPresetGrid: true }));
-              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt] });
+              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt], doodads: g.doodads || [] });
             }}>
               <option value="">— None, set up manually —</option>
               {savedGrids.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
@@ -278,7 +287,7 @@ export default function EncounterBuilder({
         )}
 
         {/* Battle grid size */}
-        {!s.presetGridId && (
+        {s.useGrid !== false && !s.presetGridId && (
           <div style={{ marginBottom: '1rem' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>Battle Grid Size</span>
             <div>{[12, 24, 36, 48].map(g => (

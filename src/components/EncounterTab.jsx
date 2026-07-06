@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { STANCES, NPC_ACTIONS, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, TRAITS, getArmorBonus } from '../data/constants';
+import { STANCES, STATUS_EFFECTS, ROUND_LIMITS, WEAPONS_LIST, GAME_ID, SCHOOL_DATA, FACTION_COLORS, SKILL_TRAIT_MAP, TRAITS, getArmorBonus, LIGHT_SOURCES } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { Silhouette, FacIcon, WoundBadge, SilhouetteToken, ScrollLore, triggerVoidSwirl, WeaponIcon, ArmorIcon, getWeaponIconType } from './UI';
 import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, repLabel, rollExplodingKeep, deriveTechniques, getEffectiveWaterRing, getArmorTN, findFreeGridCell, findNearestFreeCell, hasLineOfSight, chebyshevDist, getMeleeReach, isRangedSkill, isInMelee } from '../lib/utils';
@@ -107,7 +107,7 @@ function CombatantVoidMenu({ c, currentVoid, maxVoid, onVoidDefense }) {
 }
 
 // ── Combatant Card ────────────────────────────────────────────────────────────
-function CombatantCard({ c, isActive, isGM, isPCView, myCharId, myCharIds, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0, onShowSummary, onViewCharacter, onViewNpc, inMelee = false }) {
+function CombatantCard({ c, isActive, isGM, isPCView, myCharId, myCharIds, pcs, onGMWound, onApplyStatus, onRemoveStatus, targeting, onSetTarget, compact, onVoidDefense, onSwapSide, portraitScale = 1.0, onShowSummary, onViewCharacter, onViewNpc, inMelee = false, onToggleGlow, hasGrid = false }) {
   const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
   const isNPC = c.type === 'npc';
   const isMyChar = myIds.includes(c.id);
@@ -303,30 +303,23 @@ function CombatantCard({ c, isActive, isGM, isPCView, myCharId, myCharIds, pcs, 
 
       {/* GM controls */}
       {isGM && !isPCView && (
-        <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div style={{ padding: '.3rem .6rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn btn-sm btn-d" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, 1)} title="Apply 1 wound point">+1 W</button>
           <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: 11 }} onClick={() => onGMWound(c.id, -1)} title="Remove 1 wound point">−1 W</button>
           <select style={{ fontSize: 11, padding: '1px 4px', flex: 1 }} value="" onChange={e => { if (e.target.value) onApplyStatus(c.id, e.target.value); e.target.value = ''; }}>
             <option value="">+ Status</option>
             {STATUS_EFFECTS.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
+          {isNPC && hasGrid && onToggleGlow && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: c.glowing ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+              title="This NPC emits its own 3-square light radius (walls still block it), same as Player Glow">
+              <input type="checkbox" checked={!!c.glowing} onChange={() => onToggleGlow(c.id)} style={{ margin: 0 }} />
+              Glow
+            </label>
+          )}
         </div>
       )}
 
-      {/* NPC action controls (GM only, active NPC turn) */}
-      {isActive && isNPC && isGM && !isPCView && (
-        <div style={{ padding: '.4rem .6rem', borderTop: '1px solid rgba(107,78,40,.3)', background: 'rgba(200,150,42,.04)' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>NPC Action:</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-            {NPC_ACTIONS.map(a => (
-              <button key={a} className={`act-btn ${c._action === a ? 'sel' : ''}`} style={{ fontSize: 11 }}
-                onClick={() => onSetTarget && onSetTarget(c.id, a)}>
-                {a}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -444,8 +437,8 @@ function PartyCard({ c, pcsMap, myCharId, myCharIds, isGM, isPCView, grantedActi
 }
 
 // ── Battle Grid tile palette — text stand-ins until the master atlas image exists ─────────────
-// 8 mechanical types (mirrors TERRAIN_CONDITIONS below) + Light (GM-configurable radius) + 4 reserved
-// misc slots for future aesthetic/prop tiles (see master_atlas columns 8-11 in the design doc).
+// 8 mechanical types (mirrors TERRAIN_CONDITIONS below) + Light (GM-configurable radius) + 2 reserved
+// misc slots + PC Start = 12 total, matching the 12-column Master Atlas (see design doc).
 export const TILE_TYPES = [
   { key: 'wall',      label: 'Wall',      short: 'WALL',  color: '#5a5a5a', blocks: true },
   { key: 'difficult', label: 'Difficult', short: 'DIFF',  color: '#8a6a30', statusEffect: 'Terrain: Difficult' },
@@ -459,7 +452,6 @@ export const TILE_TYPES = [
   { key: 'misc1',     label: 'Misc 1',    short: 'MISC1', color: '#606060' },
   { key: 'misc2',     label: 'Misc 2',    short: 'MISC2', color: '#606060' },
   { key: 'misc3',     label: 'PC Start',  short: 'PCSTRT', color: '#3a8a4a', isPcStart: true },
-  { key: 'misc4',     label: 'Misc 4',    short: 'MISC4', color: '#606060' },
 ];
 
 // Master Atlas column mapping — a 768×768 image, 12×12 grid of 64×64 tiles (see Tileset tab; rows
@@ -473,7 +465,7 @@ export const ATLAS_GRID = 12;   // 12×12 tiles
 export const ATLAS_TILE = ATLAS_SIZE / ATLAS_GRID; // 64px per source tile
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightingMode = true, onSetLightingMode, litCells = null, onQuickTarget, playerGlow = false, onSetPlayerGlow, atlasUrl = '', tileDefaultImages = {}, themeRow = null }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, onShift, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightMode = 'dark', onSetLightMode, litCells = null, dimCells = null, onQuickTarget, playerGlow = false, onSetPlayerGlow, atlasUrl = '', tileDefaultImages = {}, themeRow = null, doodads = [], doodadLibrary = [], everyoneHelps = false, isObserver = false, freeMove = false, onSetFreeMove }) {
   const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
   const [selected, setSelected] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
@@ -571,10 +563,12 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
     }
   };
 
-  // One square at a time in darkness: when Lighting is on, non-GM moves are capped to an
-  // adjacent cell from the token's CURRENT position (checked fresh on every move, not just at turn start).
+  // One square at a time — either because Lighting isn't 'full' (darkness), or because Free Move is
+  // active (quietly moving around before combat is officially joined shouldn't mean covering huge
+  // distances in one click). Checked fresh on every move, not just at turn start.
   const withinLightingStep = (tokenId, x, y) => {
-    if (isGM || !lightingMode) return true;
+    if (isGM) return true;
+    if (lightMode === 'full' && !freeMove) return true;
     const tok = combatants.find(c => c.id === tokenId);
     if (!tok || tok.gridX === undefined) return true;
     return Math.max(Math.abs(x - tok.gridX), Math.abs(y - tok.gridY)) <= 1;
@@ -715,13 +709,20 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
 
   // Can a given combatant token be moved by the current user?
   const canMoveToken = (id) => {
-    if (isGM) return true;                  // GM can move anything anytime
-    if (!myIds.includes(id)) return false;   // Players can only move their own token(s)
-    if (!isMyTurn) return false;             // Only on their turn
+    if (isGM) return true;                                          // GM can move anything anytime
+    const tok = combatants.find(c => c.id === id);
+    // Everyone Helps only extends to PCs and NPCs that already have an assigned controller (i.e.
+    // player-assignable allies/creatures) — never a hostile monster with no controller, or it'd
+    // defeat the point of hiding shrouded enemies from players entirely.
+    const canHelp = everyoneHelps && !isObserver && (tok?.type === 'pc' || !!tok?.controllerId);
+    const isOwnToken = myIds.includes(id);
+    if (!isOwnToken && !canHelp) return false;                       // Players can only move their own token(s), unless Everyone Helps applies
+    if (freeMove && isOwnToken) return true;                         // Free Move bypasses turn order for your own token (still subject to the lighting one-step rule elsewhere)
+    if (!isMyTurn) return false;                                     // Only on their turn (isMyTurn already includes the Everyone Helps case)
     return true;
   };
 
-  const handleCellClick = (x, y) => {
+  const handleCellClick = (x, y, keepSelected = false) => {
     if (editMode) return;
     if (!selected) return;
     if (!canMoveToken(selected)) return;
@@ -733,7 +734,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
     const isOwnActiveToken = !isGM && myIds.includes(selected) && selected === active?.id;
     if (isOwnActiveToken && !moveRangeCells.has(`${x},${y}`)) return;
     onMove(selected, x, y);
-    setSelected(null);
+    if (!keepSelected) setSelected(null);
     setHoverCell(null);
   };
 
@@ -758,7 +759,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
       if (!tok || tok.gridX === undefined) return;
       const nx = tok.gridX + dir[0], ny = tok.gridY + dir[1];
       if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return;
-      handleCellClick(nx, ny);
+      handleCellClick(nx, ny, true);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -783,19 +784,30 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
         {!isGM && !isMyTurn && myIds.length > 0 && <span style={{ textTransform: 'none' }}>— Move your token on your turn</span>}
         {!isGM && isMyTurn && !selected && myIds.length > 0 && <span style={{ color: 'var(--green)', textTransform: 'none' }}>— Click your token to move</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, textTransform: 'none', cursor: isGM ? 'pointer' : 'default', color: lightingMode ? 'var(--gold)' : 'var(--text-muted)' }}
-            title="When on, movement outside a lit tile is one square at a time">
-            <input type="checkbox" checked={lightingMode} disabled={!isGM}
-              onChange={e => onSetLightingMode && onSetLightingMode(e.target.checked)}
-              style={{ margin: 0, cursor: isGM ? 'pointer' : 'default' }} />
-            Lighting
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }} title="Dark: unlit &amp; non-adjacent tiles are hidden from players. Dim: same lit/dim tiers, but nothing is hidden — just darkened. Full: lighting off, everyone sees everything.">
+            {['dark', 'dim', 'full'].map(m => (
+              <button key={m} disabled={!isGM} onClick={() => onSetLightMode && onSetLightMode(m)}
+                style={{
+                  fontSize: 10, textTransform: 'capitalize', padding: '1px 6px', cursor: isGM ? 'pointer' : 'default',
+                  borderRadius: 3, border: `1px solid ${lightMode === m ? 'var(--gold)' : 'var(--border)'}`,
+                  background: lightMode === m ? 'rgba(200,150,42,.2)' : 'transparent',
+                  color: lightMode === m ? 'var(--gold)' : 'var(--text-muted)',
+                }}>{m}</button>
+            ))}
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, textTransform: 'none', cursor: isGM ? 'pointer' : 'default', color: playerGlow ? 'var(--gold)' : 'var(--text-muted)' }}
-            title="Each PC token emits its own 3-square light radius (walls still block it)">
+            title="Each PC token emits its own 3-square light radius (walls still block it). When turned off, players may need to rely on lamps and torches in the darkness.">
             <input type="checkbox" checked={playerGlow} disabled={!isGM}
               onChange={e => onSetPlayerGlow && onSetPlayerGlow(e.target.checked)}
               style={{ margin: 0, cursor: isGM ? 'pointer' : 'default' }} />
             Players Glow
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, textTransform: 'none', cursor: isGM ? 'pointer' : 'default', color: freeMove ? 'var(--gold)' : 'var(--text-muted)' }}
+            title="Players can move their own token any time, not just on their turn — until an enemy is revealed, then it's back to strict turn order automatically">
+            <input type="checkbox" checked={freeMove} disabled={!isGM}
+              onChange={e => onSetFreeMove && onSetFreeMove(e.target.checked)}
+              style={{ margin: 0, cursor: isGM ? 'pointer' : 'default' }} />
+            Free Move
           </label>
           {isGM && (
             <button onClick={() => setDefaultTilesOnly(v => !v)}
@@ -811,12 +823,12 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
               {editMode ? 'Editing Terrain' : 'Edit Terrain'}
             </button>
           )}
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom in"
-            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>+</button>
-          <button onClick={() => setZoom(1.0)} title="Reset zoom"
-            style={{ background: 'rgba(107,78,40,.2)', border: '1px solid rgba(107,78,40,.4)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer', padding: '1px 6px', fontSize: 10, lineHeight: 1 }}>{Math.round((1/zoom)*100)}%</button>
           <button onClick={() => setZoom(z => Math.min(1.0, z + 0.25))} title="Zoom out"
             style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>−</button>
+          <button onClick={() => setZoom(1.0)} title="Reset zoom"
+            style={{ background: 'rgba(107,78,40,.2)', border: '1px solid rgba(107,78,40,.4)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer', padding: '1px 6px', fontSize: 10, lineHeight: 1 }}>{Math.round((1/zoom)*100)}%</button>
+          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom in"
+            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>+</button>
         </div>
       </div>
 
@@ -859,8 +871,23 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
         <svg ref={svgRef} width={W} height={W}
           viewBox={(() => {
             if (zoom >= 1.0) return `0 0 ${W} ${W}`;
-            // Center viewBox on active token if present, else grid center
-            const focusToken = active || combatants.find(c => myIds.includes(c.id));
+            // Center viewBox on the player's own token — not just whoever's globally active, which
+            // could be an enemy NPC the player doesn't control. GM still follows whoever's acting,
+            // since they're watching the whole encounter rather than playing one character.
+            const focusToken = (() => {
+              if (isGM) return active;
+              if (active && myIds.includes(active.id)) return active;
+              const myCombatants = combatants.filter(c => myIds.includes(c.id) && c.gridX !== undefined);
+              if (myCombatants.length <= 1) return myCombatants[0] || active;
+              // Multiple claimed characters: follow whichever is soonest-next in initiative from the
+              // current turn pointer (not necessarily first in the array).
+              const activeIdx = combatants.findIndex(c => c.id === active?.id);
+              const ranked = combatants
+                .map((c, i) => ({ c, dist: (i - activeIdx + combatants.length) % combatants.length }))
+                .filter(o => myIds.includes(o.c.id))
+                .sort((a, b) => a.dist - b.dist);
+              return ranked[0]?.c || myCombatants[0];
+            })();
             const cx = focusToken?.gridX !== undefined ? (focusToken.gridX + 0.5) * CELL : W / 2;
             const cy = focusToken?.gridY !== undefined ? (focusToken.gridY + 0.5) * CELL : W / 2;
             const vw = W * zoom;
@@ -1027,10 +1054,43 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
             );
           })()}
 
-          {combatants.map(c => {
+          {/* Depth-sorted by row (not initiative/array order) — anything on a lower row is visually
+              "closer," so it must draw after (on top of) anything on a higher row. This matters
+              because portraits can bleed upward above their own square (see the aspect-ratio-fit
+              rendering below), and now doodads (tall props like a house) can too — a doodad's sort
+              key is its footprint's BOTTOM row, so a character standing on the row above a house
+              can be correctly occluded by it, while a character on/below the house's own row still
+              draws on top of it. Tokens and doodads are merged into one sorted list, not two passes,
+              since paint order in SVG is just document order — two separate loops could never
+              correctly interleave depth between the two kinds of thing. */}
+          {(() => {
+            const doodadItems = doodads
+              .filter(d => d.x !== null && d.x !== undefined && d.y !== null && d.y !== undefined)
+              .map(d => ({ ...d, _isDoodad: true, _def: doodadLibrary.find(def => def.id === d.defId) }))
+              .filter(d => d._def);
+            const renderItems = [
+              ...combatants.map(c => ({ ...c, _sortY: c.gridY })),
+              ...doodadItems.map(d => ({ ...d, _sortY: d.y + d._def.height - 1 })),
+            ];
+            return [...renderItems].sort((a, b) => (a._sortY ?? -1) - (b._sortY ?? -1)).map(item => {
+            if (item._isDoodad) {
+              const def = item._def;
+              return (
+                <image key={`doodad-${item.id}`} href={def.imageUrl}
+                  x={item.x * CELL} y={item.y * CELL} width={def.width * CELL} height={def.height * CELL}
+                  preserveAspectRatio="xMidYMax meet" style={{ pointerEvents: 'none' }} />
+              );
+            }
+            const c = item;
             if (c.gridX === undefined || c.gridY === undefined) return null;
             // Enemy tokens standing outside every light radius are hidden from players (not the GM) while Lighting is on
-            if (!isGM && lightingMode && litCells && c.type === 'npc' && !litCells.has(`${c.gridX},${c.gridY}`)) return null;
+            // Enemy tokens in the fully-dark tier are hidden from players (not the GM) — but only in
+            // strict Dark mode. Dim mode uses the same lit/dim/dark tiers but never hides anything,
+            // just darkens it (a softer option for GMs who don't want full fog-of-war).
+            if (!isGM && lightMode === 'dark' && litCells && c.type === 'npc') {
+              const key = `${c.gridX},${c.gridY}`;
+              if (!litCells.has(key) && !(dimCells && dimCells.has(key))) return null;
+            }
             const isActive = c.id === active?.id;
             const isSelected = c.id === selected;
             const color = getTokenColor(c);
@@ -1099,15 +1159,28 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
                 )}
               </g>
             );
-          })}
-          {/* Darkness overlay — dulls unlit cells so the GM stays aware of where darkness falls; also
-              masks the area for players (enemy tokens in these cells are already skipped above) */}
-          {lightingMode && litCells && (() => {
+            });
+          })()}
+          {/* Three-tier lighting overlay:
+              - Lit cells: no overlay, full brightness.
+              - Dim cells (touching a lit cell, but not lit themselves — e.g. a wall's near face
+                catching light from the room beyond it): always a light translucent overlay, for
+                everyone. This is what makes a wall next to a torch visible as a wall, even though
+                light doesn't pass through it into whatever's on the other side.
+              - Dark cells (neither): in Dark mode, fully opaque for players — "fumbling around in
+                the darkness," nothing is visible there at all. The GM still sees the layout via a
+                lighter indicator overlay (not opaque) so they stay aware of where darkness falls.
+                In Dim mode, dark-tier cells get the same lighter overlay for everyone — darkened,
+                never hidden; a softer option than full fog-of-war. */}
+          {lightMode !== 'full' && litCells && (() => {
             const cells = [];
             for (let gy = 0; gy < gridSize; gy++) {
               for (let gx = 0; gx < gridSize; gx++) {
-                if (litCells.has(`${gx},${gy}`)) continue;
-                cells.push(<rect key={`dark-${gx}-${gy}`} x={gx * CELL} y={gy * CELL} width={CELL} height={CELL} fill="rgba(0,0,0,.55)" style={{ pointerEvents: 'none' }} />);
+                const key = `${gx},${gy}`;
+                if (litCells.has(key)) continue;
+                const isDim = dimCells && dimCells.has(key);
+                const fill = isDim ? 'rgba(0,0,0,.35)' : (lightMode === 'dark' && !isGM) ? 'rgba(0,0,0,1)' : 'rgba(0,0,0,.55)';
+                cells.push(<rect key={`dark-${gx}-${gy}`} x={gx * CELL} y={gy * CELL} width={CELL} height={CELL} fill={fill} style={{ pointerEvents: 'none' }} />);
               }
             }
             return cells;
@@ -1193,15 +1266,22 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
         // Range check against the active combatant's drawn weapon — Chebyshev distance (diagonal
         // counts same as straight, per Charles: melee reach includes diagonal, unlike movement or
         // ranged attacks). No grid position on either side = can't range-check, so allow Attack.
+        // Ranged attacks have no max range cap (deliberate) — only a line-of-sight check (walls
+        // block the shot) and the "not point-blank" rule below. Melee stays reach-enforced.
         const hasPos = active?.gridX !== undefined && target.gridX !== undefined;
         const dist = hasPos ? chebyshevDist(active.gridX, active.gridY, target.gridX, target.gridY) : null;
+        const losBlocked = hasPos && !hasLineOfSight(active.gridX, active.gridY, target.gridX, target.gridY, gridTiles);
         const drawnNames = active?.drawnWeapons?.length ? active.drawnWeapons : (active?.drawnWeapon ? [active.drawnWeapon] : ['Unarmed (1k1)']);
         const attackUsable = drawnNames.some(dn => {
           const skillName = WEAPONS_LIST.find(w => w.name === (dn || '').split(' (')[0])?.skill || 'Brawling';
           if (dist === null) return true;
-          return isRangedSkill(skillName) ? dist > 1 : dist <= getMeleeReach(skillName);
+          return isRangedSkill(skillName) ? (dist > 1 && !losBlocked) : dist <= getMeleeReach(skillName);
         });
-        const attackReason = attackUsable ? '' : (dist !== null && dist <= 1 ? 'No ranged weapon drawn — target is adjacent' : 'Target out of melee reach — no ranged weapon drawn');
+        const attackReason = attackUsable ? '' : (
+          dist !== null && dist <= 1 ? 'No ranged weapon drawn — target is adjacent'
+          : losBlocked ? 'No line of sight — a wall blocks the shot'
+          : 'Target out of melee reach — no ranged weapon drawn'
+        );
         const close = () => setCtxMenu(null);
         return (
           <>
@@ -1632,7 +1712,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted', playerGlowDefault = false }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted', playerGlowDefault = false, isObserver = false, everyoneHelps = false }) {
   // Ownership checks must use the full set of characters this player controls, not just the
   // first-ever-claimed one — a player with two claimed characters was invisible to every
   // "is this mine" check below whenever their second character was the one up. Falls back to
@@ -1651,7 +1731,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   // requiring the attacker to pick which weapon to take
   const [disarmChoice, setDisarmChoice] = useState(null);
   // Roll result banner — local only, never broadcast, so only the rolling player sees their own result flash
-  const [rollBanner, setRollBanner] = useState(null);
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [view, setView] = useState('columns');
   const [compact, setCompact] = useState(false);
@@ -1667,14 +1746,19 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   // down to BattleGrid, which does the actual atlas-column cropping per tile type/theme row.
   const [atlasUrl, setAtlasUrl] = useState('');
   const [tileDefaultImages, setTileDefaultImages] = useState({});
+  const [doodadLibrary, setDoodadLibrary] = useState([]); // definitions ({id, name, width, height, imageUrl, tileType}); placed instances live in setup.doodads
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       setAtlasUrl(data?.settings?.master_atlas_url || '');
       setTileDefaultImages(data?.settings?.tile_default_images || {});
+      setDoodadLibrary(data?.settings?.doodad_library || []);
     });
   }, []);
-  const lightingMode = encounter.lightingMode !== false; // on by default
+  // Dark (default): unlit AND non-adjacent tiles are hidden from players entirely. Dim: same tiers,
+  // nothing hidden, just darkened — a softer option. Full: lighting off, everyone sees everything.
+  const lightMode = encounter.lightMode || 'dark';
   const playerGlow = !!encounter.playerGlow; // PC tokens emit their own light radius — off unless the encounter set it (from the GM Settings default at start, or toggled live)
+  const freeMove = !!encounter.freeMove; // players can move their own token any time, until an enemy is revealed (see auto-disable effect below)
   // Fills a radius (Euclidean, wall-blocked via the shared raycast) around a source cell into `set`
   const fillLightRadius = (set, lx, ly, radius) => {
     for (let dy = -radius; dy <= radius; dy++) {
@@ -1690,10 +1774,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     }
   };
   const litCells = React.useMemo(() => {
-    if (!lightingMode) return null;
+    if (lightMode === 'full') return null;
     const set = new Set();
     Object.entries(gridTiles).forEach(([key, t]) => {
-      if (t?.type !== 'light') return;
+      if (t?.type !== 'light' && t?.type !== 'fire') return; // fire tiles cast light too, not just the dedicated Light tile type
       const [lx, ly] = key.split(',').map(Number);
       fillLightRadius(set, lx, ly, t.radius || 3);
     });
@@ -1703,15 +1787,63 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         fillLightRadius(set, c.gridX, c.gridY, 3);
       });
     }
+    // Per-NPC glow — same radius as Player Glow, but toggled individually per NPC card (GM-only,
+    // grid encounters only) rather than a blanket setting.
+    (combatants || []).forEach(c => {
+      if (!c.glowing || c.gridX === undefined || c.gridY === undefined) return;
+      fillLightRadius(set, c.gridX, c.gridY, 3);
+    });
+    // Wielded light sources (Torch/Lantern/Oil Lamp) — independent of Player Glow; only applies when
+    // one of these specific items is actually equipped. Looked up live against the character's own
+    // equipment (via `characters`, not a snapshot on the combatant) since drawing/stowing a light
+    // source mid-encounter should update lighting immediately, unlike identity fields that must be
+    // snapshotted at spawn time. pcsMap isn't in scope yet at this point in the file, hence the find().
+    (combatants || []).forEach(c => {
+      if (c.gridX === undefined || c.gridY === undefined) return;
+      const equipment = characters.find(ch => ch.id === c.id)?.equipment || [];
+      const litItem = equipment.find(e => e.equipped && LIGHT_SOURCES[e.name]);
+      if (litItem) fillLightRadius(set, c.gridX, c.gridY, LIGHT_SOURCES[litItem.name]);
+    });
     return set;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridTiles, lightingMode, playerGlow, combatants, GRID_SIZE]);
-  // Enemy cards are hidden from players (not the GM) while their token sits outside every light radius
+  }, [gridTiles, lightMode, playerGlow, combatants, characters, GRID_SIZE]);
+  // Dim tier — any cell touching (8-directionally) a lit cell but not itself lit. This is what makes
+  // a wall next to a torch visible as a wall (dimly), even though light doesn't pass through it —
+  // without this, "dark = fully hidden" would also hide the near face of every wall bounding a lit room.
+  const dimCells = React.useMemo(() => {
+    if (!litCells) return null;
+    const set = new Set();
+    litCells.forEach(key => {
+      const [x, y] = key.split(',').map(Number);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+          const nk = `${nx},${ny}`;
+          if (!litCells.has(nk)) set.add(nk);
+        }
+      }
+    });
+    return set;
+  }, [litCells, GRID_SIZE]);
+  // Enemy cards are hidden from players (not the GM) while their token sits in the fully-dark tier —
+  // only in strict Dark mode; Dim mode never hides anything, just darkens it.
   const isEnemyShrouded = (c) => {
     if (isGM && !isPCView) return false;
-    if (!lightingMode || !litCells) return false;
+    if (lightMode !== 'dark' || !litCells) return false;
     if (c.type !== 'npc' || c.gridX === undefined || c.gridY === undefined) return false;
-    return !litCells.has(`${c.gridX},${c.gridY}`);
+    const key = `${c.gridX},${c.gridY}`;
+    return !litCells.has(key) && !(dimCells && dimCells.has(key));
+  };
+
+  // "Enemies (N)" shouldn't give away the true count to players while some are hidden in darkness —
+  // show known enemies + a "?" for however many more might be lurking unseen, instead of the real total.
+  const enemyCountLabel = (list) => {
+    if (isGM && !isPCView) return `${list.length}`;
+    const hiddenCount = list.filter(c => isEnemyShrouded(c)).length;
+    const knownCount = list.length - hiddenCount;
+    return hiddenCount > 0 ? `${knownCount}+?` : `${knownCount}`;
   };
 
   useEffect(() => {
@@ -1877,7 +2009,28 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   const active = combatants[activeTurn % Math.max(1, combatants.length)];
   const enemies = combatants.filter(c => c.type === 'npc');
   const party = combatants.filter(c => c.type === 'pc');
-  const isMyTurn = myIds.includes(active?.id);
+  const isMyTurn = myIds.includes(active?.id) || (everyoneHelps && !isObserver && !!active);
+
+  // Free Move auto-disable: the moment any enemy transitions from hidden to visible while Free Move
+  // is on, turn it off and go back to strict turn order. Tracks each enemy's hidden/visible state
+  // per-render (not just "is anyone visible right now") so this only fires on an actual reveal, not
+  // because enemies started already visible (e.g. lighting is off, or it's daytime).
+  const wasHiddenRef = React.useRef({});
+  React.useEffect(() => {
+    if (!freeMove) { wasHiddenRef.current = {}; return; }
+    let revealed = false;
+    enemies.forEach(en => {
+      const hidden = isEnemyShrouded(en);
+      if (wasHiddenRef.current[en.id] === undefined) wasHiddenRef.current[en.id] = hidden;
+      else if (wasHiddenRef.current[en.id] && !hidden) revealed = true;
+      wasHiddenRef.current[en.id] = hidden;
+    });
+    if (revealed) {
+      upEnc({ freeMove: false });
+      onLogEvent && onLogEvent('ti-eye', 'An enemy is revealed — turn order resumes.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freeMove, enemies, litCells, dimCells]);
 
   // ── Actions ─────────────────────────────────────────────────────────────
   // ── Training Dummy ──────────────────────────────────────────────────────────
@@ -1926,6 +2079,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   };
 
   const beginEncounter = (s) => {
+    const useGrid = s.useGrid !== false;
     // Participants can include both PCs and Full NPCs (characters table rows with is_npc: true,
     // e.g. a promoted named villain) — default to PCs only when nothing's been explicitly chosen,
     // since auto-joining every Full NPC in the roster to every encounter would be surprising.
@@ -1937,18 +2091,23 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
 
     const npcList = s.selectedNPCs || [];
     const npcCombatants = npcList.map((n, i) => {
-      // NPCs seeded from a saved Battle Grid's preloaded placements already carry their own
-      // gridX/gridY (set in EncounterBuilder from the grid's prebuiltNpcs) — use those directly
-      // instead of the automatic column-based placement.
-      const hasPresetPos = n.gridX !== undefined && n.gridY !== undefined;
-      const col = hasPresetPos ? n.gridX : G - 3;
-      const row = hasPresetPos ? n.gridY : Math.max(0, Math.min(G - 1, centerY - Math.floor(npcList.length / 2) + i));
+      let pos = {};
+      if (useGrid) {
+        // NPCs seeded from a saved Battle Grid's preloaded placements already carry their own
+        // gridX/gridY (set in EncounterBuilder from the grid's prebuiltNpcs) — use those directly
+        // instead of the automatic column-based placement.
+        const hasPresetPos = n.gridX !== undefined && n.gridY !== undefined;
+        const col = hasPresetPos ? n.gridX : G - 3;
+        const row = hasPresetPos ? n.gridY : Math.max(0, Math.min(G - 1, centerY - Math.floor(npcList.length / 2) + i));
+        pos = { gridX: col, gridY: row, startX: col, startY: row };
+      }
+      // Theater-of-mind (useGrid: false): no position at all — matches the same "no grid position on
+      // either side" convention already used by range/reach/LOS checks to mean "nothing to enforce."
       return {
-        ...n, wound: n.wound || 0, stance: 'Attack',
+        ...n, ...pos, wound: n.wound || 0, stance: 'Attack',
         init: rollExplodingKeep((n.reflexes || 2) + (n.rank || 1), n.reflexes || 2),
         _initRolled: true,
         statusEffects: [], _action: null,
-        gridX: col, gridY: row, startX: col, startY: row,
       };
     });
 
@@ -1956,32 +2115,35 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     // spawn on them (cycling through the painted tiles if there are more PCs than tiles), cascading
     // outward to the nearest free non-wall cell if a tile/seed point is already taken. If the grid
     // has none painted at all, fall back to the old fixed-column placement for backward compatibility
-    // with existing saved grids that never used this feature.
-    const pcStartSeeds = Object.entries(tiles)
+    // with existing saved grids that never used this feature. None of this runs for a theater-of-mind
+    // (non-grid) encounter — col/row simply never get computed, so combatants end up with no position.
+    const pcStartSeeds = useGrid ? Object.entries(tiles)
       .filter(([, v]) => v?.type === 'misc3')
       .map(([key]) => { const [x, y] = key.split(',').map(Number); return { x, y }; })
-      .sort((a, b) => a.y - b.y || a.x - b.x);
+      .sort((a, b) => a.y - b.y || a.x - b.x) : [];
 
     const occupied = new Set(npcCombatants.map(c => `${c.gridX},${c.gridY}`));
 
     const pcCombatants = participants.map((pc, i) => {
       let col, row;
-      // Full NPCs (checked Participants, is_npc: true) spawn on the enemy side like other NPCs,
-      // rather than competing with real PCs for the PC Start tiles / party-side column.
-      if (pc.is_npc) {
-        col = G - 3;
-        row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.filter(p => p.is_npc).length / 2) + i));
-      } else if (pcStartSeeds.length > 0) {
-        const seed = pcStartSeeds[i % pcStartSeeds.length];
-        const cell = findNearestFreeCell(G, tiles, occupied, seed.x, seed.y);
-        if (cell) { col = cell.x; row = cell.y; }
-        // else: leave col/row undefined — PC lands in the unplaced-combatant tray, same as when
-        // the grid is entirely full for a mid-encounter add.
-      } else {
-        col = 2;
-        row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.length / 2) + i));
+      if (useGrid) {
+        // Full NPCs (checked Participants, is_npc: true) spawn on the enemy side like other NPCs,
+        // rather than competing with real PCs for the PC Start tiles / party-side column.
+        if (pc.is_npc) {
+          col = G - 3;
+          row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.filter(p => p.is_npc).length / 2) + i));
+        } else if (pcStartSeeds.length > 0) {
+          const seed = pcStartSeeds[i % pcStartSeeds.length];
+          const cell = findNearestFreeCell(G, tiles, occupied, seed.x, seed.y);
+          if (cell) { col = cell.x; row = cell.y; }
+          // else: leave col/row undefined — PC lands in the unplaced-combatant tray, same as when
+          // the grid is entirely full for a mid-encounter add.
+        } else {
+          col = 2;
+          row = Math.max(0, Math.min(G - 1, centerY - Math.floor(participants.length / 2) + i));
+        }
+        if (col !== undefined) occupied.add(`${col},${row}`);
       }
-      if (col !== undefined) occupied.add(`${col},${row}`);
       const ref = pc.reflexes || 2;
       const ir = pc.insight_rank || pc.school_rank || 1;
       // Full NPCs are GM-controlled, no player to interactively roll/reroll — auto-roll like other
@@ -2015,7 +2177,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     });
 
     const all = [...pcCombatants, ...npcCombatants].sort((a, b) => b.init - a.init);
-    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {}, playerGlow: playerGlowDefault });
+    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {}, playerGlow: playerGlowDefault, showGrid: useGrid });
     setNpcTargets({});
   };
 
@@ -2229,6 +2391,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     }
   };
 
+  // Per-NPC glow — same 3-square wall-blocked light radius as Player Glow, but toggled individually
+  // per NPC card rather than a blanket setting. Only meaningful (and only shown) on a grid encounter.
+  const toggleGlow = (id) => {
+    upEnc({ combatants: combatants.map(x => x.id === id ? { ...x, glowing: !x.glowing } : x) });
+  };
+
   const handleRollResult = (result, damage) => {
     // Capture all modal values BEFORE clearing — setModal(null) causes re-render
     // and subsequent references to `modal` would read stale null
@@ -2282,8 +2450,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       } else {
         onLogEvent && onLogEvent('ti-hand-grab', `Grapple contact failed — ${capturedModal.targetName || 'target'} avoids the grab`);
       }
-      setRollBanner(banner);
-      setTimeout(() => setRollBanner(null), 5000);
+      upEnc({ rollBanner: banner });
       return;
     }
 
@@ -2315,15 +2482,13 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           ? (c.infiniteHealth ? c : { ...c, wound: Math.min(7, c.wound + woundDelta), voidReduceDamage: false })
           : c),
         dmgBanner: { attackerName: active?.name, targetId: capturedModal.targetId, damage, result: result?.total ?? result },
+        rollBanner: bannerWithDmg,
         ...(sb ? { statusBanner: sb } : {}),
       });
-      setRollBanner(bannerWithDmg);
       if (sb) setTimeout(() => upEnc({ statusBanner: null }), 4000);
     } else {
-      setRollBanner(banner);
+      upEnc({ rollBanner: banner });
     }
-    // Auto-clear banner after 5 seconds
-    setTimeout(() => setRollBanner(null), 5000);
 
     // Spend void if used — deduct however many Void Points were actually spent this roll
     // (attack-roll enhancement and sword-damage enhancement are separate spends, can both occur)
@@ -3042,53 +3207,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         );
       })()}
 
-      {/* Roll result banner — local only, shown just to the player who rolled */}
-      {rollBanner && (() => {
-        const b = rollBanner;
-        if (Date.now() - (b.ts || 0) > 5000) return null;
-        return (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 400,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: b.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
-            pointerEvents: 'none',
-            animation: 'resultFade 5s forwards',
-          }}>
-            {(b.charName || b.skillName) && (
-              <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: b.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
-                {[b.charName, b.skillName].filter(Boolean).join(' — ')}
-              </div>
-            )}
-            <div style={{
-              fontSize: 'clamp(72px, 14vw, 130px)',
-              fontWeight: 900, lineHeight: 1,
-              color: b.success ? '#6aba60' : '#e06050',
-              textShadow: b.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
-              letterSpacing: '-0.02em',
-            }}>
-              {b.success ? 'SUCCESS' : '✗'}
-            </div>
-            {b.total !== undefined && b.tn !== undefined && (
-              <div style={{ fontSize: 24, color: b.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
-                {b.total} vs TN {b.tn}
-              </div>
-            )}
-            {b.success && b.damage !== undefined && (
-              <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
-                  {b.damage} damage → {b.targetName}
-                </div>
-                {b.newWoundLabel && (
-                  <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
-                    {b.oldWoundLabel} → <span style={{ color: '#e03030' }}>{b.newWoundLabel}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
       {/* Disarm weapon choice — attacker picks which of the target's weapons to take when dual-wielding */}
       {disarmChoice && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -3141,7 +3259,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       <div className="turn-banner">
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Round {round || 1} — Active</div>
-          <div className="turn-name">{active?.name || '—'}</div>
+          <div className="turn-name">{active && isEnemyShrouded(active) ? '? ? ? ?' : (active?.name || '—')}</div>
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{setup.name}</div>
@@ -3155,7 +3273,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         {/* Independent display toggles — visually separated to show they're not part of the view-mode group */}
         <div className="layer-tog" style={{ marginLeft: 10 }}>
           <button className={`layer-btn ${compact ? 'active' : ''}`} onClick={() => setCompact(c => !c)}>Compact</button>
-          {(isGM && !isPCView) && (
+          {(isGM && !isPCView) && setup?.useGrid !== false && (
             <button className={`layer-btn ${showGrid ? 'active' : ''}`} onClick={() => setShowGrid(g => !g)}>Grid</button>
           )}
         </div>
@@ -3185,11 +3303,18 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
             }} />
             <ContestedRollInitiator combatants={combatants} pcsMap={pcsMap} onStart={startContestedRoll} />
             <button className="btn btn-sm" onClick={stepBackTurn} title="Step back one turn (GM correction)">← Back</button>
-            <button className="btn btn-p btn-sm" onClick={advanceTurn}>End Turn →</button>
             <button className="btn btn-sm btn-d" onClick={endEncounter}>End Encounter</button>
           </>
         )}
       </div>
+
+      {/* End Turn — its own prominent, left-aligned row right above the party cards (not buried in
+          the GM toolbar above), so it's the first thing the GM sees when deciding what's next. */}
+      {(isGM && !isPCView) && (
+        <div style={{ marginBottom: '.5rem' }}>
+          <button className="btn btn-p" onClick={advanceTurn}>End Turn →</button>
+        </div>
+      )}
 
       {/* Contested Roll resolution panel — shown to GM and both participants until resolved */}
       {encounter.contestedRoll && (
@@ -3199,11 +3324,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
 
       {/* ── Initiative roll panel — shown to each player at start of round 1 ── */}
       {state === 'active' && round === 1 && (() => {
-        // Find my combatant
-        const myCombatant = combatants.find(c => c.id === myCharId);
-        const myPC = pcsMap[myCharId];
-        if (!myCombatant || !myPC || myCombatant._initRolled) return null;
         if (isGM && !isPCView) return null; // GM has already set NPC inits
+        // Find one of MY OWN characters that still needs to roll — never myCharId (singular,
+        // first-ever-claimed character), which could resolve to an NPC (e.g. one this player was
+        // ever assigned as controller for) or the wrong one of several PCs this player controls.
+        const myCombatant = combatants.find(c => c.type === 'pc' && myIds.includes(c.id) && !c._initRolled);
+        if (!myCombatant) return null;
+        const myPC = pcsMap[myCombatant.id];
+        if (!myPC) return null;
 
         const ref = myPC.reflexes || 2;
         const ir = myPC.insight_rank || myPC.school_rank || 1;
@@ -3213,7 +3341,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         const battleInitBonus = (battleSkill?.rank || 0) >= 5 ? battleSkill.rank : 0;
         // Leadership advantage: someone may have granted this character +School Rank flat and +1k1 to
         // this Initiative roll (once per round, consumed on use)
-        const leadershipGrant = encounter.leadershipGrant?.targetId === myCharId ? encounter.leadershipGrant : null;
+        const leadershipGrant = encounter.leadershipGrant?.targetId === myCombatant.id ? encounter.leadershipGrant : null;
 
         const rollInit = (voidSpend = false) => {
           const bonus = voidSpend ? 10 : 0;
@@ -3225,12 +3353,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           const leadershipFlat = leadershipGrant ? leadershipGrant.schoolRank : 0;
           const total = base + bonus + battleInitBonus + leadershipFlat;
           const newCombatants = combatants
-            .map(c => c.id === myCharId ? { ...c, init: total, _initRolled: true } : c)
+            .map(c => c.id === myCombatant.id ? { ...c, init: total, _initRolled: true } : c)
             .sort((a, b) => b.init - a.init);
           // Only reset activeTurn if no one has acted yet (all _initRolled false or this is the first)
           const anyoneActed = combatants.some(c => c._actionsLeft?.full < 1 || c._actionsLeft?.simple < 2);
           upEnc({ combatants: newCombatants, ...(anyoneActed ? {} : { activeTurn: 0 }), ...(leadershipGrant ? { leadershipGrant: null } : {}) });
-          if (voidSpend) onUpdateCharacter(myCharId, { current_void: Math.max(0, voidLeft - 1) });
+          if (voidSpend) onUpdateCharacter(myCombatant.id, { current_void: Math.max(0, voidLeft - 1) });
           onLogEvent && onLogEvent('ti-dice', `${myCombatant.name} Initiative: ${total}${voidSpend ? ' (Void +10)' : ''}${battleInitBonus > 0 ? ` (+${battleInitBonus} Battle Mastery)` : ''}${leadershipGrant ? ` (+${leadershipGrant.schoolRank}+1k1 Leadership from ${leadershipGrant.granterName})` : ''} (${leadershipRolled}k${leadershipKeep})`);
         };
 
@@ -3272,7 +3400,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         return leaders.map(leader => {
           const full = pcsMap[leader.id];
           const targets = rollingCombatants.filter(c => c.id !== leader.id);
-          const canGrant = myCharId === leader.id || (isGM && !isPCView);
+          const canGrant = myIds.includes(leader.id) || (isGM && !isPCView);
           return (
             <div key={leader.id} style={{ background: 'rgba(200,150,42,.06)', border: '1px solid var(--gold-dim)', borderRadius: 8, padding: '.5rem .75rem', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: 'var(--gold-dim)' }}>
@@ -3300,8 +3428,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         const waitingOn = pcCombatants.filter(c => !c._initRolled);
         if (waitingOn.length === 0) return null;
         // Don't show this to a player who is themselves still waiting to roll — they already see their own roll prompt
-        const myCombatant = combatants.find(c => c.id === myCharId);
-        const iAmWaiting = myCombatant && !myCombatant._initRolled && !(isGM && !isPCView);
+        const iAmWaiting = !(isGM && !isPCView) && waitingOn.some(c => myIds.includes(c.id));
         if (iAmWaiting) return null;
         return (
           <div style={{
@@ -3428,13 +3555,14 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
                 onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
                 onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
                 inMelee={isInMelee(c, combatants)}
+                onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false}
               />
             ))}
             {/* When grid is on, show enemies in the same left column */}
             {showGrid && enemies.length > 0 && (
               <>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemies.length})
+                  <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemyCountLabel(enemies)})
                 </div>
                 {enemies.map(c => (
                   isEnemyShrouded(c) ? (
@@ -3455,6 +3583,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
                       onSetTarget={(npcId, action) => { handleSetNPCAction(npcId, action); if (action === 'Attack') setTargeting(npcId); }}
                       onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
                       inMelee={isInMelee(c, combatants)}
+                      onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false}
                     />
                   )
                 ))}
@@ -3483,14 +3612,21 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
               isMyTurn={isMyTurn}
               settingBg={setup.bgUrl || settingUrls[setup.setting] || null}
               gridTiles={gridTiles}
-              lightingMode={lightingMode}
+              lightMode={lightMode}
               litCells={litCells}
-              onSetLightingMode={(val) => upEnc({ lightingMode: val })}
+              dimCells={dimCells}
+              onSetLightMode={(val) => upEnc({ lightMode: val })}
               playerGlow={playerGlow}
               onSetPlayerGlow={(val) => upEnc({ playerGlow: val })}
+              freeMove={freeMove}
+              onSetFreeMove={(val) => upEnc({ freeMove: val })}
               atlasUrl={atlasUrl}
               tileDefaultImages={tileDefaultImages}
               themeRow={setup?.themeRow}
+              doodads={setup?.doodads || []}
+              doodadLibrary={doodadLibrary}
+              everyoneHelps={everyoneHelps}
+              isObserver={isObserver}
               onQuickTarget={(targetId, action) => setQuickTargetRequest({ targetId, action, ts: Date.now() })}
               onPaintTiles={(patch) => {
                 const merged = { ...gridTiles };
@@ -3545,7 +3681,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           {!showGrid && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemies.length})
+              <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemyCountLabel(enemies)})
             </div>
             {enemies.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.5rem' }}>No enemies</div>}
             {enemies.map(c => (
@@ -3572,6 +3708,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
                   onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
                   onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
                   inMelee={isInMelee(c, combatants)}
+                  onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false}
                 />
               )
             ))}
@@ -3634,8 +3771,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
         </div>
       )}
 
-      {/* PC Turn Panel — shown only for active player's own turn (or GM in any PC turn) */}
-      {active && active.type === 'pc' && (isGM || myIds.includes(active.id)) && (
+      {/* PC Turn Panel — shown for the active player's own turn, GM in any PC turn, or (if Everyone
+          Helps is on) any logged-in player — but never an observer, who isn't actually playing. */}
+      {active && active.type === 'pc' && (isGM || myIds.includes(active.id) || (everyoneHelps && !isObserver)) && (
         <PCTurnPanel
           combatant={active}
           character={pcsMap[active.id]}
@@ -3647,11 +3785,12 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
           onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
           onMoveAction={() => {
-            // Track moves used and activate grid if not already visible
+            // Track moves used and activate grid if not already visible (only meaningful when this
+            // encounter actually has one — theater-of-mind encounters have no grid to open)
             const movesUsed = (active._movesUsed || 0) + 1;
             upEnc({
               combatants: combatants.map(c => c.id === active.id ? { ...c, _movesUsed: movesUsed } : c),
-              showGrid: true, // auto-open grid when moving
+              ...(setup?.useGrid !== false ? { showGrid: true } : {}),
             });
           }}
           onUndoMove={() => {
@@ -3681,9 +3820,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           }}
           arrowTracking={arrowTracking}
           quickTargetRequest={quickTargetRequest}
+          gridTiles={gridTiles}
         />
       )}
-      {active && active.type === 'npc' && (isGM || myIds.includes(active.controllerId)) && !isPCView && (
+      {active && active.type === 'npc' && (isGM || myIds.includes(active.controllerId) || (everyoneHelps && !isObserver && !!active.controllerId)) && !isPCView && (
         <PCTurnPanel
           combatant={active}
           character={null}
@@ -3696,6 +3836,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           onPass={advanceTurn}
           onSpendAction={spendAction}
           quickTargetRequest={quickTargetRequest}
+          gridTiles={gridTiles}
         />
       )}
 

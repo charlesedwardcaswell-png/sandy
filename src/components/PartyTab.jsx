@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { GAME_ID } from '../data/constants';
 import { Silhouette, FacIcon } from './UI';
 import { getArchetype, getWoundRank, repColor, repLabel, formatDate } from '../lib/utils';
 import { WOUND_COLORS, WOUND_RANKS, FACTIONS_DATA } from '../data/constants';
@@ -57,7 +59,7 @@ export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdat
   );
 }
 
-export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId, onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater }) {
+export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId, onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater, onViewCharacter, onViewNpc }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -65,6 +67,21 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
   const [copperDelta, setCopperDelta] = useState('');
   const [sendToChar, setSendToChar] = useState({}); // itemIdx → charId
   const [showMagicCreator, setShowMagicCreator] = useState(false);
+  const [partyName, setPartyName] = useState('');
+
+  React.useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.party_name) setPartyName(data.settings.party_name);
+    });
+  }, []);
+
+  const savePartyName = async (name) => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), party_name: name } })
+      .eq('id', GAME_ID);
+    if (error) console.error('save party_name failed:', error.message);
+  };
 
   const applyCopper = () => {
     const delta = parseInt(copperDelta) || 0;
@@ -123,6 +140,17 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
           }}
         />
       )}
+
+      {/* Party name — GM-editable; players see it as a plain header. Also feeds the Daftar tab's title. */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        {gmView ? (
+          <input defaultValue={partyName} placeholder="Name your party..."
+            onBlur={e => { const v = e.target.value.trim(); if (v !== partyName) { setPartyName(v); savePartyName(v); } }}
+            style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', padding: '2px 0', width: '100%', maxWidth: 400 }} />
+        ) : (
+          partyName && <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{partyName}</div>
+        )}
+      </div>
 
       {/* Party members + Faction standing */}
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
@@ -184,12 +212,18 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
             <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>No characters created yet.</div>
           ) : (
             <div>
-              {characters.map(c => {
+              {/* PCs + party-asset Full NPCs only — this used to render every character including
+                  every hostile/unassigned NPC in the game, visible to players. */}
+              {characters.filter(c => !c.is_npc || c.is_party_asset).map(c => {
                 const woundRank = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
                 const wColor = WOUND_COLORS[woundRank];
                 const magicEq = (c.equipment || []).filter(e => e.is_magic);
+                const clickable = !!onViewCharacter;
                 return (
-                  <div key={c.id} className="party-card">
+                  <div key={c.id} className="party-card"
+                    style={clickable ? { cursor: 'pointer' } : undefined}
+                    title={clickable ? `View ${c.name}'s sheet` : undefined}
+                    onClick={clickable ? () => onViewCharacter(c.id) : undefined}>
                     <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                       {(c.avatar_url || '').trim()
                         ? <img src={c.avatar_url.trim()} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -199,7 +233,10 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                         style={{ display: (c.avatar_url || '').trim() ? 'none' : undefined }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{c.name}</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
+                        {c.name}
+                        {c.is_npc && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 6 }}>🐾 party</span>}
+                      </div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.35rem' }}>{c.faction} · {c.school} R{c.school_rank}</div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         <span className="party-stat" style={{ color: wColor, borderColor: wColor + '44' }}>{WOUND_RANKS[woundRank]}</span>
@@ -223,6 +260,23 @@ export default function PartyTab({ isGM, isPCView, characters, reps, onUpdateRep
                   </div>
                 );
               })}
+              {/* Party-asset Quick NPCs (from the Daftar, not the characters table) — lighter card,
+                  same click-to-view-sheet shortcut. */}
+              {npcs.filter(n => n.is_party_asset).map(n => (
+                <div key={n.id} className="party-card" style={{ cursor: onViewNpc ? 'pointer' : undefined }}
+                  title={onViewNpc ? `View ${n.name}'s sheet` : undefined}
+                  onClick={onViewNpc ? () => onViewNpc(n.id) : undefined}>
+                  <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Silhouette type={getArchetype(n.school)} size={36} color="#8ac07a" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
+                      {n.name}<span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 6 }}>🐾 party</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{n.faction} · {n.school} R{n.rank || 1}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

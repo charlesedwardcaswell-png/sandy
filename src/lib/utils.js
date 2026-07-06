@@ -292,6 +292,107 @@ export function findNearestFreeCell(gridSize, gridTiles, occupied, startX, start
   return null; // grid is entirely full/blocked — caller leaves the combatant unplaced
 }
 
+// ── Battle Grid Randomizer: Sewers (pilot theme) ───────────────────────────────
+// True procedural generation, not template stamps — a randomized branching walk carves a connected
+// tunnel network out of solid wall. Each theme needs its own generator since the spatial logic
+// differs (this one is corridor/tunnel-based; caves would want cellular automata instead, palace
+// would want room-and-corridor BSP, etc. — see BACKLOG.md).
+//
+// Design, matching what sewers should actually feel like:
+// - Mostly 1-wide corridors, tagged 'confined' (a straight corridor cell with exactly 2 opposite
+//   open neighbors) — narrow, claustrophobic tunnels are the point.
+// - Occasional 2-wide stretches and small 3×3 junction chambers so it isn't uniformly cramped.
+// - A contiguous water channel ('flooded') winding along part of the main tunnel.
+// - Sparse waste/muck ('hazardous') and light-grate ('light') tiles.
+// - Connectivity is guaranteed BY CONSTRUCTION — every branch only ever starts from an
+//   already-carved cell, so there's no separate reachability pass needed, unlike a generator
+//   that scatters rooms first and connects them after.
+// - PC Start lands at the entrance (top edge), where the party would enter from street level.
+export function generateSewersGrid(gridSize) {
+  const G = gridSize;
+  const key = (x, y) => `${x},${y}`;
+  const inBounds = (x, y) => x >= 1 && x < G - 1 && y >= 1 && y < G - 1; // keep a 1-tile wall border
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+  const DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+  const tiles = {};
+  // 1. Solid wall block — tunnels get carved OUT of this (deleting the wall entry = open floor)
+  for (let x = 0; x < G; x++) for (let y = 0; y < G; y++) tiles[key(x, y)] = { type: 'wall' };
+
+  const carved = new Set();
+  const carve = (x, y) => { if (!inBounds(x, y)) return; delete tiles[key(x, y)]; carved.add(key(x, y)); };
+
+  // Entrance on the top edge — becomes the PC Start tile once carving is done
+  const entranceX = randInt(Math.floor(G * 0.3), Math.floor(G * 0.7));
+  const entranceY = 1;
+  carve(entranceX, entranceY);
+
+  const walks = [{ x: entranceX, y: entranceY, dir: [0, 1], steps: Math.floor(G * 2.8) }];
+  let branchesSpawned = 0;
+  const maxBranches = Math.max(4, Math.floor(G * G / 40)); // scale with grid area, not just one dimension
+
+  while (walks.length) {
+    const w = walks.pop();
+    let { x, y, dir } = w;
+    for (let i = 0; i < w.steps; i++) {
+      if (Math.random() < 0.3) dir = pick(DIRS); // meander instead of running dead straight
+      const nx = x + dir[0], ny = y + dir[1];
+      if (!inBounds(nx, ny)) { dir = pick(DIRS); continue; }
+      carve(nx, ny);
+      // Mostly 1-wide (kept low on purpose — "lots of confined space" is the point), occasionally 2
+      if (Math.random() < 0.15) {
+        const side = dir[0] !== 0 ? [0, 1] : [1, 0];
+        carve(nx + side[0], ny + side[1]);
+      }
+      // Occasional junction chamber
+      if (Math.random() < 0.05) {
+        for (let cx = -1; cx <= 1; cx++) for (let cy = -1; cy <= 1; cy++) carve(nx + cx, ny + cy);
+      }
+      // Branch off down a side tunnel, perpendicular to current heading
+      if (Math.random() < 0.15 && branchesSpawned < maxBranches) {
+        branchesSpawned++;
+        const branchDir = dir[0] !== 0 ? pick([[0, 1], [0, -1]]) : pick([[1, 0], [-1, 0]]);
+        walks.push({ x: nx, y: ny, dir: branchDir, steps: randInt(8, Math.floor(G * 1.4)) });
+      }
+      x = nx; y = ny;
+    }
+  }
+
+  // 2. Confined tag — a straight 1-wide corridor cell (exactly 2 open orthogonal neighbors, opposite)
+  carved.forEach(k => {
+    const [x, y] = k.split(',').map(Number);
+    const n = DIRS.filter(([dx, dy]) => carved.has(key(x + dx, y + dy)));
+    const isStraight1Wide = n.length === 2 && n[0][0] === -n[1][0] && n[0][1] === -n[1][1];
+    if (isStraight1Wide) tiles[key(x, y)] = { type: 'confined' };
+  });
+
+  // 3. Water channel — winds along carved cells starting from the entrance
+  let wx = entranceX, wy = entranceY;
+  const channelLen = Math.floor(G * 1.2);
+  for (let i = 0; i < channelLen; i++) {
+    if (!carved.has(key(wx, wy))) break;
+    tiles[key(wx, wy)] = { type: 'flooded' };
+    const options = DIRS.filter(([dx, dy]) => carved.has(key(wx + dx, wy + dy)));
+    if (!options.length) break;
+    const [dx, dy] = pick(options);
+    wx += dx; wy += dy;
+  }
+
+  // 4. Sparse waste (hazardous) and light-grate sprinkles on remaining plain tunnel cells
+  carved.forEach(k => {
+    if (tiles[k]) return; // already tagged confined/flooded above
+    const roll = Math.random();
+    if (roll < 0.04) tiles[k] = { type: 'hazardous' };
+    else if (roll < 0.07) tiles[k] = { type: 'light', radius: 2 };
+  });
+
+  // 5. PC Start at the entrance — always wins, placed last
+  tiles[key(entranceX, entranceY)] = { type: 'misc3' };
+
+  return tiles;
+}
+
 // ── Difficulty ────────────────────────────────────────────────────────────────
 export function calcDifficulty(npcs, partyRank = 2) {
   // Use creature.difficulty for bestiary entries (was silently rank 1 for all creatures regardless of

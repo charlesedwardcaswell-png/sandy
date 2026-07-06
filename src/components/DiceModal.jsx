@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES, DISADVANTAGE_ROLL_BONUSES, WEAPONS_LIST } from '../data/constants';
 import { rollN } from '../lib/utils';
 import { playSuccess, playFailure, playClick, playDiceRoll } from '../lib/sounds';
@@ -162,6 +162,21 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
 // ── Dice Modal ────────────────────────────────────────────────────────────────
 export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, onUnluckyUsed, disableReroll = false }) {
   const [phase, setPhase] = useState('setup');
+  // Dice animation — a "fake" 2D roll: cycle each die rapidly through random digits for ~700ms right
+  // after the real roll is computed, then reveal the actual values and let the player interact
+  // (click to keep) as normal. No real geometry/physics — this is what most tabletop apps do, and
+  // it's purely cosmetic: `dice` already holds the real, final values the whole time.
+  const [animating, setAnimating] = useState(false);
+  const [spinDigits, setSpinDigits] = useState([]);
+  useEffect(() => {
+    if (!animating) return;
+    const iv = setInterval(() => {
+      setSpinDigits(prev => (dice.length ? dice : prev).map(() => 1 + Math.floor(Math.random() * 10)));
+    }, 70);
+    const timeout = setTimeout(() => setAnimating(false), 700);
+    return () => { clearInterval(iv); clearTimeout(timeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animating]);
   const [raises, setRaises] = useState([]);
   const [incDamageRaises, setIncDamageRaises] = useState(0); // Increased Damage maneuver — stacks freely, 1+ raises
   const [useVoid, setUseVoid] = useState(false);
@@ -345,6 +360,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     setKept(new Set());
     setRollResult(null);
     setPhase('rolling');
+    setAnimating(true);
     playDiceRoll();
   };
 
@@ -758,19 +774,22 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             <span className="modal-label">Click to keep — {kept.size}/{keepCount} kept — TN {tn}{flatMod !== 0 ? ` (${flatMod >= 0 ? '+' : ''}${flatMod} modifier)` : ''}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dice.map((d, i) => (
-                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleKeep(i)}
-                  title={d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
-                  style={d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
-                  {d.total}
-                  {d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
-                  {d.wasOne && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★1↺</span>}
-                  {rerolledOnes.includes(i) && !d.exploded && !d.wasOne && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
-                  {kept.has(i) && <span className="die-lbl">✓</span>}
+                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded && !animating ? 'ten' : ''} ${animating ? 'die-spinning' : ''}`}
+                  onClick={animating ? undefined : () => toggleKeep(i)}
+                  title={animating ? '' : d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
+                  style={animating ? { cursor: 'default' } : d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
+                  {animating ? (spinDigits[i] ?? d.total) : d.total}
+                  {!animating && d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
+                  {!animating && d.wasOne && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★1↺</span>}
+                  {!animating && rerolledOnes.includes(i) && !d.exploded && !d.wasOne && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
+                  {!animating && kept.has(i) && <span className="die-lbl">✓</span>}
                 </div>
               ))}
             </div>
             <div style={{ marginTop: '.75rem', fontSize: 13, color: 'var(--text-muted)' }}>
-              {(() => {
+              {animating ? (
+                <span style={{ fontStyle: 'italic' }}>Rolling…</span>
+              ) : (() => {
                 const runningTotal = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
                 const wouldSucceed = runningTotal >= tn;
                 return (<>
@@ -792,16 +811,16 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </div>
           </div>
           <div style={{ display: 'flex', gap: '.5rem' }}>
-            <button className="btn btn-p" disabled={kept.size === 0} onClick={confirmRoll}>
+            <button className="btn btn-p" disabled={animating || kept.size === 0} onClick={confirmRoll}>
               Confirm {kept.size}/{keepCount} {kept.size < keepCount ? `(keeping fewer — may fail)` : ''}
             </button>
-            <button className="btn btn-sm" onClick={() => {
+            <button className="btn btn-sm" disabled={animating} onClick={() => {
               const sortedIdx = dice.map((d, i) => ({ i, v: d.total })).sort((a, b) => b.v - a.v).map(x => x.i);
               setKept(new Set(sortedIdx.slice(0, keepCount)));
             }}>
               Best {keepCount}
             </button>
-            <button className="btn btn-sm" onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); }}
+            <button className="btn btn-sm" disabled={animating} onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); setAnimating(true); playDiceRoll(); }}
               style={{ display: disableReroll ? 'none' : undefined }}>
               <i className="ti ti-refresh" /> Reroll
             </button>

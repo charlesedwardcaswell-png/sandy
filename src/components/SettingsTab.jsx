@@ -176,6 +176,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const [jinnArtUrl, setJinnArtUrl] = useState(DEFAULT_JINN_ART_URL);
   const [roundLimits, setRoundLimits] = useState({ Action: '', Intrigue: '', Travel: '', Downtime: '' });
   const [imagesSaved, setImagesSaved] = useState(false);
+  const [gameplaySaved, setGameplaySaved] = useState(false);
   const [disableReroll, setDisableReroll] = useState(false);
   const [waterDroughtEnabled, setWaterDroughtEnabled] = useState(false);
   const [ringsOverlay, setRingsOverlay] = useState(true);
@@ -184,6 +185,8 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
   const [hideFeedbackTab, setHideFeedbackTab] = useState(false);
   const [playerGlowDefault, setPlayerGlowDefault] = useState(false);
+  const [disableTimeTracking, setDisableTimeTracking] = useState(false);
+  const [everyoneHelps, setEveryoneHelps] = useState(false);
   const [downtimeActionsPerChar, setDowntimeActionsPerChar] = useState(3);
   const [arrowTracking, setArrowTracking] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
@@ -208,6 +211,8 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         if (data.settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!data.settings.hide_shop_from_players);
         if (data.settings.hide_feedback_tab !== undefined) setHideFeedbackTab(!!data.settings.hide_feedback_tab);
         if (data.settings.player_glow_default !== undefined) setPlayerGlowDefault(!!data.settings.player_glow_default);
+        if (data.settings.disable_time_tracking !== undefined) setDisableTimeTracking(!!data.settings.disable_time_tracking);
+        if (data.settings.everyone_helps !== undefined) setEveryoneHelps(!!data.settings.everyone_helps);
         if (data.settings.downtime_actions_per_char) setDowntimeActionsPerChar(data.settings.downtime_actions_per_char);
         if (data.settings.arrow_tracking !== undefined) setArrowTracking(!!data.settings.arrow_tracking);
         if (data.settings.starting_cp !== undefined) setStartingCP(data.settings.starting_cp || 45);
@@ -215,13 +220,14 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     });
   }, []);
 
-  const saveImageSettings = async () => {
+  const saveImageSettings = async (which = 'images') => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers, hide_feedback_tab: hideFeedbackTab, player_glow_default: playerGlowDefault } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers, hide_feedback_tab: hideFeedbackTab, player_glow_default: playerGlowDefault, disable_time_tracking: disableTimeTracking, everyone_helps: everyoneHelps } })
       .eq('id', GAME_ID);
-    if (!error) { setImagesSaved(true); setTimeout(() => setImagesSaved(false), 2500); }
-    else { console.error('saveImageSettings failed:', error.message); setImagesSaved(false); }
+    const setFlag = which === 'gameplay' ? setGameplaySaved : setImagesSaved;
+    if (!error) { setFlag(true); setTimeout(() => setFlag(false), 2500); }
+    else { console.error('saveImageSettings failed:', error.message); setFlag(false); }
   };
 
   const wipeTable = async (table, filter = {}, afterRefetch) => {
@@ -529,7 +535,37 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             })}
           </div>
 
-          <button className="btn btn-p btn-sm" onClick={saveImageSettings}>{imagesSaved ? '✓ Saved' : 'Save Gameplay Settings'}</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={playerGlowDefault}
+              onChange={e => { setPlayerGlowDefault(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+              style={{ accentColor: 'var(--gold)' }} />
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Players Glow (default)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>New encounters start with each PC token emitting its own 3-square light radius (walls still block it), on top of any GM-painted light tiles. Can still be toggled per-encounter next to the Lighting checkbox on the Battle Grid. When turned off, players may need to rely on lamps and torches in the darkness.</div>
+            </div>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={disableTimeTracking}
+              onChange={e => { setDisableTimeTracking(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+              style={{ accentColor: 'var(--gold)' }} />
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Disable Time Tracking</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hides the time-of-day/day-of-week display and GM controls for everyone. The underlying day/time value is kept, just not shown or advanced through the UI.</div>
+            </div>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={everyoneHelps}
+              onChange={e => { setEveryoneHelps(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+              style={{ accentColor: 'var(--gold)' }} />
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Everyone Helps</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lets any player (or the GM) take actions for any character on that character's turn — not just their own. Useful for a smaller table where players help each other out.</div>
+            </div>
+          </label>
+
+          <button className="btn btn-p btn-sm" onClick={() => saveImageSettings('gameplay')}>{gameplaySaved ? '✓ Saved' : 'Save Gameplay Settings'}</button>
         </>
       )}
 
@@ -571,7 +607,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                 onChange={e => { setRingsOverlay(e.target.checked); setTimeout(saveImageSettings, 0); }}
                 style={{ accentColor: 'var(--gold)' }} />
               <div>
-                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Rings Overlay</div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Districts Overlay</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shows the district-ring guide lines (Outer City, Merchant District, Faction Quarter, Noble District, Palace) on the surface map layer.</div>
               </div>
             </label>
@@ -583,16 +619,6 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide Feedback Tab</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab entirely — for everyone, including the GM. Unlike the Shop tab's hide toggle, there's no GM-only exception.</div>
-              </div>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={playerGlowDefault}
-                onChange={e => { setPlayerGlowDefault(e.target.checked); setTimeout(saveImageSettings, 0); }}
-                style={{ accentColor: 'var(--gold)' }} />
-              <div>
-                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Players Glow (default)</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>New encounters start with each PC token emitting its own 3-square light radius (walls still block it), on top of any GM-painted light tiles. Can still be toggled per-encounter next to the Lighting checkbox on the Battle Grid.</div>
               </div>
             </label>
 

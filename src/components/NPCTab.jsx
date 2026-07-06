@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { GAME_ID } from '../data/constants';
 import { FacIcon, Silhouette, Empty, ScrollLore } from './UI';
 import PoisonReferenceModal from './PoisonReferenceModal';
 import { SCHOOL_DATA, FACTIONS_DATA, NPC_BY_FACTION, FACTION_SCHOOLS, CREATURES_LIBRARY } from '../data/constants';
@@ -736,6 +738,23 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
 
   const toggleFaction = name => setOpenFactions(o => ({ ...o, [name]: !o[name] }));
 
+  const DEFAULT_DAFTAR_TAGLINE = "Herein, for posterity, is recorded the name and standing of all who cross this party's path.";
+  const [partyName, setPartyName] = useState('');
+  const [daftarTagline, setDaftarTagline] = useState('');
+  React.useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      if (data?.settings?.party_name) setPartyName(data.settings.party_name);
+      if (data?.settings?.daftar_tagline) setDaftarTagline(data.settings.daftar_tagline);
+    });
+  }, []);
+  const saveDaftarTagline = async (val) => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), daftar_tagline: val } })
+      .eq('id', GAME_ID);
+    if (error) console.error('save daftar_tagline failed:', error.message);
+  };
+
   const handleAddToEncounter = npc => {
     if (!encActive || !setEncounter) return;
     const rank = npc.rank || 1;
@@ -771,6 +790,22 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
 
   return (
     <div>
+      {/* Daftar header — large title naming the party, plus an editable flavor tagline (GM-only edit,
+          everyone sees it). Falls back to a setting-appropriate default until the GM writes their own. */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.02em' }}>
+          THE DAFTAR OF {partyName ? `"${partyName}"` : 'THE PARTY'}
+        </div>
+        {gmView ? (
+          <input defaultValue={daftarTagline}
+            placeholder={DEFAULT_DAFTAR_TAGLINE}
+            onBlur={e => { const v = e.target.value.trim(); if (v !== daftarTagline) { setDaftarTagline(v); saveDaftarTagline(v); } }}
+            style={{ fontSize: 13, fontStyle: 'italic', color: 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: '1px dashed var(--border)', padding: '2px 0', width: '100%', maxWidth: 520 }} />
+        ) : (
+          <div style={{ fontSize: 13, fontStyle: 'italic', color: 'var(--text-muted)' }}>{daftarTagline || DEFAULT_DAFTAR_TAGLINE}</div>
+        )}
+      </div>
+
       {detailNPC && (
         <NPCDetailModal
           npc={detailNPC}
@@ -883,14 +918,11 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
 
             {isOpen && (
               <div className="fac-body">
-                {/* Rep controls — GM only, inside expanded body */}
+                {/* Reputation — read-only here, word only (not the number). Editable only from the Party tab. */}
                 {gmView && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '.3rem 0 .5rem', borderBottom: '1px solid rgba(107,78,40,.2)', marginBottom: '.4rem' }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reputation:</span>
-                    <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: repColor(rep), minWidth: 24, textAlign: 'center' }}>{rep > 0 ? '+' : ''}{rep}</span>
-                    <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, 1)}>+</button>
-                    <span style={{ fontSize: 12, color: repColor(rep) }}>{repLabel(rep)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: repColor(rep) }}>{repLabel(rep)}</span>
                   </div>
                 )}
 
@@ -965,25 +997,32 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
                           <i className="ti ti-user-bolt" style={{ fontSize: 11 }} />
                         </button>
                       )}
-                      {/* Party assignment — GM marks NPC as party asset and assigns to a player */}
-                      {gmView && !n._isFull && (
+                      {/* Party assignment — GM marks NPC as party asset and assigns to a player.
+                          Works for both Quick NPCs (npcs table, via onUpdateNPC) and Full NPCs
+                          (characters table, via onUpdateFullNpc) — previously Full NPCs were excluded
+                          here entirely, so the only way to toggle it for one was to open its full
+                          character sheet directly. */}
+                      {gmView && (
                         <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           {n.is_party_asset ? (
                             <>
                               <span style={{ fontSize: 10, color: 'var(--green)', border: '1px solid rgba(74,138,64,.4)', borderRadius: 3, padding: '0 3px', flexShrink: 0 }}>Party</span>
-                              <select value={n.assigned_to || ''} onChange={e => onUpdateNPC(n.id, { assigned_to: e.target.value || null })}
-                                onClick={e => e.stopPropagation()}
-                                style={{ fontSize: 10, padding: '0 2px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, maxWidth: 80 }}>
-                                <option value="">Player…</option>
-                                {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                              </select>
+                              {!n._isFull && (
+                                <select value={n.assigned_to || ''} onChange={e => onUpdateNPC(n.id, { assigned_to: e.target.value || null })}
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ fontSize: 10, padding: '0 2px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3, maxWidth: 80 }}>
+                                  <option value="">Player…</option>
+                                  {characters.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                              )}
                               <button className="btn btn-sm" style={{ fontSize: 10, padding: '0 3px', color: 'var(--text-muted)' }}
-                                title="Remove from party" onClick={e => { e.stopPropagation(); onUpdateNPC(n.id, { is_party_asset: false, assigned_to: null }); }}>✕</button>
+                                title="Remove from party"
+                                onClick={e => { e.stopPropagation(); (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { is_party_asset: false, assigned_to: null, ...(n._isFull ? { controller_id: null } : {}) }); }}>✕</button>
                             </>
                           ) : (
                             <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 4px', color: 'var(--text-muted)' }}
                               title="Add to party — makes this NPC a persistent party companion"
-                              onClick={e => { e.stopPropagation(); onUpdateNPC(n.id, { is_party_asset: true }); }}>+Party</button>
+                              onClick={e => { e.stopPropagation(); (n._isFull ? onUpdateFullNpc : onUpdateNPC)(n.id, { is_party_asset: true }); }}>+Party</button>
                           )}
                         </span>
                       )}

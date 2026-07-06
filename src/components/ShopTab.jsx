@@ -59,13 +59,15 @@ const BUNDLE_PRESETS = {
     gItem('Medicine Kit', '5 copper', 'standard', 'always'), gItem('Apothecary Kit', '8 copper', 'standard', 'common'),
     gItem('Traveling Rations', '1 copper', 'standard', 'always'), gItem('Water Skin', '1 copper', 'standard', 'always'),
     gItem('Rope (50 ft)', '1 copper', 'standard', 'common'), gItem('Lantern', '2 copper', 'standard', 'common'),
-    gItem('Lantern Oil', '1 copper', 'standard', 'common'), gItem('Flint and Steel', '1 copper', 'standard', 'always'),
+    gItem('Lantern Oil', '1 copper', 'standard', 'common'), gItem('Torch', '1 copper', 'standard', 'always'),
+    gItem('Oil Lamp', '1 copper', 'standard', 'common'), gItem('Flint and Steel', '1 copper', 'standard', 'always'),
   ]},
   'General Goods': { icon: 'ti-backpack', tier: 'standard', items: [
     gItem('Backpack', '2 copper', 'standard', 'always'), gItem('Traveling Cloak', '3 copper', 'standard', 'common'),
     gItem('Suit of Clothes', '2 copper', 'standard', 'always'), gItem('Sandals', '1 copper', 'standard', 'always'),
     gItem('Blanket', '1 copper', 'standard', 'always'), gItem('Rope (50 ft)', '1 copper', 'standard', 'common'),
     gItem('Lantern', '2 copper', 'standard', 'common'), gItem('Lantern Oil', '1 copper', 'standard', 'common'),
+    gItem('Torch', '1 copper', 'standard', 'always'), gItem('Oil Lamp', '1 copper', 'standard', 'common'),
     gItem('Flint and Steel', '1 copper', 'standard', 'always'), gItem('Water Skin', '1 copper', 'standard', 'always'),
     gItem('Tent (small)', '5 copper', 'standard', 'uncommon'), gItem('Traveling Rations', '1 copper', 'standard', 'always'),
     gItem('Grapple Hook', '3 copper', 'standard', 'uncommon'),
@@ -230,7 +232,7 @@ const CATALOGUE = [
   {
     category: 'Gear & Supplies',
     items: [
-      'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil',
+      'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil','Torch','Oil Lamp',
       'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
       'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
       'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
@@ -1216,12 +1218,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         </div>
       </div>
 
-      {/* Shop tabs */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+      {/* Shop tabs — fits 2 wide when there's room (auto-fit/minmax collapses to 1 wide on narrow
+          screens without needing a media query, matching how the rest of the app has no breakpoint
+          system yet) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 4, marginBottom: '1rem', alignItems: 'center' }}>
         {shops.map(shop => (
-          <div key={shop.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          <div key={shop.id} style={{ display: 'flex', alignItems: 'center', gap: 0, width: '100%' }}>
             <button onClick={() => setActiveShopId(shop.id)} style={{
-              padding: '.3rem .6rem', borderRadius: '4px 0 0 4px', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+              padding: '.3rem .6rem', borderRadius: '4px 0 0 4px', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', flex: 1, textAlign: 'left',
               background: activeShopId === shop.id ? 'rgba(200,150,42,.15)' : 'var(--bg-panel)',
               borderLeft: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`, borderTop: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`, borderBottom: `1px solid ${activeShopId === shop.id ? 'var(--gold-dim)' : 'var(--border)'}`,
               borderRight: 'none',

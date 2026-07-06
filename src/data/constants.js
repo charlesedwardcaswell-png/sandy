@@ -719,7 +719,7 @@ export const GEAR_LIST_NAMES = [
   'Partial Armor (+3 TN)','Light Armor (+5 TN)','Heavy Armor (+10 TN)','Riding Armor (+8 TN)',
   // Faction armor — TN bonuses already existed in ARMOR_TN_BONUS, just weren't selectable here
   'Lorica Segmentata','Senpet Chain Shirt','Yodotai Chain Shirt','Half-Plate','Ebonite Armor','Adaga',
-  'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil',
+  'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil','Torch','Oil Lamp',
   'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
   'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
   'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
@@ -744,8 +744,10 @@ export const GEAR_DESCRIPTIONS = {
   'Traveling Rations':       'Preserved food for 1 week of travel. Required for survival rolls in the desert.',
   'Water Skin':              'Holds enough water for 1-2 days in the desert. Essential for desert travel.',
   'Rope (50 ft)':            '50 feet of sturdy hemp rope. Used for climbing, binding, and improvised traps.',
-  'Lantern':                 'Provides light in a 30-foot radius. Requires oil to operate.',
+  'Lantern':                 'Provides light in a 30-foot radius. Requires oil to operate. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
   'Lantern Oil':             'Fuel for a lantern. One flask lasts approximately 6 hours.',
+  'Torch':                   'A length of wood wrapped in oil-soaked cloth, lit with Flint and Steel. Cruder and dimmer than a lantern, but free of oil upkeep. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
+  'Oil Lamp':                'A small clay or brass lamp burning oil — common indoors, dimmer and shorter-ranged than a lantern. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
   'Grapple Hook':            'Iron hook with rope. Used with Athletics for climbing walls or crossing gaps.',
   'Flint and Steel':         'Used to start fires. Required for making camp in the desert without magic.',
   'Lockpicks':               'A set of fine tools for opening locks. Required for Sleight of Hand (Lockpicking) rolls.',
@@ -794,6 +796,17 @@ export const GEAR_DESCRIPTIONS = {
   'Feed (1 week)':           'One week of proper feed for a single mount. Mounts denied feed grow weak and unreliable.',
   'Bridle and Reins':        'Basic tack required for directing and controlling a mount.',
   'Hitching Post Fee (1 night)': 'Stabling fee to board and water a mount overnight at a stables or inn.',
+};
+
+// Wielded light sources — a character with one of these equipped (equipment.equipped === true) casts
+// light on the Battle Grid in a radius of this many squares, same wall-blocked raycast as Player Glow
+// and GM-painted 'light' tiles (see fillLightRadius in EncounterTab.jsx). Distinct from Player Glow:
+// this only applies when one of these specific items is actually equipped, not a blanket per-PC glow.
+// Radii are a starting design call, not derived from a real-world foot conversion — easy to retune.
+export const LIGHT_SOURCES = {
+  'Torch': 3,
+  'Lantern': 4,
+  'Oil Lamp': 2,
 };
 
 // Full rulebook entries for the magnifying-glass reference modal — richer than GEAR_DESCRIPTIONS above,

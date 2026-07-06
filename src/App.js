@@ -490,6 +490,8 @@ export default function App() {
   const [hideShopFromPlayers, setHideShopFromPlayers] = useState(false);
   const [hideFeedbackTab, setHideFeedbackTab] = useState(false);
   const [playerGlowDefault, setPlayerGlowDefault] = useState(false);
+  const [disableTimeTracking, setDisableTimeTracking] = useState(false);
+  const [everyoneHelps, setEveryoneHelps] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
   const [partyWater, setPartyWater] = useState(0);
   const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
@@ -509,6 +511,8 @@ export default function App() {
     if (settings.hide_shop_from_players !== undefined) setHideShopFromPlayers(!!settings.hide_shop_from_players);
     if (settings.hide_feedback_tab !== undefined) setHideFeedbackTab(!!settings.hide_feedback_tab);
     if (settings.player_glow_default !== undefined) setPlayerGlowDefault(!!settings.player_glow_default);
+    if (settings.disable_time_tracking !== undefined) setDisableTimeTracking(!!settings.disable_time_tracking);
+    if (settings.everyone_helps !== undefined) setEveryoneHelps(!!settings.everyone_helps);
     if (settings.starting_cp !== undefined) setStartingCP(settings.starting_cp || 45);
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
@@ -561,7 +565,10 @@ export default function App() {
   const [viewNpcId, setViewNpcId] = useState(null);
   const [globalModal, setGlobalModal] = useState(null); // dice modal accessible from any tab
   const [purchaseBanner, setPurchaseBanner] = useState(null); // local only — not broadcast
-  const [rollBanner, setRollBanner] = useState(null); // local only — not broadcast; only the rolling player sees their own result
+  // Roll banner itself now lives in shared encounter.rollBanner (broadcast to everyone). This tracks
+  // only "did THIS client dismiss the current one" — comparing against its ts, so one player closing
+  // it doesn't hide it for anyone else, and a later roll (new ts) always shows again for everyone.
+  const [dismissedBannerTs, setDismissedBannerTs] = useState(null);
 
   // Compute wound penalty for any character — applies to ALL rolls
   const computeWoundPenalty = (char) => {
@@ -1009,8 +1016,8 @@ export default function App() {
 
       <div className="hdr">
         <span className="hdr-title">Legend of the Burning Sands</span>
-        <span style={{ color: 'var(--border)' }}>·</span>
-        <span className="hdr-game">The Tool — v176</span>
+        <span style={{ color: 'var(--border)' }}>-</span>
+        <span className="hdr-game">powered by sandy v184</span>
         {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
         {/* Void Points display — player sees own VP; GM sees all PCs */}
         {isPlayer && (() => {
@@ -1072,17 +1079,19 @@ export default function App() {
         })()}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
-          <div style={{ lineHeight: 1.3, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <span>Wk {campaignWeek}</span>
-              <span style={{ color: 'var(--border)' }}>|</span>
-              <span>Day {campaignDay}</span>
+        {!disableTimeTracking && (
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>{TIME_ICONS[timeOfDay]}</span>
+            <div style={{ lineHeight: 1.3, textAlign: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{timeOfDay}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <span>Wk {campaignWeek}</span>
+                <span style={{ color: 'var(--border)' }}>|</span>
+                <span>Day {campaignDay}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
         {isGM && (
           <label className={`pc-toggle ${isPCView ? 'on' : ''}`} style={{ cursor: 'pointer' }}>
             <input type="checkbox" checked={isPCView} onChange={e => setIsPCView(e.target.checked)} /> PC View
@@ -1136,6 +1145,7 @@ export default function App() {
           <span>Session {session?.session_number || allSessions.filter(s => !s.is_active).length + 1}</span>
           <span className={session ? 'sess-active' : ''}>{session ? 'Active' : 'Not started'}</span>
           {/* GM time controls */}
+          {!disableTimeTracking && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
             <select value={timeOfDay} onChange={e => handleSetTime(e.target.value)}
               style={{ fontSize: 12, padding: '1px 4px', background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
@@ -1150,6 +1160,7 @@ export default function App() {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 18, textAlign: 'center' }}>{campaignDay}</span>
             <button className="rep-btn" onClick={() => handleSetDay(campaignDay + 1)}>+</button>
           </div>
+          )}
           {/* Rest Everyone — morning healing + void restore (does NOT advance time) */}
           <button className="btn btn-sm" title="Rest Everyone: heal Stamina + Rank wounds and restore all Void Points to max. Does not advance time."
             style={{ borderColor: 'var(--gold-dim)', color: 'var(--gold)', marginLeft: 8 }}
@@ -1305,6 +1316,8 @@ export default function App() {
             onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
             arrowTracking={arrowTracking}
             downtimeMode={downtimeMode}
+            isObserver={isObserver}
+            everyoneHelps={everyoneHelps}
           />
         )}
         {tab === 'map' && (
@@ -1358,6 +1371,7 @@ export default function App() {
           <PartyTab
             isGM={isGM} isPCView={isPCView}
             characters={safeChars}
+            npcs={npcs}
             reps={reps}
             onUpdateRep={guardFn(handleUpdateRep)}
             onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
@@ -1370,6 +1384,8 @@ export default function App() {
             waterDroughtEnabled={waterDroughtEnabled}
             partyWater={partyWater}
             onSetPartyWater={isGM ? handleSetPartyWater : null}
+            onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
+            onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
             onTakeWater={guardFn(async (charId) => {
               if (partyWater <= 0) return;
               const char = safeChars.find(c => c.id === charId);
@@ -1526,62 +1542,67 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Roll Result Banner */}
-      {rollBanner && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 400,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          background: rollBanner.success ? 'rgba(20,50,20,.93)' : 'rgba(60,10,5,.93)',
-          cursor: 'pointer',
-        }}
-          onClick={() => setRollBanner(null)}>
-          {(rollBanner.charName || rollBanner.skillName) && (
-            <div style={{ fontSize: 13, letterSpacing: '.18em', textTransform: 'uppercase', color: rollBanner.success ? '#6aba60' : '#e06050', marginBottom: '.75rem', opacity: 0.85 }}>
-              {[rollBanner.charName, rollBanner.skillName].filter(Boolean).join(' — ')}
-            </div>
-          )}
+      {/* Roll Result Banner — shared via encounter.rollBanner, broadcast to every player/GM regardless
+          of which tab they're on. Auto-fades ~5s after its own ts; each viewer can also close it
+          locally (dismissedBannerTs) without affecting anyone else's view of the same roll. */}
+      {encounter?.rollBanner && encounter.rollBanner.ts !== dismissedBannerTs && (Date.now() - encounter.rollBanner.ts) < 5000 && (() => {
+        const b = encounter.rollBanner;
+        return (
           <div style={{
-            fontSize: 'clamp(72px, 14vw, 130px)',
-            fontWeight: 900, lineHeight: 1,
-            color: rollBanner.success ? '#6aba60' : '#e06050',
-            textShadow: rollBanner.success ? '0 0 80px #6aba6066, 0 0 20px #6aba60aa' : '0 0 80px #e0605066, 0 0 20px #e06050aa',
-            letterSpacing: '-0.02em',
+            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 400,
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            background: b.success ? 'rgba(20,50,20,.96)' : 'rgba(60,10,5,.96)',
+            border: `1px solid ${b.success ? '#6aba6055' : '#e0605055'}`,
+            borderRadius: 10, padding: '.75rem 1.5rem 1rem', minWidth: 220, maxWidth: '90vw',
+            boxShadow: '0 8px 32px rgba(0,0,0,.6)',
+            animation: 'bannerFadeOpacity 5s forwards',
           }}>
-            {rollBanner.success ? 'SUCCESS' : '✗'}
-          </div>
-          {rollBanner.total !== undefined && rollBanner.tn !== undefined && (
-            <div style={{ fontSize: 24, color: rollBanner.success ? '#6aba60' : '#e06050', marginTop: '.75rem', opacity: 0.7, fontWeight: 600 }}>
-              {rollBanner.total} vs TN {rollBanner.tn}
-            </div>
-          )}
-          {rollBanner.raises > 0 && (
-            <div style={{ fontSize: 20, color: '#c8a040', marginTop: '.5rem', fontWeight: 600 }}>
-              {rollBanner.raises} raise{rollBanner.raises !== 1 ? 's' : ''}
-              {rollBanner.maneuvers?.length > 0 && (
-                <span style={{ fontSize: 14, color: '#a07820', marginLeft: 8 }}>— {rollBanner.maneuvers.join(', ')}</span>
-              )}
-            </div>
-          )}
-          {rollBanner.success && rollBanner.damage !== undefined && (
-            <div style={{ marginTop: '.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#e09050' }}>
-                {rollBanner.damage} damage → {rollBanner.targetName}
+            <button onClick={() => setDismissedBannerTs(b.ts)}
+              style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 2 }}
+              title="Close">✕</button>
+            {(b.charName || b.skillName) && (
+              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: b.success ? '#6aba60' : '#e06050', marginBottom: '.35rem', opacity: 0.85 }}>
+                {[b.charName, b.skillName].filter(Boolean).join(' — ')}
               </div>
-              {rollBanner.newWoundLabel && (
-                <div style={{ fontSize: 20, color: '#e06050', marginTop: '.3rem', fontWeight: 700 }}>
-                  {rollBanner.oldWoundLabel} → <span style={{ color: '#e03030' }}>{rollBanner.newWoundLabel}</span>
-                </div>
-              )}
+            )}
+            <div style={{
+              fontSize: 32, fontWeight: 900, lineHeight: 1,
+              color: b.success ? '#6aba60' : '#e06050',
+              letterSpacing: '-0.01em',
+            }}>
+              {b.success ? 'SUCCESS' : '✗ FAILED'}
             </div>
-          )}
-          <button className="btn btn-p" style={{ marginTop: '1.5rem', fontSize: 14, padding: '.4rem 2rem' }}
-            onClick={(e) => { e.stopPropagation(); setRollBanner(null); }}>Close</button>
-          <div style={{ fontSize: 11, color: 'rgba(160,160,160,.4)', marginTop: '.5rem' }}>tap anywhere to dismiss</div>
-        </div>
-      )}
+            {b.total !== undefined && b.tn !== undefined && (
+              <div style={{ fontSize: 14, color: b.success ? '#6aba60' : '#e06050', marginTop: '.3rem', opacity: 0.75, fontWeight: 600 }}>
+                {b.total} vs TN {b.tn}
+              </div>
+            )}
+            {b.raises > 0 && (
+              <div style={{ fontSize: 12, color: '#c8a040', marginTop: '.3rem', fontWeight: 600 }}>
+                {b.raises} raise{b.raises !== 1 ? 's' : ''}
+                {b.maneuvers?.length > 0 && (
+                  <span style={{ fontSize: 11, color: '#a07820', marginLeft: 6 }}>— {b.maneuvers.join(', ')}</span>
+                )}
+              </div>
+            )}
+            {b.success && b.damage !== undefined && (
+              <div style={{ marginTop: '.35rem', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#e09050' }}>
+                  {b.damage} damage{b.targetName ? ` → ${b.targetName}` : ''}
+                </div>
+                {b.newWoundLabel && (
+                  <div style={{ fontSize: 13, color: '#e06050', marginTop: '.2rem', fontWeight: 700 }}>
+                    {b.oldWoundLabel} → <span style={{ color: '#e03030' }}>{b.newWoundLabel}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Global Status / Wound Banner — shows portrait + condition/wound rank change */}
-      {encounter.statusBanner && !rollBanner && (() => {
+      {encounter.statusBanner && !(encounter?.rollBanner && encounter.rollBanner.ts !== dismissedBannerTs && (Date.now() - encounter.rollBanner.ts) < 5000) && (() => {
         const b = encounter.statusBanner;
         if (Date.now() - (b.ts || 0) > 4000) return null;
         const isDown = b.label === 'DOWN' || b.label === 'OUT';
@@ -1878,9 +1899,10 @@ export default function App() {
                 dmgBanner: { attackerName: encounter.combatants.find(c => c.id === myCharId)?.name || 'Party', targetId: globalModal.targetId, damage, result },
               }));
             }
-            // Roll result banner — local only, never broadcast, so only the rolling player sees their own result
-            setRollBanner(banner);
-            // No auto-dismiss — player closes manually
+            // Roll result banner — broadcast via shared encounter state so every player/GM sees it,
+            // same as combat rolls (EncounterTab.jsx). Auto-fades from its own ts; each viewer can
+            // also dismiss it locally without affecting anyone else (see dismissedBannerTs below).
+            handleSetEncounter(e => ({ ...e, rollBanner: banner }));
             // Generic onComplete dispatch — lets any caller (ShopTab, contested rolls, etc.)
             // pass a callback directly in the roll context instead of needing a skillOutcomeData flag
             if (typeof globalModal?.onComplete === 'function') {
