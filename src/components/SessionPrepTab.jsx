@@ -19,7 +19,6 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
   const [draft, setDraft] = useState({ questIds: [], npcIds: [], shopIds: [], gmInventoryItemIds: [], npcAssignments: {} });
   const [showNewSession, setShowNewSession] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState('');
-  const [newSessionNum, setNewSessionNum] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showNewQuest, setShowNewQuest] = useState(false);
 
@@ -126,24 +125,17 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
           </button>
         </div>
         {showNewSession && (() => {
-          const chosenNum = newSessionNum ?? nextSessionNum;
-          const numTaken = allSessions.some(s => s.session_number === chosenNum);
           const doCreate = () => {
-            onCreatePrepSession && onCreatePrepSession(chosenNum, newSessionTitle);
-            setNewSessionTitle(''); setNewSessionNum(null); setShowNewSession(false);
+            onCreatePrepSession && onCreatePrepSession(nextSessionNum, newSessionTitle);
+            setNewSessionTitle(''); setShowNewSession(false);
           };
           return (
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', alignItems: 'center', padding: '.5rem .75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 5, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Session #</span>
-                <input type="number" min="1" value={chosenNum} onChange={e => setNewSessionNum(parseInt(e.target.value) || nextSessionNum)}
-                  style={{ width: 52, fontSize: 13, textAlign: 'center' }} />
-                {numTaken && <span style={{ fontSize: 10, color: 'var(--gold)' }}>⚠ Will shift existing sessions up</span>}
-              </div>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Session #{nextSessionNum}</span>
               <input style={{ flex: 1, fontSize: 13, minWidth: 120 }} placeholder="Title (optional)" value={newSessionTitle} onChange={e => setNewSessionTitle(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') doCreate(); }} />
               <button className="btn btn-sm btn-p" onClick={doCreate}>Create</button>
-              <button className="btn btn-sm" onClick={() => { setShowNewSession(false); setNewSessionNum(null); }}>✕</button>
+              <button className="btn btn-sm" onClick={() => setShowNewSession(false)}>✕</button>
             </div>
           );
         })()}
@@ -156,23 +148,6 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
             <option value="">— choose a prepared session —</option>
             {preppedSessions.map(s => <option key={s.id} value={s.id}>{s.title || `Session ${s.session_number}`}</option>)}
           </select>
-        )}
-        {archivedSessions.length > 0 && (
-          <div style={{ marginTop: '.5rem', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select value={archivedId} onChange={e => setArchivedId(e.target.value)} style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
-              <option value="">— archived (started/closed) sessions —</option>
-              {archivedSessions.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.title || `Session ${s.session_number}`}{s.is_active ? ' (active)' : s.closed_at ? ' (closed)' : ''}
-                </option>
-              ))}
-            </select>
-            <button className="btn btn-sm" disabled={!archivedId || archivedSessions.find(s => s.id === archivedId)?.is_active}
-              title={archivedSessions.find(s => s.id === archivedId)?.is_active ? "Can't un-retire the currently active session — use End Session for that" : 'Move this session back to Prepared (its recap, encounter log, etc. are untouched)'}
-              onClick={() => { if (onUnretireSession && archivedId) { onUnretireSession(archivedId); setArchivedId(''); } }}>
-              <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Un-retire
-            </button>
-          </div>
         )}
       </div>
 
@@ -248,8 +223,27 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
             ))}
           </Section>
 
-          <button className="btn btn-p" onClick={save}>{saved ? '✓ Saved' : 'Save Reveal Plan'}</button>
+          <button className="btn btn-p" onClick={save}>{saved ? '✓ Saved' : 'Save Session Plan'}</button>
         </>
+      )}
+
+      {/* Archived (started/closed) sessions — rarely used, kept out of the way at the bottom */}
+      {archivedSessions.length > 0 && (
+        <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={archivedId} onChange={e => setArchivedId(e.target.value)} style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
+            <option value="">— archived (started/closed) sessions —</option>
+            {archivedSessions.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.title || `Session ${s.session_number}`}{s.is_active ? ' (active)' : s.closed_at ? ' (closed)' : ''}
+              </option>
+            ))}
+          </select>
+          <button className="btn btn-sm" disabled={!archivedId || archivedSessions.find(s => s.id === archivedId)?.is_active}
+            title={archivedSessions.find(s => s.id === archivedId)?.is_active ? "Can't un-retire the currently active session — use End Session for that" : 'Move this session back to Prepared (its recap, encounter log, etc. are untouched)'}
+            onClick={() => { if (onUnretireSession && archivedId) { onUnretireSession(archivedId); setArchivedId(''); } }}>
+            <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Un-retire
+          </button>
+        </div>
       )}
     </div>
   );

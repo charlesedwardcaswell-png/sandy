@@ -28,6 +28,13 @@ import {
   useGroupInventory, useSessionLog, usePresence,
 } from './hooks/useSupabase';
 
+// Single source for the version string — shown in the browser tab title and on the welcome screen
+// (no longer in the in-app header, which was cluttering the mobile view). Bump this alongside every
+// version bump at packaging time.
+export const SANDY_VERSION = 186;
+// Toggle back to true once Charles has copyright clearance to link the rulebook PDFs.
+const SHOW_RULEBOOK_LINKS = false;
+
 // ── Book Reference Dropdown ────────────────────────────────────────────────────
 // ── Quick Rules Reference ────────────────────────────────────────────────────
 const RULES_SECTIONS = [
@@ -259,6 +266,9 @@ export default function App() {
   const isDeveloper = authMode === 'developer';
   const isObserver = authMode === 'observer';
   const isPlayer = authMode === 'player';
+
+  // Browser tab title — was previously shown inside the app header, which cluttered the mobile view.
+  useEffect(() => { document.title = `Legend of the Burning Sands - powered by sandy v${SANDY_VERSION}`; }, []);
 
   // Presence — GM sees ticker notification when players join/leave
   usePresence(
@@ -560,6 +570,9 @@ export default function App() {
   });
   const [isPCView, setIsPCView] = useState(false);
   const [showSessionEnd, setShowSessionEnd] = useState(false);
+  // Mobile swipe-to-change-tab — the full tab bar is hidden on narrow screens (see App.css), so
+  // swiping the content area left/right is the primary way to switch tabs there.
+  const swipeStartRef = useRef(null);
   const [startSessionChoice, setStartSessionChoice] = useState(''); // '' = New Session, else a prepared session's id
   const [viewCharId, setViewCharId] = useState(null);
   const [viewNpcId, setViewNpcId] = useState(null);
@@ -664,6 +677,22 @@ export default function App() {
 
   const TIMES = ['Dawn','Morning','Midday','Afternoon','Dusk','Evening','Night'];
   const TIME_ICONS = { Dawn: '🌅', Morning: '☀️', Midday: '☀️', Afternoon: '🌤️', Dusk: '🌇', Evening: '🌆', Night: '🌙' };
+  // Moon phase cycle — 28-day repeating pattern (Charles's table), indexed by (campaignDay - 1) % 28.
+  // Day 28 lands back on Waning Gibbous (same as Day 1), so Day 29+ picks straight back up at the start.
+  const MOON_CYCLE = [
+    ...Array(3).fill('Waning Gibbous'),
+    ...Array(3).fill('Third Quarter'),
+    ...Array(4).fill('Waning Crescent'),
+    ...Array(3).fill('New Moon'),
+    ...Array(4).fill('Waxing Crescent'),
+    ...Array(3).fill('First Quarter'),
+    ...Array(4).fill('Waxing Gibbous'),
+    ...Array(3).fill('Full Moon'),
+    'Waning Gibbous', // Day 28
+  ];
+  const MOON_PHASE_ICONS = { 'Waning Gibbous': '🌖', 'Third Quarter': '🌗', 'Waning Crescent': '🌘', 'New Moon': '🌑', 'Waxing Crescent': '🌒', 'First Quarter': '🌓', 'Waxing Gibbous': '🌔', 'Full Moon': '🌕' };
+  const getMoonPhase = (day) => MOON_CYCLE[((day - 1) % 28 + 28) % 28];
+  const [showMoonTip, setShowMoonTip] = useState(false);
   const [timeOfDay, setTimeOfDay] = useState('Morning');
   const [campaignDay, setCampaignDay] = useState(1);
   const [campaignWeek, setCampaignWeek] = useState(1);
@@ -699,6 +728,7 @@ export default function App() {
   if (!authMode) {
     return (
       <AuthScreen
+        version={SANDY_VERSION}
         onGMLogin={() => { localStorage.setItem('sandy_auth_mode', 'gm'); setAuthMode('gm'); }}
         onDeveloperLogin={() => { localStorage.setItem('sandy_auth_mode', 'developer'); setAuthMode('developer'); }}
         onPlayerLogin={(username) => { localStorage.setItem('sandy_auth_mode', 'player'); localStorage.setItem('sandy_player_username', username || 'Player'); setAuthMode('player'); setPlayerUsername(username || 'Player'); setTimeout(() => push('ti-user', `${username || 'A player'} has joined the session`, { gmOnly: true }), 500); }}
@@ -999,6 +1029,27 @@ export default function App() {
     try { localStorage.setItem('sandy_tab', id); } catch {}
   };
 
+  // Swipe left/right on the content area to change tabs (primary mobile navigation since the full
+  // tab bar is hidden there). Requires a decently long, mostly-horizontal drag so normal vertical
+  // scrolling isn't mistaken for a tab swipe.
+  const onContentTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onContentTouchEnd = (e) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    const touch = e.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const idx = TABS.indexOf(tab);
+    if (idx === -1) return;
+    const nextIdx = dx < 0 ? Math.min(TABS.length - 1, idx + 1) : Math.max(0, idx - 1);
+    if (nextIdx !== idx) handleTabChange(TABS[nextIdx]);
+  };
+
   return (
     <div className="app" id="app-root" style={{ zoom: zoom }}>
       {showSessionEnd && (
@@ -1015,68 +1066,6 @@ export default function App() {
       )}
 
       <div className="hdr">
-        <span className="hdr-title">Legend of the Burning Sands</span>
-        <span style={{ color: 'var(--border)' }}>-</span>
-        <span className="hdr-game">powered by sandy v184</span>
-        {encActive && <span className="enc-badge"><i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active</span>}
-        {/* Void Points display — player sees own VP; GM sees all PCs */}
-        {isPlayer && (() => {
-          const myChar = safeChars.find(c => c.id === myCharId);
-          if (!myChar) return null;
-          const cur = myChar.current_void ?? myChar.void ?? 2;
-          const max = myChar.void || 2;
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VOID</span>
-              <div style={{ display: 'flex', gap: 3 }}>
-                {Array.from({ length: max }).map((_, i) => (
-                  <span key={i} style={{ fontSize: 14, color: i < cur ? 'var(--gold)' : 'var(--border)', lineHeight: 1 }}>◆</span>
-                ))}
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{cur}/{max}</span>
-            </div>
-          );
-        })()}
-        {(isGM && !isPCView) && (() => {
-          const pcs = safeChars.filter(c => !c.is_npc);
-          if (pcs.length === 0) return null;
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VP</span>
-              {pcs.map(char => {
-                const cur = char.current_void ?? char.void ?? 2;
-                const max = char.void || 2;
-                const pct = max > 0 ? cur / max : 0;
-                const col = pct === 0 ? 'var(--red)' : pct < 0.5 ? 'var(--gold-dim)' : 'var(--gold)';
-                return (
-                  <div key={char.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>{char.name.split(' ')[0]}</span>
-                    <span style={{ fontSize: 12, color: col, lineHeight: 1, fontWeight: 600 }}>{cur}/{max}</span>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-        {isPCView && (() => {
-          const pcs = safeChars.filter(c => !c.is_npc);
-          if (pcs.length === 0) return null;
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>VP</span>
-              {pcs.map(char => {
-                const cur = char.current_void ?? char.void ?? 2;
-                const max = char.void || 2;
-                return (
-                  <div key={char.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>{char.name.split(' ')[0]}</span>
-                    <span style={{ fontSize: 12, color: 'var(--gold)', lineHeight: 1, fontWeight: 600 }}>{cur}/{max}</span>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
         <div className="hdr-sp" />
         {/* Time of day — centred in header */}
         {!disableTimeTracking && (
@@ -1090,6 +1079,17 @@ export default function App() {
                 <span>Day {campaignDay}</span>
               </div>
             </div>
+            <span
+              onClick={() => setShowMoonTip(v => !v)}
+              title={getMoonPhase(campaignDay)}
+              style={{ fontSize: 20, lineHeight: 1, cursor: 'pointer', pointerEvents: 'auto', position: 'relative' }}>
+              {MOON_PHASE_ICONS[getMoonPhase(campaignDay)]}
+              {showMoonTip && (
+                <div style={{ position: 'absolute', top: '130%', left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 8px', fontSize: 11, color: 'var(--text-primary)', whiteSpace: 'nowrap', zIndex: 50, boxShadow: '0 2px 8px rgba(0,0,0,.4)' }}>
+                  {getMoonPhase(campaignDay)}
+                </div>
+              )}
+            </span>
           </div>
         )}
         {isGM && (
@@ -1098,7 +1098,8 @@ export default function App() {
           </label>
         )}
         <RulesDropdown />
-        <BookDropdown />
+        {/* Rulebook PDF links hidden while Charles secures copyright clearance to use the PDFs — flip SHOW_RULEBOOK_LINKS back to true once cleared. */}
+        {SHOW_RULEBOOK_LINKS && <BookDropdown />}
         {musicUrl && (
           <button onClick={() => {
             const a = audioRef.current;
@@ -1254,7 +1255,20 @@ export default function App() {
         ))}
       </div>
 
-      <div className="content" style={{ paddingBottom: (gmView ? ticker : ticker.filter(e => !e.gmOnly)).length > 0 ? '3rem' : '1.25rem' }}>
+      {/* Mobile-only — full tab bar is hidden on narrow screens (see App.css); swipe the content to
+          change tabs, or tap these arrows as a fallback. */}
+      <div className="mobile-tab-indicator" style={{ alignItems: 'center', justifyContent: 'space-between', padding: '.4rem .75rem', background: 'var(--bg-dark)', borderBottom: '1px solid var(--border)' }}>
+        <button onClick={() => { const idx = TABS.indexOf(tab); if (idx > 0) handleTabChange(TABS[idx - 1]); }}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 16, padding: '2px 8px', cursor: 'pointer' }}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          {TAB_LABELS[tab] || tab}
+          {tab === 'encounter' && encActive && <span className="tab-dot" style={{ position: 'static' }} />}
+        </span>
+        <button onClick={() => { const idx = TABS.indexOf(tab); if (idx < TABS.length - 1) handleTabChange(TABS[idx + 1]); }}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 16, padding: '2px 8px', cursor: 'pointer' }}>›</button>
+      </div>
+
+      <div className="content" onTouchStart={onContentTouchStart} onTouchEnd={onContentTouchEnd} style={{ paddingBottom: (gmView ? ticker : ticker.filter(e => !e.gmOnly)).length > 0 ? '3rem' : '1.25rem' }}>
         {tab === 'character' && (
           <CharacterTab
             isGM={isGM} isPCView={isPCView}
@@ -1906,7 +1920,10 @@ export default function App() {
             // Generic onComplete dispatch — lets any caller (ShopTab, contested rolls, etc.)
             // pass a callback directly in the roll context instead of needing a skillOutcomeData flag
             if (typeof globalModal?.onComplete === 'function') {
-              globalModal.onComplete(result, raises, globalModal?.opposedRoll);
+              // Pass the authoritative success flag (as actually computed by DiceModal, including
+              // any wound-penalty/technique TN modifiers) so callers don't need to — and can't
+              // accidentally disagree with — the roll banner's own success/fail determination.
+              globalModal.onComplete(result, raises, globalModal?.opposedRoll, resultSuccess);
             }
             setGlobalModal(null);
           }}
@@ -1941,12 +1958,13 @@ export default function App() {
       {/* Event Ticker — always rendered, gmOnly events hidden from players */}
       {(() => {
         const visibleTicker = gmView ? ticker : ticker.filter(e => !e.gmOnly);
+        const showBar = visibleTicker.length > 0 || encActive;
         return (
           <div style={{
             position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 110,
             transition: 'opacity .3s',
-            opacity: visibleTicker.length > 0 ? 1 : 0,
-            pointerEvents: visibleTicker.length > 0 ? 'auto' : 'none',
+            opacity: showBar ? 1 : 0,
+            pointerEvents: showBar ? 'auto' : 'none',
             background: 'rgba(24,16,6,.97)', borderTop: '1px solid var(--border)',
             padding: '0 1rem', height: '2.25rem',
             display: 'flex', alignItems: 'center', gap: '1.5rem',
@@ -1967,6 +1985,11 @@ export default function App() {
                 </span>
               ))}
             </div>
+            {encActive && (
+              <span className="enc-badge" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+                <i className="ti ti-swords" style={{ fontSize: 12 }} /> Encounter Active
+              </span>
+            )}
             <button onClick={() => setTicker([])} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, flexShrink: 0, padding: 0 }}>×</button>
           </div>
         );

@@ -1020,9 +1020,13 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             '★ 1st raise — also reveals true market prices (what items are actually worth).',
                             '★ Each extra raise — banks +1k0 on your next Commerce roll here (for Haggling).',
                           ].join('\n'),
-                          onComplete: (total, raises) => {
+                          onComplete: (total, raises, opposedRoll, success) => {
                             const r = raises || 0;
-                            if (total >= tn) {
+                            // Use the roll's own authoritative success flag (matches the roll banner) rather
+                            // than re-deriving it here — re-deriving from the raw TN ignored any wound-penalty/
+                            // technique modifiers DiceModal had already folded into the real threshold, which
+                            // could disagree with the banner on an exact TN match.
+                            if (success) {
                               const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
                               setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
                               if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — base prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
@@ -1051,8 +1055,10 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                     {/* Cart items */}
                     {cart.items.map((ci, idx) => {
                       const markedUnitCost = parseCopperAmount(ci.markup ? applyMarkup(ci.price, ci.markup) : ci.price, ci.quality);
-                      const baseUnitCost = parseCopperAmount(ci.price, ci.quality);
-                      const unitCost = hr?.success ? baseUnitCost : markedUnitCost;
+                      // Haggle discounts the marked-up price by discountPct — it never reveals/uses the
+                      // true base cost (see cartFinalTotal above) — so line items must apply the same
+                      // percentage-off logic, not switch to base price, to stay consistent with the Total.
+                      const unitCost = hr?.success ? Math.max(1, Math.round(markedUnitCost * (1 - discountPct / 100))) : markedUnitCost;
                       const lineTotal = unitCost * (ci.qty || 1);
                       return (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.2rem 0', borderBottom: '1px solid rgba(107,78,40,.15)', fontSize: 12 }}>
@@ -1068,7 +1074,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                       <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total:</span>
                       <span style={{ fontSize: 16, fontWeight: 700, color: discountPct > 0 ? 'var(--green)' : 'var(--gold)' }}>
                         {discountedTotal} copper
-                        {hr?.success && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4, fontWeight: 400 }}>(base price)</span>}
+                        {hr?.success && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4, fontWeight: 400 }}>({discountPct}% off, discounted)</span>}
                       </span>
                     </div>
 
@@ -1094,7 +1100,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             −10% off cart
                           </button>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
-                            title="Decline this raise's discount and pay it graciously — gain Integrity. The markup you already talked down stays removed."
+                            title="Pay the asking price and call it fair — gain Integrity. The markup you already talked down stays removed."
                             onClick={() => {
                               setHaggleResults(prev => ({ ...prev, [shop.id]: {
                                 ...hr, raisesAvailable: pendingRaises - 1,
@@ -1102,7 +1108,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               } }));
                               if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} declined a further discount at ${shop.name} — integrity gain pending checkout`);
                             }}>
-                            I can pay — +Integrity (skip this raise's discount)
+                            I can pay — +Integrity (pay the asking price and call it fair)
                           </button>
                         </div>
                       </div>
@@ -1140,11 +1146,12 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                                 '✓ Success — 10% off the cart total.',
                                 '★ Each raise (after rolling) — choose one per raise:',
                                 '   • 10% off the cart total (stacks, capped at 70% off)',
-                                '   • "I can pay" — skip this raise\'s discount and gain Integrity for honesty.',
+                                '   • "I can pay" — pay the asking price and call it fair, gain Integrity.',
                               ].join('\n'),
-                              onComplete: (total, raises) => {
+                              onComplete: (total, raises, opposedRoll, success) => {
                                 const r = raises || 0;
-                                const success = total >= shopkeeperResult;
+                                // Use the roll's own authoritative success flag (matches the roll banner) rather
+                                // than re-deriving it here — see Appraise's onComplete above for why.
                                 setHaggleResults(prev => ({ ...prev, [shop.id]: { success, raisesAvailable: r, raisesSpent: { discount10: 0, iCanPay: 0 } } }));
                                 // Consume banked appraise bonus rolls — they only apply to the next Commerce roll
                                 if (apr?.bonusRolls > 0) setAppraisalResults(prev => ({ ...prev, [shop.id]: { ...apr, bonusRolls: 0 } }));

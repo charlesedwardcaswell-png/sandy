@@ -1423,6 +1423,44 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
 
       {/* ── Card 1: Portrait + Identity ── */}
       <div className="card" style={{ margin: 0, flex: '1 1 340px' }}>
+        {/* Edit/Lock, Export, Import — one row, identically styled, above the portrait */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: '.6rem', flexWrap: 'wrap' }}>
+          {isGM && (
+            <button className={`btn btn-sm ${canEdit ? 'btn-p' : ''}`}
+              style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700, letterSpacing: '.03em' }}
+              onClick={onToggleEdit}>
+              <i className={`ti ${canEdit ? 'ti-lock' : 'ti-pencil'}`} style={{ fontSize: 12, marginRight: 4 }} />
+              {canEdit ? 'Lock' : 'Edit'}
+            </button>
+          )}
+          <button className="btn btn-sm" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700, letterSpacing: '.03em' }} onClick={() => {
+            const { id, game_id, created_at, updated_at, ...exportData } = char;
+            const blob = new Blob([JSON.stringify({ format: 'sandy_character', version: 1, exported_at: new Date().toISOString(), character: exportData }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `${char.name.replace(/\s+/g,'-').toLowerCase()}-sheet.json`; a.click(); URL.revokeObjectURL(url);
+          }}>
+            <i className="ti ti-download" style={{ fontSize: 12, marginRight: 4 }} />Export
+          </button>
+          {onCreateCharacter && (
+            <label className="btn btn-sm" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700, letterSpacing: '.03em', cursor: 'pointer' }}>
+              <i className="ti ti-upload" style={{ fontSize: 12, marginRight: 4 }} />Import
+              <input type="file" accept=".json" style={{ display: 'none' }} onChange={async e => {
+                const file = e.target.files?.[0]; if (!file) return;
+                const text = await file.text();
+                try {
+                  const parsed = JSON.parse(text);
+                  const charData = parsed.character || parsed;
+                  if (!charData.name || !charData.school) { alert('Invalid character file — missing name or school.'); return; }
+                  // controller_id references a specific PC's character id from wherever this was
+                  // exported — meaningless (or actively wrong) here, so always reset it on import.
+                  const { id, game_id, created_at, updated_at, controller_id, ...cleanData } = charData;
+                  await onCreateCharacter({ ...cleanData, name: charData.name + ' (imported)' });
+                } catch { alert('Could not read that file — make sure it\'s a Sandy character export.'); }
+                e.target.value = '';
+              }} />
+            </label>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* Portrait column — large, scaleable by GM setting */}
@@ -1456,17 +1494,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           {/* Name block — top left, shares row with portrait */}
           <div style={{ minWidth: 160, flexShrink: 0 }}>
             <div style={{ marginBottom: '.4rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
-                  {isGM && (
-                    <button className={`btn ${canEdit ? 'btn-p' : ''}`}
-                      style={{ fontSize: 12, padding: '3px 10px', fontWeight: 700, letterSpacing: '.04em', minWidth: 52 }}
-                      onClick={onToggleEdit}>
-                      <i className={`ti ${canEdit ? 'ti-lock' : 'ti-pencil'}`} style={{ fontSize: 13, marginRight: 4 }} />
-                      {canEdit ? 'LOCK' : 'EDIT'}
-                    </button>
-                  )}
-                </div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
                 {canEdit && isGM ? (
                   <select value={char.faction || ''} onChange={e => update('faction', e.target.value)}
                     style={{ fontSize: 11, marginTop: 2, marginBottom: 2, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
@@ -1498,33 +1526,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     {char.controller_id && char.controller_id !== myCharId ? 'Controlled by another player — take over?' : 'Take actions for this NPC in encounters'}
                   </label>
                 )}
-                <div style={{ marginTop: '.35rem', display: 'flex', gap: 4 }}>
-                  <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => {
-                    const { id, game_id, created_at, updated_at, ...exportData } = char;
-                    const blob = new Blob([JSON.stringify({ format: 'sandy_character', version: 1, exported_at: new Date().toISOString(), character: exportData }, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = `${char.name.replace(/\s+/g,'-').toLowerCase()}-sheet.json`; a.click(); URL.revokeObjectURL(url);
-                  }}>
-                    <i className="ti ti-download" style={{ fontSize: 10, marginRight: 3 }} />Export Sheet
-                  </button>
-                  {onCreateCharacter && (
-                    <label className="btn btn-sm" style={{ fontSize: 10, padding: '1px 6px', cursor: 'pointer' }}>
-                      <i className="ti ti-upload" style={{ fontSize: 10, marginRight: 3 }} />Import Sheet
-                      <input type="file" accept=".json" style={{ display: 'none' }} onChange={async e => {
-                        const file = e.target.files?.[0]; if (!file) return;
-                        const text = await file.text();
-                        try {
-                          const parsed = JSON.parse(text);
-                          const charData = parsed.character || parsed;
-                          if (!charData.name || !charData.school) { alert('Invalid character file — missing name or school.'); return; }
-                          const { id, game_id, created_at, updated_at, ...cleanData } = charData;
-                          await onCreateCharacter({ ...cleanData, name: charData.name + ' (imported)' });
-                        } catch { alert('Could not read that file — make sure it\'s a Sandy character export.'); }
-                        e.target.value = '';
-                      }} />
-                    </label>
-                  )}
-                </div>
               </div>
             {/* Description — physical appearance / backstory, free text */}
             <div style={{ marginBottom: '.5rem' }}>

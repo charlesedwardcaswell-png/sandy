@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import { TILE_TYPES, ATLAS_COLUMNS, ATLAS_SIZE, ATLAS_TILE } from './EncounterTab';
@@ -25,6 +25,10 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [savedGrids, setSavedGrids] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [activeGridId, setActiveGridId] = useState(null);
+  // The name a grid had when it was loaded (or null for a brand-new grid) — if the user changes
+  // saveName away from this before saving, that's a rename, which should "Save As" a new entry
+  // rather than silently overwriting the original under a different name.
+  const [loadedSaveName, setLoadedSaveName] = useState(null);
   // Environment type is a naming/sorting label, independent of which atlas row (Tileset) renders it —
   // a grid can be tagged "Rooftop" for sorting purposes while still using an existing atlas row's art.
   const [showSaveForm, setShowSaveForm] = useState(false);
@@ -39,6 +43,7 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [prebuiltNpcs, setPrebuiltNpcs] = useState([]); // [{ ...npcData, x, y }] — x/y null until placed
   const [placingNpcIdx, setPlacingNpcIdx] = useState(null); // index into prebuiltNpcs currently awaiting a grid click
   const [atlasUrl, setAtlasUrl] = useState(''); // Master Atlas (Tileset tab) — preview here so the painter shows real tileset art, not just labeled colors
+  const [tileDefaultImages, setTileDefaultImages] = useState({}); // per-type fallback images (Tileset tab) — same fallback tier the live Battle Grid already uses
 
   // Doodads: dev-defined multi-square props (Settings → Tileset → Doodad Library), placed here.
   // Placing one auto-assigns its tileType to every cell in its footprint (a plain width×height
@@ -49,6 +54,15 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [placingDoodadIdx, setPlacingDoodadIdx] = useState(null);
   const [doodadDimFilter, setDoodadDimFilter] = useState(''); // "2x1" etc. — '' means "all"
 
+  // Zoom/pan — same convention as the live Battle Grid: 1.0 = fully fit, lower = zoomed in.
+  // Needed once grids got up to 48×48 — the old fixed "shrink the whole grid into 480px" view made
+  // precise painting on large grids impractical.
+  const [zoom, setZoom] = useState(1.0);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [panDrag, setPanDrag] = useState(null); // { startClientX, startClientY, startOffset }
+  const svgRef = useRef(null);
+  useEffect(() => { setPanOffset({ x: 0, y: 0 }); }, [zoom >= 1.0]);
+
   const CELL = 20;
   const W = size * CELL;
   const displayTiles = { ...tiles, ...paintBuffer };
@@ -58,6 +72,7 @@ export default function GridCreatorTab({ isDeveloper }) {
       const grids = data?.settings?.saved_battle_grids || [];
       setSavedGrids([...grids].sort((a, b) => (a.label || '').localeCompare(b.label || ''))); // label starts with environment type
       setAtlasUrl(data?.settings?.master_atlas_url || '');
+      setTileDefaultImages(data?.settings?.tile_default_images || {});
       setDoodadLibrary(data?.settings?.doodad_library || []);
       setLoaded(true);
     });
@@ -81,8 +96,15 @@ export default function GridCreatorTab({ isDeveloper }) {
 
   const cellFromEvent = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.floor(((e.clientX - rect.left) / rect.width) * size);
-    const y = Math.floor(((e.clientY - rect.top) / rect.height) * size);
+    // Read the actual current viewBox rather than assuming it's always "0 0 W W" — when zoomed in
+    // (viewBox smaller than the full grid), screen-to-cell math must offset/scale by the viewBox's
+    // own origin and size, matching the same fix already applied on the live Battle Grid.
+    const vb = (svgRef.current?.getAttribute('viewBox') || `0 0 ${W} ${W}`).split(' ').map(Number);
+    const [vx, vy, vw, vh] = vb;
+    const svgX = ((e.clientX - rect.left) / rect.width) * vw + vx;
+    const svgY = ((e.clientY - rect.top) / rect.height) * vh + vy;
+    const x = Math.floor(svgX / CELL);
+    const y = Math.floor(svgY / CELL);
     if (x < 0 || x >= size || y < 0 || y >= size) return null;
     return { x, y };
   };
@@ -111,17 +133,23 @@ export default function GridCreatorTab({ isDeveloper }) {
     const label = `${envType} - ${saveName} - ${size}x${size}`;
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const existing = current?.settings?.saved_battle_grids || [];
+    // Renaming (saveName changed from what this grid was loaded with) creates a new entry instead of
+    // overwriting the original — otherwise "Save Changes" after a rename would silently replace the
+    // old saved grid under its new name, losing it rather than acting like the "Save As" it should be.
+    const isRename = activeGridId && loadedSaveName !== null && saveName.trim() !== loadedSaveName;
+    const targetId = isRename ? null : activeGridId;
     // Non-devs can't see or change the lock checkbox — preserve whatever lock state an existing entry already had
-    const priorLocked = activeGridId ? (existing.find(g => g.id === activeGridId)?.locked || false) : false;
+    const priorLocked = targetId ? (existing.find(g => g.id === targetId)?.locked || false) : false;
     const locked = isDeveloper ? saveLocked : priorLocked;
-    const entry = { id: activeGridId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, locked, createdAt: Date.now() };
-    const next = activeGridId ? existing.map(g => g.id === activeGridId ? entry : g) : [...existing, entry];
+    const entry = { id: targetId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, locked, createdAt: Date.now() };
+    const next = targetId ? existing.map(g => g.id === targetId ? entry : g) : [...existing, entry];
     const { error } = await supabase.from('games')
       .update({ settings: { ...(current?.settings || {}), saved_battle_grids: next } })
       .eq('id', GAME_ID);
     if (!error) {
       setSavedGrids([...next].sort((a, b) => (a.label || '').localeCompare(b.label || '')));
       setActiveGridId(entry.id);
+      setLoadedSaveName(entry.name);
       setShowSaveForm(false);
     } else console.error('save battle grid failed:', error.message);
   };
@@ -129,6 +157,7 @@ export default function GridCreatorTab({ isDeveloper }) {
   const loadGrid = (g) => {
     setSize(g.size); setBgUrl(g.bgUrl || ''); setThemeRow(g.themeRow || 0);
     setTiles(g.tiles || {}); setPaintBuffer({}); setActiveGridId(g.id);
+    setLoadedSaveName(g.name || '');
     setEnvType(g.envType || ROW_LABELS[g.themeRow || 0]);
     setEnvIsCustom(!THEMES.includes(g.envType));
     setSaveName(g.name || '');
@@ -200,10 +229,38 @@ export default function GridCreatorTab({ isDeveloper }) {
           )}
         </div>
 
-        <svg viewBox={`0 0 ${W} ${W}`} width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: (placingNpcIdx !== null || placingDoodadIdx !== null || brush) ? 'crosshair' : 'default', userSelect: 'none' }}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 6, alignItems: 'center' }}>
+          <button onClick={() => setZoom(z => Math.min(1.0, z + 0.25))} title="Zoom out"
+            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>−</button>
+          <button onClick={() => setZoom(1.0)} title="Reset zoom"
+            style={{ background: 'rgba(107,78,40,.2)', border: '1px solid rgba(107,78,40,.4)', color: 'var(--text-muted)', borderRadius: 3, cursor: 'pointer', padding: '1px 6px', fontSize: 10, lineHeight: 1 }}>{Math.round((1 / zoom) * 100)}%</button>
+          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom in"
+            style={{ background: 'rgba(107,78,40,.3)', border: '1px solid rgba(107,78,40,.5)', color: 'var(--gold-dim)', borderRadius: 3, cursor: 'pointer', padding: '1px 7px', fontSize: 13, lineHeight: 1 }}>+</button>
+          {zoom < 1.0 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Drag the canvas to pan</span>}
+        </div>
+
+        <svg ref={svgRef}
+          viewBox={(() => {
+            if (zoom >= 1.0) return `0 0 ${W} ${W}`;
+            const cx = W / 2 + panOffset.x;
+            const cy = W / 2 + panOffset.y;
+            const vw = W * zoom;
+            const vh = W * zoom;
+            const vx = Math.max(0, Math.min(W - vw, cx - vw / 2));
+            const vy = Math.max(0, Math.min(W - vh, cy - vh / 2));
+            return `${vx} ${vy} ${vw} ${vh}`;
+          })()}
+          width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: panDrag ? 'grabbing' : (placingNpcIdx !== null || placingDoodadIdx !== null || brush) ? 'crosshair' : zoom < 1.0 ? 'grab' : 'default', userSelect: 'none' }}
           onMouseDown={e => {
             const c = cellFromEvent(e);
-            if (!c) return;
+            if (!c) {
+              // Missed the grid entirely (or nothing to place/paint) — if zoomed in, treat this as
+              // the start of a pan drag instead of doing nothing.
+              if (zoom < 1.0 && placingNpcIdx === null && placingDoodadIdx === null && !brush) {
+                setPanDrag({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
+              }
+              return;
+            }
             if (placingDoodadIdx !== null) {
               const inst = placedDoodads[placingDoodadIdx];
               const def = doodadLibrary.find(d => d.id === inst?.defId);
@@ -221,12 +278,31 @@ export default function GridCreatorTab({ isDeveloper }) {
               setPlacingNpcIdx(null);
               return;
             }
-            if (!brush) return;
+            if (!brush) {
+              // No brush selected — if zoomed in, dragging the canvas pans the view instead.
+              if (zoom < 1.0) setPanDrag({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
+              return;
+            }
             setIsPainting(true); paintCell(c.x, c.y);
           }}
-          onMouseMove={e => { if (!isPainting) return; const c = cellFromEvent(e); if (c) paintCell(c.x, c.y); }}
-          onMouseUp={commitPaint}
-          onMouseLeave={() => { if (isPainting) commitPaint(); }}>
+          onMouseMove={e => {
+            if (panDrag) {
+              const deltaXpx = e.clientX - panDrag.startClientX;
+              const deltaYpx = e.clientY - panDrag.startClientY;
+              const rect = e.currentTarget.getBoundingClientRect();
+              // Screen px → viewBox units, using the actual rendered size (not W) since this SVG is
+              // scaled to fit its container rather than rendered 1:1.
+              const scaleX = (W * zoom) / rect.width;
+              const scaleY = (W * zoom) / rect.height;
+              setPanOffset({ x: panDrag.startOffset.x - deltaXpx * scaleX, y: panDrag.startOffset.y - deltaYpx * scaleY });
+              return;
+            }
+            if (!isPainting) return;
+            const c = cellFromEvent(e);
+            if (c) paintCell(c.x, c.y);
+          }}
+          onMouseUp={() => { if (panDrag) { setPanDrag(null); return; } commitPaint(); }}
+          onMouseLeave={() => { if (isPainting) commitPaint(); if (panDrag) setPanDrag(null); }}>
           {bgUrl && <image href={bgUrl} x={0} y={0} width={W} height={W} preserveAspectRatio="xMidYMid slice" opacity="0.25" />}
           {Array.from({ length: size + 1 }, (_, i) => (
             <g key={i}>
@@ -251,21 +327,35 @@ export default function GridCreatorTab({ isDeveloper }) {
                 })}
             </defs>
           )}
+          <defs>
+            <pattern id="gc-confined-stripes" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="8" height="8" fill="#4a4a4a" />
+              <rect width="4" height="8" fill="#141414" />
+            </pattern>
+          </defs>
           {Object.entries(displayTiles).map(([key, t]) => {
             if (!t) return null;
             const def = TILE_TYPES.find(tt => tt.key === t.type);
             if (!def) return null;
             const [tx, ty] = key.split(',').map(Number);
             const hasAtlas = atlasUrl && ATLAS_COLUMNS[t.type] !== undefined;
+            const defaultImg = !hasAtlas && tileDefaultImages[t.type];
             if (hasAtlas) {
               return (
                 <rect key={`tile-${key}`} x={tx * CELL} y={ty * CELL} width={CELL} height={CELL}
                   fill={`url(#gc-atlas-pat-${t.type})`} style={{ pointerEvents: 'none' }} />
               );
             }
+            if (defaultImg) {
+              return (
+                <image key={`tile-${key}`} href={defaultImg} x={tx * CELL} y={ty * CELL} width={CELL} height={CELL}
+                  preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: 'none' }} />
+              );
+            }
             return (
               <g key={`tile-${key}`} style={{ pointerEvents: 'none' }}>
-                <rect x={tx * CELL + 1} y={ty * CELL + 1} width={CELL - 2} height={CELL - 2} fill={def.color} opacity="0.5" rx="1" />
+                <rect x={tx * CELL + 1} y={ty * CELL + 1} width={CELL - 2} height={CELL - 2}
+                  fill={t.type === 'confined' ? 'url(#gc-confined-stripes)' : def.color} opacity="0.5" rx="1" />
                 {CELL >= 14 && <text x={tx * CELL + CELL / 2} y={ty * CELL + CELL / 2 + 3} textAnchor="middle" fontSize="6" fontWeight="700" fill="#fff" fontFamily="sans-serif">{def.short}</text>}
               </g>
             );
@@ -310,7 +400,7 @@ export default function GridCreatorTab({ isDeveloper }) {
 
         <div style={{ display: 'flex', gap: 8, marginTop: '.75rem', flexWrap: 'wrap' }}>
           <button className="btn btn-p" onClick={() => setShowSaveForm(v => !v)}>{activeGridId ? 'Save Changes…' : 'Save As…'}</button>
-          <button className="btn" onClick={() => { setActiveGridId(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); }}>New Grid</button>
+          <button className="btn" onClick={() => { setActiveGridId(null); setLoadedSaveName(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); }}>New Grid</button>
           <button className="btn" style={{ borderColor: 'rgba(60,140,180,.5)', color: '#7ab8d0' }}
             title="Procedurally generates a connected tunnel network — narrow confined corridors, a water channel, occasional junction chambers. Replaces the current tiles."
             onClick={() => {
@@ -353,6 +443,12 @@ export default function GridCreatorTab({ isDeveloper }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
               Will save as: <span style={{ color: 'var(--gold-dim)' }}>{envType || '?'} - {saveName || '?'} - {size}x{size}</span>
             </div>
+            {activeGridId && loadedSaveName !== null && saveName.trim() !== loadedSaveName && (
+              <div style={{ fontSize: 11, color: 'var(--gold)', marginBottom: '.5rem' }}>
+                <i className="ti ti-copy" style={{ marginRight: 4 }} />
+                New name — this will save as a new grid, not overwrite "{loadedSaveName}".
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="btn btn-p" onClick={confirmSaveGrid} disabled={!saveName.trim() || !envType.trim()}>Save</button>
               <button className="btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
@@ -362,6 +458,23 @@ export default function GridCreatorTab({ isDeveloper }) {
       </div>
 
       <div style={{ flex: '1 1 260px', minWidth: 240 }}>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Saved Battle Grids</div>
+          {savedGrids.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None saved yet.</div>}
+          {savedGrids.map(g => {
+            const canDelete = isDeveloper || !g.locked;
+            return (
+              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginBottom: 3,
+                background: activeGridId === g.id ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
+                {g.locked && <i className="ti ti-lock" title="Default grid — protected from deletion" style={{ fontSize: 11, color: 'var(--gold-dim)' }} />}
+                <span style={{ fontSize: 12, flex: 1, cursor: 'pointer' }} onClick={() => loadGrid(g)}>{g.label}</span>
+                <button onClick={() => loadGrid(g)} title="Load" style={{ fontSize: 11, padding: '2px 6px' }}>Load</button>
+                {canDelete && <button onClick={() => deleteGrid(g.id)} title="Delete" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>}
+              </div>
+            );
+          })}
+        </div>
+
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>
             Preload NPCs <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(built-in library only)</span>
@@ -448,23 +561,6 @@ export default function GridCreatorTab({ isDeveloper }) {
               })}
             </div>
           )}
-        </div>
-
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Saved Battle Grids</div>
-          {savedGrids.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>None saved yet.</div>}
-          {savedGrids.map(g => {
-            const canDelete = isDeveloper || !g.locked;
-            return (
-              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginBottom: 3,
-                background: activeGridId === g.id ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
-                {g.locked && <i className="ti ti-lock" title="Default grid — protected from deletion" style={{ fontSize: 11, color: 'var(--gold-dim)' }} />}
-                <span style={{ fontSize: 12, flex: 1, cursor: 'pointer' }} onClick={() => loadGrid(g)}>{g.label}</span>
-                <button onClick={() => loadGrid(g)} title="Load" style={{ fontSize: 11, padding: '2px 6px' }}>Load</button>
-                {canDelete && <button onClick={() => deleteGrid(g.id)} title="Delete" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>}
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>

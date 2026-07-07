@@ -837,13 +837,16 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
           <input type="checkbox" checked={hideEmpty} onChange={e => setHideEmpty(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
           Hide empty factions
         </label>
-        <div style={{ marginLeft: 'auto', display: 'flex' }} className="layer-tog">
-          <button className={`layer-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>
-            <i className="ti ti-list" style={{ fontSize: 13 }} />
-          </button>
-          <button className={`layer-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>
-            <i className="ti ti-layout-grid" style={{ fontSize: 13 }} />
-          </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }} title="Change View">
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Change View</span>
+          <div style={{ display: 'flex' }} className="layer-tog">
+            <button className={`layer-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')} title="Faction listing view">
+              <i className="ti ti-list" style={{ fontSize: 13 }} />
+            </button>
+            <button className={`layer-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')} title="Card view">
+              <i className="ti ti-layout-grid" style={{ fontSize: 13 }} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -461,11 +461,39 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the reroll button from the dice roller for all players. Luck and Unlucky rerolls are separate — players spend those themselves and are unaffected by this setting.</div>
               </div>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={arrowTracking} onChange={e => setArrowTracking(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Arrow Tracking</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Bow attacks consume arrows from inventory. After an encounter, 50% (round up) of arrows used are returned. Arrows must be in inventory to fire.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={playerGlowDefault}
+                onChange={e => { setPlayerGlowDefault(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Players Glow (default)</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>New encounters start with each PC token emitting its own 3-square light radius (walls still block it), on top of any GM-painted light tiles. Can still be toggled per-encounter next to the Lighting checkbox on the Battle Grid. When turned off, players may need to rely on lamps and torches in the darkness.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={disableTimeTracking}
+                onChange={e => { setDisableTimeTracking(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Disable Time Tracking</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hides the time-of-day/day-of-week display and GM controls for everyone. The underlying day/time value is kept, just not shown or advanced through the UI.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={everyoneHelps}
+                onChange={e => { setEveryoneHelps(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Everyone Helps</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lets any player (or the GM) take actions for any <strong>party character</strong> on that character's turn — not just their own. NPCs are never included, even ones with an assigned controller. Useful for a smaller table where players help each other out.</div>
+                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.2rem' }}>⚠ If two players act for the same character at the same time, their actions can collide and cause sync issues — best used one helper at a time.</div>
               </div>
             </label>
           </div>
@@ -535,36 +563,6 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             })}
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={playerGlowDefault}
-              onChange={e => { setPlayerGlowDefault(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
-              style={{ accentColor: 'var(--gold)' }} />
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Players Glow (default)</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>New encounters start with each PC token emitting its own 3-square light radius (walls still block it), on top of any GM-painted light tiles. Can still be toggled per-encounter next to the Lighting checkbox on the Battle Grid. When turned off, players may need to rely on lamps and torches in the darkness.</div>
-            </div>
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={disableTimeTracking}
-              onChange={e => { setDisableTimeTracking(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
-              style={{ accentColor: 'var(--gold)' }} />
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Disable Time Tracking</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hides the time-of-day/day-of-week display and GM controls for everyone. The underlying day/time value is kept, just not shown or advanced through the UI.</div>
-            </div>
-          </label>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={everyoneHelps}
-              onChange={e => { setEveryoneHelps(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
-              style={{ accentColor: 'var(--gold)' }} />
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Everyone Helps</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lets any player (or the GM) take actions for any character on that character's turn — not just their own. Useful for a smaller table where players help each other out.</div>
-            </div>
-          </label>
-
           <button className="btn btn-p btn-sm" onClick={() => saveImageSettings('gameplay')}>{gameplaySaved ? '✓ Saved' : 'Save Gameplay Settings'}</button>
         </>
       )}
@@ -618,7 +616,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                 style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide Feedback Tab</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab entirely — for everyone, including the GM. Unlike the Shop tab's hide toggle, there's no GM-only exception.</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab for everyone, including the GM.</div>
               </div>
             </label>
 

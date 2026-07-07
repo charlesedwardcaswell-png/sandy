@@ -3,7 +3,7 @@ import { GM_PASSWORD, GAME_ID } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { playLogin } from '../lib/sounds';
 
-export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLogin }) {
+export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLogin, version }) {
   const [selected, setSelected] = useState(null);
   const [pw, setPw] = useState('');
   const [username, setUsername] = useState('');
@@ -47,8 +47,10 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLo
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-deep)' }}>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '2rem', width: 360, maxWidth: '95vw' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.08em', textTransform: 'uppercase' }}>LBS</div>
-          <div style={{ fontSize: 15, color: 'var(--gold-dim)', marginBottom: '.25rem' }}>The Heart of the Jewel</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.03em', lineHeight: 1.25, marginBottom: '.5rem' }}>
+            Legend of the Burning Sands
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--gold-dim)', marginBottom: '.5rem' }}>powered by sandy v{version}</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Select your role to enter</div>
         </div>
 

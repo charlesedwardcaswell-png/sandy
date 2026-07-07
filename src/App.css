@@ -158,6 +158,13 @@ body.theme-void {
 .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 .tab-dot { position: absolute; top: 6px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
 
+/* ── Mobile: hide the full tab bar, swipe the content instead (see .mobile-tab-indicator) ── */
+.mobile-tab-indicator { display: none; }
+@media (max-width: 768px) {
+  .tabbar { display: none; }
+  .mobile-tab-indicator { display: flex; }
+}
+
 /* ── Cards ── */
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
 .card-title { font-size: 13px; font-weight: 600; color: var(--gold-dim); letter-spacing: .08em; text-transform: uppercase; margin-bottom: .75rem; }
