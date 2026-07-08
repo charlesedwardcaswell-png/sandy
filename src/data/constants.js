@@ -29,22 +29,22 @@ export const RAISE_OPTIONS = ['More Effect','Flashy','Custom (notify GM)'];
 // variable, not flat; Knockdown has two distinct versions depending on the target's leg count.
 export const ATTACK_MANEUVERS = [
   'Feint (2)',                      // Bonus damage = half margin over Armor TN after raises, max 5x Insight Rank
-  'Guard (0)',                      // Simple Action, not an attack roll — handled separately, not a raise spend
-  'Knockdown — Biped (2)',
-  'Knockdown — Quadruped (4)',
+  'Guard (0)',                      // Simple Action, not an attack roll - handled separately, not a raise spend
+  'Knockdown - Biped (2)',
+  'Knockdown - Quadruped (4)',
   'Disarm (3)',                      // Flat 2k1 damage, then Contested Strength roll
   'Extra Attack (5)',
-  'Called Shot — Limb (1)',
-  'Called Shot — Hand/Foot (2)',
-  'Called Shot — Head (3)',
-  'Called Shot — Eye/Ear/Finger (4)',
+  'Called Shot - Limb (1)',
+  'Called Shot - Hand/Foot (2)',
+  'Called Shot - Head (3)',
+  'Called Shot - Eye/Ear/Finger (4)',
   'Narrative (1)',
 ];
 export const ROUND_LIMITS = { Action: null, Intrigue: 5, Travel: 3 };
 export const TRAITS = ['Reflexes','Awareness','Stamina','Willpower','Agility','Intelligence','Strength','Perception'];
 
 // ── Full skill list ───────────────────────────────────────────────────────────
-// Grouped by category. Lore: / Craft: / Perform: are open-ended — a special
+// Grouped by category. Lore: / Craft: / Perform: are open-ended - a special
 // placeholder value signals the UI to show a free-text input for the subtopic.
 export const SKILL_CATEGORIES = {
   'Bugei (Combat)': [
@@ -79,7 +79,7 @@ export const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flat().filter(s => !s.
 // Skills that are open-ended and need a free-text subtopic field
 export const OPEN_SKILLS = ['Lore','Craft','Perform'];
 
-// Suggested emphases per skill — used in skill picker and Craft: Poison inventory outcome
+// Suggested emphases per skill - used in skill picker and Craft: Poison inventory outcome
 export const SKILL_EMPHASES = {
   // ── Bugei (Martial) Skills ────────────────────────────────────────────────
   'Athletics':       ['Climbing', 'Running', 'Swimming', 'Throwing'],
@@ -90,9 +90,9 @@ export const SKILL_EMPHASES = {
   'Tahaddi':         ['Assessment', 'Focus'], // LBS name for Iaijutsu
   'Brawling':        ['Grappling', 'Improvised Weapons', 'Strikes'], // LBS name for Jiujutsu; Martial Arts → Strikes
 
-  // Weapon skills — verified against the actual rulebook page text/image (previous data had real errors:
+  // Weapon skills - verified against the actual rulebook page text/image (previous data had real errors:
   // extra weapons not in the book, missing ones that are). Spears/Polearms/Chain Weapons were read directly
-  // from the scanned page image since the OCR text badly interleaved two columns there — flagging that as
+  // from the scanned page image since the OCR text badly interleaved two columns there - flagging that as
   // slightly lower confidence than the others, which came from clean OCR text.
   'Archery':         ['Composite Bow', 'Horse Archery', 'Short Bow'], // LBS name for Kyujutsu
   'Assassin Ranged Weapons': ['Blowgun', 'Stone (Rokugani Tsubute)'], // was missing entirely before
@@ -169,9 +169,9 @@ export const POISON_EMPHASES = {
 };
 
 
-// Poison status-effect definitions — same shape as STATUS_EFFECT_DEFS, one per POISON_EMPHASES entry.
+// Poison status-effect definitions - same shape as STATUS_EFFECT_DEFS, one per POISON_EMPHASES entry.
 // This defines WHAT each poison does mechanically; it does not implement applying them (clicking a poison
-// in inventory to use it on a weapon/attack) — that's a separate, later feature per Charles, since items
+// in inventory to use it on a weapon/attack) - that's a separate, later feature per Charles, since items
 // don't trigger any actions yet. Where a poison's effect is really just an existing status (e.g. the
 // Blindness option on Poison Powder), appliesStatus points at that STATUS_EFFECT_DEFS key instead of
 // duplicating it.
@@ -201,11 +201,11 @@ export const POISON_STATUS_EFFECTS = {
     wearOff: 'Rest', mechanical: null,
   },
   'Stolen Breath': {
-    icon: '🔇', desc: 'Total voice loss — cannot speak, or cast Sahir spells requiring incantation. Stamina TN 30 to shake off.',
+    icon: '🔇', desc: 'Total voice loss - cannot speak, or cast Sahir spells requiring incantation. Stamina TN 30 to shake off.',
     wearOff: 'Pass Stamina TN 30', mechanical: null,
   },
   'Kirei-ko': {
-    icon: '🧪', desc: 'Slow-acting contact poison — -1 Stamina every 2 weeks of continued exposure.',
+    icon: '🧪', desc: 'Slow-acting contact poison - -1 Stamina every 2 weeks of continued exposure.',
     wearOff: 'Remove source of contact', mechanical: null,
   },
   'Fauntei Shi': {
@@ -227,7 +227,7 @@ export const POISON_STATUS_EFFECTS = {
     appliesStatus: { Blindness: 'Blinded' },
   },
   'Crafted Powder': {
-    icon: '🧪', desc: 'Cheaper version of Poison Powder — choose one on exposure: Blindness, Choking, Itching, or Nausea.',
+    icon: '🧪', desc: 'Cheaper version of Poison Powder - choose one on exposure: Blindness, Choking, Itching, or Nausea.',
     wearOff: 'Varies by chosen effect', mechanical: null,
     appliesStatus: { Blindness: 'Blinded' },
   },
@@ -237,7 +237,7 @@ export const FACTION_ICONS = {
   'City Guard':          'ti-shield-filled',
   'Dahab':               'ti-coin',
   'Qabal':               'ti-wand',
-  'Assassins':           'ti-knife',
+  'Assassins':           'ti-sword',
   'Ashalan':             'ti-moon-stars',
   "Ra'Shari":            'ti-crystal-ball',
   'Senpet':              'ti-sun-filled',
@@ -272,20 +272,20 @@ const CITY_GUARD_SCHOOL = ['Soldier of the City Guard'];
 
 // ── Faction default avatar colors ────────────────────────────────────────────
 export const FACTION_COLORS = {
-  'City Guard':         '#4a7ac8', // Cobalt — civic authority
-  'Dahab':              '#c8962a', // Gold — merchant wealth
-  'Qabal':              '#8050c8', // Violet — arcane summoners
-  'Assassins':          '#404858', // Shadow — Children of the Mountain
-  'Ashalan':            '#2a9a8a', // Teal — ancient crystalline immortals
-  "Ra'Shari":           '#c87030', // Amber — wagon-folk, firelight
-  'Senpet':             '#c8a030', // Desert gold — Senpet empire
-  'Yodotai':            '#a0a0b0', // Silver — iron legion
-  'Ebonites':           '#3060a8', // Sapphire — Ebon Stone guardians
-  'Jackals':            '#c84030', // Crimson — lawless and dangerous
-  'Merchants':          '#c8962a', // Gold — commerce
-  'Rogues / Foreigners':'#7a5030', // Bronze — outsiders
-  'Independent':        '#4a8a40', // Jade — free agents
-  'Creatures':          '#707078', // Ash grey — monsters and beasts
+  'City Guard':         '#4a7ac8', // Cobalt - civic authority
+  'Dahab':              '#c8962a', // Gold - merchant wealth
+  'Qabal':              '#8050c8', // Violet - arcane summoners
+  'Assassins':          '#404858', // Shadow - Children of the Mountain
+  'Ashalan':            '#2a9a8a', // Teal - ancient crystalline immortals
+  "Ra'Shari":           '#c87030', // Amber - wagon-folk, firelight
+  'Senpet':             '#c8a030', // Desert gold - Senpet empire
+  'Yodotai':            '#a0a0b0', // Silver - iron legion
+  'Ebonites':           '#3060a8', // Sapphire - Ebon Stone guardians
+  'Jackals':            '#c84030', // Crimson - lawless and dangerous
+  'Merchants':          '#c8962a', // Gold - commerce
+  'Rogues / Foreigners':'#7a5030', // Bronze - outsiders
+  'Independent':        '#4a8a40', // Jade - free agents
+  'Creatures':          '#707078', // Ash grey - monsters and beasts
 };
 
 
@@ -323,54 +323,54 @@ export const SUBFACTION_BONUSES = {
 
 export const SUBFACTION_DESCRIPTIONS = {
   // City Guard
-  'City Guard': "The only legal armed force in Medinaat al-Salaam, the City Guard maintains order under the Caliph's authority. Guardsmen come from every faction — many houses enroll their warriors here to gain the legal right to bear weapons openly. The Qadi, the city's judges and magistrates, are all former guardsmen. Service is respected but unglamorous; the work is dirty, the pay modest, and the politics treacherous.",
+  'City Guard': "The only legal armed force in Medinaat al-Salaam, the City Guard maintains order under the Caliph's authority. Guardsmen come from every faction - many houses enroll their warriors here to gain the legal right to bear weapons openly. The Qadi, the city's judges and magistrates, are all former guardsmen. Service is respected but unglamorous; the work is dirty, the pay modest, and the politics treacherous.",
 
   // Dahab Houses
-  'House Asmari': "The eldest of the Dahabi houses, House Asmari made its fortune in bulk trade — grain, livestock, and building materials. They are known for brute pragmatism, preferring direct force to subtlety. Their warriors are among the most feared in the merchant quarter, and they have long-standing ties to the City Guard that other houses envy.",
-  'House Basiri': "Scholars and alchemists, House Basiri's wealth flows from knowledge — particularly knowledge others would pay dearly to keep secret. They deal in rare books, arcane formulae, and forbidden information. Their members are disproportionately intelligent, and their inner circle is rumored to include sahir who never formally joined the Qabal.",
-  'House Enour': "House Enour controls the flow of will — they are kingmakers, political brokers, and the architects of alliances across the city. Their coin funds elections, their pressure dissolves inconvenient marriages, and their grudges last for generations. They are patient, methodical, and almost impossible to outmaneuver on their home ground of politics.",
-  'House Haffit': "The acrobats of commerce, House Haffit deal in speed — fast ships, fast horses, fast couriers. They run the city's most reliable courier network and maintain depots across the desert trade routes. Their enforcers are known for their agility and their willingness to operate in environments no sane merchant would enter.",
-  'House Hazaad': "Once favored by the Immortal Caliph herself, House Hazaad holds the most dangerous secret in Dahab: they were legally permitted to practice sahir magic under the old regime. With the Caliph dead, that dispensation is contested — but so is the power behind it. House Hazaad walks a knife's edge between the Qabal's suspicion and the Guard's authority.",
-  'House Mendadi': "Reflexes, they say in the merchant quarter, are a House Mendadi virtue. They work in swift, decisive deals — spices, silk, and items that move too fast for customs agents. They have the best network of lookouts and informants of any house, and their enforcers are famous for striking first and asking questions afterward.",
-  'House Menjari': "Famed for the merchant who first brought a gorilla to the city — and turned the spectacle into a gold mine — House Menjari specializes in the exotic. Foreign goods, imported novelties, creatures from distant lands. They cultivate Perception as a virtue: the ability to see what will be fashionable before anyone else does.",
-  'House Rashid': "The oldest money in Dahab belongs to House Rashid — old enough that their ancestors remember when the current merchant quarter was a camel market. They deal in endurance: long-term contracts, patient investments, multi-generational partnerships. Their Stamina as a house mirrors their Stamina as merchants. They are slow to anger and very slow to forgive.",
+  'House Asmari': "The eldest of the Dahabi houses, House Asmari made its fortune in bulk trade - grain, livestock, and building materials. They are known for brute pragmatism, preferring direct force to subtlety. Their warriors are among the most feared in the merchant quarter, and they have long-standing ties to the City Guard that other houses envy.",
+  'House Basiri': "Scholars and alchemists, House Basiri's wealth flows from knowledge - particularly knowledge others would pay dearly to keep secret. They deal in rare books, arcane formulae, and forbidden information. Their members are disproportionately intelligent, and their inner circle is rumored to include sahir who never formally joined the Qabal.",
+  'House Enour': "House Enour controls the flow of will - they are kingmakers, political brokers, and the architects of alliances across the city. Their coin funds elections, their pressure dissolves inconvenient marriages, and their grudges last for generations. They are patient, methodical, and almost impossible to outmaneuver on their home ground of politics.",
+  'House Haffit': "The acrobats of commerce, House Haffit deal in speed - fast ships, fast horses, fast couriers. They run the city's most reliable courier network and maintain depots across the desert trade routes. Their enforcers are known for their agility and their willingness to operate in environments no sane merchant would enter.",
+  'House Hazaad': "Once favored by the Immortal Caliph herself, House Hazaad holds the most dangerous secret in Dahab: they were legally permitted to practice sahir magic under the old regime. With the Caliph dead, that dispensation is contested - but so is the power behind it. House Hazaad walks a knife's edge between the Qabal's suspicion and the Guard's authority.",
+  'House Mendadi': "Reflexes, they say in the merchant quarter, are a House Mendadi virtue. They work in swift, decisive deals - spices, silk, and items that move too fast for customs agents. They have the best network of lookouts and informants of any house, and their enforcers are famous for striking first and asking questions afterward.",
+  'House Menjari': "Famed for the merchant who first brought a gorilla to the city - and turned the spectacle into a gold mine - House Menjari specializes in the exotic. Foreign goods, imported novelties, creatures from distant lands. They cultivate Perception as a virtue: the ability to see what will be fashionable before anyone else does.",
+  'House Rashid': "The oldest money in Dahab belongs to House Rashid - old enough that their ancestors remember when the current merchant quarter was a camel market. They deal in endurance: long-term contracts, patient investments, multi-generational partnerships. Their Stamina as a house mirrors their Stamina as merchants. They are slow to anger and very slow to forgive.",
 
   // Qabal
   'Traditionalists': "The Traditionalists believe Hakhim's Seal exists for a reason, and that reason has not changed in a thousand years. They teach magic only to those who have proven themselves worthy through years of study, and they distrust innovation as much as they distrust outsiders. Their techniques are older, their discipline stricter, and their power arguably deeper.",
   'Progressivists': "The Progressivists believe that the sahir tradition must evolve or atrophy. They experiment with new disciplines, accept students from unusual backgrounds, and are more willing to share knowledge with allied factions. Their critics say they are reckless; their supporters say they are the only reason the Qabal is still relevant in a changed city.",
 
   // Assassins
-  'Qadi / Caliphate Guards': "The public face of the Order — guardsmen and magistrates who serve the law while serving the Mountain's agenda. They gather intelligence, protect strategic interests, and make sure that the right people receive justice. Their Perception is their greatest asset: they see everything, remember everything, and report to the Order what the city cannot afford to know.",
-  'Daughters / Sons of the Mountain': "The warrior heart of the Assassins, trained at the hidden Keep. Slayers, Keepers, Duelists — all begin here. Their training is brutal and their loyalty absolute. The female membership dominates the highest ranks, carrying the ancient traditions of the Order. Those who emerge carry the Mountain's mark: excellence, silence, and the knowledge of when to act.",
+  'Qadi / Caliphate Guards': "The public face of the Order - guardsmen and magistrates who serve the law while serving the Mountain's agenda. They gather intelligence, protect strategic interests, and make sure that the right people receive justice. Their Perception is their greatest asset: they see everything, remember everything, and report to the Order what the city cannot afford to know.",
+  'Daughters / Sons of the Mountain': "The warrior heart of the Assassins, trained at the hidden Keep. Slayers, Keepers, Duelists - all begin here. Their training is brutal and their loyalty absolute. The female membership dominates the highest ranks, carrying the ancient traditions of the Order. Those who emerge carry the Mountain's mark: excellence, silence, and the knowledge of when to act.",
   'Order of the Blood-Red Tiger': "A splinter tradition within the Assassins, the Blood-Red Tiger emphasizes aggressive attack over patient observation. Their members are faster, more reckless, and more willing to operate in the open. Some say they are the Order's answer to a world that no longer fears subtlety. Others say they are a liability that will eventually get the whole Order killed.",
 
   // Ashalan
-  'Ashalan': "Ancient blue-skinned immortals, created by jinn at the dawn of the world, the Ashalan live beneath Medinaat al-Salaam in the City of the Seventh Star. Their tattoos glow with Shilah's power — beautiful in darkness, deadly in direct sunlight. Once the Council of Twelve led them; now only three of the original twelve remain. They watch, advise, and endure, searching for ways to preserve a race that the world slowly forgets.",
+  'Ashalan': "Ancient blue-skinned immortals, created by jinn at the dawn of the world, the Ashalan live beneath Medinaat al-Salaam in the City of the Seventh Star. Their tattoos glow with Shilah's power - beautiful in darkness, deadly in direct sunlight. Once the Council of Twelve led them; now only three of the original twelve remain. They watch, advise, and endure, searching for ways to preserve a race that the world slowly forgets.",
 
   // Ra'Shari
-  "Great Caravan of Commerce": "The merchants and dealers of the Ra'Shari world, the Commerce Caravan does not merely sell goods — they are living repositories of market knowledge, price history, and trade route information across the entire Burning Sands. Their Willpower comes from the discipline of negotiation: knowing when to hold and when to yield.",
-  "Great Caravan of Entertainment": "Dancers, storytellers, musicians, and illusionists — the Entertainment Caravan is both the Ra'Shari's public face and their most effective cover. While audiences watch the performance, the Caravan watches the audience. Their Awareness is legendary, and their ability to vanish into a crowd is unmatched.",
-  "Great Caravan of Memory": "Scholars and archivists of the Ra'Shari tradition, the Memory Caravan carries the history of their people in their minds — and the history of everyone else's people too. Their Intelligence is their armor. They know things that the city's great libraries have forgotten, and they sell that knowledge carefully, to those who can be trusted to use it well.",
-  "Great Caravan of Mysticism": "Diviners, seers, and the most spiritually gifted of the Ra'Shari. The Mysticism Caravan interprets the bones — the Cokaloi — and reads the patterns of fate. Their Perception goes beyond the physical; they see connections that others miss and patterns in events that seem random. They are the keepers of the old task the Ashalan gave their people.",
+  "Great Caravan of Commerce": "The merchants and dealers of the Ra'Shari world, the Commerce Caravan does not merely sell goods - they are living repositories of market knowledge, price history, and trade route information across the entire Burning Sands. Their Willpower comes from the discipline of negotiation: knowing when to hold and when to yield.",
+  "Great Caravan of Entertainment": "Dancers, storytellers, musicians, and illusionists - the Entertainment Caravan is both the Ra'Shari's public face and their most effective cover. While audiences watch the performance, the Caravan watches the audience. Their Awareness is legendary, and their ability to vanish into a crowd is unmatched.",
+  "Great Caravan of Memory": "Scholars and archivists of the Ra'Shari tradition, the Memory Caravan carries the history of their people in their minds - and the history of everyone else's people too. Their Intelligence is their armor. They know things that the city's great libraries have forgotten, and they sell that knowledge carefully, to those who can be trusted to use it well.",
+  "Great Caravan of Mysticism": "Diviners, seers, and the most spiritually gifted of the Ra'Shari. The Mysticism Caravan interprets the bones - the Cokaloi - and reads the patterns of fate. Their Perception goes beyond the physical; they see connections that others miss and patterns in events that seem random. They are the keepers of the old task the Ashalan gave their people.",
 
   // Senpet
-  'Senpet': "Warriors of the Ten Thousand Gods, the Senpet come from a vast empire to the south and west. Their religion permeates every aspect of their lives — even their magic is a form of devotion. Senpet warriors in Medinaat al-Salaam serve as soldiers, mercenaries, and missionaries. They are disciplined, proud, and convinced that their gods' favor is both real and deserved.",
+  'Senpet': "Warriors of the Ten Thousand Gods, the Senpet come from a vast empire to the south and west. Their religion permeates every aspect of their lives - even their magic is a form of devotion. Senpet warriors in Medinaat al-Salaam serve as soldiers, mercenaries, and missionaries. They are disciplined, proud, and convinced that their gods' favor is both real and deserved.",
 
   // Yodotai
-  'Yodotai': "Soldiers of an empire that has conquered everything it has touched, the Yodotai bring their military discipline, their unit tactics, and their unshakeable belief in the Yodotai Way to every posting. They are not comfortable in the Burning Sands — too much sand, too little order — but they are effective. Their Strength is legendary and their unit cohesion unmatched.",
+  'Yodotai': "Soldiers of an empire that has conquered everything it has touched, the Yodotai bring their military discipline, their unit tactics, and their unshakeable belief in the Yodotai Way to every posting. They are not comfortable in the Burning Sands - too much sand, too little order - but they are effective. Their Strength is legendary and their unit cohesion unmatched.",
 
   // Ebonites
-  'Order of the Ebon Hand': "Knights of an ancient order dedicated to fighting the Khadi and the undead, the Ebonites have come to Medinaat al-Salaam because this is where the battle is thickest. Their Integrity is their weapon as much as their swords. They accept recruits from any background and any faction, provided those recruits can pass the Test of the Ebon Stone — a trial that breaks most who attempt it.",
+  'Order of the Ebon Hand': "Knights of an ancient order dedicated to fighting the Khadi and the undead, the Ebonites have come to Medinaat al-Salaam because this is where the battle is thickest. Their Integrity is their weapon as much as their swords. They accept recruits from any background and any faction, provided those recruits can pass the Test of the Ebon Stone - a trial that breaks most who attempt it.",
 
   // Jackals
-  'Jackals': "The criminal underground of Medinaat al-Salaam — smugglers, necromancers, assassins who work for coin rather than principle. The Jackals are not a unified faction so much as a shared identity: everyone who operates outside the law, everyone who profits from what the city officially forbids. Their Agility is survival: the ability to move fast, shift identity, and be somewhere else when the Guard arrives.",
+  'Jackals': "The criminal underground of Medinaat al-Salaam - smugglers, necromancers, assassins who work for coin rather than principle. The Jackals are not a unified faction so much as a shared identity: everyone who operates outside the law, everyone who profits from what the city officially forbids. Their Agility is survival: the ability to move fast, shift identity, and be somewhere else when the Guard arrives.",
 
   // Merchants
-  'Independent Merchant': "Not every merchant belongs to one of the great Houses. Independent traders navigate the city without the protection of a House name — which means no political cover, no enforcers, and no bailouts. What they gain is freedom: the ability to deal with anyone, broker agreements that House pride would forbid, and keep all of the profit. Their Awareness comes from necessity: in this city, an unaffiliated merchant who isn't watching will not be an unaffiliated merchant for long.",
+  'Independent Merchant': "Not every merchant belongs to one of the great Houses. Independent traders navigate the city without the protection of a House name - which means no political cover, no enforcers, and no bailouts. What they gain is freedom: the ability to deal with anyone, broker agreements that House pride would forbid, and keep all of the profit. Their Awareness comes from necessity: in this city, an unaffiliated merchant who isn't watching will not be an unaffiliated merchant for long.",
 
   // Rogues
-  'Rogue': "Former soldiers, disgraced nobles, travelers stranded far from home — rogues are defined by what they are not. No faction, no House, no Order. They survive on adaptability and the willingness to do what others won't. The city always needs people who ask no questions.",
-  'Foreigner': "You came from elsewhere. Rokugan, the Ivory Kingdoms, the far north — it doesn't matter much. What matters is that Medinaat al-Salaam is not your home and everyone can tell. That's a disadvantage in politics and an advantage in the shadows: no one expects you to know the rules.",
+  'Rogue': "Former soldiers, disgraced nobles, travelers stranded far from home - rogues are defined by what they are not. No faction, no House, no Order. They survive on adaptability and the willingness to do what others won't. The city always needs people who ask no questions.",
+  'Foreigner': "You came from elsewhere. Rokugan, the Ivory Kingdoms, the far north - it doesn't matter much. What matters is that Medinaat al-Salaam is not your home and everyone can tell. That's a disadvantage in politics and an advantage in the shadows: no one expects you to know the rules.",
 
   // Independent
   'Free Agent': "You belong to no faction by choice. This is either principled independence or dangerous foolishness depending on who you ask. Free Agents operate in the spaces between the great powers, taking contracts from anyone and answering to no one. The Willpower required to maintain neutrality in this city is considerable.",
@@ -568,7 +568,7 @@ export const POWDERS_LIST = [
 ];
 
 
-// Maps technique names to which skills/areas they modify — used to show glow badges on skill rows
+// Maps technique names to which skills/areas they modify - used to show glow badges on skill rows
 export const TECHNIQUE_SKILL_LINKS = {
   // City Guard
   'Trained For War':         ['Athletics', 'Battle', 'Defense', 'Initiative'],
@@ -631,8 +631,8 @@ export const TECHNIQUE_SKILL_LINKS = {
   // Ra'Shari Knife-Fighter
   'The Endless Dance':       ['Armor TN', 'Initiative'],
   'Flashing Talons':         ['Knives', 'Damage'],
-  // Senpet (placeholder — add as schools are built out)
-  // Yodotai, Ebonites, Jackals — to be added when those school techniques are confirmed
+  // Senpet (placeholder - add as schools are built out)
+  // Yodotai, Ebonites, Jackals - to be added when those school techniques are confirmed
 };
 
 
@@ -672,37 +672,37 @@ export const WEAPONS_LIST = [
   { name:'Longsword',    dr:'3k2', skill:'Swordsmanship', price:'15c', size:'large',  twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
   { name:'Scimitar',     dr:'4k2', skill:'Swordsmanship', price:'20c', size:'medium', twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
   { name:'Shortsword',   dr:'2k2', skill:'Swordsmanship', price:'7c',  size:'medium', twoHanded:false, isSword:true, special:'Sword: Void spend gives +1 kept die on damage (once per roll)' },
-  { name:'Gladius',      dr:'2k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, special:'Yodotai sword: Void spend gives +1 kept die on damage (once per roll)' },
-  { name:'Khopesh',      dr:'3k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, special:'Senpet sword: +Str to rolled dice like an axe; Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Gladius',      dr:'2k2', skill:'Swordsmanship', price:'-',   size:'medium', twoHanded:false, isSword:true, special:'Yodotai sword: Void spend gives +1 kept die on damage (once per roll)' },
+  { name:'Khopesh',      dr:'3k2', skill:'Swordsmanship', price:'-',   size:'medium', twoHanded:false, isSword:true, special:'Senpet sword: +Str to rolled dice like an axe; Void spend gives +1 kept die on damage (once per roll)' },
   { name:'Knife',        dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Jambiya',      dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Kindjal',      dr:'1k1', skill:'Knives',        price:'2c',  size:'small',  twoHanded:false, special:'Free draw; throwable 30ft' },
   { name:'Spear',        dr:'2k2', skill:'Spears',        price:'5c',  size:'large',  twoHanded:true,  special:'Thrown 1k2/30ft' },
   { name:'Lance',        dr:'1k2', skill:'Spears',        price:'15c', size:'large',  twoHanded:true,  special:'3k4 charging; mounted only' },
-  { name:'Khadja',       dr:'1k3', skill:'Polearms',      price:'—',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan' },
-  { name:'Pilum',        dr:'2k2', skill:'Spears',        price:'—',   size:'large',  twoHanded:true,  special:'Yodotai; throwable' },
+  { name:'Khadja',       dr:'1k3', skill:'Polearms',      price:'-',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan' },
+  { name:'Pilum',        dr:'2k2', skill:'Spears',        price:'-',   size:'large',  twoHanded:true,  special:'Yodotai; throwable' },
   { name:'Staff',        dr:'0k2', skill:'Staves',        price:'1c',  size:'large',  twoHanded:true,  special:'Free Raise Knockdown' },
   { name:'Heavy Club',   dr:'1k3', skill:'Heavy Weapons', price:'2c',  size:'large',  twoHanded:true,  special:'Str 3 req' },
   { name:'Mace',         dr:'0k2', skill:'Heavy Weapons', price:'2c',  size:'medium', twoHanded:false, special:'Str 3 req; –10 armor TN' },
   { name:'War Axe',      dr:'0k3', skill:'Heavy Weapons', price:'1c',  size:'medium', twoHanded:false, special:'One-handed' },
-  { name:'Standard Bow', dr:'2k2', skill:'Archery',       price:'10c', size:'large',  twoHanded:true,  special:'Range 300ft; two-handed ranged — cannot dual wield' },
-  { name:'Shortbow',     dr:'2k2', skill:'Archery',       price:'5c',  size:'large',  twoHanded:true,  special:'Range 100ft; two-handed ranged — cannot dual wield; free-action draw' },
+  { name:'Standard Bow', dr:'2k2', skill:'Archery',       price:'10c', size:'large',  twoHanded:true,  special:'Range 300ft; two-handed ranged - cannot dual wield' },
+  { name:'Shortbow',     dr:'2k2', skill:'Archery',       price:'5c',  size:'large',  twoHanded:true,  special:'Range 100ft; two-handed ranged - cannot dual wield; free-action draw' },
   { name:'Horseback Bow', dr:'4k2', skill:'Archery',      price:'20c', size:'large',  twoHanded:true,  special:'Str 3 (min 1) required; Range 400ft; −10 TN penalty used on foot' },
   { name:'Weighted Chain', dr:'2k1', skill:'Chain',       price:'5c',  size:'medium', twoHanded:false, special:'2 Free Raises to Disarm/Knockdown; a failed contest grapples the target' },
-  { name:'Small Club',   dr:'0k2', skill:'Staves',        price:'—',   size:'small',  twoHanded:false, special:'Sold in pairs (50 pool); Emphasis: both clubs together deal 1k3, no penalty' },
-  { name:'Blowgun',      dr:'—',  skill:'Assassin Ranged Weapons', price:'—', size:'small', twoHanded:false, special:'Range 30ft; deals a flat 1 wound rank on hit (not a dice roll — apply manually, not automated); often poisoned; armor TN doubled' },
-  { name:'Throwing Stone', dr:'1k1', skill:'Assassin Ranged Weapons', price:'—', size:'small', twoHanded:false, special:'Free or 2 pool; no Strength bonus to damage; 10s do not explode' },
-  // Ashalan (mostly loot/steal/persuade-only per the conversion doc — not stocked in any shop, but
+  { name:'Small Club',   dr:'0k2', skill:'Staves',        price:'-',   size:'small',  twoHanded:false, special:'Sold in pairs (50 pool); Emphasis: both clubs together deal 1k3, no penalty' },
+  { name:'Blowgun',      dr:'-',  skill:'Assassin Ranged Weapons', price:'-', size:'small', twoHanded:false, special:'Range 30ft; deals a flat 1 wound rank on hit (not a dice roll - apply manually, not automated); often poisoned; armor TN doubled' },
+  { name:'Throwing Stone', dr:'1k1', skill:'Assassin Ranged Weapons', price:'-', size:'small', twoHanded:false, special:'Free or 2 pool; no Strength bonus to damage; 10s do not explode' },
+  // Ashalan (mostly loot/steal/persuade-only per the conversion doc - not stocked in any shop, but
   // available here so Ashalan-faction characters and NPCs can actually equip their signature gear)
-  { name:'Adiva',        dr:'2k1', skill:'Knives',        price:'—',   size:'small',  twoHanded:false, faction:'Ashalan', special:'Ashalan; loot/steal only; +1k0 to attack rolls in knife fights' },
-  { name:'Ashalan Scimitar', dr:'4k2', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; most common Ashalan weapon; +1k0 to attack rolls; Void spend gives +1 kept die on damage' },
-  { name:'Falchion',     dr:'3k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; 4k2 if crysteel; +1k0 to attack rolls even non-crysteel; Void spend gives +1 kept die on damage' },
-  { name:'Ashalan Scythe', dr:'1k4', skill:'Unique',      price:'1c',  size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 2k4/Polearms) — loot/steal only' },
-  { name:'The Khadja',   dr:'4k4', skill:'Polearms',      price:'—',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; unique legendary artifact, not for sale; crysteel, Masterwork; once per day, an extra attack for 4 rounds' },
-  { name:'Najya',        dr:'3k2', skill:'Unique-Knives', price:'—',   size:'medium', twoHanded:false, faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 4k2/Swordsmanship) — cannot be purchased' },
-  { name:"Blades of the Blood-Sworn", dr:'2k3', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; not for sale; crysteel — auto Fine quality, harms oni/the Lying Darkness; Void spend gives +1 kept die on damage' },
+  { name:'Adiva',        dr:'2k1', skill:'Knives',        price:'-',   size:'small',  twoHanded:false, faction:'Ashalan', special:'Ashalan; loot/steal only; +1k0 to attack rolls in knife fights' },
+  { name:'Ashalan Scimitar', dr:'4k2', skill:'Swordsmanship', price:'-', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; most common Ashalan weapon; +1k0 to attack rolls; Void spend gives +1 kept die on damage' },
+  { name:'Falchion',     dr:'3k2', skill:'Swordsmanship', price:'-',   size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; loot/steal only; 4k2 if crysteel; +1k0 to attack rolls even non-crysteel; Void spend gives +1 kept die on damage' },
+  { name:'Ashalan Scythe', dr:'1k4', skill:'Unique',      price:'1c',  size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 2k4/Polearms) - loot/steal only' },
+  { name:'The Khadja',   dr:'4k4', skill:'Polearms',      price:'-',   size:'large',  twoHanded:true,  faction:'Ashalan', special:'Ashalan; unique legendary artifact, not for sale; crysteel, Masterwork; once per day, an extra attack for 4 rounds' },
+  { name:'Najya',        dr:'3k2', skill:'Unique-Knives', price:'-',   size:'medium', twoHanded:false, faction:'Ashalan', special:'Ashalan; conversion doc override (core book lists 4k2/Swordsmanship) - cannot be purchased' },
+  { name:"Blades of the Blood-Sworn", dr:'2k3', skill:'Swordsmanship', price:'-', size:'medium', twoHanded:false, isSword:true, faction:'Ashalan', special:'Ashalan; not for sale; crysteel - auto Fine quality, harms oni/the Lying Darkness; Void spend gives +1 kept die on damage' },
   // Assassin
-  { name:'Sayf-saghir',  dr:'2k2', skill:'Swordsmanship', price:'—',   size:'medium', twoHanded:false, isSword:true, faction:'Assassin', special:'Assassin; Void spend gives +1 kept die on damage' },
+  { name:'Sayf-saghir',  dr:'2k2', skill:'Swordsmanship', price:'-',   size:'medium', twoHanded:false, isSword:true, faction:'Assassin', special:'Assassin; Void spend gives +1 kept die on damage' },
   { name:'Choking Cord', dr:'1k1', skill:'Chain',         price:'1c',  size:'small',  twoHanded:false, faction:'Assassin', special:'Assassin; deals damage only while controlling a grapple (per turn); Free Raise to initiate a grapple vs an unaware target' },
   // Senpet
   { name:'Shamshir',     dr:'2k2', skill:'Swordsmanship', price:'10c', size:'medium', twoHanded:false, isSword:true, faction:'Senpet', special:'Senpet; light scimitar, common secondary weapon; Void spend gives +1 kept die on damage' },
@@ -711,20 +711,20 @@ export const WEAPONS_LIST = [
   { name:'Claymore',     dr:'3k3', skill:'Swordsmanship', price:'10c', size:'large',  twoHanded:true,  faction:'Yodotai', special:'Yodotai; Str 3 required; gets a Heavy Weapon Strength bonus; Void spend gives +1 kept die on damage' },
   { name:'Pugio',        dr:'1k1', skill:'Knives',        price:'1c',  size:'small',  twoHanded:false, faction:'Yodotai', special:'Yodotai; standard secondary weapon; free draw; throwable 30ft' },
   // Ebonite
-  { name:'Ebonite Longsword', dr:'3k2', skill:'Swordsmanship', price:'—', size:'medium', twoHanded:false, isSword:true, faction:'Ebonite', special:"Ebonite; Order members only, else arrested on sight; individually hand-crafted, one per new templar; Void spend gives +1 kept die on damage" },
-  { name:'Unarmed',      dr:'1k1', skill:'Brawling',      price:'—',   size:'small',  twoHanded:false, special:'Default when no weapon drawn' },
+  { name:'Ebonite Longsword', dr:'3k2', skill:'Swordsmanship', price:'-', size:'medium', twoHanded:false, isSword:true, faction:'Ebonite', special:"Ebonite; Order members only, else arrested on sight; individually hand-crafted, one per new templar; Void spend gives +1 kept die on damage" },
+  { name:'Unarmed',      dr:'1k1', skill:'Brawling',      price:'-',   size:'small',  twoHanded:false, special:'Default when no weapon drawn' },
 ];
 
 export const GEAR_LIST_NAMES = [
   'Partial Armor (+3 TN)','Light Armor (+5 TN)','Heavy Armor (+10 TN)','Riding Armor (+8 TN)',
-  // Faction armor — TN bonuses already existed in ARMOR_TN_BONUS, just weren't selectable here
+  // Faction armor - TN bonuses already existed in ARMOR_TN_BONUS, just weren't selectable here
   'Lorica Segmentata','Senpet Chain Shirt','Yodotai Chain Shirt','Half-Plate','Ebonite Armor','Adaga',
   'Medicine Kit','Traveling Rations','Water Skin','Rope (50 ft)','Lantern','Lantern Oil','Torch','Oil Lamp',
   'Grapple Hook','Flint and Steel','Lockpicks','Calligraphy Kit','Apothecary Kit',
   'Backpack','Tent (small)','Traveling Cloak','Suit of Clothes','Fine Clothes',
   'Sandals','Shoes','Blanket','Coin Purse','Personal Seal','Quiver (60 arrows)',
-  // Arrow types — reference/inventory items with their own DR. Not wired into the attack roller as
-  // switchable ammo yet (Archery attacks always use the bow's own DR) — that's a bigger follow-up.
+  // Arrow types - reference/inventory items with their own DR. Not wired into the attack roller as
+  // switchable ammo yet (Archery attacks always use the bow's own DR) - that's a bigger follow-up.
   'Armor Piercing Arrows (20)','Flesh Cutter Arrows (20)','Signal Arrows (10)',
   'Musical Instrument','Book / Scroll','Writing Paper','Whetstone',
   'Generic Poison (dose)','Fire Biter (dose)','Night Milk (dose)','Snake Venom (dose)',
@@ -734,7 +734,7 @@ export const GEAR_LIST_NAMES = [
   'Camel','Horse','Saddle','Saddlebags','Feed (1 week)','Bridle and Reins','Hitching Post Fee (1 night)',
 ];
 
-// Gear descriptions for tooltips — keyed by name
+// Gear descriptions for tooltips - keyed by name
 export const GEAR_DESCRIPTIONS = {
   'Partial Armor (+3 TN)':  '+3 Armor TN. Protects key areas without full encumbrance. No penalty to movement.',
   'Light Armor (+5 TN)':    '+5 Armor TN. Standard leather or padded armor worn by guards and soldiers.',
@@ -747,7 +747,7 @@ export const GEAR_DESCRIPTIONS = {
   'Lantern':                 'Provides light in a 30-foot radius. Requires oil to operate. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
   'Lantern Oil':             'Fuel for a lantern. One flask lasts approximately 6 hours.',
   'Torch':                   'A length of wood wrapped in oil-soaked cloth, lit with Flint and Steel. Cruder and dimmer than a lantern, but free of oil upkeep. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
-  'Oil Lamp':                'A small clay or brass lamp burning oil — common indoors, dimmer and shorter-ranged than a lantern. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
+  'Oil Lamp':                'A small clay or brass lamp burning oil - common indoors, dimmer and shorter-ranged than a lantern. Casts light in a Battle Grid encounter while equipped (see Light Sources).',
   'Grapple Hook':            'Iron hook with rope. Used with Athletics for climbing walls or crossing gaps.',
   'Flint and Steel':         'Used to start fires. Required for making camp in the desert without magic.',
   'Lockpicks':               'A set of fine tools for opening locks. Required for Sleight of Hand (Lockpicking) rolls.',
@@ -766,12 +766,12 @@ export const GEAR_DESCRIPTIONS = {
   'Quiver (60 arrows)':      '60 arrows for a bow. Standard load for an archer.',
   'Armor Piercing Arrows (20)': 'Ignores the target\'s armor TN bonus. 4 pool per arrow.',
   'Flesh Cutter Arrows (20)': 'Armor TN doubled against these; range halved. 5 pool per arrow.',
-  'Signal Arrows (10)':      'A loud whistle on flight — signaling or distraction only, not a combat arrow. 10 pool per arrow.',
+  'Signal Arrows (10)':      'A loud whistle on flight - signaling or distraction only, not a combat arrow. 10 pool per arrow.',
   'Lorica Segmentata':       'Yodotai armor. +5 Armor TN; +5 TN penalty to Stealth only.',
   'Senpet Chain Shirt':      'Senpet armor. +5 Armor TN; +3 TN penalty to Agility/Reflexes rolls; no bonus vs piercing.',
   'Yodotai Chain Shirt':     'Yodotai armor. +7 Armor TN; +5 TN penalty to Agility/Reflexes rolls; no bonus vs piercing.',
   'Half-Plate':              'Yodotai armor. +10 Armor TN; +10 TN penalty to Agility/Reflexes rolls; Carapace 4 vs Swordsmanship/Knives weapons.',
-  'Ebonite Armor':           'Order members only — wearing this without being Order invites arrest. +5 Armor TN; +5 TN penalty to Athletics/Stealth.',
+  'Ebonite Armor':           'Order members only - wearing this without being Order invites arrest. +5 Armor TN; +5 TN penalty to Athletics/Stealth.',
   'Adaga':                   'Senpet body armor (not a shield despite the name). +5 Armor TN; +5 TN penalty to Agility/Reflexes rolls.',
   'Musical Instrument':      'A specific instrument (specify type). Required for Perform skill rolls.',
   'Book / Scroll':           'A written text. May grant a Free Raise on a relevant Lore roll if studied.',
@@ -790,7 +790,7 @@ export const GEAR_DESCRIPTIONS = {
   'Blinding Dust (dose)':    'TN 15 to resist (Reflexes). Target is blinded for 3 rounds.',
   // Mounts & stable supplies
   'Camel':                   'Riding animal and beast of burden, common throughout the Burning Sands. Can go long periods without water. Bad-tempered. Requires Horsemanship (Camel emphasis) to ride well. Stats: Earth 3, Water 3, Strength 6.',
-  'Horse':                   'Not native to the Burning Sands — a status symbol for wealthy citizens. Faster than a camel but needs more water and care. Requires Horsemanship to ride well. Stats: Earth 3, Agility 3, Strength 5.',
+  'Horse':                   'Not native to the Burning Sands - a status symbol for wealthy citizens. Faster than a camel but needs more water and care. Requires Horsemanship to ride well. Stats: Earth 3, Agility 3, Strength 5.',
   'Saddle':                  'Required to ride any mount in combat or for extended travel without penalty. One per mount.',
   'Saddlebags':              'Doubles the carrying capacity of a mounted character without slowing the mount.',
   'Feed (1 week)':           'One week of proper feed for a single mount. Mounts denied feed grow weak and unreliable.',
@@ -798,20 +798,20 @@ export const GEAR_DESCRIPTIONS = {
   'Hitching Post Fee (1 night)': 'Stabling fee to board and water a mount overnight at a stables or inn.',
 };
 
-// Wielded light sources — a character with one of these equipped (equipment.equipped === true) casts
+// Wielded light sources - a character with one of these equipped (equipment.equipped === true) casts
 // light on the Battle Grid in a radius of this many squares, same wall-blocked raycast as Player Glow
 // and GM-painted 'light' tiles (see fillLightRadius in EncounterTab.jsx). Distinct from Player Glow:
 // this only applies when one of these specific items is actually equipped, not a blanket per-PC glow.
-// Radii are a starting design call, not derived from a real-world foot conversion — easy to retune.
+// Radii are a starting design call, not derived from a real-world foot conversion - easy to retune.
 export const LIGHT_SOURCES = {
   'Torch': 3,
   'Lantern': 4,
   'Oil Lamp': 2,
 };
 
-// Full rulebook entries for the magnifying-glass reference modal — richer than GEAR_DESCRIPTIONS above,
+// Full rulebook entries for the magnifying-glass reference modal - richer than GEAR_DESCRIPTIONS above,
 // includes flavor text and special rules paraphrased from the source material (never verbatim quotes, per
-// copyright limits). Not every item has an entry yet — items without one fall back to the short
+// copyright limits). Not every item has an entry yet - items without one fall back to the short
 // GEAR_DESCRIPTIONS line only. Fill in more entries as items come up in play.
 export const GEAR_FULL_ENTRY = {
   'Longsword': 'A full-length blade, either straight or gently curved at the tip depending on the maker\'s '
@@ -819,11 +819,11 @@ export const GEAR_FULL_ENTRY = {
     + 'chopping strikes. Like all swords, the wielder may spend a single Void Point to roll and keep one extra '
     + 'die on a damage roll made with it, once per damage roll.',
   'Scimitar': 'A heavy, curved blade descended from ancient Senpet design, built for powerful slashing attacks '
-    + 'rather than precision thrusts — noticeably harder-hitting than a longsword. Like all swords, the wielder '
+    + 'rather than precision thrusts - noticeably harder-hitting than a longsword. Like all swords, the wielder '
     + 'may spend a single Void Point to roll and keep one extra die on a damage roll made with it, once per '
     + 'damage roll.',
   'Shortsword': 'Shorter than the longsword and typically straight-bladed, the shortsword is most effective '
-    + 'used with an upward or overhand thrust — its narrow point can find a fatal gap in an opponent\'s armor. '
+    + 'used with an upward or overhand thrust - its narrow point can find a fatal gap in an opponent\'s armor. '
     + 'Like all swords, the wielder may spend a single Void Point to roll and keep one extra die on a damage '
     + 'roll made with it, once per damage roll.',
   'Spear': 'A six-to-eight-foot weapon used two-handed on foot or one-handed while mounted, common across many '
@@ -841,7 +841,7 @@ export const GEAR_FULL_ENTRY = {
 
 
 
-// Standard uses for each skill — shown in expandable skill rows on character sheet
+// Standard uses for each skill - shown in expandable skill rows on character sheet
 export const SKILL_DESCRIPTIONS = {
   // Bugei (Combat)
   'Swordsmanship':   'Attack with swords and scimitars. Roll Agility/Swordsmanship vs target Armor TN. Damage: weapon DR.',
@@ -886,7 +886,7 @@ export const SKILL_DESCRIPTIONS = {
   'Temptation':      'Seduce, bribe, or entice. Awareness/Temptation vs target Will. Seduction emphasis for romantic coercion.',
 };
 
-// Maps skill names to their primary trait and ring — used for dice pool display
+// Maps skill names to their primary trait and ring - used for dice pool display
 export const SKILL_TRAIT_MAP = {
   // Combat / Bugei
   'Swordsmanship': { trait: 'Agility', ring: 'Fire' },
@@ -904,8 +904,8 @@ export const SKILL_TRAIT_MAP = {
   'Battle': { trait: 'Perception', ring: 'Water' },  // Primary = Perception for strategy; correct
   'Horsemanship': { trait: 'Agility', ring: 'Fire' },
   'Sailing': { trait: 'Agility', ring: 'Fire' },
-  'Hunting': { trait: 'Perception', ring: 'Water' },  // Tracking=Perception, Survival=Strength — most common
-  'Intimidation': { trait: 'Awareness', ring: 'Air' },  // Can also use Strength — most common is Awareness
+  'Hunting': { trait: 'Perception', ring: 'Water' },  // Tracking=Perception, Survival=Strength - most common
+  'Intimidation': { trait: 'Awareness', ring: 'Air' },  // Can also use Strength - most common is Awareness
   'Stealth': { trait: 'Agility', ring: 'Fire' },
   // High Skills
   'Calligraphy': { trait: 'Intelligence', ring: 'Fire' },
@@ -930,13 +930,13 @@ export const SKILL_TRAIT_MAP = {
   'Assassin Ranged Weapons': { trait: 'Reflexes', ring: 'Air' },
   'Appraisal': { trait: 'Perception', ring: 'Water' },
   'Games': { trait: 'Intelligence', ring: 'Fire' },
-  // Open skills — default trait
+  // Open skills - default trait
   'Lore': { trait: 'Intelligence', ring: 'Fire' },
   'Craft': { trait: 'Intelligence', ring: 'Fire' },
   'Perform': { trait: 'Awareness', ring: 'Air' },
 };
 
-// Armor TN bonus lookup — matches equipment item names to their TN bonus
+// Armor TN bonus lookup - matches equipment item names to their TN bonus
 export const ARMOR_TN_BONUS = {
   'Partial Armor (+3 TN)': 3,
   'Light Armor (+5 TN)': 5,
@@ -952,26 +952,26 @@ export const ARMOR_TN_BONUS = {
   'Yodotai Chain Shirt': 7,
   'Half-Plate': 10,
   'Ebonite Armor': 5,
-  'Adaga': 5, // Senpet body armor (Medium, +5 TN, Reduction 2) — NOT a shield despite shield-like appearance
+  'Adaga': 5, // Senpet body armor (Medium, +5 TN, Reduction 2) - NOT a shield despite shield-like appearance
 };
 
-// ── Shields — confirmed against the L5R 4E Conversion doc directly (see BACKLOG.md for source detail) ──
+// ── Shields - confirmed against the L5R 4E Conversion doc directly (see BACKLOG.md for source detail) ──
 // Unlike armor pieces (which use the highest-only rule), shields occupy their own slot and STACK on top
 // of worn armor. Attack Roll / Athletics penalty follows L5R 4E's Wielding Two Weapons rules by size
-// (Small -5, Medium -10, Large -15) per the conversion doc's general shield rule — shields do NOT grant
+// (Small -5, Medium -10, Large -15) per the conversion doc's general shield rule - shields do NOT grant
 // the two-weapon-fighting benefits, just the penalty.
 export const SHIELDS = [
   { name: 'Large Wooden Shield', size: 'large', tnBonus: 7, reduction: 3, keywords: ['Large'], price: '15c' },
   { name: 'Scutum', size: 'medium', tnBonus: 5, reduction: 3, keywords: ['Yodotai', 'Medium'], price: '12c' }, // price not listed in source, estimated to match Large Wooden Shield's tier
   { name: 'Parma', size: 'small', tnBonus: 0, reduction: 0, keywords: ['Yodotai', 'Small'],
-    note: '+5 TN vs ranged attacks only (not automated — GM applies manually); +5 TN penalty to all Agility/Reflexes Skill Rolls while carried (not automated)',
+    note: '+5 TN vs ranged attacks only (not automated - GM applies manually); +5 TN penalty to all Agility/Reflexes Skill Rolls while carried (not automated)',
     price: '5c' },
 ];
 export const SHIELD_ATTACK_PENALTY = { small: -5, medium: -10, large: -15 };
 
 // Compute shield TN bonus (stacks additively with armor, unlike armor's highest-only rule) and Reduction
 // from a character's equipment. Parma's ranged-only +5 and Agility/Reflexes penalty are NOT included here
-// — see the note on its SHIELDS entry above; those need manual GM application until Sandy tracks attack
+// - see the note on its SHIELDS entry above; those need manual GM application until Sandy tracks attack
 // type (ranged vs melee) and has a general Reduction/damage-soak system for PCs.
 export function getShieldBonus(equipment = []) {
   let tnBonus = 0, reduction = 0, penalty = 0;
@@ -985,7 +985,7 @@ export function getShieldBonus(equipment = []) {
       return;
     }
     // Reskinned/renamed shield items (Item Creator's base-item picker, base category "Shield") carry
-    // their own explicit tn_bonus/reduction/size fields instead of matching a SHIELDS entry by name —
+    // their own explicit tn_bonus/reduction/size fields instead of matching a SHIELDS entry by name -
     // without this, a renamed shield silently lost its bonus entirely once its name no longer matched.
     if (item.is_shield && typeof item.tn_bonus === 'number') {
       tnBonus = Math.max(tnBonus, item.tn_bonus);
@@ -998,14 +998,14 @@ export function getShieldBonus(equipment = []) {
 
 // Compute armor TN bonus from a character's equipment array
 // Uses the highest armor bonus from equipped (equipped === true) armor items, PLUS shield TN which stacks
-// additively on top (shields are a separate slot, not subject to the highest-only rule — conversion doc)
+// additively on top (shields are a separate slot, not subject to the highest-only rule - conversion doc)
 export function getArmorBonus(equipment = []) {
   let best = 0;
   (equipment || []).forEach(item => {
     if (!item.equipped) return;
     if (SHIELDS.some(s => s.name === item.name)) return; // shields handled separately by getShieldBonus, added below
-    if (item.is_shield) return; // reskinned shield item — also handled by getShieldBonus, not body armor
-    // Magic armor items (from MagicItemCreator) carry an explicit tn_bonus field — check that first
+    if (item.is_shield) return; // reskinned shield item - also handled by getShieldBonus, not body armor
+    // Magic armor items (from MagicItemCreator) carry an explicit tn_bonus field - check that first
     if (typeof item.tn_bonus === 'number') { best = Math.max(best, item.tn_bonus); return; }
     const name = item.name || '';
     // Check direct lookup
@@ -1018,16 +1018,16 @@ export function getArmorBonus(equipment = []) {
   return best + getShieldBonus(equipment).tnBonus;
 }
 
-// Keep backward compatibility — GEAR_LIST is the name array
+// Keep backward compatibility - GEAR_LIST is the name array
 export const GEAR_LIST = GEAR_LIST_NAMES;
 
-// Clothing items — equippable (one per slot), no combat effect. Quality tier above/below Standard
+// Clothing items - equippable (one per slot), no combat effect. Quality tier above/below Standard
 // adjusts Status by ±0.1 per degree (Poor = -0.1, Standard = 0, Fine = +0.1, Masterwork = +0.2).
 // Slot is one of: cloak, clothes, shoes. Only one item per slot can be equipped at a time.
 export const CLOTHING_SLOTS = {
   'Traveling Cloak': 'cloak',
   'Suit of Clothes': 'clothes',
-  'Fine Clothes':    'clothes', // Fine quality — gives +0.1 Status built-in plus quality modifier
+  'Fine Clothes':    'clothes', // Fine quality - gives +0.1 Status built-in plus quality modifier
   'Street Clothes':  'clothes',
   'Robes':           'clothes',
   'Robe':            'clothes',
@@ -1079,7 +1079,7 @@ export const ADVANTAGES = [
   { name: "Dark Paragon (Perfection)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to cause any one die of your choice on a Skill Roll to explode (no +5 bonus added)." },
   { name: "Dark Paragon (Strength)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to re-roll any Damage Roll, keeping the higher result." },
   { name: "Dark Paragon (Will)", cost: 5, type: "Mental", desc: "Once per session, sacrifice 5 Integrity or spend Void to negate 10 Wounds at the moment they are suffered." },
-  { name: "Ceremony of the Hidden Heart", cost: 10, type: "Mental/Spiritual", desc: "Sahir only. You know the ritual to create a Khadi — the process of separating a subject's heart from their body and creating a near-immortal being. Only those with a suitable teacher may purchase this. The ritual requires specific inscriptions, a living host, and precise timing; failure is catastrophic." },
+  { name: "Ceremony of the Hidden Heart", cost: 10, type: "Mental/Spiritual", desc: "Sahir only. You know the ritual to create a Khadi - the process of separating a subject's heart from their body and creating a near-immortal being. Only those with a suitable teacher may purchase this. The ritual requires specific inscriptions, a living host, and precise timing; failure is catastrophic." },
   { name: "Cosmopolitan", cost: 5, type: "Mental", desc: "Yodotai only. Skilled at adapting to different cultures. Gain +1k0 bonus to all Social Skill Rolls." },
   { name: "Great Potential", cost: 5, type: "Mental", desc: "Choose one Skill. Raises on rolls using that Skill are limited by your Skill Rank rather than Void Ring (use whichever is higher)." },
   { name: "Heartless", cost: 4, type: "Mental", desc: "+1k0 to resist any Courtier, Sincerity, or Temptation roll made to persuade, seduce, or change your mind." },
@@ -1116,7 +1116,7 @@ export const ADVANTAGES = [
   { name: "Voice", cost: 3, type: "Physical", desc: "+1k1 on any Perform Skill Roll that uses your voice (Singing, Oratory, etc.)." },
   // ── Social ────────────────────────────────────────────────────────────────
   { name: "Allies", cost: 2, type: "Social", desc: "Variable cost (2-8 pts). A contact with defined influence (1-4 pts) and devotion (1-4 pts). Discuss specifics with GM." },
-  { name: "Blackmail", cost: 2, type: "Social", desc: "Variable cost = target's Status Rank. You hold proof of a dark secret and can elicit cooperation — use carefully." },
+  { name: "Blackmail", cost: 2, type: "Social", desc: "Variable cost = target's Status Rank. You hold proof of a dark secret and can elicit cooperation - use carefully." },
   { name: "Blissful Betrothal", cost: 3, type: "Social", desc: "Arranged marriage you actually love. Purchase Gentry, Kharmic Tie, Social Position, and Wealth for 2 pts less each (min 1)." },
   { name: "Different School", cost: 5, type: "Social", desc: "Study at a school from a different faction. You remain a member of your own faction." },
   { name: "Fame", cost: 3, type: "Social", desc: "Gain +1 Reputation Rank." },
@@ -1227,16 +1227,16 @@ export const DISADVANTAGES = [
   { name: "Mistrusted Foreigner", value: 1, type: "Social", desc: "Your foreign origins mark you as an outsider in Medinaat al-Salaam. Individual dice may only explode once on Social Skill Rolls with locals who are suspicious of foreigners (max result 20 per die)." },
   { name: "Hostage", value: 3, type: "Social", desc: "Held as a guest in another faction's territory; cannot leave without escort. Life forfeit if your faction breaks the treaty." },
   { name: "Infamous", value: 2, type: "Social", desc: "Known for being ruthless and cruel. Starting Reputation replaced with Infamy at the same rank." },
-  { name: "Obligation", value: 3, type: "Social", desc: "3/6 pts. Indebted to someone. When it comes due, nothing else matters — honor it even at cost to yourself." },
+  { name: "Obligation", value: 3, type: "Social", desc: "3/6 pts. Indebted to someone. When it comes due, nothing else matters - honor it even at cost to yourself." },
   { name: "Rumormonger", value: 4, type: "Social", desc: "Cannot resist spreading gossip. Must roll Willpower vs TN equal to 5 × highest-Glory individual's Glory Rank to resist." },
   { name: "Social Disadvantage", value: 3, type: "Social", desc: "Begin with Status Rank 0." },
   { name: "Stolen Identity Stigma", value: 3, type: "Social", desc: "Potential enemy from another faction. Functions as Sworn Enemy with 1 extra point; enemy identity changes periodically (GM decides)." },
-  { name: "Nemesis", value: 4, type: "Social", desc: "You have earned a truly implacable enemy — one whose resources, connections, and burning hatred far exceed those of a Sworn Enemy. They will sacrifice considerable resources to see you destroyed. +1 pt per Insight Rank above yours they possess." },
+  { name: "Nemesis", value: 4, type: "Social", desc: "You have earned a truly implacable enemy - one whose resources, connections, and burning hatred far exceed those of a Sworn Enemy. They will sacrifice considerable resources to see you destroyed. +1 pt per Insight Rank above yours they possess." },
   { name: "Sworn Enemy", value: 3, type: "Social", desc: "An enemy determined to see you defeated or dead. +1 pt per Insight Rank above yours. +2 pts to make them your kharmic nemesis (cannot spend Void opposing them)." },
   // ── LBS-Specific ──────────────────────────────────────────────────────────
-  { name: "Curse of the Grey Crone", value: 3, type: "Spiritual", desc: "Assassin bloodline only. A difformity from the Grey Crone's curse on Prince Hassan — internal or external, pain or spasms, strange growths, twisted muscles, or severe communication difficulty. Choose one Trait: it is lowered to 1 and cannot be increased with XP. However, XP needed per Insight Rank is reduced by 5 (145 for 2nd, 165 for 3rd, etc.). Mandatory for male Assassins; compatible with Dark Fate." },
+  { name: "Curse of the Grey Crone", value: 3, type: "Spiritual", desc: "Assassin bloodline only. A difformity from the Grey Crone's curse on Prince Hassan - internal or external, pain or spasms, strange growths, twisted muscles, or severe communication difficulty. Choose one Trait: it is lowered to 1 and cannot be increased with XP. However, XP needed per Insight Rank is reduced by 5 (145 for 2nd, 165 for 3rd, etc.). Mandatory for male Assassins; compatible with Dark Fate." },
   { name: "Defiler of the Dead", value: 2, type: "Spiritual", desc: "Senpet only. You create ghuls for your own purposes rather than in service to the Ten Thousand Gods. Gain a Free Raise on all Spellcasting Rolls involving Ghul Creation spells. Suffer +5 TN on all Social Skills with other Senpet." },
-  { name: "Despicable", value: 5, type: "Mental", desc: "Yodotai only. You do not attract the attention of Yodotai ancestors — perhaps you reject their gods or are not considered a true warrior. You gain no advantage from Magic Resistance and may not purchase that Advantage. Suffer –2k0 penalty to all Social Skill Rolls with other Yodotai." },
+  { name: "Despicable", value: 5, type: "Mental", desc: "Yodotai only. You do not attract the attention of Yodotai ancestors - perhaps you reject their gods or are not considered a true warrior. You gain no advantage from Magic Resistance and may not purchase that Advantage. Suffer –2k0 penalty to all Social Skill Rolls with other Yodotai." },
   { name: "Forlorn (State)", value: 2, type: "Mental", desc: "Senpet only. You once believed in the Empire but something shattered that. Whenever you attempt to use any Skill or Technique referencing the State, you suffer +10 TN to that roll." },
   { name: "Forlorn (Religion)", value: 5, type: "Mental", desc: "Senpet only. You once believed in the Faith but something destroyed that. Whenever you attempt to use any Skill or Technique referencing Religion, you suffer +10 TN. You may not use Void Points for techniques that require faith." },
   { name: "Bad Fortune", value: 3, type: "Spiritual", desc: "Something unpleasant is in store. Form varies: Secret Love, Disfigurement, Evil Eye, Allergy, Lingering Misfortune, or Unknown Enemy." },
@@ -1245,7 +1245,7 @@ export const DISADVANTAGES = [
   { name: "Elemental Imbalance", value: 2, type: "Spiritual", desc: "Sahir only. 2 pts per rank. When casting a specific element's spells, must roll Willpower TN 15+5/rank or something disastrous occurs." },
   { name: "Enlightened Madness", value: 4, type: "Spiritual", desc: "4/6 pts. Choose Ring, Skill, or tattoo. When using it, roll Willpower (TN 20 or 30) or be consumed by madness for 8 hours." },
   { name: "Haunted", value: 3, type: "Spiritual", desc: "An ancestor constantly advises and demands. If you fail to honor them, once per session the GM may inflict –1k1 on a roll of their choice." },
-  { name: "Lord Moon's Curse", value: 3, type: "Spiritual", desc: "3/5/7 pts. Gain one bonus Void at full moon — but must roll Willpower TN 15+5/rank or lose control of character until sunrise." },
+  { name: "Lord Moon's Curse", value: 3, type: "Spiritual", desc: "3/5/7 pts. Gain one bonus Void at full moon - but must roll Willpower TN 15+5/rank or lose control of character until sunrise." },
   { name: "Lost Love", value: 3, type: "Spiritual", desc: "Lost true love (romantic, familial, or brotherly). When reminded, all TNs +5 until spending a Void Point. Cannot trigger more than twice/day." },
   { name: "Momoku", value: 8, type: "Spiritual", desc: "Possess Void Points but may not spend them on anything except School Techniques that specifically require Void Points." },
   { name: "Cursed by Shilah", value: 3, type: "Spiritual", desc: "The sun turns her face from you. You suffer -1k0 on all Social rolls made to persuade or charm others. In direct sunlight, Social TNs increase by +5." },
@@ -1253,10 +1253,10 @@ export const DISADVANTAGES = [
   { name: "Cursed by the Desert", value: 3, type: "Spiritual", desc: "Fortune sours your dealings. On all Commerce rolls, your kept dice maximum is reduced by 1 (minimum 1 kept die)." },
   { name: "Cursed by the Honest Hand", value: 3, type: "Spiritual", desc: "One skill eludes your mastery. The XP cost to raise one chosen non-weapon skill (chosen at creation) is doubled permanently." },
   { name: "Cursed by the All-Seeing Eye", value: 3, type: "Spiritual", desc: "Ancient knowledge is hidden from you. Once per session, the GM may force you to re-roll one Lore or Investigation roll, keeping the new result." },
-  { name: "Cursed by the Wanderer", value: 3, type: "Spiritual", desc: "Solitude saps your spirit. You cannot voluntarily regain Void Points through meditation or rest when completely alone — you require at least one companion present." },
+  { name: "Cursed by the Wanderer", value: 3, type: "Spiritual", desc: "Solitude saps your spirit. You cannot voluntarily regain Void Points through meditation or rest when completely alone - you require at least one companion present." },
   { name: "Cursed by the Keeper of Years", value: 3, type: "Spiritual", desc: "Your wounds linger beyond reason. Your natural healing rate is halved, and the Medicine TN to treat your wounds is increased by +5." },
   { name: "Sleeper Agent", value: 5, type: "Mental", desc: "Unknown to you, a faction has programmed you with a trigger phrase. Anyone who knows it can command you with up to 5 words." },
-  { name: "Touch of the Void", value: 3, type: "Spiritual", desc: "When spending a Void Point, gain +2k1 instead of +1k1 — but must roll Willpower TN 30 or be Dazed for one Round." },
+  { name: "Touch of the Void", value: 3, type: "Spiritual", desc: "When spending a Void Point, gain +2k1 instead of +1k1 - but must roll Willpower TN 30 or be Dazed for one Round." },
   { name: "Uncentered", value: 2, type: "Spiritual", desc: "Monk only. Cannot learn Void Kiho or take the Void Versatility Advantage." },
   { name: "Unlucky", value: 2, type: "Spiritual", maxRank: 3, costPerRank: 2, desc: "2 pts per rank (max 3 ranks). A number of times per session equal to rank, the GM may force you to re-roll one roll (keeping the second result)." },
   { name: "Wrath of the Desert", value: 3, type: "Spiritual", desc: "The elemental forces of the sands have turned against you. Choose one Ring element. Spells of that element cast against you confer one Free Raise on the Casting Roll." },
@@ -1401,7 +1401,7 @@ export const SAHIR_DISCIPLINES = [
 export const COKALOI_CATEGORIES = [
   {
     id: 'dawn', name: 'Dawn', element: 'Fire', color: '#e8c050',
-    desc: 'Fate and skill manipulation — blessings and curses. May be learned in any order.',
+    desc: 'Fate and skill manipulation - blessings and curses. May be learned in any order.',
     spells: [
       { level: 1, name: 'The First Blessing', tn: 10, desc: 'Target may reroll any 1 die on a roll of the designated Skill. Duration: one day or night.' },
       { level: 1, name: 'The First Curse', tn: 10, desc: 'Target must reroll the highest die on a roll of the designated Skill. Duration: one day or night.' },
@@ -1429,7 +1429,7 @@ export const COKALOI_CATEGORIES = [
       { level: 3, name: 'Hiding from the Sun', tn: 20, desc: 'Once out of direct sunlight, effectively disappear. Investigation Rolls to find you suffer +40 TN Penalty. Duration: concentration.' },
       { level: 3, name: 'A Potential Ally', tn: 20, desc: 'Appear extremely trustworthy. People who collect Allies seek you out. Allies obtained this way cost 1 XP less. Duration: 5 minutes.' },
       { level: 4, name: 'I am Someone Else', tn: 25, desc: 'Appear as an entirely different humanoid person. Illusion adjusts as you move but does not hold to tactile inspection. Covers voice. Duration: one hour.' },
-      { level: 4, name: 'This is Reasonable', tn: 25, desc: 'May say anything — listeners find it reasonable and correct. Cannot convince anyone into obvious danger. Duration: 5 minutes.' },
+      { level: 4, name: 'This is Reasonable', tn: 25, desc: 'May say anything - listeners find it reasonable and correct. Cannot convince anyone into obvious danger. Duration: 5 minutes.' },
       { level: 5, name: 'For All of Us', tn: 30, desc: 'Become any lower-level Dusk Cokalos with Area of Effect changed to up to 100 willing targets.' },
       { level: 5, name: 'Your Heart is in my Hands', tn: 30, desc: 'Fill target with any emotion they have experienced before. Target suffers effects of a single Advantage or Disadvantage applicable to the emotion. Duration: one hour.' },
     ]
@@ -1475,7 +1475,7 @@ export const TECHNIQUE_DESCRIPTIONS = {
 
   // ── Dahabi Enforcer ────────────────────────────────────────────────────
   'Moonless Night': 'You gain a +1k0 bonus to Attack and Damage Rolls while in the Full Attack Stance. Your penalties for fighting in poor visibility conditions and in areas of difficult terrain are halved, round down.',
-  'Dangerous Maneuvers': 'You gain a +1k1 bonus to all Contested Strength Rolls and +1k0 to all Damage Rolls during a grapple. Opponents suffer a -1k0 penalty to all Skill rolls for each ally of theirs you have reduced to Down or Out. Opponents only suffer the highest dice penalty when facing multiple Dahabi Enforcers — the effect is not cumulative. Mindless enemies or those immune to Fear ignore this effect.',
+  'Dangerous Maneuvers': 'You gain a +1k1 bonus to all Contested Strength Rolls and +1k0 to all Damage Rolls during a grapple. Opponents suffer a -1k0 penalty to all Skill rolls for each ally of theirs you have reduced to Down or Out. Opponents only suffer the highest dice penalty when facing multiple Dahabi Enforcers - the effect is not cumulative. Mindless enemies or those immune to Fear ignore this effect.',
   'Show of Force': 'When attacking unarmed or using weapons with the Warrior keyword, you may make attacks as Simple Actions.',
   'Bitter Shadows': 'You now gain +2k2 to all Contested Strength Rolls and +2k0 to all Damage Rolls during a grapple, replacing the benefit gained at Rank 2.',
   'Final Strike': 'Once per skirmish you may spend a Void Point to take a Complex Action or Simple Actions as normal while in the Center Stance. You gain the benefits of Center Stance this round in addition to the round following its adoption. You also gain +0k2 to all Damage Rolls while in the Center Stance and the round following its adoption.',
@@ -1527,7 +1527,7 @@ export const TECHNIQUE_DESCRIPTIONS = {
 
   // ── Assassin Keeper ────────────────────────────────────────────────────
   "The Keeper's Courage": 'You gain a +1k0 bonus to all Rolls involving the Perception Trait. When inflicting Wounds to an opponent, you may ignore half of their Reduction rating (round up).',
-  "The Keeper's Judgment": 'When attacking an opponent, you may choose to disable them rather than wound them — dealing no damage, but inflicting the Dazed Conditional Effect on them instead.',
+  "The Keeper's Judgment": 'When attacking an opponent, you may choose to disable them rather than wound them - dealing no damage, but inflicting the Dazed Conditional Effect on them instead.',
   "The Keeper's Justice": 'Making an Attack which does not inflict damage (such as the Rank 2 Technique or initiating a grapple) is a Simple Action for you. If you make an attack as a Complex Action and miss your opponent you may immediately use the Rank 2 Technique as a Free Action.',
   "The Keeper's Art": 'The difficulty of resisting all Conditional Effects you inflict is raised by twice your Class Rank. When attacking a Dazed opponent you may make 1 Raise on your Attack Roll; if successful that opponent is Fatigued until the end of the Skirmish.',
   'By the Force of Will Alone': 'When adopting the Full Defense Stance you may choose one opponent: they must spend two Void Points to declare an attack against you. When adopting the Full Attack Stance you may spend a Void Point and choose one opponent: your Attack Rolls against them ignore all bonuses to their Armor TN from Stance, Skills, Mastery Abilities, Spells, Kiho or Techniques.',
@@ -1632,13 +1632,13 @@ export const TECHNIQUE_DESCRIPTIONS = {
 
 
 // ── Creature Library ──────────────────────────────────────────────────────────
-// Static bestiary — always available in the Monsters faction, no DB records needed.
+// Static bestiary - always available in the Monsters faction, no DB records needed.
 // attack/damage use LBS dice notation (e.g. '6k3'). tn = TN to Be Hit. wpl = Wounds per Level.
 // Bestiary categories grouped into the two GM-facing "Type" buckets (used by the encounter
-// "From Library" picker and the Quick NPC Creator — single source of truth for both).
-// Arrow types — nocked alongside a bow, overriding the bow's own DR with the arrow's. Effects:
+// "From Library" picker and the Quick NPC Creator - single source of truth for both).
+// Arrow types - nocked alongside a bow, overriding the bow's own DR with the arrow's. Effects:
 // 'ignoreArmor' (Armor Piercer) zeroes the target's armor bonus for TN purposes; 'doubleArmor'
-// (Flesh Cutter) doubles it instead (per the rules: "Armor TN doubled; range halved" — the range
+// (Flesh Cutter) doubles it instead (per the rules: "Armor TN doubled; range halved" - the range
 // half isn't enforced since no range/distance system exists elsewhere in Sandy either).
 export const ARROW_TYPES = {
   'Quiver (60 arrows)':          { dr: '2k2', effect: null,          label: 'Standard' },
@@ -1666,7 +1666,7 @@ export const CREATURES_LIBRARY = [
     traits: { Agility: 3, Strength: 5 },
     attack: '3k2', damage: '6k3', tn: 10, wpl: 10,
     difficulty: 1, veteran: { tn: 2, wpl: 3, atk: '+1k0' },
-    specials: ['Fleet — uses Strength instead of Water for movement. TN 15 at gallop.'],
+    specials: ['Fleet - uses Strength instead of Water for movement. TN 15 at gallop.'],
     gm_notes: 'Not native to Burning Sands. Status symbol for wealthy citizens.',
   },
   {
@@ -1680,9 +1680,9 @@ export const CREATURES_LIBRARY = [
       'Smash (Simple): Attack 5k4, Damage 5k2',
       'Bite (Complex): Attack 4k4, Damage 3k3',
       'Athletics (Climbing) 3',
-      'Fear 1 — all opponents must resist Fear at the start of combat',
+      'Fear 1 - all opponents must resist Fear at the start of combat',
     ],
-    gm_notes: 'Ape (Ozaru) — official stat block. Initiative: 4k3. Wounds: 10/20/30/Dead. Reduction 4. Gorilla Bodyguard advantage grants one trained ape; owner counts as Animal Handling (Gorilla) 5 for commands, or uses actual rank if higher.',
+    gm_notes: 'Ape (Ozaru) - official stat block. Initiative: 4k3. Wounds: 10/20/30/Dead. Reduction 4. Gorilla Bodyguard advantage grants one trained ape; owner counts as Animal Handling (Gorilla) 5 for commands, or uses actual rank if higher.',
   },
   {
     id: 'creature_snake', name: 'Snake (Venomous)', category: 'Animal',
@@ -1690,7 +1690,7 @@ export const CREATURES_LIBRARY = [
     traits: { Reflexes: 3, Agility: 3, Awareness: 3 },
     attack: '3k2', damage: '1k1', tn: 20, wpl: 4,
     difficulty: 1, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
-    specials: ['Poison — successful attack forces target to resist snake venom.'],
+    specials: ['Poison - successful attack forces target to resist snake venom.'],
     gm_notes: 'Common in the Burning Sands. Used as assassination tools by Assassins, Jackals, and Senpet.',
   },
   {
@@ -1700,8 +1700,8 @@ export const CREATURES_LIBRARY = [
     attack: '2k2', damage: '1k1', tn: 20, wpl: 2,
     difficulty: 0.5, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
-      'Nimble — moves through trees, walls, and structures freely as a Free Action.',
-      'Theft — may attempt to steal a small item from a target as a Simple Action (opposed Agility/Sleight of Hand vs Reflexes/Defense).',
+      'Nimble - moves through trees, walls, and structures freely as a Free Action.',
+      'Theft - may attempt to steal a small item from a target as a Simple Action (opposed Agility/Sleight of Hand vs Reflexes/Defense).',
     ],
     gm_notes: 'Brought in by Ra\'Shari caravans. Kept as pets or trained by thieves. Some wealthy houses use them as messengers within large compounds.',
   },
@@ -1712,10 +1712,10 @@ export const CREATURES_LIBRARY = [
     attack: '3k2', damage: '2k1', tn: 15, wpl: 4,
     difficulty: 1, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
-      'Pack Hunter — gains +1k0 to attack rolls for each additional jackal attacking the same target (max +3k0).',
-      'Scent — cannot be surprised and ignores penalties for fighting in darkness.',
+      'Pack Hunter - gains +1k0 to attack rolls for each additional jackal attacking the same target (max +3k0).',
+      'Scent - cannot be surprised and ignores penalties for fighting in darkness.',
     ],
-    gm_notes: 'Desert scavengers found in packs of 3–8 near battlefields, refuse heaps, and city edges. The Jackal faction takes its name from them. Rarely attack healthy humans alone — much bolder in packs.',
+    gm_notes: 'Desert scavengers found in packs of 3–8 near battlefields, refuse heaps, and city edges. The Jackal faction takes its name from them. Rarely attack healthy humans alone - much bolder in packs.',
   },
   {
     id: 'creature_crocodile', name: 'Crocodile', category: 'Animal',
@@ -1724,11 +1724,11 @@ export const CREATURES_LIBRARY = [
     attack: '4k2', damage: '5k2', tn: 10, wpl: 12,
     difficulty: 2, veteran: { tn: 2, wpl: 4, atk: '+1k0' },
     specials: [
-      'Carapace 3 — thick hide reduces damage dice rolled by 3 (minimum 1 die).',
-      'Ambush Predator — gains +2k0 to attack rolls when attacking from water or when target is unaware.',
-      'Death Roll — on a successful grapple, may make a free damage roll each subsequent round without needing a new attack roll.',
+      'Carapace 3 - thick hide reduces damage dice rolled by 3 (minimum 1 die).',
+      'Ambush Predator - gains +2k0 to attack rolls when attacking from water or when target is unaware.',
+      'Death Roll - on a successful grapple, may make a free damage roll each subsequent round without needing a new attack roll.',
     ],
-    gm_notes: 'Found in the river and large oases outside Medinaat al-Salaam. Considered sacred by some Senpet. Slow on land (Water Ring for movement), lethal in water. Rarely ventures into the city proper — but the deeper sewer channels occasionally have them.',
+    gm_notes: 'Found in the river and large oases outside Medinaat al-Salaam. Considered sacred by some Senpet. Slow on land (Water Ring for movement), lethal in water. Rarely ventures into the city proper - but the deeper sewer channels occasionally have them.',
   },
   // ── Supernatural ────────────────────────────────────────────────────────────
   {
@@ -1738,8 +1738,8 @@ export const CREATURES_LIBRARY = [
     attack: '3k2', damage: '1k1', tn: 15, wpl: 3,
     difficulty: 0.5, veteran: { tn: 1, wpl: 2, atk: '+1k0' },
     specials: [
-      'Magic Resistance — Jinn attacks/effects suffer +10 TN; Jinn magic within 30\' suffers +20 TN.',
-      'Mimicry — Repeats anything said within 30\' in the language of every listener present.',
+      'Magic Resistance - Jinn attacks/effects suffer +10 TN; Jinn magic within 30\' suffers +20 TN.',
+      'Mimicry - Repeats anything said within 30\' in the language of every listener present.',
     ],
     gm_notes: 'Appear as ordinary strays but eyes glow golden at sunrise/sunset. Sought for translation. Jinn are loathe to harm them.',
   },
@@ -1750,7 +1750,7 @@ export const CREATURES_LIBRARY = [
     attack: '6k3', damage: '4k2', tn: 15, wpl: 8,
     difficulty: 2, veteran: { tn: 3, wpl: 4, atk: '+1k0' },
     specials: [
-      'Fear 1 — Willpower TN 10 to confront; fail by 15+ means flee.',
+      'Fear 1 - Willpower TN 10 to confront; fail by 15+ means flee.',
       'Immune to disease and poison.',
       'No Wound penalties.',
       'Fight until destroyed unless commanded otherwise.',
@@ -1764,10 +1764,10 @@ export const CREATURES_LIBRARY = [
     attack: '6k4', damage: '6k4', tn: 25, wpl: 6,
     difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
-      'Fear 3 — Willpower TN 20 to confront.',
-      'Flight — movement rate of twenty times Water Ring.',
+      'Fear 3 - Willpower TN 20 to confront.',
+      'Flight - movement rate of twenty times Water Ring.',
       'May attack twice per round with talons.',
-      'Pounce — if both talon attacks hit, gain 2 Free Raises on any subsequent grapple.',
+      'Pounce - if both talon attacks hit, gain 2 Free Raises on any subsequent grapple.',
     ],
     gm_notes: 'Bird of prey large enough to carry elephants. Adult wingspan 200 ft. Common near Medinaat al-Salaam since increase in Ivory Kingdoms caravans.',
   },
@@ -1778,13 +1778,13 @@ export const CREATURES_LIBRARY = [
     attack: '6k3', damage: '6k3', tn: 15, wpl: 14,
     difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
-      'Fear 2 — Willpower TN 15 to confront.',
-      'Carapace 2 — thick scales reduce damage dice rolled by 2 (minimum 1).',
-      'Burrow — moves through sand and loose earth as easily as open ground; attacks from below add +2k0 to the first attack roll.',
-      'Constrict — on a successful grapple, deals automatic Strength+2k2 damage each round without a new attack roll; target must beat TN 25 Strength roll to break free.',
-      'Invulnerable to mundane weapons of less than Damage 3k2 — hide too thick for small blades and arrows.',
+      'Fear 2 - Willpower TN 15 to confront.',
+      'Carapace 2 - thick scales reduce damage dice rolled by 2 (minimum 1).',
+      'Burrow - moves through sand and loose earth as easily as open ground; attacks from below add +2k0 to the first attack roll.',
+      'Constrict - on a successful grapple, deals automatic Strength+2k2 damage each round without a new attack roll; target must beat TN 25 Strength roll to break free.',
+      'Invulnerable to mundane weapons of less than Damage 3k2 - hide too thick for small blades and arrows.',
     ],
-    gm_notes: 'Ancient serpentine predators, longer than ten men laid end to end. Rare even in deep desert — most sightings are juveniles. A full adult can swallow a camel whole. Revered as sacred by some desert tribes; feared by everyone else. Believed to be remnants of a pre-creation age. Some scholars suggest they are degenerate Jinn who took physical form during the Day of Wrath and could not return.',
+    gm_notes: 'Ancient serpentine predators, longer than ten men laid end to end. Rare even in deep desert - most sightings are juveniles. A full adult can swallow a camel whole. Revered as sacred by some desert tribes; feared by everyone else. Believed to be remnants of a pre-creation age. Some scholars suggest they are degenerate Jinn who took physical form during the Day of Wrath and could not return.',
   },
   // ── Demonic ─────────────────────────────────────────────────────────────────
   {
@@ -1794,13 +1794,13 @@ export const CREATURES_LIBRARY = [
     attack: '8k5', damage: '7k4', tn: 25, wpl: 10,
     difficulty: 5, veteran: { tn: 5, wpl: 8, atk: '+1k1' },
     specials: [
-      'Carapace 3 — reduces damage dice rolled by 3 (min 1).',
-      'False Form — can assume form of a beautiful local woman; shapeshifting, not illusion — no magic can penetrate it.',
-      'Natural Weapons — 6 clawed arms, fangs, horns; may make 4 melee attacks per round.',
-      'Nightsight — sees in darkness with absolute clarity.',
-      'Spellcasting — minimum Rank 2 sahir equivalent.',
+      'Carapace 3 - reduces damage dice rolled by 3 (min 1).',
+      'False Form - can assume form of a beautiful local woman; shapeshifting, not illusion - no magic can penetrate it.',
+      'Natural Weapons - 6 clawed arms, fangs, horns; may make 4 melee attacks per round.',
+      'Nightsight - sees in darkness with absolute clarity.',
+      'Spellcasting - minimum Rank 2 sahir equivalent.',
     ],
-    gm_notes: 'Blood-borne daughters of Kali-Ma. Exceptionally rare — only two known: Sarna and Anata.',
+    gm_notes: 'Blood-borne daughters of Kali-Ma. Exceptionally rare - only two known: Sarna and Anata.',
   },
   // ── Jinn Templates ──────────────────────────────────────────────────────────
   {
@@ -1810,8 +1810,8 @@ export const CREATURES_LIBRARY = [
     attack: '4k2', damage: '4k2', tn: 10, wpl: 4,
     difficulty: 2, veteran: { tn: 3, wpl: 4, atk: '+1k0' },
     specials: [
-      'Invincible — no mortal weapon can slay a Jinn; if reduced past Out, returns to its realm.',
-      'Shapeshifting — may change shape at will (self only).',
+      'Invincible - no mortal weapon can slay a Jinn; if reduced past Out, returns to its realm.',
+      'Shapeshifting - may change shape at will (self only).',
     ],
     gm_notes: 'Base template. 40 CP, max 1 Advantage. Roll on Tables A2.2–A2.10 to customize. Skills: Brawling 2, Commerce 3.',
   },
@@ -1822,14 +1822,14 @@ export const CREATURES_LIBRARY = [
     attack: '6k4', damage: '6k4', tn: 20, wpl: 6,
     difficulty: 4, veteran: { tn: 5, wpl: 6, atk: '+1k1' },
     specials: [
-      'Invincible — no mortal weapon can slay a Jinn.',
-      'Shapeshifting — may change shape at will (self only).',
+      'Invincible - no mortal weapon can slay a Jinn.',
+      'Shapeshifting - may change shape at will (self only).',
     ],
     gm_notes: 'Base template. 60 CP, max 3 Advantages. Skills: Brawling 4, Commerce 4.',
   },
 ];
 
-// ── LBS Book Reference — Table of Contents ────────────────────────────────────
+// ── LBS Book Reference - Table of Contents ────────────────────────────────────
 // File IDs from Google Drive share links (the string between /d/ and /view in the URL)
 export const DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1ItTpn0-2yRB-06sJLJm_ZZxWF1I8kgCZ';
 
@@ -1840,9 +1840,9 @@ export const BOOK_TOC = [
     fileId: '1E_nDm1aul09FeOAcMg-w2ylq1vJqRkfL',
     isPinned: true,
     sections: [
-      { title: 'Schools & Techniques — 4th Ed conversion', page: 1 },
-      { title: 'Combat Maneuvers — Feint, Knockdown, Disarm, Extra Attack', page: 1 },
-      { title: 'Stances — Attack, Full Attack, Defense, Full Defense, Center', page: 1 },
+      { title: 'Schools & Techniques - 4th Ed conversion', page: 1 },
+      { title: 'Combat Maneuvers - Feint, Knockdown, Disarm, Extra Attack', page: 1 },
+      { title: 'Stances - Attack, Full Attack, Defense, Full Defense, Center', page: 1 },
       { title: 'Wounds & Conditions', page: 1 },
     ],
   },
@@ -1851,7 +1851,7 @@ export const BOOK_TOC = [
     page: 1,
     fileId: '1dRtdGMcXCpZbsce_x95VShAZL52fmczs',
     sections: [
-      { title: 'Introduction — Journal of Iuchi Yue', page: 5 },
+      { title: 'Introduction - Journal of Iuchi Yue', page: 5 },
       { title: 'Tales of Yesterday and Today', page: 7 },
       { title: 'How to Use This Book', page: 8 },
       { title: 'The Line of the Prophet (Mekhem / Shinsei)', page: 10 },
@@ -1859,11 +1859,11 @@ export const BOOK_TOC = [
     ],
   },
   {
-    chapter: 'Chapter 1: Rules — Roll & Keep, Characters, Skills',
+    chapter: 'Chapter 1: Rules - Roll & Keep, Characters, Skills',
     page: 15,
     fileId: '1ntnWXNsrUESkFT-00TW_iu7_rlOAIymi',
     sections: [
-      { title: 'Basic Game Mechanics — Roll and Keep', page: 13 },
+      { title: 'Basic Game Mechanics - Roll and Keep', page: 13 },
       { title: 'Rings and Traits', page: 19 },
       { title: 'Character Creation', page: 22 },
       { title: 'High Skills (Calligraphy, Courtier, Lore, Medicine…)', page: 28 },
@@ -1886,7 +1886,7 @@ export const BOOK_TOC = [
     page: 49,
     fileId: '1RSw5RZdj0y1LeGAE4ivlaoK4xQzZSY5c',
     sections: [
-      { title: 'Equipment — Weapons, Armor, Gear', page: 53 },
+      { title: 'Equipment - Weapons, Armor, Gear', page: 53 },
       { title: 'Combat Resolution', page: 61 },
       { title: 'Tahaddi (Knife-Fighting Duel Rules)', page: 68 },
       { title: 'Spellcasting', page: 70 },
@@ -1900,13 +1900,13 @@ export const BOOK_TOC = [
     page: 85,
     fileId: '1gPtlmQe2VbqpwOSNyCcYTH6shQf78iKY',
     sections: [
-      { title: 'Overview — Government, Economics, Landscape, Demographics', page: 84 },
+      { title: 'Overview - Government, Economics, Landscape, Demographics', page: 84 },
       { title: 'History of the Jewel', page: 90 },
       { title: 'The Caliphate and the Khadi', page: 95 },
       { title: 'The Immortal Caliph Hanan', page: 95 },
       { title: 'Houses of Dahab', page: 104 },
       { title: 'The Qolat (secret conspiracy)', page: 105 },
-      { title: 'The Qabal — Politics of Sorcery', page: 112 },
+      { title: 'The Qabal - Politics of Sorcery', page: 112 },
       { title: 'The Five Sahir Disciplines (magic system)', page: 118 },
       { title: 'City Guard / Free Sahir / Heartless Khadi', page: 100 },
     ],
@@ -1916,12 +1916,12 @@ export const BOOK_TOC = [
     page: 127,
     fileId: '1HmBetSHE-SDA6sK2XRq61CgMS4kYy-Xt',
     sections: [
-      { title: 'Overview — Blue-Skinned Immortals', page: 128 },
-      { title: 'History — Creation and the Day of Wrath', page: 129 },
+      { title: 'Overview - Blue-Skinned Immortals', page: 128 },
+      { title: 'History - Creation and the Day of Wrath', page: 129 },
       { title: 'Political and Social Organization', page: 134 },
       { title: 'The Ishanti Crystal', page: 136 },
-      { title: 'Religious Beliefs — Souls of the Twelve', page: 136 },
-      { title: 'Culture — Tattoos, Reproduction, Sandsmithing', page: 139 },
+      { title: 'Religious Beliefs - Souls of the Twelve', page: 136 },
+      { title: 'Culture - Tattoos, Reproduction, Sandsmithing', page: 139 },
       { title: 'Blood-Sworn / Children of Midnight / Heart-Seekers / Sun-Riders', page: 144 },
     ],
   },
@@ -1931,7 +1931,7 @@ export const BOOK_TOC = [
     fileId: '1cyspJdsDUKB2AJ2mBG-NThh0h3YSPYyL',
     sections: [
       { title: 'Overview and Secret History', page: 153 },
-      { title: 'History — Order of the Mountain', page: 155 },
+      { title: 'History - Order of the Mountain', page: 155 },
       { title: 'Political and Social Organization', page: 162 },
       { title: 'Assassin Slayer / Keeper / Duelist', page: 163 },
       { title: 'The Curse of the Grey Crone', page: 169 },
@@ -1945,9 +1945,9 @@ export const BOOK_TOC = [
       { title: 'Overview and History', page: 175 },
       { title: 'The Four Great Caravans (Mysticism, Entertainment, Commerce, Memory)', page: 180 },
       { title: "Ra'Shari and the Jinn", page: 183 },
-      { title: 'Culture — Nomadic Life and Language', page: 184 },
+      { title: 'Culture - Nomadic Life and Language', page: 184 },
       { title: "Ra'Shari Knife-Fighter / Trader / Diviner", page: 188 },
-      { title: 'Cokaloi Magic — Dawn, Dusk, Night', page: 190 },
+      { title: 'Cokaloi Magic - Dawn, Dusk, Night', page: 190 },
     ],
   },
   {
@@ -1955,11 +1955,11 @@ export const BOOK_TOC = [
     page: 199,
     fileId: '18kDmzy2duRSTSKPXxVi4FTOOB3qTvPXe',
     sections: [
-      { title: 'Overview — Fallen Empire', page: 197 },
+      { title: 'Overview - Fallen Empire', page: 197 },
       { title: 'History', page: 199 },
       { title: 'Political and Social Organization', page: 204 },
-      { title: 'Religious Beliefs — The Ten Thousand Gods', page: 206 },
-      { title: 'Culture — Ritual, Sacrifice, Military Tradition', page: 208 },
+      { title: 'Religious Beliefs - The Ten Thousand Gods', page: 206 },
+      { title: 'Culture - Ritual, Sacrifice, Military Tradition', page: 208 },
       { title: 'Senpet Legionnaire / Charioteer / Sahir', page: 212 },
       { title: 'Avatar of the Ten Thousand / New Spells', page: 215 },
     ],
@@ -1970,9 +1970,9 @@ export const BOOK_TOC = [
     fileId: '17RmOCCAbXCY3RDXNv0LiDV9ztSgr0IQZ',
     sections: [
       { title: 'A Letter to Moto Chagatai', page: 223 },
-      { title: 'History — The Unstoppable Empire', page: 223 },
+      { title: 'History - The Unstoppable Empire', page: 223 },
       { title: 'Political and Social Organization', page: 227 },
-      { title: 'Religious Beliefs — Ancestral Warrior Spirits', page: 230 },
+      { title: 'Religious Beliefs - Ancestral Warrior Spirits', page: 230 },
       { title: 'Culture and Language', page: 233 },
       { title: 'Yodotai Legionnaire / Mercenary / Berserker', page: 236 },
     ],
@@ -1984,8 +1984,8 @@ export const BOOK_TOC = [
     sections: [
       { title: 'Overview and History', page: 246 },
       { title: 'The Hall of Souls', page: 249 },
-      { title: 'Kali-Ma — Religion of Death and Rebirth', page: 249 },
-      { title: 'Culture — Sewers, Ghuls, Necromancy', page: 252 },
+      { title: 'Kali-Ma - Religion of Death and Rebirth', page: 249 },
+      { title: 'Culture - Sewers, Ghuls, Necromancy', page: 252 },
       { title: 'Jani / Necromancer / Kabir', page: 255 },
     ],
   },
@@ -1994,7 +1994,7 @@ export const BOOK_TOC = [
     page: 263,
     fileId: '1PgA8uJzyCVAS_h0VnR-kQwDjzboteWfb',
     sections: [
-      { title: 'Overview and History — The Ebon Hand', page: 263 },
+      { title: 'Overview and History - The Ebon Hand', page: 263 },
       { title: 'The Ebon Stone and the Virtues', page: 271 },
       { title: 'The Code of the Ebonites', page: 273 },
       { title: 'Culture, Language, Naming Conventions', page: 275 },
@@ -2007,8 +2007,8 @@ export const BOOK_TOC = [
     fileId: '1OHUaIzqFxgrrfxFtVIXmzf7dTIQZlKu2',
     sections: [
       { title: 'Creatures of the Burning Sands (stat blocks)', page: 286 },
-      { title: 'Special Abilities — Carapace, Fear, Invulnerability', page: 290 },
-      { title: 'The Jinn — Creation Templates and Tables', page: 291 },
+      { title: 'Special Abilities - Carapace, Fear, Invulnerability', page: 290 },
+      { title: 'The Jinn - Creation Templates and Tables', page: 291 },
       { title: 'Negotiating with Jinn', page: 295 },
       { title: 'Map of the Burning Sands', page: 296 },
     ],
@@ -2017,9 +2017,9 @@ export const BOOK_TOC = [
 
 // ── Technique & Advantage Roll Bonuses ─────────────────────────────────────────
 // Each entry: { skills: [...], rolled: N, kept: K, flat: N, freeRaises: N,
-//              stances: [...optional — only in these stances],
+//              stances: [...optional - only in these stances],
 //              conditional: 'description of condition',
-//              voidOnly: true — only activates when spending Void,
+//              voidOnly: true - only activates when spending Void,
 //              note: 'shown in bonus panel' }
 // skills: list of skill names OR 'ALL' OR 'ATTACK' OR 'DAMAGE' OR 'SOCIAL' OR 'SPELLCASTING' OR 'LORE' OR 'INITIATIVE'
 // Multiple entries per technique for techniques with multiple effects.
@@ -2081,9 +2081,9 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Upstanding Citizen': [
     { skills: ['Commerce','Sincerity','Temptation'], rolled: 2, kept: 0, conditional: 'Opponent declared Raises', note: '+2k0 if opponent declared Raises on contested Commerce/Sincerity/Temptation' },
   ],
-  'An Eye for a Deal': [], // manual — FIXED a real bug: previously had flat:null, which evaluates to 0 via
+  'An Eye for a Deal': [], // manual - FIXED a real bug: previously had flat:null, which evaluates to 0 via
     // the (bonus.flat || 0) fallback, meaning this entry silently did NOTHING despite looking automated. The
-    // actual rule adds the character's Class Rank (a dynamic value) to the Void-spend bonus — same "needs
+    // actual rule adds the character's Class Rank (a dynamic value) to the Void-spend bonus - same "needs
     // dynamic skill/rank-based bonus support" gap as Senpet Charioteer's Deadly Strike. Marked manual until
     // that system enhancement exists, rather than leaving a fake zero-value "working" entry.
   'Silver Tongued Devil': [
@@ -2094,10 +2094,10 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
 
   // ── Qabal Agent ───────────────────────────────────────────────────────────────
-  'No One of Import': [], // manual — FIXED a real bug: previously tagged skills:['Sincerity'] with flat:-1,
+  'No One of Import': [], // manual - FIXED a real bug: previously tagged skills:['Sincerity'] with flat:-1,
     // which would incorrectly apply a -1 PENALTY to the technique-holder's own Sincerity roll if toggled.
-    // The actual rule debuffs an OPPONENT's separate roll to detect lying (-1k0) — a different character's
-    // roll this character never makes — which the bonus system has no hook for (always modifies the current
+    // The actual rule debuffs an OPPONENT's separate roll to detect lying (-1k0) - a different character's
+    // roll this character never makes - which the bonus system has no hook for (always modifies the current
     // roller's own roll). Also grants a Mastery 1 Control Spell, handled by the spell system. Marked manual.
   'A Good Excuse': [
     { skills: ['Sincerity'], rolled: 2, kept: 0, note: '+2k0 Sincerity (Deceit)' },
@@ -2108,7 +2108,7 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'The Ordered Bolthole': [
     { skills: ['Stealth'], rolled: 2, kept: 0, note: '+2k0 Stealth' },
   ],
-  'Pillar of the Community': [], // manual/GM-adjudicated — spell grant + Void-spend reactive defense, no
+  'Pillar of the Community': [], // manual/GM-adjudicated - spell grant + Void-spend reactive defense, no
     // automated dice hook exists for either piece. Full description already shown via TECHNIQUE_DESCRIPTIONS.
 
   // ── Ashalan Blood-Sworn ────────────────────────────────────────────────────────
@@ -2121,9 +2121,9 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'To Fight for the Future': [
     { skills: ['ATTACK'], simpleAction: true, note: 'Making an attack is a Simple Action' },
   ],
-  'Your Blood is My Blood': [], // manual — reactive damage redirect to self for a guarded ally, no
+  'Your Blood is My Blood': [], // manual - reactive damage redirect to self for a guarded ally, no
     // "redirect wounds to another combatant" hook exists in the damage application system
-  'One is Never Truly Alone': [], // manual — conditional Strength+5 and extra Wound Rank based on battlefield
+  'One is Never Truly Alone': [], // manual - conditional Strength+5 and extra Wound Rank based on battlefield
     // positioning (surrounded 3+ sides / no allies within 300'), no positional-state tracking exists
 
   // ── Ashalan Heart-Seekers ──────────────────────────────────────────────────────
@@ -2139,9 +2139,9 @@ export const TECHNIQUE_ROLL_BONUSES = {
   ],
   'Bane of the Heartless': [
     { skills: ['ATTACK'], simpleAction: true, conditional: 'With an Ashalan weapon (khadja, scimitar)', note: 'Attacks with Ashalan weapons are Simple Actions' },
-    { skills: ['ATTACK'], conditional: 'Special attack: 3 Raises — opponent suffers +30 TN penalty and Water Ring reduced by Rank', note: '3-Raise special: opponent +30 TN, Water Ring -Rank for Rank rounds' },
+    { skills: ['ATTACK'], conditional: 'Special attack: 3 Raises - opponent suffers +30 TN penalty and Water Ring reduced by Rank', note: '3-Raise special: opponent +30 TN, Water Ring -Rank for Rank rounds' },
   ],
-  'My Will is My Fortress': [], // manual — TN increase to resist mind-affecting effects; no generic "resist
+  'My Will is My Fortress': [], // manual - TN increase to resist mind-affecting effects; no generic "resist
     // mental effect" roll type exists to attach a bonus to
 
   // ── Assassin Slayer ────────────────────────────────────────────────────────────
@@ -2158,20 +2158,20 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Blood Calls for Blood': [
     { skills: ['ATTACK'], conditional: 'vs lone/Rite target: add Stealth Skill rank as rolled bonus dice; Raises unlimited', note: '+Stealth rank rolled dice to Attack; unlimited Raises vs lone/Rite target' },
   ],
-  'Swifter Than Life Itself': [], // manual — once-per-day Initiative swap with a chosen opponent, no automated hook
+  'Swifter Than Life Itself': [], // manual - once-per-day Initiative swap with a chosen opponent, no automated hook
 
   // ── Assassin Keeper ────────────────────────────────────────────────────────────
   "The Keeper's Courage": [
     { skills: ['Investigation','Hunting','Perception'], rolled: 1, kept: 0, note: '+1k0 Perception-based rolls' },
   ],
-  "The Keeper's Judgment": [], // manual — "may choose to Disable (deal no damage, inflict Dazed) instead
+  "The Keeper's Judgment": [], // manual - "may choose to Disable (deal no damage, inflict Dazed) instead
     // of wounding" is an attack declaration choice, not a dice modifier; no hook for attack-outcome substitution
-  "The Keeper's Justice": [], // manual — "non-damaging attacks (Rank 2 / grapple initiation) are Simple
+  "The Keeper's Justice": [], // manual - "non-damaging attacks (Rank 2 / grapple initiation) are Simple
     // Actions" is a timing/action-type change; simpleAction flag was never enforced by any roll handler
-  "The Keeper's Art": [], // manual — "+2×Class Rank to resistance TNs of Conditional Effects you inflict"
+  "The Keeper's Art": [], // manual - "+2×Class Rank to resistance TNs of Conditional Effects you inflict"
     // is dynamic and affects opponent's roll (not your own); "+1 Raise vs Dazed to Fatigue" is conditional
     // opponent-state gating with a special attack follow-up, not a dice pool bonus
-  'By the Force of Will Alone': [], // manual — target-selection reactive ability (forces opponent Void cost in
+  'By the Force of Will Alone': [], // manual - target-selection reactive ability (forces opponent Void cost in
     // Full Defense; ignores target's Armor TN bonuses in Full Attack), no opponent-targeting hook in bonus system
 
   // ── Ra\'Shari Knife-Fighter ─────────────────────────────────────────────────────
@@ -2224,7 +2224,7 @@ export const TECHNIQUE_ROLL_BONUSES = {
   'Divine Strength': [
     { skills: ['DAMAGE'], rolled: 1, kept: 1, voidOnly: true, note: '+1k1 Damage when spending Void' },
   ],
-  'Divine Retribution': [], // manual — "attacks with Senpet keyword weapons are Simple Actions" is an
+  'Divine Retribution': [], // manual - "attacks with Senpet keyword weapons are Simple Actions" is an
     // action-type change; the simpleAction flag was never read by any roll handler in the codebase
   'The Gods Protect Me': [
     { skills: ['ARMORBONUS'], flat: 20, voidOnly: true, stances: ['Center'], note: '+20 Armor TN in Center Stance (Void spend, once per round)' },
@@ -2238,15 +2238,15 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['INITIATIVE'], rolled: 1, kept: 0, conditional: 'While mounted on chariot', note: '+1k0 Initiative when mounted on chariot' },
     { skills: ['ARMORBONUS'], voidOnly: true, conditional: 'Add Lore: Theology rank to Armor TN bonus when spending Void (mounted/Full Attack)', note: '+Theology rank to Armor TN void-spend bonus (mounted/Full Attack)' },
   ],
-  'Swift Volley': [], // manual — conditional defense from taking 2 simple-action moves (enemies in Full
-    // Attack can't target you; +5 TN to spells against you) — no per-round movement-choice state is tracked
+  'Swift Volley': [], // manual - conditional defense from taking 2 simple-action moves (enemies in Full
+    // Attack can't target you; +5 TN to spells against you) - no per-round movement-choice state is tracked
   'Ruthless Advance': [
     { skills: ['ATTACK'], rolled: 3, kept: 0, voidOnly: true, stances: ['Full Attack'], conditional: 'Mounted on chariot OR Full Attack stance', note: '+3k0 Attack until Reactions Stage (Void, mounted/Full Attack)' },
   ],
   'Speed is my Armor': [
     { skills: ['ATTACK'], simpleAction: true, conditional: 'While mounted on chariot OR in Full Attack stance', note: 'Attacks are Simple Actions while mounted or in Full Attack' },
   ],
-  'Deadly Strike': [], // manual — once-per-skirmish Void spend for bonus damage dice equal to Lore: Theology
+  'Deadly Strike': [], // manual - once-per-skirmish Void spend for bonus damage dice equal to Lore: Theology
     // rank; needs dynamic skill-rank-based bonus support, which the static rolled/kept number format doesn't
     // have yet. Candidate for a future system enhancement (function-based bonus values).
 
@@ -2282,30 +2282,30 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['Investigation','Hunting','Perception'], rolled: 2, kept: 0, note: '+2k0 Perception-based (total)' },
     { skills: ['Acting'], freeRaises: 1, conditional: 'Disguise Emphasis only', note: 'Free Raise on Acting (Disguise)' },
   ],
-  'Seen and Not Noticed': [], // manual — "attacks with Knives, Staves, or Assassin Ranged Weapons are a
+  'Seen and Not Noticed': [], // manual - "attacks with Knives, Staves, or Assassin Ranged Weapons are a
     // Simple Action" is a timing/action-type change, not a dice modifier. The simpleAction flag in
     // the previous entry was never read by any roll handler.
-  'Blinding Speed': [], // manual — "Extra Attack Maneuver costs only 3 Raises (not 5) with Knives/Staves/ARW"
-    // reduces a raise cost threshold, not a dice pool bonus — no hook for raise-cost modification exists.
+  'Blinding Speed': [], // manual - "Extra Attack Maneuver costs only 3 Raises (not 5) with Knives/Staves/ARW"
+    // reduces a raise cost threshold, not a dice pool bonus - no hook for raise-cost modification exists.
 
   // ── Necromancer ────────────────────────────────────────────────────────────────
-  'Initiate of Undeath': [], // manual — spell grant (3 Mastery Levels of Ghul Creation/Death, cast per day
-    // equal to Earth Ring) plus Soul Jar crafting — handled by spell system, not a dice modifier
+  'Initiate of Undeath': [], // manual - spell grant (3 Mastery Levels of Ghul Creation/Death, cast per day
+    // equal to Earth Ring) plus Soul Jar crafting - handled by spell system, not a dice modifier
   'Master of Undeath and Death': [
     { skills: ['CONTESTED'], rolled: 2, kept: 0, conditional: 'Contested rolls involving Willpower', note: '+2k0 on Contested Willpower rolls' },
   ],
   'Creator of Undeath': [
     { skills: ['Intimidation','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Intimidation/Sincerity (Deceit)' },
   ],
-  'Leader of Undead': [], // manual — "+1k0 to Attack and Damage Rolls for all Undead under your control"
+  'Leader of Undead': [], // manual - "+1k0 to Attack and Damage Rolls for all Undead under your control"
     // is a bonus that applies to NPC combatants, not to the player's own roll pool. No hook exists
     // for augmenting controlled-NPC rolls from a PC technique.
-  'Agent of Death': [], // manual — clarifies undead-control ownership (your undead obey until dismissed or
-    // stolen by another Necromancer; non-Necromancers can't take control) — not a dice modifier
+  'Agent of Death': [], // manual - clarifies undead-control ownership (your undead obey until dismissed or
+    // stolen by another Necromancer; non-Necromancers can't take control) - not a dice modifier
 
   // ── Kabir ─────────────────────────────────────────────────────────────────────
   'Rotting the Foundation': [
-    { skills: ['Acting','Forgery','Gambling','Stealth','Lore: Underworld','Knives','Brawling','Sleight of Hand'], rolled: 1, kept: 1, voidOnly: true, note: '+2k2 total when spending Void on Low skills — adds +1k1 on top of base Void +1k1' },
+    { skills: ['Acting','Forgery','Gambling','Stealth','Lore: Underworld','Knives','Brawling','Sleight of Hand'], rolled: 1, kept: 1, voidOnly: true, note: '+2k2 total when spending Void on Low skills - adds +1k1 on top of base Void +1k1' },
   ],
   'A Honeyed Tongue': [
     { skills: ['Etiquette','Storytelling','Courtier','Sincerity'], rolled: 1, kept: 0, note: '+1k0 Etiquette/Storytelling/Courtier/Sincerity (Deceit)' },
@@ -2361,35 +2361,35 @@ export const TECHNIQUE_ROLL_BONUSES = {
     { skills: ['ATTACK'], conditional: 'Extra Attack costs 3 Raises when wielding a weapon in each hand', note: 'Extra Attack costs 3 Raises (dual-wield); second attack from off-hand' },
   ],
   'The Final Strike': [
-    { skills: ['DAMAGE'], voidOnly: true, conditional: 'Tahaddi Duel only — spend any amount of Void', note: 'Add any number of Void Points to Tahaddi Duel Damage' },
+    { skills: ['DAMAGE'], voidOnly: true, conditional: 'Tahaddi Duel only - spend any amount of Void', note: 'Add any number of Void Points to Tahaddi Duel Damage' },
   ],
 
   // ── Yodotai Legionnaire ──────────────────────────────────────────────────────
-  'Tortoise Formation': [], // manual — three effects: (1) no attack penalty for carrying Yodotai shields
+  'Tortoise Formation': [], // manual - three effects: (1) no attack penalty for carrying Yodotai shields
     // (not a roll bonus), (2) +Insight Rank to Armor TN in Full Defense with scutum (dynamic value, no
     // enforcement hook), (3) Void-powered aura to allies (ally-buff system doesn't exist)
   'In Close Quarters': [
     { skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'Round you switch from Full Defense → Full Attack', note: '+1k0 Attack on the round you switch stances (Full Defense → Full Attack)' },
   ],
-  'Deadly Strike (Legionnaire)': [], // manual — "attacks with Yodotai and Warrior weapons are Simple Actions"
+  'Deadly Strike (Legionnaire)': [], // manual - "attacks with Yodotai and Warrior weapons are Simple Actions"
     // is an action-type change; simpleAction flag was never enforced by any roll handler
   'Wedge Formation': [
     { skills: ['REDUCTION'], conditional: 'Attack Stance: Reduction = School Rank', note: 'Gain Reduction equal to Rank in Attack Stance' },
   ],
-  'With My Brothers': [], // manual — ally aura (+1k0 Damage to allies within 30' wielding Yodotai weapons),
+  'With My Brothers': [], // manual - ally aura (+1k0 Damage to allies within 30' wielding Yodotai weapons),
     // no ally-radius aura system exists to apply bonuses to OTHER characters' rolls
 
   // ── Yodotai Mercenary ────────────────────────────────────────────────────────
-  'Importance of Speed': [], // manual — shield TN penalty reduction + movement as if Water Ring were 1 higher;
+  'Importance of Speed': [], // manual - shield TN penalty reduction + movement as if Water Ring were 1 higher;
     // no shield-carry-penalty tracking or movement-ring-override hook exists
   'Stranger in a Foreign Land': [
     { skills: ['Battle','Intimidation','Courtier'], rolled: 1, kept: 0, note: '+1k0 Battle/Intimidation/Courtier' },
   ],
-  'Unfriendly Glare': [], // manual — "attacks with Warrior and Yodotai weapons are Simple Actions"
+  'Unfriendly Glare': [], // manual - "attacks with Warrior and Yodotai weapons are Simple Actions"
     // is an action-type change; simpleAction flag was never enforced by any roll handler
-  'Combat Diplomacy': [], // manual — contested roll to learn an opponent's Advantage/Disadvantage, plus a
-    // conditional Void-spend Free Raise on first meeting someone — both outside the standard roll-bonus shape
-  'Hoplon Bash': [], // manual — a whole new shield-bash attack type (Agility/Brawling vs Armor TN, 1k2 damage
+  'Combat Diplomacy': [], // manual - contested roll to learn an opponent's Advantage/Disadvantage, plus a
+    // conditional Void-spend Free Raise on first meeting someone - both outside the standard roll-bonus shape
+  'Hoplon Bash': [], // manual - a whole new shield-bash attack type (Agility/Brawling vs Armor TN, 1k2 damage
     // + forces a Knockdown), not a modifier to an existing roll
 
   // ── Yodotai Berserker ─────────────────────────────────────────────────────────
@@ -2407,11 +2407,11 @@ export const TECHNIQUE_ROLL_BONUSES = {
 
 // ── Advantage Roll Bonuses ───────────────────────────────────────────────────────
 export const ADVANTAGE_ROLL_BONUSES = {
-  // ── Coded roll bonuses — applied automatically in DiceModal ───────────────
+  // ── Coded roll bonuses - applied automatically in DiceModal ───────────────
   'Balance':              [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Intimidation or Temptation via the Contested Roll tool, which now auto-suggests the Integrity flat modifier this depends on', note: '+1k0 when adding Integrity to resist Intimidation/Temptation (Balance)' }],
   'Clear Thinker':        [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'Contested Roll when being manipulated', note: '+1k0 Contested Rolls when being manipulated (Clear Thinker)' }],
   'Dangerous Beauty':     [{ skills: ['Temptation'], rolled: 1, kept: 0, conditional: 'vs members of opposite sex', note: '+1k0 Temptation vs opposite sex (Dangerous Beauty)' }],
-  'Daredevil':            [{ skills: ['Athletics'], rolled: 2, kept: 0, voidOnly: true, note: '+3k1 total when spending Void on Athletics (Daredevil) — adds +2 rolled on top of base Void +1k1' }],
+  'Daredevil':            [{ skills: ['Athletics'], rolled: 2, kept: 0, voidOnly: true, note: '+3k1 total when spending Void on Athletics (Daredevil) - adds +2 rolled on top of base Void +1k1' }],
   'Friend of the Elements': [{ skills: ['TRAIT'], freeRaises: 1, conditional: 'chosen Ring trait rolls only', note: 'Free Raise on Trait Rolls of chosen Ring (Friend of the Elements)' }],
   'Friendly Kami':        [{ skills: ['Spellcraft'], rolled: 1, kept: 1, conditional: 'Sense, Commune, or Summon of chosen element', note: '+1k1 casting Sense/Commune/Summon of chosen element (Friendly Kami)' }],
   'Hands of Stone':       [{ skills: ['DAMAGE'], rolled: 0, kept: 1, conditional: 'unarmed attacks only', note: '+0k1 unarmed Damage (Hands of Stone)' }],
@@ -2429,16 +2429,16 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Blessed by the Honest Hand': [{ skills: ['ALL'], freeRaises: 1, conditional: 'chosen non-weapon skill only', note: 'Free Raise on chosen non-weapon skill (Honest Hand Blessing)' }],
   'Blessed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Stamina considered one rank higher for Wounds and healing', note: 'Stamina +1 for Wound Ranks (Keeper of Years Blessing)' }],
   'Stolen Identity':      [{ skills: ['Acting'], freeRaises: 2, conditional: 'when using alternate identity', note: '2 Free Raises on Acting when using stolen identity (Stolen Identity)' }],
-  'Strength of the Earth': [{ skills: ['ALL'], flat: 3, conditional: 'reduces wound TN penalty only — already coded in wound system', note: 'Wound TN penalties reduced by 3 (Strength of the Earth)' }],
+  'Strength of the Earth': [{ skills: ['ALL'], flat: 3, conditional: 'reduces wound TN penalty only - already coded in wound system', note: 'Wound TN penalties reduced by 3 (Strength of the Earth)' }],
   'Virtuous':             [{ skills: ['ALL'], flat: 0, conditional: 'Integrity/Honor bonus only', note: '+1 starting Integrity Rank (Virtuous)' }],
   'Voice':                [{ skills: ['PERFORM'], rolled: 1, kept: 1, conditional: 'voice-based Perform only', note: '+1k1 voice-based Perform (Singing, Oratory, etc.) (Voice)' }],
   'Wary':                 [{ skills: ['Investigation'], rolled: 1, kept: 1, conditional: 'vs Stealth (Ambush) only', note: '+1k1 Investigation (Notice) vs Stealth (Ambush) (Wary)' }],
 
   // ── Paragon variants ──────────────────────────────────────────────────────
-  'Paragon of Compassion':  [{ skills: ['ALL'], rolled: 1, kept: 1, voidOnly: true, conditional: 'helping someone of lower Status', note: '+2k2 total when spending Void to help someone lower than you (Paragon of Compassion) — adds +1k1 on top of base Void +1k1' }],
+  'Paragon of Compassion':  [{ skills: ['ALL'], rolled: 1, kept: 1, voidOnly: true, conditional: 'helping someone of lower Status', note: '+2k2 total when spending Void to help someone lower than you (Paragon of Compassion) - adds +1k1 on top of base Void +1k1' }],
   'Paragon of Courage':     [{ skills: ['SOCIAL','Defense'], rolled: 1, kept: 1, conditional: 'resisting Intimidation or Fear', note: '+1k1 to resist Intimidation or Fear (Paragon of Courage)' }],
   'Paragon of Courtesy':    [{ skills: ['Etiquette'], rolled: 2, kept: 0, conditional: 'avoiding embarrassment or giving offense', note: '+2k0 Etiquette to avoid embarrassment (Paragon of Courtesy)' }],
-  'Paragon of Honesty':     [{ skills: ['Sincerity'], rolled: 1, kept: 1, conditional: 'Honesty — honest speech', note: '+1k1 Sincerity (Honesty) (Paragon of Honesty)' }],
+  'Paragon of Honesty':     [{ skills: ['Sincerity'], rolled: 1, kept: 1, conditional: 'Honesty - honest speech', note: '+1k1 Sincerity (Honesty) (Paragon of Honesty)' }],
   'Paragon of Honor':       [{ skills: ['SOCIAL','Defense'], conditional: 'add twice Integrity Rank to resist Temptation/Intimidation', note: '+2×Integrity Rank to resist Temptation/Intimidation (Paragon of Honor)' }],
   'Paragon of Sincerity':   [{ skills: ['Sincerity'], rolled: 2, kept: 0, conditional: 'Contested Rolls only', note: '+2k0 Contested Sincerity Rolls (Paragon of Sincerity)' }],
 
@@ -2452,10 +2452,10 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Dark Paragon (Will)':         [{ skills: ['ALL'], conditional: 'Once per session: sacrifice 5 Integrity or spend Void to negate 10 Wounds', note: 'Negate 10 Wounds when suffered (Dark Paragon Will)' }],
 
   // ── LBS-specific advantages ───────────────────────────────────────────────
-  'Ambidextrous':    [{ skills: ['ATTACK'], flat: -5, conditional: 'dual wield only — reduces off-hand penalty from -10 to -5', note: 'Dual-wield off-hand penalty -5 instead of -10 (Ambidextrous)' }],
+  'Ambidextrous':    [{ skills: ['ATTACK'], flat: -5, conditional: 'dual wield only - reduces off-hand penalty from -10 to -5', note: 'Dual-wield off-hand penalty -5 instead of -10 (Ambidextrous)' }],
   'Chosen by the Oracles': [{ skills: ['RING'], rolled: 1, kept: 1, conditional: 'chosen Ring only', note: '+1k1 all rolls using chosen Ring (Chosen by the Oracles)' }],
 
-  // ── Newly reviewed — real dice bonuses ────────────────────────────────────
+  // ── Newly reviewed - real dice bonuses ────────────────────────────────────
   'Cosmopolitan':     [{ skills: ['SOCIAL'], rolled: 1, kept: 0, note: '+1k0 all Social Skill rolls (Cosmopolitan)' }],
   'Blood of the Hanie': [{ skills: ['SOCIAL'], rolled: 1, kept: 1, conditional: 'vs other Yodotai only', note: '+1k1 Social rolls vs other Yodotai (Blood of the Hanie)' }],
   'Crab Hands':       [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Weapon Skill rolls treated as rank 1', note: 'Treated as rank 1 on Unskilled Weapon Skill rolls (Crab Hands)' }],
@@ -2463,37 +2463,37 @@ export const ADVANTAGE_ROLL_BONUSES = {
   'Soul of Artistry':  [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Artisan/Craft rolls (chosen type) treated as rank 1', note: 'Treated as rank 1 on Unskilled Artisan/Craft rolls (Soul of Artistry)' }],
   'Crafty':           [{ skills: ['ALL'], flat: 0, conditional: 'Unskilled Low Skill rolls treated as rank 1', note: 'Treated as rank 1 on Unskilled Low Skill rolls (Crafty)' }],
   'Kharmic Tie':      [{ skills: ['ATTACK'], rolled: 1, kept: 1, conditional: 'once/session per point spent, fighting to protect the bonded person', note: '+1k1 Attack rolls protecting bonded person (Kharmic Tie)' }],
-  'Blessed by Kaleel': [{ skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'once per session, Free Action, one round, no Void spent', note: '+1k0 Attack rolls for one round — once/session Free Action (Blessed by Kaleel)' }],
+  'Blessed by Kaleel': [{ skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'once per session, Free Action, one round, no Void spent', note: '+1k0 Attack rolls for one round - once/session Free Action (Blessed by Kaleel)' }],
   'Naga Ancestry':    [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'with Naga only', note: '+1k0 Social rolls with Naga (Naga Ancestry)' }],
   'Reincarnated':     [{ skills: ['ALL'], rolled: 1, kept: 0, conditional: 'three chosen non-School Skills only', note: '+1k0 on three chosen non-School Skills (Reincarnated)' }],
   'Paragon of Duty':  [{ skills: ['ALL'], conditional: 'Once per session: spend Void to negate all TN penalties (incl. Wounds) on one roll', note: 'Negate all TN/Wound penalties on one roll (Paragon of Duty)' }],
 
-  // ── Second pass — previously missed real dice bonuses ─────────────────────
+  // ── Second pass - previously missed real dice bonuses ─────────────────────
   'Heartless':        [{ skills: ['SOCIAL'], rolled: 1, kept: 0, conditional: 'resisting Courtier/Sincerity/Temptation persuasion, seduction, or manipulation only', note: '+1k0 to resist persuasion/seduction/manipulation (Heartless)' }],
   'Imperial Spouse':  [{ skills: ['SOCIAL'], rolled: 1, kept: 1, conditional: 'with members of Imperial families only', note: '+1k1 Social rolls with Imperial family members (Imperial Spouse)' }],
   'Inheritance':      [{ skills: ['ALL'], rolled: 1, kept: 1, conditional: 'non-combat rolls using the heirloom only (attack/damage excluded)', note: '+1k1 non-combat rolls using the heirloom (Inheritance)' }],
   'Inheritance, Crysteel Weapon': [{ skills: ['ATTACK','DAMAGE'], rolled: 1, kept: 0, conditional: 'with the Crysteel weapon only', note: '+1k0 Attack/Damage with Crysteel weapon (Inheritance, Crysteel Weapon)' }],
   'Inheritance, Khadja of the Council': [{ skills: ['ATTACK'], rolled: 1, kept: 0, conditional: 'with the Khadja polearm only', note: '+1k0 Attack rolls with the Khadja (Inheritance, Khadja of the Council)' }],
-  'Great Potential': [{ skills: ['ALL'], conditional: 'raise cap for chosen Skill uses Skill Rank instead of Void Ring, if higher — wired into DiceModal raise-cap display, not the bonus pipeline', note: 'Raise cap = max(Void Ring, Skill Rank) for chosen Skill (Great Potential)' }],
-  'Magic Resistance': [{ skills: ['SPELLCASTING'], conditional: 'target\'s Casting TN vs elemental spells increases +3/rank — wired directly in PCTurnPanel\'s getTargetTN (opponent-facing, same pattern as Frail Mind/Greedy on the disadvantage side, but via target-selection TN rather than the Contested Roll tool since spellcasting isn\'t a Contested Roll in Sandy)', note: 'Target Casting TN +3/rank vs elemental spells (Magic Resistance)' }],
-  'Absolute Direction': [{ skills: ['Sailing'], rolled: 1, kept: 0, emphasisRequired: 'Navigation', note: '+1k0 Sailing (Navigation) — always knows true north (Absolute Direction)' }],
-  'Fame': [{ skills: ['ALL'], conditional: '+1 Reputation Rank, applied immediately and directly to the character record when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Reputation Rank (Fame)' }],
-  'Gentry': [{ skills: ['ALL'], conditional: 'Grants starting copper (cost × 3, a documented estimate — LBS gives no exact koku table for holdings) applied immediately when added — wired in CharacterTab\'s add-advantage handler, not this table', note: 'Starting copper from holding income (Gentry)' }],
-  'Elemental Blessing': [{ skills: ['ALL'], conditional: 'GM picks the chosen Ring on the advantage card — -1 XP cost per rank to raise that Ring\'s Traits, wired directly into the XP Spend Panel\'s cost calculation, not this table', note: '-1 XP cost to raise chosen Ring\'s Traits (Elemental Blessing)' }],
-  'Quick Healer': [{ skills: ['ALL'], conditional: 'Stamina treated 2 ranks higher for natural wound recovery — already coded via getEffectiveStamina()/getNaturalHealAmount() in lib/utils.js, used by Dawn healing and Rest Everyone', note: 'Stamina +2 for natural healing (Quick Healer)' }],
-  'Wealthy': [{ skills: ['ALL'], conditional: 'Grants 2 copper × rank, applied immediately when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+2 copper × rank to starting outfit (Wealthy)' }],
-  'Social Position': [{ skills: ['ALL'], conditional: '+1 Status Rank, applied immediately and directly to the character record when added — wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Status Rank (Social Position)' }],
-  'Perceived Integrity': [{ skills: ['ALL'], conditional: 'Shows a derived "Perceived Integrity" stat card (Integrity + advantage rank) directly above real Integrity on the character sheet, per Charles\'s direction — simpler than per-viewer filtering, wired in CharacterTab, not this table', note: 'Perceived Integrity stat display = Integrity + rank (Perceived Integrity)' }],
-  'Gorilla Bodyguard': [{ skills: ['ALL'], conditional: 'Auto-spawns a full Gorilla Bodyguard character (confirmed Ozaru stat block) when added, with claimed_by_name set to the owner — the player still needs one click to actually Claim it (claim state lives in their own browser, not settable remotely). Animal Handling override for commanding it is handled separately.', note: 'Auto-creates trained Ape character on add (Gorilla Bodyguard)' }],
-  'Great Destiny': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead — wired directly in EncounterTab\'s gmWound(), shared mechanism with Dark Fate (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Great Destiny)' }],
+  'Great Potential': [{ skills: ['ALL'], conditional: 'raise cap for chosen Skill uses Skill Rank instead of Void Ring, if higher - wired into DiceModal raise-cap display, not the bonus pipeline', note: 'Raise cap = max(Void Ring, Skill Rank) for chosen Skill (Great Potential)' }],
+  'Magic Resistance': [{ skills: ['SPELLCASTING'], conditional: 'target\'s Casting TN vs elemental spells increases +3/rank - wired directly in PCTurnPanel\'s getTargetTN (opponent-facing, same pattern as Frail Mind/Greedy on the disadvantage side, but via target-selection TN rather than the Contested Roll tool since spellcasting isn\'t a Contested Roll in Sandy)', note: 'Target Casting TN +3/rank vs elemental spells (Magic Resistance)' }],
+  'Absolute Direction': [{ skills: ['Sailing'], rolled: 1, kept: 0, emphasisRequired: 'Navigation', note: '+1k0 Sailing (Navigation) - always knows true north (Absolute Direction)' }],
+  'Fame': [{ skills: ['ALL'], conditional: '+1 Reputation Rank, applied immediately and directly to the character record when added - wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Reputation Rank (Fame)' }],
+  'Gentry': [{ skills: ['ALL'], conditional: 'Grants starting copper (cost × 3, a documented estimate - LBS gives no exact koku table for holdings) applied immediately when added - wired in CharacterTab\'s add-advantage handler, not this table', note: 'Starting copper from holding income (Gentry)' }],
+  'Elemental Blessing': [{ skills: ['ALL'], conditional: 'GM picks the chosen Ring on the advantage card - -1 XP cost per rank to raise that Ring\'s Traits, wired directly into the XP Spend Panel\'s cost calculation, not this table', note: '-1 XP cost to raise chosen Ring\'s Traits (Elemental Blessing)' }],
+  'Quick Healer': [{ skills: ['ALL'], conditional: 'Stamina treated 2 ranks higher for natural wound recovery - already coded via getEffectiveStamina()/getNaturalHealAmount() in lib/utils.js, used by Dawn healing and Rest Everyone', note: 'Stamina +2 for natural healing (Quick Healer)' }],
+  'Wealthy': [{ skills: ['ALL'], conditional: 'Grants 2 copper × rank, applied immediately when added - wired in CharacterTab\'s add-advantage handler, not this table', note: '+2 copper × rank to starting outfit (Wealthy)' }],
+  'Social Position': [{ skills: ['ALL'], conditional: '+1 Status Rank, applied immediately and directly to the character record when added - wired in CharacterTab\'s add-advantage handler, not this table', note: '+1 Status Rank (Social Position)' }],
+  'Perceived Integrity': [{ skills: ['ALL'], conditional: 'Shows a derived "Perceived Integrity" stat card (Integrity + advantage rank) directly above real Integrity on the character sheet, per Charles\'s direction - simpler than per-viewer filtering, wired in CharacterTab, not this table', note: 'Perceived Integrity stat display = Integrity + rank (Perceived Integrity)' }],
+  'Gorilla Bodyguard': [{ skills: ['ALL'], conditional: 'Auto-spawns a full Gorilla Bodyguard character (confirmed Ozaru stat block) when added, with claimed_by_name set to the owner - the player still needs one click to actually Claim it (claim state lives in their own browser, not settable remotely). Animal Handling override for commanding it is handled separately.', note: 'Auto-creates trained Ape character on add (Gorilla Bodyguard)' }],
+  'Great Destiny': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead - wired directly in EncounterTab\'s gmWound(), shared mechanism with Dark Fate (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Great Destiny)' }],
   'Enlightened': [{ skills: ['ALL'], conditional: '-2 XP cost per rank to raise the Void Ring specifically, wired directly into the XP Spend Panel\'s cost calculation, not this table', note: '-2 XP cost to raise Void Ring (Enlightened)' }],
-  'Leadership':       [{ skills: ['INITIATIVE'], conditional: 'once per round, grants +School Rank flat and +1k1 to one ally\'s Initiative roll — wired directly in the Initiative panel in EncounterTab (target-selection UI, not the bonus pipeline)', note: '+School Rank+1k1 to one ally\'s Initiative, once/round (Leadership)' }],
+  'Leadership':       [{ skills: ['INITIATIVE'], conditional: 'once per round, grants +School Rank flat and +1k1 to one ally\'s Initiative roll - wired directly in the Initiative panel in EncounterTab (target-selection UI, not the bonus pipeline)', note: '+School Rank+1k1 to one ally\'s Initiative, once/round (Leadership)' }],
 };
 
 // ── Advantages with NO dice-roll hook by design (social/material/narrative effects,
 // XP-cost changes, once-per-session GM-adjudicated triggers too free-form to auto-apply,
-// or effects handled in a different system entirely — Void, healing, movement, etc.)
-// Reviewed and confirmed manual — not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
+// or effects handled in a different system entirely - Void, healing, movement, etc.)
+// Reviewed and confirmed manual - not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
 const MANUAL_ADVANTAGES = [
   'Ceremony of the Hidden Heart','Higher Purpose',
   'Strategist','Tactician','Virtuous','Bland','Khadi','Quick','Allies','Blackmail',
@@ -2512,53 +2512,53 @@ MANUAL_ADVANTAGES.forEach(name => { if (!(name in ADVANTAGE_ROLL_BONUSES)) ADVAN
 // ── Disadvantage Roll Bonuses (negative modifiers, using the same shape as advantages) ──────
 export const DISADVANTAGE_ROLL_BONUSES = {
   'Bad Eyesight':      [{ skills: ['Archery','Assassin Ranged Weapons','Throwing'], rolled: -1, kept: -1, note: '-1k1 ranged attacks (Bad Eyesight)' }, { skills: ['ALL'], rolled: -1, kept: -1, conditional: 'Perception-based rolls only', note: '-1k1 Perception-based rolls (Bad Eyesight)' }],
-  'Small':             [{ skills: ['DAMAGE'], rolled: -1, kept: 0, conditional: 'melee attacks only', note: '-1k0 melee Damage rolls (Small)' }, { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -1 for Move Actions — already coded in movement system', note: 'Water Ring -1 for movement (Small)' }],
-  'Antisocial':        [{ skills: ['SOCIAL'], rolled: -1, kept: 0, note: '-1k0 all Social rolls (Antisocial, 2pt) — or -1k1 at the 4pt rank, adjust manually' }],
+  'Small':             [{ skills: ['DAMAGE'], rolled: -1, kept: 0, conditional: 'melee attacks only', note: '-1k0 melee Damage rolls (Small)' }, { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -1 for Move Actions - already coded in movement system', note: 'Water Ring -1 for movement (Small)' }],
+  'Antisocial':        [{ skills: ['SOCIAL'], rolled: -1, kept: 0, note: '-1k0 all Social rolls (Antisocial, 2pt) - or -1k1 at the 4pt rank, adjust manually' }],
   'Cursed by Shilah':  [{ skills: ['SOCIAL'], rolled: -1, kept: 0, conditional: 'persuading or charming only', note: '-1k0 Social rolls to persuade/charm (Cursed by Shilah)' }],
   'Cursed by Kaleel':  [{ skills: ['ATTACK'], rolled: -1, kept: 0, stances: ['Attack','Full Attack'], note: '-1k0 Attack rolls in Attack/Full Attack stance (Cursed by Kaleel)' }],
   'Cursed by the Desert': [{ skills: ['Commerce'], rolled: 0, kept: -1, note: 'Commerce kept die -1, min 1 (Cursed by the Desert)' }],
   'Failure of Honesty': [
-    { skills: ['Sincerity'], rolled: 1, kept: 0, emphasisRequired: 'Deceit', note: '+1k0 Sincerity (Deceit) — auto-applies when Deceit emphasis is selected (Failure of Honesty)' },
-    { skills: ['Sincerity'], conditional: 'Integrity loss from dishonesty is doubled — not automated (Integrity system doesn\'t track loss reasons)', note: 'Doubled Integrity loss from dishonesty (Failure of Honesty)' },
+    { skills: ['Sincerity'], rolled: 1, kept: 0, emphasisRequired: 'Deceit', note: '+1k0 Sincerity (Deceit) - auto-applies when Deceit emphasis is selected (Failure of Honesty)' },
+    { skills: ['Sincerity'], conditional: 'Integrity loss from dishonesty is doubled - not automated (Integrity system doesn\'t track loss reasons)', note: 'Doubled Integrity loss from dishonesty (Failure of Honesty)' },
   ],
-  'Frail Mind':        [{ skills: ['Trait: Willpower'], conditional: 'opponent using a Trait: Willpower roll against you in the Contested Roll tool automatically gets +2k0 — wired this session', note: 'Opponent +2k0 Trait: Willpower vs you (Frail Mind)' }],
-  'Doubt':             [{ skills: ['ALL'], conditional: 'GM picks the affected School Skill on the disadvantage card — +5 TN auto-applies on that skill only, wired directly in DiceModal (not this table)', note: '+5 TN mandatory wasted Raise on chosen School Skill (Doubt)' }],
-  'Missing Limb':      [{ skills: ['ALL'], conditional: 'GM picks the missing limb type on the disadvantage card — +10 TN auto-applies on a curated list of affected skills (approximation, not exhaustive), wired directly in DiceModal (not this table)', note: '+10 TN on rolls involving the missing limb (Missing Limb)' }],
-  'Obtuse':            [{ skills: ['ALL'], conditional: 'XP cost doubled for High Skills (except Investigation/Medicine) — wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for High Skills except Investigation/Medicine (Obtuse)' }],
-  'Cursed by the Honest Hand': [{ skills: ['ALL'], conditional: 'GM picks the affected skill on the disadvantage card — XP cost doubled for that skill only, wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for chosen skill (Cursed by the Honest Hand)' }],
-  'Infamous': [{ skills: ['ALL'], conditional: 'Reputation stat card relabeled "Infamy" instead of "Reputation" — same underlying number, wired in CharacterTab, not this table', note: 'Reputation displays as "Infamy" (Infamous)' }],
-  'Dark Fate': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead — wired directly in EncounterTab\'s gmWound(), shared mechanism with Great Destiny (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Dark Fate)' }],
-  'Curse of the Grey Crone': [{ skills: ['ALL'], conditional: 'GM picks the locked Trait on the disadvantage card — set to 1, +1 button hidden in XP Spend Panel, and Insight Rank XP thresholds reduced cumulatively (145/165/185/205, verified against the disadvantage\'s own stated examples) — wired directly in CharacterTab and lib/utils.js\'s insightRankFor(), not this table', note: 'Trait locked to 1 + reduced Insight XP thresholds (Curse of the Grey Crone)' }],
-  'Unlucky': [{ skills: ['ALL'], conditional: 'GM-controlled pip tracker on the disadvantage card + a matching reroll button in DiceModal (mirrors Luck\'s mechanism exactly — fresh reroll, player picks kept dice from the new set). GM decides when to spend it, per Charles\'s direction', note: 'GM forces a reroll, N times/session per rank (Unlucky)' }],
-  'Dishonored':        [{ skills: ['ALL'], conditional: 'Status Rank set to 1, applied immediately when added — wired in CharacterTab\'s add-disadvantage handler. The "may not gain Status while active" restriction is not enforced (would need to gate the Status-editing UI)', note: 'Status Rank set to 1 (Dishonored)' }],
-  'Social Disadvantage': [{ skills: ['ALL'], conditional: 'Status Rank set to 0, applied immediately when added — wired in CharacterTab\'s add-disadvantage handler', note: 'Status Rank set to 0 (Social Disadvantage)' }],
-  'Greedy':            [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Temptation vs you (Greedy)' }],
-  'Gullible':          [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Sincerity vs you (Gullible)' }],
-  'Lechery':           [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 — wired this session', note: 'Opponent +1k1 Temptation vs you (Lechery)' }],
-  'Failure of Sincerity': [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k0 — wired this session', note: 'Opponent +1k0 Sincerity vs you (Failure of Sincerity)' }],
+  'Frail Mind':        [{ skills: ['Trait: Willpower'], conditional: 'opponent using a Trait: Willpower roll against you in the Contested Roll tool automatically gets +2k0 - wired this session', note: 'Opponent +2k0 Trait: Willpower vs you (Frail Mind)' }],
+  'Doubt':             [{ skills: ['ALL'], conditional: 'GM picks the affected School Skill on the disadvantage card - +5 TN auto-applies on that skill only, wired directly in DiceModal (not this table)', note: '+5 TN mandatory wasted Raise on chosen School Skill (Doubt)' }],
+  'Missing Limb':      [{ skills: ['ALL'], conditional: 'GM picks the missing limb type on the disadvantage card - +10 TN auto-applies on a curated list of affected skills (approximation, not exhaustive), wired directly in DiceModal (not this table)', note: '+10 TN on rolls involving the missing limb (Missing Limb)' }],
+  'Obtuse':            [{ skills: ['ALL'], conditional: 'XP cost doubled for High Skills (except Investigation/Medicine) - wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for High Skills except Investigation/Medicine (Obtuse)' }],
+  'Cursed by the Honest Hand': [{ skills: ['ALL'], conditional: 'GM picks the affected skill on the disadvantage card - XP cost doubled for that skill only, wired directly into the XP Spend Panel\'s addSkillToCart, not this table', note: 'XP cost ×2 for chosen skill (Cursed by the Honest Hand)' }],
+  'Infamous': [{ skills: ['ALL'], conditional: 'Reputation stat card relabeled "Infamy" instead of "Reputation" - same underlying number, wired in CharacterTab, not this table', note: 'Reputation displays as "Infamy" (Infamous)' }],
+  'Dark Fate': [{ skills: ['ALL'], conditional: 'Once per session, reduces a lethal (Out-rank) wound to 1 Wound point instead - wired directly in EncounterTab\'s gmWound(), shared mechanism with Great Destiny (identical text)', note: 'Once/session: survive lethal wound at 1 Wound (Dark Fate)' }],
+  'Curse of the Grey Crone': [{ skills: ['ALL'], conditional: 'GM picks the locked Trait on the disadvantage card - set to 1, +1 button hidden in XP Spend Panel, and Insight Rank XP thresholds reduced cumulatively (145/165/185/205, verified against the disadvantage\'s own stated examples) - wired directly in CharacterTab and lib/utils.js\'s insightRankFor(), not this table', note: 'Trait locked to 1 + reduced Insight XP thresholds (Curse of the Grey Crone)' }],
+  'Unlucky': [{ skills: ['ALL'], conditional: 'GM-controlled pip tracker on the disadvantage card + a matching reroll button in DiceModal (mirrors Luck\'s mechanism exactly - fresh reroll, player picks kept dice from the new set). GM decides when to spend it, per Charles\'s direction', note: 'GM forces a reroll, N times/session per rank (Unlucky)' }],
+  'Dishonored':        [{ skills: ['ALL'], conditional: 'Status Rank set to 1, applied immediately when added - wired in CharacterTab\'s add-disadvantage handler. The "may not gain Status while active" restriction is not enforced (would need to gate the Status-editing UI)', note: 'Status Rank set to 1 (Dishonored)' }],
+  'Social Disadvantage': [{ skills: ['ALL'], conditional: 'Status Rank set to 0, applied immediately when added - wired in CharacterTab\'s add-disadvantage handler', note: 'Status Rank set to 0 (Social Disadvantage)' }],
+  'Greedy':            [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 - wired this session', note: 'Opponent +1k1 Temptation vs you (Greedy)' }],
+  'Gullible':          [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k1 - wired this session', note: 'Opponent +1k1 Sincerity vs you (Gullible)' }],
+  'Lechery':           [{ skills: ['Temptation'], conditional: 'opponent using Temptation against you in the Contested Roll tool automatically gets +1k1 - wired this session', note: 'Opponent +1k1 Temptation vs you (Lechery)' }],
+  'Failure of Sincerity': [{ skills: ['Sincerity'], conditional: 'opponent using Sincerity against you in the Contested Roll tool automatically gets +1k0 - wired this session', note: 'Opponent +1k0 Sincerity vs you (Failure of Sincerity)' }],
   'Phobia':            [{ skills: ['ALL'], flat: 5, conditional: 'per rank, only when confronted with the phobia subject', note: '+5 TN per rank when confronted with phobia subject (Phobia)' }],
   'Disbeliever':       [{ skills: ['SOCIAL'], flat: 5, conditional: 'with sahir, diviners, priests, or spiritually devoted individuals only', note: '+5 TN Social rolls with spiritually devoted individuals (Disbeliever)' }],
-  'Low Pain Threshold': [{ skills: ['WOUNDPENALTY'], conditional: 'Wound TN penalties increased by +5 — already coded in wound system', note: 'Wound TN penalties +5 (Low Pain Threshold)' }],
-  'Bad Health':        [{ skills: ['WOUNDPENALTY'], conditional: 'Earth Ring treated one rank lower for Wound Rank thresholds — already coded in wound system', note: 'Earth -1 for Wound Ranks (Bad Health)' }],
+  'Low Pain Threshold': [{ skills: ['WOUNDPENALTY'], conditional: 'Wound TN penalties increased by +5 - already coded in wound system', note: 'Wound TN penalties +5 (Low Pain Threshold)' }],
+  'Bad Health':        [{ skills: ['WOUNDPENALTY'], conditional: 'Earth Ring treated one rank lower for Wound Rank thresholds - already coded in wound system', note: 'Earth -1 for Wound Ranks (Bad Health)' }],
 
-  // ── Second pass — previously mis-filed or missed on first review ──────────
-  'Touch of the Void': [{ skills: ['ALL'], rolled: 1, kept: 0, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 total when spending Void — risk Dazed (Touch of the Void) — adds +1 rolled on top of base Void +1k1' }],
+  // ── Second pass - previously mis-filed or missed on first review ──────────
+  'Touch of the Void': [{ skills: ['ALL'], rolled: 1, kept: 0, voidOnly: true, conditional: 'must roll Willpower TN 30 or Dazed', note: '+2k1 total when spending Void - risk Dazed (Touch of the Void) - adds +1 rolled on top of base Void +1k1' }],
   'Disturbing Countenance': [{ skills: ['SOCIAL'], flat: 5, note: '+5 TN all Social Skill rolls (Disturbing Countenance)' }],
-  'Defiler of the Dead': [{ skills: ['SOCIAL'], flat: 5, conditional: 'with other Senpet only', note: '+5 TN Social rolls with other Senpet (Defiler of the Dead) — Ghul Creation Free Raise not automated, apply manually' }],
+  'Defiler of the Dead': [{ skills: ['SOCIAL'], flat: 5, conditional: 'with other Senpet only', note: '+5 TN Social rolls with other Senpet (Defiler of the Dead) - Ghul Creation Free Raise not automated, apply manually' }],
   'Despicable':        [{ skills: ['SOCIAL'], rolled: -2, kept: 0, conditional: 'with other Yodotai only', note: '-2k0 Social rolls with other Yodotai (Despicable)' }],
-  'Permanent Wound':   [{ skills: ['WOUNDPENALTY'], conditional: 'First Wound Rank always considered full — already coded in wound system', note: 'Wound Rank floor of 1 whenever wounded (Permanent Wound)' }],
-  'Cursed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Natural healing rate halved — already coded in healing system; Medicine TN +5 to treat not automated', note: 'Natural healing halved (Cursed by the Keeper of Years)' }],
-  'Lame': [{ skills: ['WOUNDPENALTY'], conditional: 'Water Ring treated as 1 for Move Actions — already coded in movement system; +10 TN lower-limb Agility rolls not automated (too vague which rolls qualify)', note: 'Water Ring = 1 for movement (Lame)' }],
+  'Permanent Wound':   [{ skills: ['WOUNDPENALTY'], conditional: 'First Wound Rank always considered full - already coded in wound system', note: 'Wound Rank floor of 1 whenever wounded (Permanent Wound)' }],
+  'Cursed by the Keeper of Years': [{ skills: ['WOUNDPENALTY'], conditional: 'Natural healing rate halved - already coded in healing system; Medicine TN +5 to treat not automated', note: 'Natural healing halved (Cursed by the Keeper of Years)' }],
+  'Lame': [{ skills: ['WOUNDPENALTY'], conditional: 'Water Ring treated as 1 for Move Actions - already coded in movement system; +10 TN lower-limb Agility rolls not automated (too vague which rolls qualify)', note: 'Water Ring = 1 for movement (Lame)' }],
   'Blind': [
     { skills: ['Archery','Assassin Ranged Weapons','Throwing'], rolled: -3, kept: -3, note: '-3k3 ranged attacks (Blind)' },
     { skills: ['Swordsmanship','Knives','Spears','Brawling','Polearms','Staves','Heavy Weapons','Chain','Tahaddi'], rolled: -1, kept: -1, note: '-1k1 melee attacks (Blind)' },
-    { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -2 for Move Actions — already coded in movement system. Armor TN formula change (Reflexes+5 instead of 5+Reflexes×5) and the Simple Move TN 20 fall-prone check are NOT automated — Armor TN is computed inline in 8+ separate places across the codebase and touching all of them risks introducing an inconsistency; apply manually with the GM for now.', note: 'Armor TN = Reflexes+5; TN 20 Athletics/Agility or fall Prone on Simple Move (Blind) — apply manually' },
+    { skills: ['WOUNDPENALTY'], conditional: 'Water Ring -2 for Move Actions - already coded in movement system. Armor TN formula change (Reflexes+5 instead of 5+Reflexes×5) and the Simple Move TN 20 fall-prone check are NOT automated - Armor TN is computed inline in 8+ separate places across the codebase and touching all of them risks introducing an inconsistency; apply manually with the GM for now.', note: 'Armor TN = Reflexes+5; TN 20 Athletics/Agility or fall Prone on Simple Move (Blind) - apply manually' },
   ],
 };
 
 // ── Disadvantages with NO dice-roll hook by design (situational GM-triggered rolls,
 // XP-cost/Integrity/social-standing effects, or narrative-only complications).
-// Reviewed and confirmed manual — not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
+// Reviewed and confirmed manual - not an oversight. See ADVANTAGE_DISADVANTAGE_AUDIT.md.
 const MANUAL_DISADVANTAGES = [
   'Ascetic','Brash','Can\'t Lie','Compulsion','Consumed','Contrary','Driven',
   'Failure of Compassion','Failure of Courage','Failure of Courtesy','Failure of Duty','Failure of Honor',
@@ -2586,10 +2586,10 @@ export function getDisadvantageAutomationStatus(name) {
 
 // Automation status for a technique, used to show players whether a technique's effects apply
 // automatically in the dice roller, or need to be handled manually with the GM:
-//   'auto'    — has at least one real dice-modifying bonus entry, applies automatically when relevant
-//   'manual'  — has an entry but it's deliberately empty (e.g. spell grants, reactive abilities with no
-//               dice-roll hook) — by design, not an oversight. Full effect described in TECHNIQUE_DESCRIPTIONS.
-//   'missing' — no entry exists yet at all — audit in progress, not yet reviewed
+//   'auto'    - has at least one real dice-modifying bonus entry, applies automatically when relevant
+//   'manual'  - has an entry but it's deliberately empty (e.g. spell grants, reactive abilities with no
+//               dice-roll hook) - by design, not an oversight. Full effect described in TECHNIQUE_DESCRIPTIONS.
+//   'missing' - no entry exists yet at all - audit in progress, not yet reviewed
 export function getTechniqueAutomationStatus(techName) {
   if (!(techName in TECHNIQUE_ROLL_BONUSES)) return 'missing';
   return TECHNIQUE_ROLL_BONUSES[techName].length === 0 ? 'manual' : 'auto';

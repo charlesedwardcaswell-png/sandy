@@ -15,7 +15,7 @@ const STATUS_STYLE = {
   carried_over: 'q-carried',
 };
 
-// GM "new objective" form — shared between QuestTab (Quests tab) and Preparation → Session Prep,
+// GM "new objective" form - shared between QuestTab (Quests tab) and Preparation → Session Prep,
 // per Charles's call that quest creation should be available in both places, not moved out of Quests.
 export function QuestCreateForm({ quests, onCreateQuest, onCancel }) {
   const [newQ, setNewQ] = useState({ title: '', description: '', is_visible: false, quest_type: 'main', parent_quest_id: null });
@@ -47,7 +47,7 @@ export function QuestCreateForm({ quests, onCreateQuest, onCancel }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Slave to:</span>
           <select value={newQ.parent_quest_id || ''} onChange={e => setNewQ({ ...newQ, parent_quest_id: e.target.value || null })} style={{ flex: 1, fontSize: 12 }}>
-            <option value="">— stand-alone quest —</option>
+            <option value="">- stand-alone quest -</option>
             {parents.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
         </div>
@@ -61,7 +61,7 @@ export function QuestCreateForm({ quests, onCreateQuest, onCancel }) {
   );
 }
 
-// Quest player notes with local state — saves on blur to prevent per-keystroke re-render reset
+// Quest player notes with local state - saves on blur to prevent per-keystroke re-render reset
 function QuestNotes({ q, onUpdateQuest }) {
   const [localNotes, setLocalNotes] = React.useState(q.player_notes || '');
   React.useEffect(() => { setLocalNotes(q.player_notes || ''); }, [q.player_notes]);
@@ -78,7 +78,7 @@ function QuestNotes({ q, onUpdateQuest }) {
   );
 }
 
-// A single quest card — used for both parents and children
+// A single quest card - used for both parents and children
 function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = false }) {
   const qt = QUEST_TYPES[q.quest_type] || QUEST_TYPES.side;
   const [collapsed, setCollapsed] = React.useState(q.status === 'complete');
@@ -139,7 +139,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = f
                   value={q.parent_quest_id || ''}
                   onChange={e => onUpdateQuest(q.id, { parent_quest_id: e.target.value || null })}
                   title="Slave to parent quest">
-                  <option value="">— stand-alone —</option>
+                  <option value="">- stand-alone -</option>
                   {quests.filter(p => p.id !== q.id && !p.parent_quest_id).map(p => (
                     <option key={p.id} value={p.id}>{p.title.slice(0, 28)}{p.title.length > 28 ? '…' : ''}</option>
                   ))}
@@ -162,7 +162,7 @@ function QuestCard({ q, quests, gmView, onUpdateQuest, onDeleteQuest, indent = f
                 <select style={{ fontSize: 12, padding: '2px 4px' }} value={q.status} onChange={e => onUpdateQuest(q.id, { status: e.target.value })}>
                   {['active', 'complete', 'failed', 'carried_over'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <span title={q.is_visible ? 'Visible — click to hide' : 'Hidden — click to reveal'}
+                <span title={q.is_visible ? 'Visible - click to hide' : 'Hidden - click to reveal'}
                   style={{ cursor: 'pointer', fontSize: 15, color: q.is_visible ? 'var(--green)' : 'var(--text-muted)' }}
                   onClick={() => onUpdateQuest(q.id, { is_visible: !q.is_visible })}>
                   {q.is_visible ? '●' : '○'}
@@ -237,7 +237,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem', flexWrap: 'wrap', gap: '.5rem' }}>
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-          Session {session?.session_number || '—'} — Objectives
+          Session {session?.session_number || '-'} - Objectives
         </span>
         <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -278,7 +278,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
         </div>
       )}
 
-      {/* Quest list — parents with children indented below */}
+      {/* Quest list - parents with children indented below */}
       {visibleParents.length === 0 ? (
         <Empty icon="ti-target" message={gmView ? 'No objectives yet. Create one above.' : 'No objectives visible yet.'} />
       ) : visibleParents.map(q => {
@@ -287,7 +287,7 @@ export default function QuestTab({ isGM, isPCView, session, quests, onCreateQues
           <div key={q.id} style={{ marginBottom: '1rem' }}>
             {/* Parent quest */}
             <QuestCard q={q} quests={quests} gmView={gmView} onUpdateQuest={onUpdateQuest} onDeleteQuest={onDeleteQuest} indent={false} />
-            {/* Child quests — indented below, connected visually */}
+            {/* Child quests - indented below, connected visually */}
             {kids.length > 0 && (
               <div style={{ marginTop: 4, paddingLeft: 8, borderLeft: '2px solid var(--border)', marginLeft: 20 }}>
                 {kids.map(child => (

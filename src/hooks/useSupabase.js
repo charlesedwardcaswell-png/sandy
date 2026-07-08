@@ -38,7 +38,7 @@ export function useActiveSession() {
   const hasLoadedOnce = useRef(false);
 
   const fetch = useCallback(async () => {
-    // Only the very first load should show the full-page spinner — a background refetch
+    // Only the very first load should show the full-page spinner - a background refetch
     // (e.g. after Wipe All Sessions) must not flip this back to true, since App.js swaps its
     // entire render tree for <Loading/> while this is true, unmounting and resetting all UI state.
     if (!hasLoadedOnce.current) setLoading(true);
@@ -56,7 +56,7 @@ export function useActiveSession() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Real-time subscription — keeps all clients in sync when encounter_data changes
+  // Real-time subscription - keeps all clients in sync when encounter_data changes
   useEffect(() => {
     const channel = supabase
       .channel('session_sync_' + GAME_ID)
@@ -80,8 +80,8 @@ export function useActiveSession() {
           const merged = exists ? { ...exists, ...incoming } : incoming;
           return exists ? prev.map(s => s.id === incoming.id ? merged : s) : [...prev, merged].sort((a,b) => a.session_number - b.session_number);
         });
-        // Merge (not replace) so a realtime payload missing unchanged columns — e.g. Supabase only sends
-        // changed columns on UPDATE without REPLICA IDENTITY FULL — can't wipe fields like encounter_data
+        // Merge (not replace) so a realtime payload missing unchanged columns - e.g. Supabase only sends
+        // changed columns on UPDATE without REPLICA IDENTITY FULL - can't wipe fields like encounter_data
         // client-side just because a DIFFERENT column (event_log, etc.) was what actually changed. This
         // was the root cause of encounters randomly bouncing to the downtime screen mid-session; a refresh
         // "fixed" it because fetch() always pulls the complete row, but the realtime merge didn't.
@@ -128,7 +128,7 @@ export function useActiveSession() {
     return data;
   };
 
-  // Restores an archived session (started and/or closed) back to prepped status — doesn't touch any
+  // Restores an archived session (started and/or closed) back to prepped status - doesn't touch any
   // of its recorded history (recap, encounter_log, etc.), just flips it back to selectable in Session
   // Prep. Refuses to unretire the CURRENTLY active session (that's what "End Session" is for).
   const unretireSession = async (sessionId) => {
@@ -152,7 +152,7 @@ export function useActiveSession() {
     setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, is_active: false, closed_at: new Date().toISOString() } : s));
   };
 
-  // Merge-patch a session's recap JSON — used for live GM Notes / Player Notes editing on any session
+  // Merge-patch a session's recap JSON - used for live GM Notes / Player Notes editing on any session
   // (active or archived), separate from the one-time end-of-session recap form.
   const updateSessionRecap = async (sessionId, patch) => {
     const target = allSessions.find(s => s.id === sessionId) || session;
@@ -193,7 +193,7 @@ export function useActiveSession() {
   };
 
   // prepared_reveals associates EXISTING quests/npcs/shops/gm-inventory-items with a not-yet-started
-  // session by id — nothing is created here. Actually revealing/moving them happens when the session
+  // session by id - nothing is created here. Actually revealing/moving them happens when the session
   // activates (see applySessionReveals in App.js), matching the "reveal, don't materialize" model.
   const savePreparedReveals = async (sessionId, prepReveals) => {
     if (!sessionId) return;
@@ -285,10 +285,10 @@ export function useCharacters() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'characters', filter: `game_id=eq.${GAME_ID}` },
         payload => {
           if (payload.eventType === 'UPDATE') {
-            // Merge, don't replace — Supabase only sends changed columns on UPDATE (without REPLICA
+            // Merge, don't replace - Supabase only sends changed columns on UPDATE (without REPLICA
             // IDENTITY FULL), so a payload missing a field means "unchanged," not "cleared." Replacing
             // wholesale was wiping other character fields (equipment, advantages, etc.) any time a targeted
-            // update only touched one column — same root cause as the encounter/downtime-screen bug.
+            // update only touched one column - same root cause as the encounter/downtime-screen bug.
             setCharacters(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
           } else if (payload.eventType === 'INSERT') {
             setCharacters(prev => [...prev.filter(c => c.id !== payload.new.id), payload.new]);
@@ -303,7 +303,7 @@ export function useCharacters() {
   return { characters, loading, createCharacter, updateCharacter, deleteCharacter, refetch: fetch };
 }
 
-// ── Presence tracking — broadcasts who is online ───────────────────────────────
+// ── Presence tracking - broadcasts who is online ───────────────────────────────
 export function usePresence(username, isGM, onJoin, onLeave) {
   useEffect(() => {
     if (!username) return;
@@ -365,7 +365,7 @@ export function useFeedback() {
     return true;
   };
 
-  // Real-time subscription — so everyone sees new feedback (and deletions) live without refreshing
+  // Real-time subscription - so everyone sees new feedback (and deletions) live without refreshing
   useEffect(() => {
     const sub = supabase
       .channel('feedback_' + GAME_ID)
@@ -440,7 +440,7 @@ export function useNPCs() {
     return () => supabase.removeChannel(sub);
   }, []);
 
-  // Polling fallback — re-fetch every 15s so players see new NPCs even if realtime isn't enabled
+  // Polling fallback - re-fetch every 15s so players see new NPCs even if realtime isn't enabled
   useEffect(() => {
     const interval = setInterval(() => fetch(), 15000);
     return () => clearInterval(interval);
@@ -468,7 +468,7 @@ export function useQuests(sessionId) {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createQuest = async (questData) => {
-    // session_id can be passed explicitly in questData to override the hook's bound sessionId — needed
+    // session_id can be passed explicitly in questData to override the hook's bound sessionId - needed
     // right after activating a different session, since the closure here is still bound to whatever
     // session was active when useQuests(session?.id) last rendered (stale otherwise).
     const { data, error } = await supabase
@@ -593,7 +593,7 @@ export function useFactionReputation() {
     }
   };
 
-  // Free-text party notes per faction — casual tracking, editable by any player, not gated like GM notes
+  // Free-text party notes per faction - casual tracking, editable by any player, not gated like GM notes
   const updateRepNotes = async (faction, notes) => {
     const current = reps[faction];
     if (current) {
@@ -687,13 +687,13 @@ export function useGroupInventory() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Realtime subscription — keeps all clients in sync
+  // Realtime subscription - keeps all clients in sync
   useEffect(() => {
     const sub = supabase
       .channel('group_inventory_' + GAME_ID)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_inventory', filter: `game_id=eq.${GAME_ID}` },
         payload => {
-          // Merge, don't replace with a hard [] fallback — a payload missing `items` (because only `copper`
+          // Merge, don't replace with a hard [] fallback - a payload missing `items` (because only `copper`
           // changed in that particular UPDATE) was wiping the entire party inventory display until refresh.
           setInventory(prev => ({
             copper: payload.new.copper !== undefined ? payload.new.copper : prev.copper,
@@ -713,7 +713,7 @@ export function useGroupInventory() {
       .maybeSingle();
     const base = fresh || { copper: 0, items: [] };
     const newState = { ...base, ...updates, game_id: GAME_ID };
-    // Final safety net — never persist null/undefined entries in the items array, regardless of caller
+    // Final safety net - never persist null/undefined entries in the items array, regardless of caller
     const cleanItems = (newState.items || []).filter(Boolean);
     setInventory({ copper: newState.copper, items: cleanItems });
     const id = inventoryIdRef.current || inventoryId;

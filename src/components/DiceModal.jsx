@@ -51,7 +51,7 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
   const isPerform = skillName?.startsWith('Perform');
   const isContested = false; // passed separately if needed
 
-  // Jinn techniques aren't rank-gated progression like PC schools — JinnRandomizer stores every rolled
+  // Jinn techniques aren't rank-gated progression like PC schools - JinnRandomizer stores every rolled
   // ability (Invincible, Shapeshifting, Protections, Combat Bonuses, magic abilities) as sequential keys
   // 1, 2, 3, 4, 5... purely for storage ordering, all active immediately upon creation. PCs/other NPCs use
   // rank as a real gate (only techniques up to their current school_rank are earned), so only skip the gate
@@ -83,10 +83,10 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
       conditionalItems.push({ note: bonus.note, condition: bonus.conditional, source: sourceName });
       return;
     }
-    // Emphasis-gated bonuses (e.g. Failure of Honesty's Sincerity/Deceit-only bonus) — auto-applies only
+    // Emphasis-gated bonuses (e.g. Failure of Honesty's Sincerity/Deceit-only bonus) - auto-applies only
     // when the player has that specific emphasis selected via PCTurnPanel's emphasis picker (passed through
     // as activeEmphasis). Distinct from DiceModal's own separate "any emphasis → reroll 1s" mechanic, which
-    // doesn't care which specific emphasis was picked — this is for bonuses tied to one named emphasis only.
+    // doesn't care which specific emphasis was picked - this is for bonuses tied to one named emphasis only.
     if (bonus.emphasisRequired) {
       if (activeEmphasis === bonus.emphasisRequired) {
         extraRolled += (bonus.rolled || 0);
@@ -124,8 +124,8 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
         autoNotes.push(`+${highestRing}k0 damage (Jinn Combat Bonus)`);
       }
       if (techName.includes('+TN to Be Hit = highest Ring')) {
-        // This is defensive — noted conditionally
-        conditionalItems.push({ note: `+${highestRing} TN to Be Hit (Jinn Protection)`, condition: 'Always active — applied to Armor TN', source: techName });
+        // This is defensive - noted conditionally
+        conditionalItems.push({ note: `+${highestRing} TN to Be Hit (Jinn Protection)`, condition: 'Always active - applied to Armor TN', source: techName });
       }
       if (techName.includes('Initiative bonus = highest Ring') && isInitiative) {
         extraRolled += highestRing;
@@ -162,9 +162,9 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
 // ── Dice Modal ────────────────────────────────────────────────────────────────
 export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, onUnluckyUsed, disableReroll = false }) {
   const [phase, setPhase] = useState('setup');
-  // Dice animation — a "fake" 2D roll: cycle each die rapidly through random digits for ~700ms right
+  // Dice animation - a "fake" 2D roll: cycle each die rapidly through random digits for ~700ms right
   // after the real roll is computed, then reveal the actual values and let the player interact
-  // (click to keep) as normal. No real geometry/physics — this is what most tabletop apps do, and
+  // (click to keep) as normal. No real geometry/physics - this is what most tabletop apps do, and
   // it's purely cosmetic: `dice` already holds the real, final values the whole time.
   const [animating, setAnimating] = useState(false);
   const [spinDigits, setSpinDigits] = useState([]);
@@ -178,10 +178,10 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animating]);
   const [raises, setRaises] = useState([]);
-  const [incDamageRaises, setIncDamageRaises] = useState(0); // Increased Damage maneuver — stacks freely, 1+ raises
+  const [incDamageRaises, setIncDamageRaises] = useState(0); // Increased Damage maneuver - stacks freely, 1+ raises
   const [useVoid, setUseVoid] = useState(false);
-  const [useVoidSword, setUseVoidSword] = useState(false); // separate Void spend — sword damage bonus, a distinct roll from the attack roll
-  const [maneuversOpen, setManeuversOpen] = useState(false); // maneuvers collapsed by default — expand when needed
+  const [useVoidSword, setUseVoidSword] = useState(false); // separate Void spend - sword damage bonus, a distinct roll from the attack roll
+  const [maneuversOpen, setManeuversOpen] = useState(false); // maneuvers collapsed by default - expand when needed
   const [flatMod, setFlatMod] = useState(context?.suggestedFlatMod || 0);
   const [extraRoll, setExtraRoll] = useState(0);
   const [extraKeep, setExtraKeep] = useState(0);
@@ -193,10 +193,10 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const [dmgKept, setDmgKept] = useState(new Set());
   const [finalDamage, setFinalDamage] = useState(null);
   const [modApplied, setModApplied] = useState(context?.suggestedFlatMod ? 'Center stance (School Rank)' : null);
-  // Emphasis — reroll 1s only applies when the character actually owns the SPECIFIC emphasis that was
+  // Emphasis - reroll 1s only applies when the character actually owns the SPECIFIC emphasis that was
   // selected for this roll (context.activeEmphasis, set via PCTurnPanel's picker), not merely "owns some
   // emphasis for this skill." A player can select any emphasis to describe the nature of the roll (e.g.
-  // Brawling(Grappling) vs Brawling(Striking)) regardless of training — only an owned one grants the
+  // Brawling(Grappling) vs Brawling(Striking)) regardless of training - only an owned one grants the
   // reroll. See BACKLOG.md's emphasis redesign notes for why this used to be wrong.
   const skillEmphases = context?.character?.skills?.find(s => s.name === context?.skill)?.emphases || [];
   const hasEmphasis = !!context?.activeEmphasis && skillEmphases.includes(context.activeEmphasis);
@@ -205,7 +205,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const [showAdvanced, setShowAdvanced] = useState(false); // collapsed by default
 
   const isAttack = context?.isAttack || false;
-  // Disarm overrides the weapon's normal damage entirely with a flat 2k1, per L5R 4E core rules —
+  // Disarm overrides the weapon's normal damage entirely with a flat 2k1, per L5R 4E core rules -
   // "regardless of the weapon used, and characters do not add Strength to the rolled dice."
   const isDisarmManeuver = raises.includes('Disarm (3)');
   const isRangedWeapon = ['Archery', 'Assassin Ranged Weapons', 'Throwing'].includes(context?.skill);
@@ -217,15 +217,15 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     const charStrength = context?.character?.strength || context?.character?.water || 0;
     dmgRoll += charStrength;
   }
-  // Increased Damage maneuver — each selection of this raise stacks another +1k0. Since the UI only
+  // Increased Damage maneuver - each selection of this raise stacks another +1k0. Since the UI only
   // allows one button instance, count how many times it was effectively "spent" via the raise count
   // dedicated to it (mutual exclusivity in the UI means only one tier shows selected at a time, but the
-  // rulebook allows spending multiple raises on this maneuver — tracked here as incDamageStacks).
+  // rulebook allows spending multiple raises on this maneuver - tracked here as incDamageStacks).
   const incDamageStacks = incDamageRaises;
   if (!isDisarmManeuver) {
-    dmgRoll += incDamageStacks; // +1k0 per raise — only rolled dice increase, kept stays the same
+    dmgRoll += incDamageStacks; // +1k0 per raise - only rolled dice increase, kept stays the same
   }
-  // Damage-phase technique/advantage bonuses (e.g. Strike to Slay, Divine Strength — "+1k1 Damage when
+  // Damage-phase technique/advantage bonuses (e.g. Strike to Slay, Divine Strength - "+1k1 Damage when
   // spending Void") were previously computed but NEVER applied: the main `bonuses` object below only ever
   // fed into the attack roll's dice pool, never the separate damage roll phase. Computed here explicitly
   // with isDamage=true and folded into dmgRoll/dmgKeep, gated the same way the main bonus computation is
@@ -237,7 +237,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     dmgRoll += dmgBonuses.extraRolled || 0;
     dmgKeep += dmgBonuses.extraKept || 0;
   }
-  // Sword Void bonus — per the core rulebook, any sword's wielder may spend a single Void Point to roll
+  // Sword Void bonus - per the core rulebook, any sword's wielder may spend a single Void Point to roll
   // and keep one extra die on a damage roll made with it, once per damage roll. This is a separate
   // enhancement from spending Void on the attack roll itself (two different rolls, each independently
   // eligible for one Void enhancement), so it's its own checkbox rather than reusing useVoid.
@@ -267,7 +267,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
       )
     : { extraRolled: 0, extraKept: 0, extraFlat: 0, freeRaises: 0, auto: [], conditional: [] };
 
-  // Auto-check any voidOnly conditional the moment the player spends Void — these techniques (like City
+  // Auto-check any voidOnly conditional the moment the player spends Void - these techniques (like City
   // Guard's Trained For War) ALWAYS apply when Void is spent, so requiring a second manual checkbox click
   // was an easy thing to forget. Auto-unchecks if Void is unchecked again.
   React.useEffect(() => {
@@ -291,21 +291,21 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const condFreeRaises  = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.freeRaises || 0), 0);
   const condExtraFlat   = activatedConds.reduce((s, c) => s + (findCondBonus(c.source, c.note)?.flat || 0), 0);
 
-  // Derived roll counts — after all bonuses computed
+  // Derived roll counts - after all bonuses computed
   const voidBonus = useVoid ? 1 : 0;
   const techRolled = bonuses.extraRolled + condExtraRolled;
   const techKept   = bonuses.extraKept   + condExtraKept;
   const techFreeRaises = bonuses.freeRaises + condFreeRaises;
   // `flat` bonuses/penalties apply straight to the TN (positive = harder, e.g. Phobia/Doubt; negative =
   // easier). NOTE: this was computed by computeBonuses() and returned as `extraFlat` for a long time but
-  // never actually consumed anywhere — every advantage/disadvantage/technique using `flat:` was silently
+  // never actually consumed anywhere - every advantage/disadvantage/technique using `flat:` was silently
   // a no-op (the note displayed, the math didn't change). Fixed here rather than left broken.
   // Doubt disadvantage: chosen School Skill always forces a wasted Raise, i.e. +5 TN. Per-character
-  // dynamic skill choice (like Weakness's trait, Great Potential's skill) — can't live in the static
+  // dynamic skill choice (like Weakness's trait, Great Potential's skill) - can't live in the static
   // DISADVANTAGE_ROLL_BONUSES table, so checked directly here.
   const doubtDisadvantage = (context?.character?.disadvantages || []).find(d => (d.name || d) === 'Doubt' && d.skill);
   const doubtPenalty = doubtDisadvantage && doubtDisadvantage.skill === context?.skill ? 5 : 0;
-  // Missing Limb: reasonable approximation of "rolls involving the missing limb" by limb type — not
+  // Missing Limb: reasonable approximation of "rolls involving the missing limb" by limb type - not
   // exhaustive (a GM may still call for it on other rolls), but covers the clear, common cases.
   const MISSING_LIMB_SKILLS = {
     'Arm/Hand': ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves','Heavy Weapons','Chain Weapons','Sleight of Hand','Calligraphy','Craft: Poison','Craft: Weaponsmith','Craft: Armorsmith'],
@@ -319,7 +319,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const keepCount = Math.max(1, Math.min((context?.baseKeep || 2) + voidBonus + extraKeep + techKept, rollCount));
   const freeRaiseReduction = ((context?.freeRaises || 0) + techFreeRaises + manualFreeRaises) * 5;
   const woundTNPenalty = context?.woundPenalty || 0;
-  // Total raise POINTS spent, not button count — a multi-cost maneuver like "Disarm (3)" counts as
+  // Total raise POINTS spent, not button count - a multi-cost maneuver like "Disarm (3)" counts as
   // 3 raises toward TN, not 1, matching the actual L5R 4E raise cost for that maneuver.
   const raisePoints = raises.reduce((sum, r) => sum + maneuverCost(r), 0) + incDamageRaises;
   const tn = Math.max(5, (context?.tn || 15) - freeRaiseReduction + raisePoints * 5 + woundTNPenalty + techFlat);
@@ -373,7 +373,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const confirmRoll = () => {
     const total = [...kept].reduce((s, i) => s + dice[i].total, 0) + flatMod;
     const success = total >= tn;
-    // Track how many Void Points were actually spent this roll — the attack-roll enhancement (useVoid)
+    // Track how many Void Points were actually spent this roll - the attack-roll enhancement (useVoid)
     // and the sword damage enhancement (useVoidSword) are two separate enhancements on two separate
     // rolls, so both can be spent in the same overall attack and should each deduct independently.
     const voidSpent = (useVoid ? 1 : 0) + (useVoidSword ? 1 : 0);
@@ -386,8 +386,8 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
       const icon = success ? 'ti-check' : 'ti-x';
       const who = charName ? `${charName}: ` : '';
       const txt = success
-        ? `${who}${skillName} — ${total} vs TN ${tn} ✓ (+${total - tn})`
-        : `${who}${skillName} — ${total} vs TN ${tn} ✗ (${total - tn})`;
+        ? `${who}${skillName} - ${total} vs TN ${tn} ✓ (+${total - tn})`
+        : `${who}${skillName} - ${total} vs TN ${tn} ✗ (${total - tn})`;
       onLogEvent(icon, txt);
     }
     if (success && isAttack && !context?.isGrappleContact) {
@@ -401,7 +401,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
       onResult && onResult(result, null);
       // context.onComplete is a per-roll callback some callers (Shop's Appraise/Haggle, etc.) rely on for
       // custom result handling that doesn't fit the central App.js skillOutcomeData pattern (e.g. updating
-      // component-local state). This was being set but never actually called — real bug, not by design.
+      // component-local state). This was being set but never actually called - real bug, not by design.
       context?.onComplete?.(total, Array.isArray(raises) ? raises.length : (raises || 0));
       setPhase('done');
     }
@@ -436,7 +436,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     if (onLogEvent) {
       onLogEvent('ti-sword', `${context?.skill || 'Attack'} → ${dmg} wounds to ${context?.targetName || 'target'}`);
     }
-    // Recompute void spend fresh here — useVoidSword is only ever set during the damage phase, which
+    // Recompute void spend fresh here - useVoidSword is only ever set during the damage phase, which
     // happens after confirmRoll already finalized rollResult, so that earlier snapshot would be stale.
     const finalVoidSpent = (useVoid ? 1 : 0) + (useVoidSword ? 1 : 0);
     const finalResult = { ...rollResult, usedVoid: finalVoidSpent > 0, voidSpentCount: finalVoidSpent };
@@ -483,7 +483,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </div>
           )}
 
-          {/* Free Raises summary — brief */}
+          {/* Free Raises summary - brief */}
           {((context?.freeRaises || 0) > 0 || (context?.bonusNotes?.length || 0) > 0) && (
             <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.4rem', lineHeight: 1.5 }}>
               {context.freeRaises > 0 && <span>✦ {context.freeRaises} Free Raise{context.freeRaises > 1 ? 's' : ''} (TN −{context.freeRaises * 5}) </span>}
@@ -491,7 +491,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </div>
           )}
 
-          {/* Dice pool — always visible */}
+          {/* Dice pool - always visible */}
           <div className="modal-section" style={{ paddingBottom: '.4rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)' }}>
@@ -505,10 +505,10 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </div>
           </div>
 
-          {/* Raises — always visible */}
+          {/* Raises - always visible */}
           <div className="modal-section">
             <span className="modal-label">Raises <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>+5 TN each</span></span>
-            {/* Per-roll raise explainer — passed as context.raiseExplainer for rolls like Haggle/Appraise
+            {/* Per-roll raise explainer - passed as context.raiseExplainer for rolls like Haggle/Appraise
                 where the player needs to know what raises do before committing */}
             {context?.raiseExplainer && (
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'rgba(107,78,40,.1)', borderTop: '1px solid rgba(107,78,40,.25)', borderBottom: '1px solid rgba(107,78,40,.25)', borderLeft: '3px solid var(--gold-dim)', borderRight: 'none', padding: '4px 8px', marginBottom: 6, lineHeight: 1.5, whiteSpace: 'pre-line' }}>
@@ -528,7 +528,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                 <div style={{ fontSize: 11, color: over ? 'var(--red)' : 'var(--text-muted)', marginBottom: 4 }}>
                   Raise points spent: <strong style={{ color: over ? 'var(--red)' : 'var(--gold)' }}>{raisePoints}</strong> / {maxRaises} max
                   {gpApplies && <span style={{ color: 'var(--gold-dim)' }}> (Great Potential: Skill Rank used)</span>}
-                  {over && <span> — exceeds your maximum raises!</span>}
+                  {over && <span> - exceeds your maximum raises!</span>}
                 </div>
               );
             })()}
@@ -539,7 +539,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </div>
             {isAttack && (
               <div style={{ marginTop: '.4rem' }}>
-                {/* Collapsible header — auto-expands if a maneuver is already selected */}
+                {/* Collapsible header - auto-expands if a maneuver is already selected */}
                 <div
                   style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', marginBottom: '.2rem' }}
                   onClick={() => setManeuversOpen(o => !o)}>
@@ -550,7 +550,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                 </div>
                 {(maneuversOpen || raises.length > 0 || incDamageRaises > 0) && (<>
                   <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                    {/* Increased Damage first — most commonly used */}
+                    {/* Increased Damage first - most commonly used */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>+Dmg:</span>
                       <button className="raise-btn" style={{ padding: '1px 7px' }}
@@ -590,7 +590,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             )}
           </div>
 
-          {/* Void — always visible */}
+          {/* Void - always visible */}
           <div className="modal-section" style={{ paddingTop: '.25rem', paddingBottom: '.25rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>
               <input type="checkbox" checked={useVoid} onChange={e => { setUseVoid(e.target.checked); if (e.target.checked) triggerVoidSwirl(e); }} style={{ accentColor: 'var(--gold)' }} />
@@ -601,10 +601,10 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             </label>
             {useVoid && techRolled > 0 && (
               <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 2, marginLeft: 22 }}>
-                Includes a technique bonus — total Void benefit this roll is +{1 + techRolled}k{1 + techKept}, not stacked on top separately.
+                Includes a technique bonus - total Void benefit this roll is +{1 + techRolled}k{1 + techKept}, not stacked on top separately.
               </div>
             )}
-            {/* Sword Void damage bonus — per core rules, any sword's wielder may spend a SEPARATE Void
+            {/* Sword Void damage bonus - per core rules, any sword's wielder may spend a SEPARATE Void
                 Point to roll and keep one extra die on the damage roll, once per damage roll. Must be
                 declared now (before the roll), not during the damage phase, since damage dice auto-roll
                 immediately after a successful attack. */}
@@ -617,7 +617,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             )}
           </div>
 
-          {/* Emphasis — visible when applicable */}
+          {/* Emphasis - visible when applicable */}
           {hasEmphasis && (
             <div className="modal-section" style={{ paddingTop: '.25rem', paddingBottom: '.25rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -626,7 +626,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                 <span style={{ fontSize: 13 }}>
                   <strong style={{ color: 'var(--gold)' }}>Emphasis</strong>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>
-                    ({context.activeEmphasis}) — re-roll kept 1s
+                    ({context.activeEmphasis}) - re-roll kept 1s
                   </span>
                 </span>
               </label>
@@ -771,12 +771,12 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
         {/* Rolling phase */}
         {phase === 'rolling' && (<>
           <div className="modal-section">
-            <span className="modal-label">Click to keep — {kept.size}/{keepCount} kept — TN {tn}{flatMod !== 0 ? ` (${flatMod >= 0 ? '+' : ''}${flatMod} modifier)` : ''}</span>
+            <span className="modal-label">Click to keep - {kept.size}/{keepCount} kept - TN {tn}{flatMod !== 0 ? ` (${flatMod >= 0 ? '+' : ''}${flatMod} modifier)` : ''}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dice.map((d, i) => (
                 <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded && !animating ? 'ten' : ''} ${animating ? 'die-spinning' : ''}`}
                   onClick={animating ? undefined : () => toggleKeep(i)}
-                  title={animating ? '' : d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis — was 1)' : ''}
+                  title={animating ? '' : d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis - was 1)' : ''}
                   style={animating ? { cursor: 'default' } : d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
                   {animating ? (spinDigits[i] ?? d.total) : d.total}
                   {!animating && d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
@@ -812,7 +812,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
           </div>
           <div style={{ display: 'flex', gap: '.5rem' }}>
             <button className="btn btn-p" disabled={animating || kept.size === 0} onClick={confirmRoll}>
-              Confirm {kept.size}/{keepCount} {kept.size < keepCount ? `(keeping fewer — may fail)` : ''}
+              Confirm {kept.size}/{keepCount} {kept.size < keepCount ? `(keeping fewer - may fail)` : ''}
             </button>
             <button className="btn btn-sm" disabled={animating} onClick={() => {
               const sortedIdx = dice.map((d, i) => ({ i, v: d.total })).sort((a, b) => b.v - a.v).map(x => x.i);
@@ -824,7 +824,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
               style={{ display: disableReroll ? 'none' : undefined }}>
               <i className="ti ti-refresh" /> Reroll
             </button>
-            {/* Luck reroll — only for characters with Luck advantage and uses remaining */}
+            {/* Luck reroll - only for characters with Luck advantage and uses remaining */}
             {(() => {
               const char = context?.character;
               if (!char) return null;
@@ -845,7 +845,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
                 </button>
               );
             })()}
-            {/* Unlucky reroll — GM tells the player when to use it; same mechanism as Luck (fresh reroll,
+            {/* Unlucky reroll - GM tells the player when to use it; same mechanism as Luck (fresh reroll,
                 player then picks which dice to keep from the new set), just tracked as a curse not a boon */}
             {(() => {
               const char = context?.character;
@@ -873,7 +873,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
         {/* Damage phase */}
         {phase === 'damage' && (<>
           <div style={{ padding: '.6rem .75rem', background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', borderRadius: 4, marginBottom: '1rem', fontSize: 14, color: 'var(--gold)' }}>
-            ✓ Hit! Roll damage — {dmgRoll}k{dmgKeep}
+            ✓ Hit! Roll damage - {dmgRoll}k{dmgKeep}
             {raises.length > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>Raises: {raises.join(', ')}</span>}
             {!isDisarmManeuver && useVoid && (dmgBonuses.extraRolled > 0 || dmgBonuses.extraKept > 0) && (
               <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 3 }}>
@@ -882,7 +882,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             )}
           </div>
           <div className="modal-section">
-            <span className="modal-label">Damage Dice — click to keep ({dmgKept.size}/{dmgKeep})</span>
+            <span className="modal-label">Damage Dice - click to keep ({dmgKept.size}/{dmgKeep})</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
               {dmgDice.map((d, i) => (
                 <div key={i} className={`die ${dmgKept.has(i) ? 'kept' : ''} ${d.exploded ? 'ten' : ''}`} onClick={() => toggleDmgKeep(i)} style={{ borderColor: 'var(--red-dim)' }}>

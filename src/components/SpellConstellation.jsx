@@ -9,12 +9,12 @@ const STARS = Array.from({ length: 80 }, (_, i) => ({
   opacity: (Math.sin(i * 1.1) * 0.5 + 0.5) * 0.4 + 0.1,
 }));
 
-// ── Constellation layouts — hand-positioned for visual appeal ─────────────────
+// ── Constellation layouts - hand-positioned for visual appeal ─────────────────
 // Each discipline has 3 types × 3 levels = 9 nodes
 // Layout: [typeIndex][levelIndex] = {x, y} in 0-100 viewBox space
 
 const LAYOUTS = {
-  summoning: { // Air — wide like a bird/compass
+  summoning: { // Air - wide like a bird/compass
     label: { x: 50, y: 8 },
     nodes: [
       // Jinn column (left)
@@ -25,7 +25,7 @@ const LAYOUTS = {
       [{ x: 80, y: 25 }, { x: 82, y: 45 }, { x: 84, y: 65 }],
     ]
   },
-  celestials: { // Void — circular, like a crown
+  celestials: { // Void - circular, like a crown
     label: { x: 50, y: 8 },
     nodes: [
       // Farsight (left arc)
@@ -36,7 +36,7 @@ const LAYOUTS = {
       [{ x: 78, y: 30 }, { x: 82, y: 50 }, { x: 78, y: 70 }],
     ]
   },
-  blackmagic: { // Earth — heavy triangular base
+  blackmagic: { // Earth - heavy triangular base
     label: { x: 50, y: 8 },
     nodes: [
       // Ghul (left, heavy)
@@ -47,7 +47,7 @@ const LAYOUTS = {
       [{ x: 82, y: 30 }, { x: 85, y: 50 }, { x: 88, y: 72 }],
     ]
   },
-  control: { // Water — flowing, slight curve
+  control: { // Water - flowing, slight curve
     label: { x: 50, y: 8 },
     nodes: [
       // Influence (left flowing)
@@ -58,7 +58,7 @@ const LAYOUTS = {
       [{ x: 78, y: 28 }, { x: 80, y: 48 }, { x: 76, y: 68 }],
     ]
   },
-  blessings: { // Fire — sharp angular, flame-like
+  blessings: { // Fire - sharp angular, flame-like
     label: { x: 50, y: 8 },
     nodes: [
       // Blessings (left spike)
@@ -71,7 +71,7 @@ const LAYOUTS = {
   },
 };
 
-// Cokaloi layout — three arcs across the sky
+// Cokaloi layout - three arcs across the sky
 const COKALOI_LAYOUTS = {
   dawn:  [
     { x: 12, y: 20 }, { x: 12, y: 35 },
@@ -96,7 +96,7 @@ const COKALOI_LAYOUTS = {
   ],
 };
 
-// ── Spell tooltip — rendered as HTML overlay, not foreignObject ───────────────
+// ── Spell tooltip - rendered as HTML overlay, not foreignObject ───────────────
 function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mode, style, canEdit = true }) {
   return (
     <div style={{
@@ -121,7 +121,7 @@ function SpellTooltip({ spell, color, onClose, canLearn, isLearned, onToggle, mo
             color: isLearned ? color : canLearn ? color + 'cc' : '#555',
             fontFamily: 'inherit',
           }}>
-          {isLearned ? '★ Learned — click to remove' : canLearn ? '☆ Learn this spell' : '🔒 Learn lower level first'}
+          {isLearned ? '★ Learned - click to remove' : canLearn ? '☆ Learn this spell' : '🔒 Learn lower level first'}
         </button>
       )}
       {mode !== 'encounter' && !canEdit && isLearned && (
@@ -231,10 +231,10 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
             })
           )}
 
-          {/* Active spell tooltip — rendered inside SVG as foreignObject removed, now below */}
+          {/* Active spell tooltip - rendered inside SVG as foreignObject removed, now below */}
         </svg>
 
-        {/* Spell tooltip — HTML overlay, properly sized */}
+        {/* Spell tooltip - HTML overlay, properly sized */}
         {activeSpell && (() => {
           const pos = layout.nodes[activeSpell.typeIdx][activeSpell.level - 1];
           // Convert SVG % coords to left/top positioning
@@ -265,7 +265,7 @@ function SahirConstellation({ learnedSpells, onToggle, mode, schoolRank, spellTy
         </div>
       </div>
 
-      {/* Learned count — shows current/max with rank-up nudge */}
+      {/* Learned count - shows current/max with rank-up nudge */}
       <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#666', flexWrap: 'wrap', alignItems: 'center' }}>
         {(() => {
           const maxSpells = 3 + ((schoolRank || 1) - 1) * 3;
@@ -299,7 +299,7 @@ function StarShape({ cx, cy, r, fill, stroke, opacity = 1 }) {
   return <polygon points={pts} fill={fill} stroke={stroke} strokeWidth="0.5" opacity={opacity} />;
 }
 
-// ── Cokaloi Constellation — new tabless design ────────────────────────────────
+// ── Cokaloi Constellation - new tabless design ────────────────────────────────
 function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, canEdit = true }) {
   const [activeSpell, setActiveSpell] = useState(null);
   const rank = insightRank || 1;
@@ -327,7 +327,7 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
     } else if (reachable) {
       starFill = 'transparent'; starStroke = cat.color; starOpacity = 0.55; dotOnly = false;
     } else {
-      dotOnly = true; // unreachable — dim glowing dot
+      dotOnly = true; // unreachable - dim glowing dot
     }
 
     return (
@@ -376,7 +376,7 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
   return (
     <div>
       <div style={{ fontSize: 11, color: '#888', marginBottom: 8, fontStyle: 'italic', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Cokaloi — Ra'Shari Diviner. Insight Rank {rank} — can learn up to ML{rank}.</span>
+        <span>Cokaloi - Ra'Shari Diviner. Insight Rank {rank} - can learn up to ML{rank}.</span>
         <span style={{ color: '#666' }}>{learnedSpells.length} known</span>
       </div>
 
@@ -393,7 +393,7 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
               canLearn(activeSpell)
                 ? <button className="btn btn-sm" style={{ borderColor: cat.color + '88', color: cat.color, fontSize: 11 }}
                     onClick={() => { onToggle(activeSpell.name); setActiveSpell(null); }}>
-                    {isLearned(activeSpell.name) ? '★ Learned — click to remove' : '☆ Learn this Cokalos'}
+                    {isLearned(activeSpell.name) ? '★ Learned - click to remove' : '☆ Learn this Cokalos'}
                   </button>
                 : <div style={{ fontSize: 11, color: '#c84030', fontStyle: 'italic' }}>Requires Insight Rank {activeSpell.level} to learn.</div>
             )}
@@ -409,18 +409,18 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
 
       {/* Three columns */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        {/* Dawn — chaotic, all displayed freely */}
+        {/* Dawn - chaotic, all displayed freely */}
         <div style={{ border: `1px solid ${dawnCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
           <div style={{ background: dawnCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: dawnCat.color, borderBottom: `1px solid ${dawnCat.color}33` }}>
             ☀ Dawn · Fate &amp; Skill
           </div>
           <div style={{ padding: 4 }}>
-            <div style={{ fontSize: 10, color: '#666', padding: '2px 6px', marginBottom: 2, fontStyle: 'italic' }}>Free order — any skill</div>
+            <div style={{ fontSize: 10, color: '#666', padding: '2px 6px', marginBottom: 2, fontStyle: 'italic' }}>Free order - any skill</div>
             {dawnCat.spells.map(spell => renderSpellNode(spell, dawnCat, true))}
           </div>
         </div>
 
-        {/* Dusk — ordered by mastery level */}
+        {/* Dusk - ordered by mastery level */}
         <div style={{ border: `1px solid ${duskCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
           <div style={{ background: duskCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: duskCat.color, borderBottom: `1px solid ${duskCat.color}33` }}>
             🌆 Dusk · Social
@@ -437,7 +437,7 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
           </div>
         </div>
 
-        {/* Night — ordered by mastery level */}
+        {/* Night - ordered by mastery level */}
         <div style={{ border: `1px solid ${nightCat.color}33`, borderRadius: 6, overflow: 'hidden' }}>
           <div style={{ background: nightCat.color + '18', padding: '4px 8px', fontSize: 11, fontWeight: 600, color: nightCat.color, borderBottom: `1px solid ${nightCat.color}33` }}>
             🌙 Night · Healing
@@ -458,7 +458,7 @@ function CoкaloiConstellation({ learnedSpells, onToggle, mode, insightRank, can
   );
 }
 
-// ── Creation mode — clear spell list ─────────────────────────────────────────
+// ── Creation mode - clear spell list ─────────────────────────────────────────
 function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, setSpellEmphasis, spellDisciplineBonus, setSpellDisciplineBonus, isGM }) {
   const [activeDiscipline, setActiveDiscipline] = useState(0);
   const [hoveredSpell, setHoveredSpell] = useState(null);
@@ -466,7 +466,7 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
 
   const isLearned = (name) => learnedSpells.includes(name);
   const canLearn = (typeIdx, level) => {
-    // Character creation: level 1 only — rank 1 characters know ML1 spells only.
+    // Character creation: level 1 only - rank 1 characters know ML1 spells only.
     // GMs can add higher spells via XP spend on the sheet after creation.
     if (level > 1) return false;
     return true;
@@ -569,18 +569,18 @@ function SahirSpellPicker({ learnedSpells, onToggle, maxSpells, spellEmphasis, s
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Spell Type Emphasis <span style={{ color: 'var(--gold-dim)' }}>(free raise)</span></div>
             <select value={spellEmphasis} onChange={e => setSpellEmphasis(e.target.value)} style={{ width: '100%' }}>
-              <option value="">— Choose a spell type —</option>
+              <option value="">- Choose a spell type -</option>
               {SAHIR_DISCIPLINES.flatMap(d => d.types.map(t => (
-                <option key={t.id} value={t.id}>{d.name} — {t.name}</option>
+                <option key={t.id} value={t.id}>{d.name} - {t.name}</option>
               )))}
             </select>
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Discipline Bonus <span style={{ color: 'var(--gold-dim)' }}>(+1k1)</span></div>
             <select value={spellDisciplineBonus} onChange={e => setSpellDisciplineBonus(e.target.value)} style={{ width: '100%' }}>
-              <option value="">— Choose a discipline —</option>
+              <option value="">- Choose a discipline -</option>
               {SAHIR_DISCIPLINES.map(d => (
-                <option key={d.id} value={d.id}>{d.element} — {d.name}</option>
+                <option key={d.id} value={d.id}>{d.element} - {d.name}</option>
               ))}
             </select>
           </div>
@@ -677,7 +677,7 @@ export default function SpellConstellation({ character, mode = 'sheet', onUpdate
     onUpdate('creation', { spells: updated });
   };
 
-  // Creation mode — clear list pickers instead of constellation
+  // Creation mode - clear list pickers instead of constellation
   if (mode === 'create') {
     return isCokaloi
       ? <CoкaloiSpellPicker learnedSpells={learnedSpells} onToggle={handleCreationToggle} maxSpells={startingSpells} />

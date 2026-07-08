@@ -1,4 +1,4 @@
-// ── Basic synthesized sound cues — no external audio files needed ─────────────
+// ── Basic synthesized sound cues - no external audio files needed ─────────────
 // Respects a localStorage mute flag ('sandy_sound_enabled', default on).
 import diceRollUrl from '../assets/sounds/dice-roll.mp3';
 import loginUrl from '../assets/sounds/login.mp3';
@@ -14,7 +14,7 @@ function getCtx() {
   return ctx;
 }
 
-// ── File-based sound effects — real audio files, lazily loaded (created once, reused) so nothing
+// ── File-based sound effects - real audio files, lazily loaded (created once, reused) so nothing
 // plays or even fetches until its context is actually reached. Each still respects the same mute
 // flag as the synthesized cues above.
 const audioCache = {};
@@ -27,20 +27,20 @@ function playFile(url) {
   try {
     const a = getAudio(url);
     a.currentTime = 0;
-    a.play().catch(() => { /* ignore — e.g. blocked before any user gesture yet */ });
+    a.play().catch(() => { /* ignore - e.g. blocked before any user gesture yet */ });
   } catch { /* never break gameplay over a sound cue */ }
 }
 
-// Dice starting to roll — the physical rolling sound, separate from playSuccess/playFailure
+// Dice starting to roll - the physical rolling sound, separate from playSuccess/playFailure
 // (which are the tonal result cues that fire once the roll resolves).
 export function playDiceRoll() { playFile(diceRollUrl); }
 
-// Login screen — plays on the actual login action (button click), not on mount: most browsers
+// Login screen - plays on the actual login action (button click), not on mount: most browsers
 // block audio before any user gesture has happened on the page, so a mount-triggered sound would
 // silently fail. Login/role selection is the first real click, so it's the right place.
 export function playLogin() { playFile(loginUrl); }
 
-// Stance and action buttons (PCTurnPanel) — a short click for tactile feedback.
+// Stance and action buttons (PCTurnPanel) - a short click for tactile feedback.
 export function playTileClick() { playFile(tileClickUrl); }
 
 export function isSoundEnabled() {
@@ -93,10 +93,10 @@ async function play(fn) {
   try {
     if (c.state === 'suspended') await c.resume();
     fn(c);
-  } catch { /* ignore audio errors — never break gameplay over a sound cue */ }
+  } catch { /* ignore audio errors - never break gameplay over a sound cue */ }
 }
 
-// Dice roll success — a bright "tin ding"
+// Dice roll success - a bright "tin ding"
 export function playSuccess() {
   play(c => {
     tone(c, { freq: 1318, start: 0, dur: 0.35, type: 'sine', gain: 0.16 });
@@ -104,7 +104,7 @@ export function playSuccess() {
   });
 }
 
-// Dice roll failure — a low rattling thud
+// Dice roll failure - a low rattling thud
 export function playFailure() {
   play(c => {
     tone(c, { freq: 160, freqEnd: 70, start: 0, dur: 0.3, type: 'sawtooth', gain: 0.14 });
@@ -112,7 +112,7 @@ export function playFailure() {
   });
 }
 
-// Your turn — a rising whoosh
+// Your turn - a rising whoosh
 export function playYourTurn() {
   play(c => {
     noiseBurst(c, { start: 0, dur: 0.4, gain: 0.08, filterFreq: 600, filterType: 'bandpass' });
@@ -120,7 +120,7 @@ export function playYourTurn() {
   });
 }
 
-// Damage taken — a short slash/hiss
+// Damage taken - a short slash/hiss
 export function playDamage() {
   play(c => {
     noiseBurst(c, { start: 0, dur: 0.18, gain: 0.18, filterFreq: 2200, filterType: 'highpass' });
@@ -128,7 +128,7 @@ export function playDamage() {
   });
 }
 
-// Generic dice click — used when toggling a die to keep/unkeep
+// Generic dice click - used when toggling a die to keep/unkeep
 export function playClick() {
   play(c => {
     tone(c, { freq: 900, start: 0, dur: 0.05, type: 'square', gain: 0.07 });

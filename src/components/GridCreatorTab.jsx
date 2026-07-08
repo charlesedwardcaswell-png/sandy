@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import { TILE_TYPES, ATLAS_COLUMNS, ATLAS_SIZE, ATLAS_TILE } from './EncounterTab';
 import { NPCPicker } from './EncounterBuilder';
-import { generateSewersGrid } from '../lib/utils';
+import { isInDoodadFootprint } from '../lib/utils';
+import { generateSewersGrid, generatePalaceGrid, generateDesertRuinsGrid, generateDesertCavesGrid, generateCrowdedStreetsGrid } from '../lib/utils';
 
 // Same 7 environment themes used elsewhere in the app for setting art (SettingsTab's SETTINGS list),
 // mapped to atlas rows 0-6 per the master_atlas design doc. Rows 7-11 are reserved for future sets.
@@ -25,37 +26,46 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [savedGrids, setSavedGrids] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [activeGridId, setActiveGridId] = useState(null);
-  // The name a grid had when it was loaded (or null for a brand-new grid) — if the user changes
+  // The name a grid had when it was loaded (or null for a brand-new grid) - if the user changes
   // saveName away from this before saving, that's a rename, which should "Save As" a new entry
   // rather than silently overwriting the original under a different name.
   const [loadedSaveName, setLoadedSaveName] = useState(null);
-  // Environment type is a naming/sorting label, independent of which atlas row (Tileset) renders it —
+  // Environment type is a naming/sorting label, independent of which atlas row (Tileset) renders it -
   // a grid can be tagged "Rooftop" for sorting purposes while still using an existing atlas row's art.
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [envType, setEnvType] = useState(THEMES[0]);
   const [envIsCustom, setEnvIsCustom] = useState(false);
   const [saveName, setSaveName] = useState('');
-  const [saveLocked, setSaveLocked] = useState(false); // dev-only: "save as default" — GMs can't delete it
+  const [saveLocked, setSaveLocked] = useState(false); // dev-only: "save as default" - GMs can't delete it
   // Preload NPCs: built-in library NPCs/creatures only (via the shared NPCPicker), positioned on
   // specific tiles, saved alongside the grid so loading it in EncounterBuilder can seed an encounter
-  // with enemies already placed. Deliberately not live game-state NPCs — keeps a saved grid a fully
+  // with enemies already placed. Deliberately not live game-state NPCs - keeps a saved grid a fully
   // self-contained, shareable file.
-  const [prebuiltNpcs, setPrebuiltNpcs] = useState([]); // [{ ...npcData, x, y }] — x/y null until placed
+  const [prebuiltNpcs, setPrebuiltNpcs] = useState([]); // [{ ...npcData, x, y }] - x/y null until placed
   const [placingNpcIdx, setPlacingNpcIdx] = useState(null); // index into prebuiltNpcs currently awaiting a grid click
-  const [atlasUrl, setAtlasUrl] = useState(''); // Master Atlas (Tileset tab) — preview here so the painter shows real tileset art, not just labeled colors
-  const [tileDefaultImages, setTileDefaultImages] = useState({}); // per-type fallback images (Tileset tab) — same fallback tier the live Battle Grid already uses
+  const [atlasUrl, setAtlasUrl] = useState(''); // Master Atlas (Tileset tab) - preview here so the painter shows real tileset art, not just labeled colors
+  const [tileDefaultImages, setTileDefaultImages] = useState({}); // per-type fallback images (Tileset tab) - same fallback tier the live Battle Grid already uses
 
   // Doodads: dev-defined multi-square props (Settings → Tileset → Doodad Library), placed here.
   // Placing one auto-assigns its tileType to every cell in its footprint (a plain width×height
-  // rectangle for now — see DoodadLibraryPanel comment for the planned irregular-footprint extension),
+  // rectangle for now - see DoodadLibraryPanel comment for the planned irregular-footprint extension),
   // then the doodad's own image renders on top of that footprint.
   const [doodadLibrary, setDoodadLibrary] = useState([]); // [{id, name, width, height, imageUrl, tileType}]
-  const [placedDoodads, setPlacedDoodads] = useState([]); // [{id, defId, x, y}] — x/y null until placed
+  const [placedDoodads, setPlacedDoodads] = useState([]); // [{id, defId, x, y}] - x/y null until placed
   const [placingDoodadIdx, setPlacingDoodadIdx] = useState(null);
-  const [doodadDimFilter, setDoodadDimFilter] = useState(''); // "2x1" etc. — '' means "all"
+  const [doodadDimFilter, setDoodadDimFilter] = useState(''); // "2x1" etc. - '' means "all"
 
-  // Zoom/pan — same convention as the live Battle Grid: 1.0 = fully fit, lower = zoomed in.
-  // Needed once grids got up to 48×48 — the old fixed "shrink the whole grid into 480px" view made
+  // Containers: standalone (not a tile type, not a doodad - nothing else on the grid is directly
+  // interactable, so this deliberately doesn't inherit from either system). Single-tile only, one
+  // shared icon (Tileset → Container Icon), each instance carries its own name + contents list.
+  const [containerImageUrl, setContainerImageUrl] = useState('');
+  const [placedContainers, setPlacedContainers] = useState([]); // [{id, name, contents:[{name,qty}], x, y}]
+  const [placingContainerIdx, setPlacingContainerIdx] = useState(null);
+  const [containerDraftName, setContainerDraftName] = useState('Chest');
+  const [containerDraftContents, setContainerDraftContents] = useState(''); // one item per line
+
+  // Zoom/pan - same convention as the live Battle Grid: 1.0 = fully fit, lower = zoomed in.
+  // Needed once grids got up to 48×48 - the old fixed "shrink the whole grid into 480px" view made
   // precise painting on large grids impractical.
   const [zoom, setZoom] = useState(1.0);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -74,6 +84,7 @@ export default function GridCreatorTab({ isDeveloper }) {
       setAtlasUrl(data?.settings?.master_atlas_url || '');
       setTileDefaultImages(data?.settings?.tile_default_images || {});
       setDoodadLibrary(data?.settings?.doodad_library || []);
+      setContainerImageUrl(data?.settings?.container_image_url || '');
       setLoaded(true);
     });
   }, []);
@@ -96,7 +107,7 @@ export default function GridCreatorTab({ isDeveloper }) {
 
   const cellFromEvent = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    // Read the actual current viewBox rather than assuming it's always "0 0 W W" — when zoomed in
+    // Read the actual current viewBox rather than assuming it's always "0 0 W W" - when zoomed in
     // (viewBox smaller than the full grid), screen-to-cell math must offset/scale by the viewBox's
     // own origin and size, matching the same fix already applied on the live Battle Grid.
     const vb = (svgRef.current?.getAttribute('viewBox') || `0 0 ${W} ${W}`).split(' ').map(Number);
@@ -110,13 +121,14 @@ export default function GridCreatorTab({ isDeveloper }) {
   };
 
   // Stamps a doodad's tileType across its whole footprint (clamped to the grid bounds) directly into
-  // the committed tiles state — this is the "auto-convert the terrain" behavior, a real state write,
+  // the committed tiles state - this is the "auto-convert the terrain" behavior, a real state write,
   // not just a visual overlay pretending the tiles changed.
   const stampFootprint = (def, x, y, clear = false) => {
     setTiles(prev => {
       const next = { ...prev };
       for (let dx = 0; dx < def.width; dx++) {
         for (let dy = 0; dy < def.height; dy++) {
+          if (!isInDoodadFootprint(def, dx, dy)) continue;
           const cx = x + dx, cy = y + dy;
           if (cx < 0 || cx >= size || cy < 0 || cy >= size) continue;
           const key = `${cx},${cy}`;
@@ -134,14 +146,14 @@ export default function GridCreatorTab({ isDeveloper }) {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const existing = current?.settings?.saved_battle_grids || [];
     // Renaming (saveName changed from what this grid was loaded with) creates a new entry instead of
-    // overwriting the original — otherwise "Save Changes" after a rename would silently replace the
+    // overwriting the original - otherwise "Save Changes" after a rename would silently replace the
     // old saved grid under its new name, losing it rather than acting like the "Save As" it should be.
     const isRename = activeGridId && loadedSaveName !== null && saveName.trim() !== loadedSaveName;
     const targetId = isRename ? null : activeGridId;
-    // Non-devs can't see or change the lock checkbox — preserve whatever lock state an existing entry already had
+    // Non-devs can't see or change the lock checkbox - preserve whatever lock state an existing entry already had
     const priorLocked = targetId ? (existing.find(g => g.id === targetId)?.locked || false) : false;
     const locked = isDeveloper ? saveLocked : priorLocked;
-    const entry = { id: targetId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, locked, createdAt: Date.now() };
+    const entry = { id: targetId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, containers: placedContainers, locked, createdAt: Date.now() };
     const next = targetId ? existing.map(g => g.id === targetId ? entry : g) : [...existing, entry];
     const { error } = await supabase.from('games')
       .update({ settings: { ...(current?.settings || {}), saved_battle_grids: next } })
@@ -166,6 +178,8 @@ export default function GridCreatorTab({ isDeveloper }) {
     setPlacingNpcIdx(null);
     setPlacedDoodads(g.doodads || []);
     setPlacingDoodadIdx(null);
+    setPlacedContainers(g.containers || []);
+    setPlacingContainerIdx(null);
   };
 
   const deleteGrid = async (id) => {
@@ -250,15 +264,20 @@ export default function GridCreatorTab({ isDeveloper }) {
             const vy = Math.max(0, Math.min(W - vh, cy - vh / 2));
             return `${vx} ${vy} ${vw} ${vh}`;
           })()}
-          width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: panDrag ? 'grabbing' : (placingNpcIdx !== null || placingDoodadIdx !== null || brush) ? 'crosshair' : zoom < 1.0 ? 'grab' : 'default', userSelect: 'none' }}
+          width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: panDrag ? 'grabbing' : (placingNpcIdx !== null || placingDoodadIdx !== null || placingContainerIdx !== null || brush) ? 'crosshair' : zoom < 1.0 ? 'grab' : 'default', userSelect: 'none' }}
           onMouseDown={e => {
             const c = cellFromEvent(e);
             if (!c) {
-              // Missed the grid entirely (or nothing to place/paint) — if zoomed in, treat this as
+              // Missed the grid entirely (or nothing to place/paint) - if zoomed in, treat this as
               // the start of a pan drag instead of doing nothing.
-              if (zoom < 1.0 && placingNpcIdx === null && placingDoodadIdx === null && !brush) {
+              if (zoom < 1.0 && placingNpcIdx === null && placingDoodadIdx === null && placingContainerIdx === null && !brush) {
                 setPanDrag({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
               }
+              return;
+            }
+            if (placingContainerIdx !== null) {
+              setPlacedContainers(prev => prev.map((ct, i) => i === placingContainerIdx ? { ...ct, x: c.x, y: c.y } : ct));
+              setPlacingContainerIdx(null);
               return;
             }
             if (placingDoodadIdx !== null) {
@@ -279,7 +298,7 @@ export default function GridCreatorTab({ isDeveloper }) {
               return;
             }
             if (!brush) {
-              // No brush selected — if zoomed in, dragging the canvas pans the view instead.
+              // No brush selected - if zoomed in, dragging the canvas pans the view instead.
               if (zoom < 1.0) setPanDrag({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
               return;
             }
@@ -377,11 +396,38 @@ export default function GridCreatorTab({ isDeveloper }) {
             if (inst.x === null || inst.x === undefined || inst.y === null || inst.y === undefined) return null;
             const def = doodadLibrary.find(d => d.id === inst.defId);
             if (!def) return null;
+            const EFFECT_STYLES = { sandstorm: '#c8962a', fog: '#d8d8d8', smoke: '#3a3a3a' };
+            const fxColor = def.effect && def.effect !== 'none' ? EFFECT_STYLES[def.effect] : null;
             return (
-              <image key={`doodad-${inst.id || i}`} href={def.imageUrl}
-                x={inst.x * CELL} y={inst.y * CELL} width={def.width * CELL} height={def.height * CELL}
-                opacity={placingDoodadIdx === i ? 0.5 : 1}
-                preserveAspectRatio="xMidYMax meet" style={{ pointerEvents: 'none' }} />
+              <g key={`doodad-${inst.id || i}`} style={{ pointerEvents: 'none' }}>
+                <image href={def.imageUrl}
+                  x={inst.x * CELL} y={inst.y * CELL} width={def.width * CELL} height={def.height * CELL}
+                  opacity={placingDoodadIdx === i ? 0.5 : 1}
+                  preserveAspectRatio="xMidYMax meet" />
+                {fxColor && (def.shape === 'circle' ? (
+                  <ellipse cx={(inst.x + def.width / 2) * CELL} cy={(inst.y + def.height / 2) * CELL} rx={(def.width / 2) * CELL} ry={(def.height / 2) * CELL} fill={fxColor} opacity={0.4} />
+                ) : (
+                  <rect x={inst.x * CELL} y={inst.y * CELL} width={def.width * CELL} height={def.height * CELL} fill={fxColor} opacity={0.4} />
+                ))}
+              </g>
+            );
+          })}
+          {/* Containers - standalone, single-tile, one shared icon (or chest emoji fallback) */}
+          {placedContainers.map((ct, i) => {
+            if (ct.x === null || ct.x === undefined || ct.y === null || ct.y === undefined) return null;
+            const cx = ct.x * CELL + CELL / 2;
+            const cy = ct.y * CELL + CELL / 2;
+            return (
+              <g key={`container-${ct.id || i}`} style={{ pointerEvents: 'none' }} opacity={placingContainerIdx === i ? 0.5 : 1}>
+                {containerImageUrl ? (
+                  <image href={containerImageUrl} x={ct.x * CELL} y={ct.y * CELL} width={CELL} height={CELL} preserveAspectRatio="xMidYMid meet" />
+                ) : (
+                  <>
+                    <rect x={ct.x * CELL + 2} y={ct.y * CELL + 2} width={CELL - 4} height={CELL - 4} fill="#8a6a30" stroke="#fff" strokeWidth="1" rx="2" />
+                    <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontFamily="sans-serif">📦</text>
+                  </>
+                )}
+              </g>
             );
           })}
         </svg>
@@ -389,6 +435,12 @@ export default function GridCreatorTab({ isDeveloper }) {
           <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
             Click the grid to place: <strong>{prebuiltNpcs[placingNpcIdx]?.name}</strong>
             <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingNpcIdx(null)}>Cancel</button>
+          </div>
+        )}
+        {placingContainerIdx !== null && (
+          <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
+            Click the grid to place: <strong>{placedContainers[placingContainerIdx]?.name}</strong>
+            <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingContainerIdx(null)}>Cancel</button>
           </div>
         )}
         {placingDoodadIdx !== null && (
@@ -400,9 +452,9 @@ export default function GridCreatorTab({ isDeveloper }) {
 
         <div style={{ display: 'flex', gap: 8, marginTop: '.75rem', flexWrap: 'wrap' }}>
           <button className="btn btn-p" onClick={() => setShowSaveForm(v => !v)}>{activeGridId ? 'Save Changes…' : 'Save As…'}</button>
-          <button className="btn" onClick={() => { setActiveGridId(null); setLoadedSaveName(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); }}>New Grid</button>
+          <button className="btn" onClick={() => { setActiveGridId(null); setLoadedSaveName(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); setPlacedContainers([]); setPlacingContainerIdx(null); }}>New Grid</button>
           <button className="btn" style={{ borderColor: 'rgba(60,140,180,.5)', color: '#7ab8d0' }}
-            title="Procedurally generates a connected tunnel network — narrow confined corridors, a water channel, occasional junction chambers. Replaces the current tiles."
+            title="Procedurally generates a connected tunnel network - narrow confined corridors, a water channel, occasional junction chambers. Replaces the current tiles."
             onClick={() => {
               setTiles(generateSewersGrid(size));
               setPaintBuffer({});
@@ -415,6 +467,50 @@ export default function GridCreatorTab({ isDeveloper }) {
               setEnvIsCustom(false);
             }}>
             <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Sewers)
+          </button>
+          <button className="btn" style={{ borderColor: 'rgba(180,140,60,.5)', color: '#d0a87a' }}
+            title="Procedurally generates room-and-corridor palace halls via BSP (binary space partition) - open rooms connected by straight corridors, dais/elevated platforms, pillar cover. Replaces the current tiles."
+            onClick={() => {
+              setTiles(generatePalaceGrid(size));
+              setPaintBuffer({}); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null);
+              setThemeRow(THEMES.indexOf('Palace'));
+              setEnvType('Palace');
+              setEnvIsCustom(false);
+            }}>
+            <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Palace)
+          </button>
+          <button className="btn" style={{ borderColor: 'rgba(180,110,60,.5)', color: '#d09060' }}
+            title="Same room-and-corridor skeleton as Palace, then a ruin pass breaches walls and scatters rubble/pitfalls - a palace-like layout that's fallen apart. Replaces the current tiles."
+            onClick={() => {
+              setTiles(generateDesertRuinsGrid(size));
+              setPaintBuffer({}); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null);
+              setThemeRow(THEMES.indexOf('Desert'));
+              setEnvType('Desert Ruins');
+              setEnvIsCustom(true);
+            }}>
+            <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Desert Ruins)
+          </button>
+          <button className="btn" style={{ borderColor: 'rgba(200,160,80,.5)', color: '#d8b878' }}
+            title="Cellular automata cave generation - organic, no straight lines, guaranteed connected via flood-fill of the largest region. Sand drifts and sinkholes scattered throughout. Replaces the current tiles."
+            onClick={() => {
+              setTiles(generateDesertCavesGrid(size));
+              setPaintBuffer({}); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null);
+              setThemeRow(THEMES.indexOf('Desert'));
+              setEnvType('Desert Caves');
+              setEnvIsCustom(true);
+            }}>
+            <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Desert Caves)
+          </button>
+          <button className="btn" style={{ borderColor: 'rgba(140,160,80,.5)', color: '#b0c078' }}
+            title="Scatter-based, not room-based - an open street/plaza with market stalls, carts, and crates scattered in as obstacles, leaving pathways between them. Replaces the current tiles."
+            onClick={() => {
+              setTiles(generateCrowdedStreetsGrid(size));
+              setPaintBuffer({}); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null);
+              setThemeRow(THEMES.indexOf('Streets'));
+              setEnvType('Crowded Streets');
+              setEnvIsCustom(true);
+            }}>
+            <i className="ti ti-refresh" style={{ marginRight: 4 }} />Randomize (Crowded Streets)
           </button>
         </div>
 
@@ -446,7 +542,7 @@ export default function GridCreatorTab({ isDeveloper }) {
             {activeGridId && loadedSaveName !== null && saveName.trim() !== loadedSaveName && (
               <div style={{ fontSize: 11, color: 'var(--gold)', marginBottom: '.5rem' }}>
                 <i className="ti ti-copy" style={{ marginRight: 4 }} />
-                New name — this will save as a new grid, not overwrite "{loadedSaveName}".
+                New name - this will save as a new grid, not overwrite "{loadedSaveName}".
               </div>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
@@ -466,7 +562,7 @@ export default function GridCreatorTab({ isDeveloper }) {
             return (
               <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginBottom: 3,
                 background: activeGridId === g.id ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
-                {g.locked && <i className="ti ti-lock" title="Default grid — protected from deletion" style={{ fontSize: 11, color: 'var(--gold-dim)' }} />}
+                {g.locked && <i className="ti ti-lock" title="Default grid - protected from deletion" style={{ fontSize: 11, color: 'var(--gold-dim)' }} />}
                 <span style={{ fontSize: 12, flex: 1, cursor: 'pointer' }} onClick={() => loadGrid(g)}>{g.label}</span>
                 <button onClick={() => loadGrid(g)} title="Load" style={{ fontSize: 11, padding: '2px 6px' }}>Load</button>
                 {canDelete && <button onClick={() => deleteGrid(g.id)} title="Delete" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>}
@@ -489,7 +585,7 @@ export default function GridCreatorTab({ isDeveloper }) {
               });
             }}
           />
-          {prebuiltNpcs.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 6 }}>None yet — add one above, then click the grid to place it.</div>}
+          {prebuiltNpcs.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 6 }}>None yet - add one above, then click the grid to place it.</div>}
           {prebuiltNpcs.map((n, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginTop: 4,
               background: placingNpcIdx === i ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
@@ -556,6 +652,53 @@ export default function GridCreatorTab({ isDeveloper }) {
                       setPlacedDoodads(prev => prev.filter((_, j) => j !== i));
                       if (placingDoodadIdx === i) setPlacingDoodadIdx(null);
                     }} title="Remove (also clears its footprint tiles)" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>
+            Containers <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(standalone - chest icon set in Settings → Tileset, dev-only)</span>
+          </div>
+          <input type="text" value={containerDraftName} onChange={e => setContainerDraftName(e.target.value)}
+            placeholder="Container name (e.g. 'Old Chest')" style={{ fontSize: 12, width: '100%', marginBottom: 4 }} />
+          <textarea value={containerDraftContents} onChange={e => setContainerDraftContents(e.target.value)}
+            placeholder="Contents, one item per line (e.g. 'Silk Rope', 'Healing Salve x2')" rows={2}
+            style={{ fontSize: 12, width: '100%', marginBottom: 4, resize: 'vertical' }} />
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => {
+            if (!containerDraftName.trim()) return;
+            const contents = containerDraftContents.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+              const m = line.match(/^(.*?)\s*x(\d+)$/i);
+              return m ? { name: m[1].trim(), qty: parseInt(m[2], 10) } : { name: line, qty: 1 };
+            });
+            setPlacedContainers(prev => {
+              const next = [...prev, { id: `container_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: containerDraftName.trim(), contents, x: null, y: null }];
+              setPlacingContainerIdx(next.length - 1);
+              return next;
+            });
+            setContainerDraftName('Chest'); setContainerDraftContents('');
+          }}>
+            <i className="ti ti-plus" style={{ marginRight: 4 }} />Add Container
+          </button>
+          {placedContainers.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {placedContainers.map((ct, i) => {
+                const isPlaced = ct.x !== null && ct.x !== undefined;
+                return (
+                  <div key={ct.id || i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginTop: 4,
+                    background: placingContainerIdx === i ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
+                    <span style={{ fontSize: 12, flex: 1 }} title={(ct.contents || []).map(it => `${it.name} x${it.qty}`).join(', ') || 'Empty'}>{ct.name}</span>
+                    <span style={{ fontSize: 11, color: isPlaced ? 'var(--green)' : 'var(--text-muted)' }}>
+                      {isPlaced ? `(${ct.x},${ct.y})` : 'unplaced'}
+                    </span>
+                    <button onClick={() => setPlacingContainerIdx(i)} title="Place on grid" style={{ fontSize: 11, padding: '2px 6px' }}>
+                      {isPlaced ? 'Move' : 'Place'}
+                    </button>
+                    <button onClick={() => { setPlacedContainers(prev => prev.filter((_, j) => j !== i)); if (placingContainerIdx === i) setPlacingContainerIdx(null); }}
+                      title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
                   </div>
                 );
               })}

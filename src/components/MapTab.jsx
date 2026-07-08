@@ -4,7 +4,7 @@ import { GAME_ID } from '../data/constants';
 
 const DEFAULT_MAP = 'https://i.imgur.com/6fuMHqq.jpeg';
 
-// ── Pin types — icon-based ────────────────────────────────────────────────────
+// ── Pin types - icon-based ────────────────────────────────────────────────────
 const PIN_STYLE = { icon: 'ti-map-pin', color: '#c8962a' };
 
 function getPinType(id) {
@@ -147,7 +147,7 @@ function PinPopup({ pin, isGM, isPCView, onEdit, onDelete, onUpdatePin, onClose,
   const [notesChanged, setNotesChanged] = useState(false);
   const gmView = isGM && !isPCView;
 
-  // Smart positioning — keep popup inside map, clear of the pin itself
+  // Smart positioning - keep popup inside map, clear of the pin itself
   const showBelow = (pin.y_position || 50) < 35;   // flip below when pin is in top third
   const shiftRight = (pin.x_position || 50) < 15;  // shift right if near left edge
   const shiftLeft  = (pin.x_position || 50) > 85;  // shift left if near right edge
@@ -291,7 +291,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { pinId, startSelected: selected, moved: false };
     setDraggingId(pinId);
-    // Don't clear selection yet — wait until we know it's actually a drag
+    // Don't clear selection yet - wait until we know it's actually a drag
   };
 
   const handlePinPointerMove = (e) => {
@@ -304,11 +304,11 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const handlePinPointerUp = (e, pinId) => {
     if (!dragRef.current) return;
     if (dragRef.current.moved && dragPos) {
-      // Real drag — save position, close popup
+      // Real drag - save position, close popup
       onUpdatePin(pinId, { x_position: dragPos.x, y_position: dragPos.y });
       setSelected(null);
     } else {
-      // Tap/click — toggle popup
+      // Tap/click - toggle popup
       setSelected(prev => prev === pinId ? null : pinId);
     }
     dragRef.current = null;
@@ -361,7 +361,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         )}
         {isNight && (
           <span style={{ fontSize: 11, color: '#8080c8', border: '1px solid #4040a8', borderRadius: 3, padding: '1px 6px' }}>
-            🌙 {timeOfDay} — {mapImageNight ? 'Night map' : 'No night map set'}
+            🌙 {timeOfDay} - {mapImageNight ? 'Night map' : 'No night map set'}
           </span>
         )}
         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
@@ -372,7 +372,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
       {/* Imgur album URL warning */}
       {isNight && mapImageNight && mapImageNight.includes('imgur.com/a/') && (
         <div style={{ padding: '.35rem .75rem', background: 'rgba(200,64,48,.1)', border: '1px solid rgba(200,64,48,.4)', borderRadius: 4, marginBottom: '.5rem', fontSize: 12, color: 'var(--red)' }}>
-          ⚠ Night map URL looks like an Imgur album link — needs a direct image URL (e.g. https://i.imgur.com/XXXXX.jpg). Right-click the image in the album → Copy image address.
+          ⚠ Night map URL looks like an Imgur album link - needs a direct image URL (e.g. https://i.imgur.com/XXXXX.jpg). Right-click the image in the album → Copy image address.
         </div>
       )}
 
@@ -388,7 +388,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         </div>
       )}
 
-      {/* Map container — aspect ratio locked to image, NO max-height (it breaks ring/pin alignment) */}
+      {/* Map container - aspect ratio locked to image, NO max-height (it breaks ring/pin alignment) */}
       <div style={{
         position: 'relative', width: '100%',
         aspectRatio: imgAspect ? `${imgAspect}` : '4/3',
@@ -406,7 +406,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
             cursor: moving ? 'crosshair' : placing && !newPinPos ? 'crosshair' : draggingId ? 'grabbing' : 'default',
           }}
         >
-        {/* Image — objectFit:contain so no cropping, pins always match their placed position */}
+        {/* Image - objectFit:contain so no cropping, pins always match their placed position */}
         {layer === 'surface' && (
           <img src={mapImage} alt="Medinaat al-Salaam"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
@@ -415,7 +415,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           />
         )}
 
-        {/* Underground — darkened version */}
+        {/* Underground - darkened version */}
         {layer === 'underground' && (
           <img src={mapImage} alt="Underground"
             onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
@@ -423,7 +423,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
           />
         )}
 
-        {/* Ring overlays — viewBox 100×100, preserveAspectRatio:none maps 1:1 to container pixels
+        {/* Ring overlays - viewBox 100×100, preserveAspectRatio:none maps 1:1 to container pixels
              ry = % of container height, rx = ry/imgAspect → perfect circles on screen */}
         {layer === 'surface' && imgAspect && ringsOverlay && (() => {
           const ring = (ry, label) => {
@@ -469,7 +469,7 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
                 userSelect: 'none',
               }}>
               <PinIcon type={p.pin_type} size={isSelected || isDragging ? 24 : 18} selected={isSelected || isDragging} hidden={gmView && !p.is_visible_to_players} />
-              {/* Label — hide while dragging */}
+              {/* Label - hide while dragging */}
               {!isDragging && <div style={{
                 position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
                 background: 'rgba(20,12,4,.88)', borderRadius: 3, padding: '1px 5px',
@@ -504,11 +504,11 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
       </div>
       </div>{/* end aspect-ratio wrapper */}
 
-      {/* Pin Legend — right of map, sorted by type */}
+      {/* Pin Legend - right of map, sorted by type */}
       {visiblePins.length > 0 && (
         <div style={{ marginTop: '.75rem', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '.5rem .75rem', maxHeight: 260, overflowY: 'auto' }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem', fontWeight: 600 }}>
-            Pins — click to locate
+            Pins - click to locate
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {[...visiblePins].sort((a, b) => {

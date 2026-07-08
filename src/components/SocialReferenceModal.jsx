@@ -109,7 +109,7 @@ export default function SocialReferenceModal({ onClose, initialTab = 'integrity'
         {tab === 'integrity' && (
           <div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.75rem', lineHeight: 1.6 }}>
-              Integrity reflects personal character — honesty, courage, loyalty. Scale: <strong style={{ color: 'var(--gold)' }}>0.0 – 5.9</strong>.
+              Integrity reflects personal character - honesty, courage, loyalty. Scale: <strong style={{ color: 'var(--gold)' }}>0.0 – 5.9</strong>.
               At session close, GM scores the session (0–5) and the new value is averaged with current.
               {char && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>Current: <strong>{(Number(char.integrity) || 0).toFixed(1)}</strong> (Rank {curIntRank})</span>}
             </div>
@@ -147,7 +147,7 @@ export default function SocialReferenceModal({ onClose, initialTab = 'integrity'
               </table>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.75rem', fontStyle: 'italic' }}>
-              Integrity cannot drop below 0.0 or exceed 5.9. Gains/losses scale by current Rank — the higher you are, the harder to rise and easier to fall.
+              Integrity cannot drop below 0.0 or exceed 5.9. Gains/losses scale by current Rank - the higher you are, the harder to rise and easier to fall.
             </div>
           </div>
         )}
@@ -161,7 +161,7 @@ export default function SocialReferenceModal({ onClose, initialTab = 'integrity'
               {char && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>Current: <strong>{char.reputation ?? 0}</strong></span>}
             </div>
             <div style={{ fontSize: 11, color: '#c84030', marginBottom: '.75rem' }}>
-              <strong>Infamy:</strong> dishonorable/criminal characters become Infamous (negative Reputation). Infamy adds to Intimidation and social rolls vs. others with Infamy — but not to positive social rolls.
+              <strong>Infamy:</strong> dishonorable/criminal characters become Infamous (negative Reputation). Infamy adds to Intimidation and social rolls vs. others with Infamy - but not to positive social rolls.
             </div>
 
             {/* Rank table */}

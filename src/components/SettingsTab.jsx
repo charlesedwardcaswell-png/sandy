@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
+import ResourcePackTab from './ResourcePackTab';
 
 const BACKUP_FORMAT_VERSION = 1; // bump only if the backup JSON's own shape changes, not for new tables/columns
 
@@ -9,7 +10,7 @@ async function exportCampaign() {
   const tables = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions','feedback'];
   const backup = { backup_format_version: BACKUP_FORMAT_VERSION, exported_at: new Date().toISOString(), game_id: GAME_ID, game: null, tables: {} };
 
-  // Game settings row — image config, player accounts, passwords, etc. Part of a full campaign backup.
+  // Game settings row - image config, player accounts, passwords, etc. Part of a full campaign backup.
   const { data: gameRow, error: gameErr } = await supabase.from('games').select('*').eq('id', GAME_ID).maybeSingle();
   if (gameErr) console.error('Export games failed:', gameErr.message);
   backup.game = gameRow || null;
@@ -31,14 +32,14 @@ async function exportCampaign() {
 }
 
 // ── Import campaign ───────────────────────────────────────────────────────────
-// Tolerant of backups from older or newer app versions — only requires a valid
+// Tolerant of backups from older or newer app versions - only requires a valid
 // `tables` object, not an exact version match, so backups stay usable across updates.
 async function importCampaign(backup) {
-  if (!backup?.tables || typeof backup.tables !== 'object') throw new Error('Invalid backup file — missing campaign data.');
+  if (!backup?.tables || typeof backup.tables !== 'object') throw new Error('Invalid backup file - missing campaign data.');
 
   const ORDER = ['characters','npcs','quests','map_pins','faction_reputation','group_inventory','encounter_log','sessions','feedback'];
 
-  // Game settings — update the existing row in place. Every other table has a
+  // Game settings - update the existing row in place. Every other table has a
   // foreign key pointing at games, so we never delete/recreate this one.
   if (backup.game) {
     const { id, ...gameFields } = backup.game;
@@ -96,7 +97,7 @@ function DangerAction({ label, description, onConfirm }) {
   );
 }
 
-// ── Player Accounts — 8 username/password slots for player login ──────────────
+// ── Player Accounts - 8 username/password slots for player login ──────────────
 function PlayerAccounts() {
   const EMPTY_SLOTS = Array.from({ length: 8 }, () => ({ username: '', password: '' }));
   const [slots, setSlots] = useState(EMPTY_SLOTS);
@@ -121,7 +122,7 @@ function PlayerAccounts() {
     if (fetchErr) { setSaveError(`Couldn't load current settings: ${fetchErr.message}`); return; }
     const current = data?.settings || {};
     const { error } = await supabase.from('games').update({ settings: { ...current, player_accounts: slots.filter(s => s.username.trim()) } }).eq('id', GAME_ID);
-    if (error) { setSaveError(`Save failed: ${error.message} — does games.settings column exist?`); return; }
+    if (error) { setSaveError(`Save failed: ${error.message} - does games.settings column exist?`); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -187,6 +188,9 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const [playerGlowDefault, setPlayerGlowDefault] = useState(false);
   const [disableTimeTracking, setDisableTimeTracking] = useState(false);
   const [everyoneHelps, setEveryoneHelps] = useState(false);
+  const [everyoneHelpsPlus, setEveryoneHelpsPlus] = useState(false);
+  // Defaults true - see App.js for why (matches the load-side default there).
+  const [hidePcSheetsFromOthers, setHidePcSheetsFromOthers] = useState(true);
   const [downtimeActionsPerChar, setDowntimeActionsPerChar] = useState(3);
   const [arrowTracking, setArrowTracking] = useState(false);
   const [startingCP, setStartingCP] = useState(45);
@@ -213,6 +217,8 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         if (data.settings.player_glow_default !== undefined) setPlayerGlowDefault(!!data.settings.player_glow_default);
         if (data.settings.disable_time_tracking !== undefined) setDisableTimeTracking(!!data.settings.disable_time_tracking);
         if (data.settings.everyone_helps !== undefined) setEveryoneHelps(!!data.settings.everyone_helps);
+        if (data.settings.everyone_helps_plus !== undefined) setEveryoneHelpsPlus(!!data.settings.everyone_helps_plus);
+        if (data.settings.hide_pc_sheets_from_others !== undefined) setHidePcSheetsFromOthers(!!data.settings.hide_pc_sheets_from_others);
         if (data.settings.downtime_actions_per_char) setDowntimeActionsPerChar(data.settings.downtime_actions_per_char);
         if (data.settings.arrow_tracking !== undefined) setArrowTracking(!!data.settings.arrow_tracking);
         if (data.settings.starting_cp !== undefined) setStartingCP(data.settings.starting_cp || 45);
@@ -223,7 +229,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const saveImageSettings = async (which = 'images') => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers, hide_feedback_tab: hideFeedbackTab, player_glow_default: playerGlowDefault, disable_time_tracking: disableTimeTracking, everyone_helps: everyoneHelps } })
+      .update({ settings: { ...(current?.settings || {}), map_url: mapUrl, map_url_night: mapUrlNight, music_url: musicUrl, setting_urls: settingUrls, round_limits: roundLimits, jinn_art_url: jinnArtUrl, disable_reroll: disableReroll, water_drought_enabled: waterDroughtEnabled, rings_overlay: ringsOverlay, portrait_scale: portraitScale, downtime_mode: downtimeMode, downtime_actions_per_char: downtimeActionsPerChar, arrow_tracking: arrowTracking, starting_cp: startingCP, hide_shop_from_players: hideShopFromPlayers, hide_feedback_tab: hideFeedbackTab, player_glow_default: playerGlowDefault, disable_time_tracking: disableTimeTracking, everyone_helps: everyoneHelps, everyone_helps_plus: everyoneHelpsPlus, hide_pc_sheets_from_others: hidePcSheetsFromOthers } })
       .eq('id', GAME_ID);
     const setFlag = which === 'gameplay' ? setGameplaySaved : setImagesSaved;
     if (!error) { setFlag(true); setTimeout(() => setFlag(false), 2500); }
@@ -241,7 +247,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   };
 
   const wipeEverything = async () => {
-    // Wipe all campaign data — use before handing tool to another group
+    // Wipe all campaign data - use before handing tool to another group
     // Order matters: children before parents
     await wipeTable('quests');
     await wipeTable('encounter_log', {}, onWipe.encounterLog);
@@ -285,7 +291,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
       .eq('is_active', true)
       .single();
     if (error || !data) { return { ok: false, message: 'No active session to clear' }; }
-    // End it without archiving — wipe encounter_data, mark inactive, no recap
+    // End it without archiving - wipe encounter_data, mark inactive, no recap
     const { error: updateError } = await supabase
       .from('sessions')
       .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
@@ -295,7 +301,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     return { ok: true, message: 'Session cleared' };
   };
 
-  // Narrower than Clear Active Session — resets the in-progress combat/encounter state back to idle
+  // Narrower than Clear Active Session - resets the in-progress combat/encounter state back to idle
   // WITHOUT ending or archiving the session itself. Useful for a stuck/corrupted encounter mid-session.
   const wipeCurrentEncounter = async () => {
     const { data, error } = await supabase.from('sessions').select('id').eq('game_id', GAME_ID).eq('is_active', true).single();
@@ -306,7 +312,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     return { ok: true, message: 'Current encounter reset to idle' };
   };
 
-  // Clears prepared_encounters (the GM's saved/prepped encounter drafts) off every session row —
+  // Clears prepared_encounters (the GM's saved/prepped encounter drafts) off every session row -
   // does not touch the sessions themselves or any live/in-progress encounter.
   const wipeSavedEncounters = async () => {
     const { error, count } = await supabase.from('sessions').update({ prepared_encounters: [] }, { count: 'exact' }).eq('game_id', GAME_ID);
@@ -316,7 +322,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     return { ok: true, message: `Cleared prepared encounters from ${count ?? 0} session(s)` };
   };
 
-  // Clears the GM's Inventory staging list (Preparation > Item Creator) — does not touch party
+  // Clears the GM's Inventory staging list (Preparation > Item Creator) - does not touch party
   // inventory or character equipment, since items already handed off are no longer in this list.
   const wipeGmInventory = async () => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
@@ -325,13 +331,13 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
     return { ok: true, message: "GM's Inventory cleared" };
   };
 
-  // Narrower than Wipe All Sessions — deletes only prepared (not-yet-started, not-yet-archived)
+  // Narrower than Wipe All Sessions - deletes only prepared (not-yet-started, not-yet-archived)
   // session rows, leaving the active session and all archived history untouched.
   const wipeSavedSessions = async () => {
     const { data: prepped } = await supabase.from('sessions').select('id').eq('game_id', GAME_ID).eq('is_active', false).is('closed_at', null);
     const ids = (prepped || []).map(s => s.id);
     if (ids.length === 0) return { ok: true, message: 'No prepared sessions to remove' };
-    // Same FK guard as Wipe All Sessions — quests can reference a session's id
+    // Same FK guard as Wipe All Sessions - quests can reference a session's id
     await supabase.from('quests').update({ session_id: null }).in('session_id', ids);
     const { error, count } = await supabase.from('sessions').delete({ count: 'exact' }).in('id', ids);
     if (error) { console.error('wipeSavedSessions failed:', error.message); return { ok: false, message: error.message }; }
@@ -348,17 +354,17 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
       .update({ is_active: false, encounter_data: null, closed_at: new Date().toISOString() })
       .eq('game_id', GAME_ID)
       .eq('is_active', true);
-    // quests.session_id has a foreign key to sessions.id — deleting a session that any quest still
+    // quests.session_id has a foreign key to sessions.id - deleting a session that any quest still
     // references throws a 409 (violates foreign key constraint "quests_session_id_fkey"). Since every
     // session is about to be gone anyway, null out the reference on all quests first rather than
     // deleting the quests themselves.
     const { error: questFkError } = await supabase.from('quests').update({ session_id: null }).eq('game_id', GAME_ID);
     if (questFkError) console.error('clear quests.session_id failed:', questFkError.message);
     else if (onWipe.quests) onWipe.quests();
-    // Then delete all session rows — must go through wipeTable's .neq(id, zero-uuid) workaround,
+    // Then delete all session rows - must go through wipeTable's .neq(id, zero-uuid) workaround,
     // same as every other wipe here, or Supabase RLS silently deletes zero rows.
     const result = await wipeTable('sessions');
-    // A session's "log" — the completed-encounter history (name, setting, party, rounds) — lives in
+    // A session's "log" - the completed-encounter history (name, setting, party, rounds) - lives in
     // a separate encounter_log table, not on the session row itself. Wiping sessions without also
     // wiping this left old encounter history behind, which is what "session wipe doesn't wipe the
     // session log" was actually pointing at. Wipe it too, and refresh both so the UI updates immediately
@@ -396,7 +402,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
         setPendingBackup(backup);
         setImportStatus(`Ready to import ${total} records from ${backup.exported_at?.slice(0,10) || 'unknown date'}. This will OVERWRITE all current data.`);
         setImportStep(1);
-      } catch { setImportStatus('Could not parse file — must be a valid Sandy backup JSON.'); }
+      } catch { setImportStatus('Could not parse file - must be a valid Sandy backup JSON.'); }
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -405,7 +411,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
   const handleImportConfirm = async () => {
     if (!pendingBackup) return;
     setImportStep(2);
-    setImportStatus('Importing — do not close this page...');
+    setImportStatus('Importing - do not close this page...');
     try {
       await importCampaign(pendingBackup);
       setImportStep(3);
@@ -451,14 +457,14 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <input type="checkbox" checked={waterDroughtEnabled} onChange={e => setWaterDroughtEnabled(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Water Drought</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Enables the water unit system — characters track water supplies; going without has consequences.</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Enables the water unit system - characters track water supplies; going without has consequences.</div>
               </div>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={disableReroll} onChange={e => setDisableReroll(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Disable Player Rerolls</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the reroll button from the dice roller for all players. Luck and Unlucky rerolls are separate — players spend those themselves and are unaffected by this setting.</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the reroll button from the dice roller for all players. Luck and Unlucky rerolls are separate - players spend those themselves and are unaffected by this setting.</div>
               </div>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
@@ -492,8 +498,36 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                 style={{ accentColor: 'var(--gold)' }} />
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Everyone Helps</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lets any player (or the GM) take actions for any <strong>party character</strong> on that character's turn — not just their own. NPCs are never included, even ones with an assigned controller. Useful for a smaller table where players help each other out.</div>
-                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.2rem' }}>⚠ If two players act for the same character at the same time, their actions can collide and cause sync issues — best used one helper at a time.</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lets any player (or the GM) take actions for any <strong>party character</strong> on that character's turn - not just their own. NPCs are never included, even ones with an assigned controller. Useful for a smaller table where players help each other out.</div>
+                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.2rem' }}>⚠ If two players act for the same character at the same time, their actions can collide and cause sync issues - best used one helper at a time.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={everyoneHelpsPlus}
+                onChange={e => { setEveryoneHelpsPlus(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Everyone Helps +</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Same as Everyone Helps, but also lets any player take actions for NPCs on their turn - not just party characters.</div>
+                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.2rem' }}>⚠ Same sync-collision risk as Everyone Helps - best used one helper at a time.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={hidePcSheetsFromOthers}
+                onChange={e => { setHidePcSheetsFromOthers(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide PC Sheets From Other Players</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Players only see their own claimed character(s) in the Character tab, and can't click into another PC's sheet from the Party tab. Party-asset NPC companions are unaffected - those stay visible to everyone. GM view (including "View as Player") is never restricted. Defaults on.</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={hideFeedbackTab}
+                onChange={e => { setHideFeedbackTab(e.target.checked); setTimeout(() => saveImageSettings('gameplay'), 0); }}
+                style={{ accentColor: 'var(--gold)' }} />
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide Feedback Tab</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab for everyone, including the GM.</div>
               </div>
             </label>
           </div>
@@ -504,7 +538,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               Controls how players take actions during downtime (when no encounter is active).
             </div>
             {[
-              { id: 'unlimited',   label: 'Unlimited',       desc: 'No tracking — anyone can roll any downtime action freely. Disables the GM Granted Actions system entirely.' },
+              { id: 'unlimited',   label: 'Unlimited',       desc: 'No tracking - anyone can roll any downtime action freely. Disables the GM Granted Actions system entirely.' },
               { id: 'gm_granted',  label: 'GM Granted',      desc: 'Default. GM manually grants actions to specific characters. The existing Granted Actions panel.' },
               { id: 'set_number',  label: 'Set Number',      desc: 'All characters automatically receive a fixed number of granted actions at the start of each downtime.' },
             ].map(opt => (
@@ -579,12 +613,12 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             {/* Image advice */}
             <div style={{ background: 'rgba(200,150,42,.06)', border: '1px solid rgba(200,150,42,.2)', borderRadius: 6, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
               <div style={{ fontWeight: 700, color: 'var(--gold)', marginBottom: '.4rem' }}>📐 Image Advice</div>
-              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>City Map</span> — 5000–8000px wide, landscape. Map uses a <strong>33×23 grid</strong> internally; roughly 3:2 ratio works best.</div>
-              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Encounter Backgrounds</span> — Any size. Displayed at 25% opacity. Landscape (16:9 or wider). Battle grid is <strong>variable size</strong> — 12×12 is the default.</div>
-              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Avatars</span> — 400–800px square, portrait orientation. Circular crop applied.</div>
-              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Jinn Art</span> — Full-screen on summoning. Any size. Go dramatic.</div>
+              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>City Map</span> - 5000–8000px wide, landscape. Map uses a <strong>33×23 grid</strong> internally; roughly 3:2 ratio works best.</div>
+              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Encounter Backgrounds</span> - Any size. Displayed at 25% opacity. Landscape (16:9 or wider). Battle grid is <strong>variable size</strong> - 12×12 is the default.</div>
+              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Avatars</span> - 400–800px square, portrait orientation. Circular crop applied.</div>
+              <div style={{ marginBottom: '.5rem' }}><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Jinn Art</span> - Full-screen on summoning. Any size. Go dramatic.</div>
               <div style={{ borderTop: '1px solid rgba(200,150,42,.15)', marginTop: '.5rem', paddingTop: '.5rem' }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Where to host</span> — <strong>Imgur</strong>: free, direct links end in .jpg/.png. <strong>Discord</strong>: right-click image → Copy Link (can expire). <strong>Google Drive</strong>: share publicly, convert <code>drive.google.com/file/d/FILE_ID/view</code> → <code>drive.google.com/uc?export=view&id=FILE_ID</code>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Where to host</span> - <strong>Imgur</strong>: free, direct links end in .jpg/.png. <strong>Discord</strong>: right-click image → Copy Link (can expire). <strong>Google Drive</strong>: share publicly, convert <code>drive.google.com/file/d/FILE_ID/view</code> → <code>drive.google.com/uc?export=view&id=FILE_ID</code>
               </div>
             </div>
 
@@ -607,16 +641,6 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Districts Overlay</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shows the district-ring guide lines (Outer City, Merchant District, Faction Quarter, Noble District, Palace) on the surface map layer.</div>
-              </div>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={hideFeedbackTab}
-                onChange={e => { setHideFeedbackTab(e.target.checked); setTimeout(saveImageSettings, 0); }}
-                style={{ accentColor: 'var(--gold)' }} />
-              <div>
-                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>Hide Feedback Tab</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Removes the Feedback tab for everyone, including the GM.</div>
               </div>
             </label>
 
@@ -665,7 +689,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
           <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div className="card-title"><i className="ti ti-database-export" style={{ marginRight: 6 }} />Campaign Backup</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>
-              Export saves all characters, NPCs, quests, map pins, faction reputation, inventory, and session archive to a single JSON file. Import restores from that file — this overwrites everything.
+              Export saves all characters, NPCs, quests, map pins, faction reputation, inventory, and session archive to a single JSON file. Import restores from that file - this overwrites everything.
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.6rem 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
               <div style={{ flex: 1 }}>
@@ -679,7 +703,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
               <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: importStatus ? '.5rem' : 0 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>Import Campaign</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Restore from a .json backup — overwrites current data</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Restore from a .json backup - overwrites current data</div>
                 </div>
                 <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileSelect} />
                 {importStep === 0 && <button className="btn btn-sm" onClick={() => fileRef.current?.click()}><i className="ti ti-upload" style={{ fontSize: 13, marginRight: 4 }} />Select File</button>}
@@ -691,33 +715,35 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
             </div>
           </div>
 
+          <ResourcePackTab isGM={isGM} />
+
           <div className="card">
             <div className="card-title" style={{ color: 'var(--red)' }}>
-              <i className="ti ti-alert-triangle" style={{ marginRight: 6 }} />Data Management — Destructive
+              <i className="ti ti-alert-triangle" style={{ marginRight: 6 }} />Data Management - Destructive
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
               All wipes are permanent and cannot be undone. Each requires a confirmation click.
             </div>
-            <DangerAction label="⚠ WIPE EVERYTHING" description="Deletes ALL campaign data — characters, NPCs, sessions, quests, shops, map pins, inventory, reputation. Use after exporting a backup to hand the tool to a new group." onConfirm={wipeEverything} />
+            <DangerAction label="⚠ WIPE EVERYTHING" description="Deletes ALL campaign data - characters, NPCs, sessions, quests, shops, map pins, inventory, reputation. Use after exporting a backup to hand the tool to a new group." onConfirm={wipeEverything} />
             <div style={{ height: 1, background: 'var(--border)', margin: '.5rem 0' }} />
-            <DangerAction label="Clear Active Session" description="Ends the current session without archiving it — wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
-            <DangerAction label="Wipe Current Encounter" description="Resets the in-progress encounter back to idle WITHOUT ending the session — use for a stuck/corrupted encounter" onConfirm={wipeCurrentEncounter} />
-            <DangerAction label="Wipe Saved Encounters" description="Clears every session's prepared/drafted encounters — does not touch the sessions themselves or any live encounter" onConfirm={wipeSavedEncounters} />
+            <DangerAction label="Clear Active Session" description="Ends the current session without archiving it - wipes encounter state and marks it inactive" onConfirm={clearActiveSession} />
+            <DangerAction label="Wipe Current Encounter" description="Resets the in-progress encounter back to idle WITHOUT ending the session - use for a stuck/corrupted encounter" onConfirm={wipeCurrentEncounter} />
+            <DangerAction label="Wipe Saved Encounters" description="Clears every session's prepared/drafted encounters - does not touch the sessions themselves or any live encounter" onConfirm={wipeSavedEncounters} />
             <DangerAction label="Wipe All Sessions" description="Ends any active session AND deletes every session row including archived recaps" onConfirm={wipeAllSessions} />
-            <DangerAction label="Wipe Saved Sessions" description="Deletes only prepared (not-yet-started) sessions — leaves the active session and archived history untouched" onConfirm={wipeSavedSessions} />
-            <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory — cannot be undone" onConfirm={wipeAllShops} />
+            <DangerAction label="Wipe Saved Sessions" description="Deletes only prepared (not-yet-started) sessions - leaves the active session and archived history untouched" onConfirm={wipeSavedSessions} />
+            <DangerAction label="Wipe All Shops" description="Removes every shop and all their inventory - cannot be undone" onConfirm={wipeAllShops} />
             <DangerAction label="Wipe All Map Pins" description="Removes every pin from both map layers" onConfirm={() => wipeTable('map_pins')} />
             <DangerAction label="Wipe Party Inventory" description="Clears all group inventory items and resets copper to 0" onConfirm={async () => { const { error } = await supabase.from('group_inventory').update({ copper: 0, items: [] }).eq('game_id', GAME_ID); return error ? { ok: false, message: error.message } : { ok: true, message: 'Inventory cleared' }; }} />
-            <DangerAction label="Wipe GM Inventory" description="Clears the GM's Inventory staging list (Preparation \u2192 Item Creator) — items already handed off are unaffected" onConfirm={wipeGmInventory} />
+            <DangerAction label="Wipe GM Inventory" description="Clears the GM's Inventory staging list (Preparation \u2192 Item Creator) - items already handed off are unaffected" onConfirm={wipeGmInventory} />
             <DangerAction label="Wipe All Quests" description="Removes all quest objectives from all sessions" onConfirm={() => wipeTable('quests', {}, onWipe.quests)} />
-            <DangerAction label="Wipe Encounter Log" description="Clears the history of past completed encounters (name, setting, party, enemies, rounds) — this is a record of what happened, not the live in-progress encounter." onConfirm={() => wipeTable('encounter_log', {}, onWipe.encounterLog)} />
-            <DangerAction label="Wipe All NPCs" description="Removes every NPC — both Quick NPCs (the log) and Full NPCs (promoted character-sheet NPCs)." onConfirm={async () => {
+            <DangerAction label="Wipe Encounter Log" description="Clears the history of past completed encounters (name, setting, party, enemies, rounds) - this is a record of what happened, not the live in-progress encounter." onConfirm={() => wipeTable('encounter_log', {}, onWipe.encounterLog)} />
+            <DangerAction label="Wipe All NPCs" description="Removes every NPC - both Quick NPCs (the log) and Full NPCs (promoted character-sheet NPCs)." onConfirm={async () => {
               const a = await wipeTable('npcs', {}, onWipe.npcs);
               const b = await wipeTable('characters', { is_npc: true }, onWipe.characters);
               if (!a.ok || !b.ok) return { ok: false, message: [!a.ok && a.message, !b.ok && b.message].filter(Boolean).join('; ') };
               return { ok: true, message: `${a.message} (Quick), ${b.message} (Full)` };
             }} />
-            <DangerAction label="Wipe Player Characters" description="Deletes every player character — use before a new campaign. Does not touch Full NPCs; use Wipe All NPCs for those." onConfirm={() => wipeTable('characters', { is_npc: false }, onWipe.characters)} />
+            <DangerAction label="Wipe Player Characters" description="Deletes every player character - use before a new campaign. Does not touch Full NPCs; use Wipe All NPCs for those." onConfirm={() => wipeTable('characters', { is_npc: false }, onWipe.characters)} />
             <DangerAction label="Reset Faction Reputation" description="Sets all faction reputations back to 0" onConfirm={async () => { const { error } = await supabase.from('faction_reputation').update({ reputation: 0 }).eq('game_id', GAME_ID); return error ? { ok: false, message: error.message } : { ok: true, message: 'Reputation reset' }; }} />
           </div>
         </>
@@ -740,11 +766,11 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
                       style={{ fontSize: 13, width: 160, fontFamily: 'monospace' }} />
                     <button className="btn btn-sm btn-p" disabled={!gmPwEdit.trim()} onClick={async () => {
                       const { error } = await supabase.from('games').update({ gm_password: gmPwEdit.trim() }).eq('id', GAME_ID);
-                      if (error) { setGmPwStatus('Error saving — does games table have a gm_password column?'); }
+                      if (error) { setGmPwStatus('Error saving - does games table have a gm_password column?'); }
                       else { setGmPwSaved(true); setGmPwStatus(''); setGmPwEdit(''); setTimeout(() => setGmPwSaved(false), 3000); }
                     }}>{gmPwSaved ? '✓ Saved' : 'Update'}</button>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Developer-only. Takes effect immediately for new logins — no code change or redeploy needed.</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Developer-only. Takes effect immediately for new logins - no code change or redeploy needed.</div>
                   {gmPwStatus && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: '.25rem' }}>{gmPwStatus}</div>}
                 </div>
               ) : (

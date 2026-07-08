@@ -3,13 +3,13 @@ import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import MagicItemCreator, { MagicItemBadge } from './MagicItemCreator';
 
-// GM's Inventory is a GM-only staging area (stored on the games row, like other dev/GM config) —
+// GM's Inventory is a GM-only staging area (stored on the games row, like other dev/GM config) -
 // items land here from the shared item creator (mundane or magic), then the GM hands them off to
 // the party or a specific character whenever it's convenient.
 //
 // The "Custom item / From base item" picker used to be duplicated here and in MagicItemCreator.jsx
 // (which only had a Weapon-only base picker). Both flows now share one creator component and one
-// base-item catalog — see MagicItemCreator.jsx.
+// base-item catalog - see MagicItemCreator.jsx.
 export default function ItemCreatorTab({ characters = [], onUpdateCharacter, inventory, onUpdateInventory, onLogEvent }) {
   const [gmInventory, setGmInventory] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -51,7 +51,7 @@ export default function ItemCreatorTab({ characters = [], onUpdateCharacter, inv
     deleteItem(item.id);
   };
 
-  // Shared item creator (mundane or magic — see MagicItemCreator.jsx) always adds to GM's Inventory
+  // Shared item creator (mundane or magic - see MagicItemCreator.jsx) always adds to GM's Inventory
   // from this tab; the item it hands back already carries its own category/qty, so this wrapper
   // just needs to stamp an id and timestamp, same as before for both kinds of item.
   const addItemToGMInventory = (item) => {

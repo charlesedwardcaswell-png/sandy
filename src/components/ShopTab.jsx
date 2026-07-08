@@ -20,7 +20,7 @@ const wItem = (name, quality='standard', rarity='common') => {
 };
 // Helper to make a shop item from gear
 const gItem = (name, price='2 copper', quality='standard', rarity='common') => ({ name, price, dr: '', quality, visible: true, is_magic: false, rarity });
-// Helper to make a shop item from a shield — price/stats pulled from SHIELDS data in constants.js
+// Helper to make a shop item from a shield - price/stats pulled from SHIELDS data in constants.js
 const sItem = (name, quality='standard', rarity='common') => {
   const s = SHIELDS.find(x => x.name === name);
   const priceStr = s?.price?.endsWith('c') ? s.price.replace('c', ' copper') : (s?.price || '10 copper');
@@ -38,21 +38,21 @@ const BUNDLE_PRESETS = {
     wItem('Spear', 'standard', 'common'), wItem('Staff', 'standard', 'uncommon'), wItem('Heavy Club', 'standard', 'uncommon'),
     wItem('War Axe', 'standard', 'uncommon'), wItem('Standard Bow', 'standard', 'always'), wItem('Shortbow', 'standard', 'common'),
     wItem('Kindjal', 'standard', 'uncommon'),
-    // Ammo and weapon-shop staples — always stocked, every weapons dealer needs arrows.
-    // All four ARROW_TYPES bundles, not just the standard quiver — combat automation (Nock,
+    // Ammo and weapon-shop staples - always stocked, every weapons dealer needs arrows.
+    // All four ARROW_TYPES bundles, not just the standard quiver - combat automation (Nock,
     // Armor Piercing, Flesh Cutter, Signal) keys off these exact names.
     gItem('Quiver (60 arrows)', '2 copper', 'standard', 'always'),
     gItem('Armor Piercing Arrows (20)', '4 copper', 'standard', 'always'),
     gItem('Flesh Cutter Arrows (20)', '5 copper', 'standard', 'always'),
     gItem('Signal Arrows (10)', '10 copper', 'standard', 'always'),
     gItem('Whetstone', '1 copper', 'standard', 'common'),
-    // Shields — a weapons dealer plausibly stocks them alongside blades and bows
+    // Shields - a weapons dealer plausibly stocks them alongside blades and bows
     sItem('Large Wooden Shield', 'standard', 'common'), sItem('Scutum', 'standard', 'uncommon'), sItem('Parma', 'standard', 'common'),
   ]},
   'Armorer': { icon: 'ti-shield', tier: 'standard', items: [
     gItem('Partial Armor (+3 TN)', '10 copper', 'standard', 'always'), gItem('Light Armor (+5 TN)', '20 copper', 'standard', 'always'),
     gItem('Heavy Armor (+10 TN)', '40 copper', 'standard', 'common'), gItem('Riding Armor (+8 TN)', '30 copper', 'standard', 'uncommon'),
-    // Shields — an armorer is the other natural place to stock them, guaranteed here
+    // Shields - an armorer is the other natural place to stock them, guaranteed here
     sItem('Large Wooden Shield', 'standard', 'always'), sItem('Scutum', 'standard', 'common'), sItem('Parma', 'standard', 'always'),
   ]},
   'Apothecary': { icon: 'ti-flask', tier: 'standard', items: [
@@ -93,9 +93,9 @@ const BUNDLE_PRESETS = {
     gItem('Writing Paper', '1 copper', 'standard', 'always'), gItem('Personal Seal', '8 copper', 'standard', 'uncommon'),
   ]},
   'Stables': { icon: 'ti-paw', tier: 'standard', items: [
-    // Camel: common, practical, but still a real purchase — roughly 1.5x Heavy Armor
+    // Camel: common, practical, but still a real purchase - roughly 1.5x Heavy Armor
     gItem('Camel', '60 copper', 'standard', 'always'),
-    // Horse: rare status symbol, not native to the region — well above anything else in the shop
+    // Horse: rare status symbol, not native to the region - well above anything else in the shop
     gItem('Horse', '150 copper', 'fine', 'rare'),
     gItem('Saddle', '5 copper', 'standard', 'always'),
     gItem('Saddlebags', '3 copper', 'standard', 'common'),
@@ -128,10 +128,10 @@ const BUNDLE_PRESETS = {
     gItem('Personal Seal', '25 copper', 'fine', 'uncommon'), gItem('Apothecary Kit', '25 copper', 'fine', 'common'),
     gItem('Medicine Kit', '20 copper', 'fine', 'common'), gItem('Writing Paper', '5 copper', 'standard', 'always'),
   ]},
-  // ── Exotic Goods — a fence/rare-goods dealer. Faction weapons that are normally loot/steal-only
+  // ── Exotic Goods - a fence/rare-goods dealer. Faction weapons that are normally loot/steal-only
   // (Ashalan, Senpet, Yodotai, Assassin) can surface here at low odds, since this is where such things
   // plausibly end up. Deliberately excludes items the rules mark as truly not-for-sale or unique
-  // (The Khadja, Najya, Blades of the Blood-Sworn, Ebonite Longsword — Order-only, arrest risk).
+  // (The Khadja, Najya, Blades of the Blood-Sworn, Ebonite Longsword - Order-only, arrest risk).
   'Exotic Goods': { icon: 'ti-diamond', tier: 'superior', items: [
     wItem('Adiva', 'fine', 'rare'), wItem('Ashalan Scimitar', 'fine', 'rare'), wItem('Falchion', 'fine', 'rare'),
     wItem('Ashalan Scythe', 'standard', 'rare'),
@@ -202,12 +202,12 @@ const CATALOGUE = [
     items: WEAPONS_LIST.filter(w => !w.faction).map(w => ({ name: w.name, price: w.price || '5 copper', dr: w.dr || '', defaultQuality: 'standard' })),
   },
   {
-    // Faction-specific weapons plus other unusual gear (special-ammo arrows) — GM's manual add tool,
+    // Faction-specific weapons plus other unusual gear (special-ammo arrows) - GM's manual add tool,
     // so this includes even the not-for-sale/unique items (The Khadja, Najya, etc.) at GM discretion,
     // unlike the automated random shop stock which deliberately leaves those out.
     category: 'Unusual',
     items: [
-      ...WEAPONS_LIST.filter(w => w.faction).map(w => ({ name: w.name, price: w.price || '—', dr: w.dr || '', defaultQuality: 'standard' })),
+      ...WEAPONS_LIST.filter(w => w.faction).map(w => ({ name: w.name, price: w.price || '-', dr: w.dr || '', defaultQuality: 'standard' })),
       { name: 'Armor Piercing Arrows (20)', price: '4 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Flesh Cutter Arrows (20)', price: '5 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Signal Arrows (10)', price: '10 copper', dr: '', defaultQuality: 'standard' },
@@ -224,7 +224,7 @@ const CATALOGUE = [
       { name: 'Senpet Chain Shirt',     price: '20 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Yodotai Chain Shirt',    price: '25 copper', dr: '', defaultQuality: 'standard' },
       { name: 'Half-Plate',            price: '45 copper', dr: '', defaultQuality: 'standard' },
-      { name: 'Ebonite Armor',          price: '—', dr: '', defaultQuality: 'standard' },
+      { name: 'Ebonite Armor',          price: '-', dr: '', defaultQuality: 'standard' },
       { name: 'Adaga',                  price: '20 copper', dr: '', defaultQuality: 'standard' },
       ...SHIELDS.map(s => ({ name: s.name, price: s.price?.endsWith('c') ? s.price.replace('c', ' copper') : (s.price || '10 copper'), dr: '', defaultQuality: 'standard' })),
     ],
@@ -410,7 +410,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false, hideShopFromPlayers = false, onSetHideShopFromPlayers }) {
   const gmView = isGM && !isPCView;
 
-  // All shops — loaded from/saved to Supabase
+  // All shops - loaded from/saved to Supabase
   const [shops, setShops] = useState([]);
   const [activeShopId, setActiveShopId] = useState(null);
   const [loaded, setLoaded] = useState(false);
@@ -429,7 +429,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   const [editingShopName, setEditingShopName] = useState(false);
   const [randomTheme, setRandomTheme] = useState('auto');
   const [insufficientFunds, setInsufficientFunds] = useState(null);
-  // Appraisal: { shopId, revealQuality: true, revealTrueCost: bool } — set after successful roll
+  // Appraisal: { shopId, revealQuality: true, revealTrueCost: bool } - set after successful roll
   const [appraisalResult, setAppraisalResult] = useState(null);
   // Haggle: track if last action was appraise for +1k0 bonus
   const [lastActionWasAppraise, setLastActionWasAppraise] = useState(false);
@@ -483,7 +483,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   // Each "10% off" raise stacks another 10% on top, capped at 70% total off.
   const cartFinalTotal = (shopId) => {
     const hr = haggleResults[shopId];
-    const base = cartTotal(shopId, false); // always the marked-up price — haggling never reveals/uses true base cost
+    const base = cartTotal(shopId, false); // always the marked-up price - haggling never reveals/uses true base cost
     if (!hr?.success) return Math.max(1, Math.round(base));
     const discountStacks = 1 + (hr?.raisesSpent?.discount10 || 0); // the success itself counts as the first 10%
     const discount = Math.min(0.7, discountStacks * 0.1);
@@ -518,7 +518,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     const discountStacks = hr?.raisesSpent?.discount10 || 0;
     const priceStr = `${totalCost} copper${discountStacks > 0 ? ` (${Math.min(70, discountStacks * 10)}% off)` : ''}`;
 
-    // "I can pay" integrity award — fires once at checkout if banked
+    // "I can pay" integrity award - fires once at checkout if banked
     const iCanPayStacks = hr?.raisesSpent?.iCanPay || 0;
     if (iCanPayStacks > 0 && purchaseTarget !== 'party') {
       const char = (characters || []).find(c => c.id === purchaseTarget);
@@ -529,7 +529,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         const totalPoints = pointsPerStack * iCanPayStacks;
         const newIntegrity = Math.round((curInt + totalPoints / 10) * 10) / 10;
         onUpdateCharacter(purchaseTarget, { integrity: newIntegrity });
-        if (onLogEvent) onLogEvent('ti-award', `${char.name} paid full price without complaint — integrity ${curInt.toFixed(1)} → ${newIntegrity.toFixed(1)}`);
+        if (onLogEvent) onLogEvent('ti-award', `${char.name} paid full price without complaint - integrity ${curInt.toFixed(1)} → ${newIntegrity.toFixed(1)}`);
       }
     }
 
@@ -542,7 +542,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       if (onPurchase) onPurchase({ itemName: itemNames, price: priceStr, copperAmt: totalCost, destination: purchaseTarget, destName });
     }
 
-    // Fine, Masterwork, and Magic items are one-of — once bought, they're gone from this shop's stock.
+    // Fine, Masterwork, and Magic items are one-of - once bought, they're gone from this shop's stock.
     // Standard/Poor items restock indefinitely (untouched). Match by name+quality, same identity check
     // addToCart already uses to de-dupe, since catalog items don't carry a separate stable id.
     const oneOfKeys = new Set(
@@ -590,7 +590,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   }, []);
 
   // Live-refresh: games.settings can change from elsewhere (another GM tab, a
-  // different subsystem writing settings) — subscribe so shops_v2 updates reflect
+  // different subsystem writing settings) - subscribe so shops_v2 updates reflect
   // without needing a page reload. Only touches `shops`/`activeShopId`; never
   // wholesale-replaces other local UI state.
   useEffect(() => {
@@ -708,11 +708,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       presetKey = match ? match[1] : Object.keys(BUNDLE_PRESETS)[Math.floor(Math.random() * Object.keys(BUNDLE_PRESETS).length)];
     }
     const preset = BUNDLE_PRESETS[presetKey] || Object.values(BUNDLE_PRESETS)[3];
-    // Roll each item against its rarity weight — 'always' items are guaranteed, rarer items are a coin flip
+    // Roll each item against its rarity weight - 'always' items are guaranteed, rarer items are a coin flip
     // weighted toward not appearing. This keeps staples (arrows, rations, basic armor) reliably in stock
     // while specialty/rare goods are an occasional find, rather than every shop having full inventory.
     let rolledItems = preset.items.filter(item => Math.random() < (RARITY_CHANCE[item.rarity] ?? 0.85));
-    // Safety net: never generate an empty shop — if the roll wipes everything, force in all 'always' items
+    // Safety net: never generate an empty shop - if the roll wipes everything, force in all 'always' items
     // plus at least 2 more at random
     if (rolledItems.length === 0) {
       const guaranteed = preset.items.filter(i => i.rarity === 'always');
@@ -736,7 +736,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       const upgradeIdx = Math.floor(Math.random() * baseItems.length);
       baseItems[upgradeIdx] = { ...baseItems[upgradeIdx], quality: 'fine' };
     }
-    // Assign each item its own random markup, same system used by Load Bundle — this is what makes
+    // Assign each item its own random markup, same system used by Load Bundle - this is what makes
     // prices vary item-to-item and shop-to-shop even for identical goods, per the shop's markup tier
     const tier = activeShop.markup_tier || 'fair';
     baseItems.forEach((item, i) => {
@@ -757,7 +757,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
   };
 
   // Magic item shop price = base item's real cost × rarity markup, so a magic Longsword
-  // costs more than a magic Knife even at the same rarity — falls back to flat pricing
+  // costs more than a magic Knife even at the same rarity - falls back to flat pricing
   // for items with no linked base item (trinkets, custom artifacts, etc.)
   const RARITY_MARKUP_MULT = { uncommon: 2, rare: 4, legendary: 10, artifact: 25 };
   const FALLBACK_RARITY_PRICE = { uncommon: 20, rare: 50, legendary: 150, artifact: 500 };
@@ -782,11 +782,11 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
     // If haggling succeeded (useBaseCost), use base price; otherwise use marked-up price
     const displayedPrice = item.markup && !useBaseCost ? applyMarkup(item.price, item.markup) : item.price;
     const price = item.is_magic ? (item.price || '?') : qualityPrice(displayedPrice, item.quality);
-    // GM send-to is a free grant — no currency changes hands, so no copper cost or funds check applies.
+    // GM send-to is a free grant - no currency changes hands, so no copper cost or funds check applies.
     const copperAmt = free ? 0 : parseCopperAmount(useBaseCost ? item.price : (item.markup ? applyMarkup(item.price, item.markup) : item.price), item.quality);
     const destName = purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'Character';
 
-    // Check if enough funds — skipped entirely for a free GM send
+    // Check if enough funds - skipped entirely for a free GM send
     if (!free && copperAmt > 0) {
       const availableCopper = purchaseTarget === 'party'
         ? (inventory?.copper || 0)
@@ -802,7 +802,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       : { name: displayName, dr: item.dr || undefined, equipped: false, inUse: false, quality: item.quality, qty: 1, category: 'Gear' };
 
     if (purchaseTarget === 'party') {
-      // Don't call onUpdateInventory here — pass partyItem up to onPurchase so App.js
+      // Don't call onUpdateInventory here - pass partyItem up to onPurchase so App.js
       // can do one atomic update (items + copper together), avoiding race-condition overwrites
       const partyItem = { ...itemEntry, qty: 1, category: item.is_magic ? 'Magic' : 'Gear' };
       if (onPurchase) {
@@ -816,7 +816,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
       }
     }
 
-    // Fine, Masterwork, and Magic items are one-of — once bought, they're gone from this shop's stock.
+    // Fine, Masterwork, and Magic items are one-of - once bought, they're gone from this shop's stock.
     if (shop && (item.is_magic || item.quality === 'fine' || item.quality === 'masterwork')) {
       const key = `${item.name}::${item.quality || 'standard'}`;
       const remainingItems = (shop.items || []).filter(si => `${si.name}::${si.quality || 'standard'}` !== key);
@@ -907,12 +907,12 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                   <i className="ti ti-store" style={{ fontSize: 14 }} />{shop.name}
                   {shopkeeper && (
                     <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>
-                      — Shopkeeper: <span style={{ color: 'var(--text-secondary)' }}>{shopkeeper.name}</span>
+                      - Shopkeeper: <span style={{ color: 'var(--text-secondary)' }}>{shopkeeper.name}</span>
                     </span>
                   )}
                   {apr?.revealQuality && (
                     <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: '.04em', color: 'var(--green)', textTransform: 'uppercase' }}>
-                      APPRAISED — QUALITY REVEALED{apr?.revealTrueCost ? ' — BASE COSTS REVEALED' : ''}
+                      APPRAISED - QUALITY REVEALED{apr?.revealTrueCost ? ' - BASE COSTS REVEALED' : ''}
                     </span>
                   )}
                 </div>
@@ -924,7 +924,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                     const qTier = QUALITY_TIERS.find(t => t.key === (item.quality || 'standard')) || QUALITY_TIERS[1];
                     const basePrice = item.is_magic ? (item.price || '?') : qualityPrice(item.price, item.quality);
                     const markedPrice = item.markup ? applyMarkup(qualityPrice(item.price, item.quality), item.markup) : basePrice;
-                    // Current/purchase price is always shown — that's what the player will actually pay and
+                    // Current/purchase price is always shown - that's what the player will actually pay and
                     // needs to see to make a decision. Base cost is shown ADDITIONALLY once Appraise reveals
                     // it, as a comparison reference, not as a replacement for the real price.
                     const shownPrice = markedPrice;
@@ -965,17 +965,17 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             <span style={{ fontSize: 10, color: 'var(--green)' }}> ({basePrice})</span>
                           )}
                         </span>
-                        {/* Quick buy (players) / Send-to (GM) — GM hands out loot for free via the
+                        {/* Quick buy (players) / Send-to (GM) - GM hands out loot for free via the
                             destination picker above, rather than "buying" it from their own shop. */}
                         {gmView ? (
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--green)', color: 'var(--green)' }}
-                            title={`Send free to ${purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'selected destination'} (no cost — set destination above)`}
+                            title={`Send free to ${purchaseTarget === 'party' ? 'Party' : (characters || []).find(c => c.id === purchaseTarget)?.name || 'selected destination'} (no cost - set destination above)`}
                             onClick={() => handlePurchase(item, false, shop, true)}>
                             <i className="ti ti-send" style={{ marginRight: 3 }} />Send
                           </button>
                         ) : (
                           <button className="btn btn-sm" style={{ fontSize: 11 }}
-                            title="Buy now at listed price — instant, no cart needed"
+                            title="Buy now at listed price - instant, no cart needed"
                             onClick={() => handlePurchase(item, false, shop)}>
                             Buy
                           </button>
@@ -983,7 +983,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                         {/* Add to cart */}
                         {!item.is_magic && (
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
-                            title="Add to cart — appraise/haggle the whole cart at once"
+                            title="Add to cart - appraise/haggle the whole cart at once"
                             onClick={() => addToCart(shop.id, item)}>
                             {inCart ? `+Cart (${inCart.qty})` : '+ Cart'}
                           </button>
@@ -993,18 +993,18 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                   })}
                 </div>
 
-                {/* Appraise — shop-level action, available regardless of cart contents (you assess a shop's
-                    wares/prices before deciding what to buy, not after). Haggle is cart-level — it lives in
+                {/* Appraise - shop-level action, available regardless of cart contents (you assess a shop's
+                    wares/prices before deciding what to buy, not after). Haggle is cart-level - it lives in
                     the cart panel below since you're haggling down the price of what's actually in your
                     cart. Both require a downtime Granted Action to attempt. */}
                 <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  {/* Appraise — freely available during downtime, not during encounters, costs 1 Granted Action */}
+                  {/* Appraise - freely available during downtime, not during encounters, costs 1 Granted Action */}
                   {onRoll && myChar && !encActive && (
                     <button className="btn btn-sm" disabled={myGrantedActions < 1}
                       style={{ borderColor: apr ? 'var(--green)' : 'var(--gold-dim)', color: apr ? 'var(--green)' : 'var(--gold)' }}
                       title={myGrantedActions < 1
-                        ? 'No Granted Actions available — ask your GM for one'
-                        : `Appraise — Commerce/Intelligence, TN ${shop.appraise_tn || 15}. Costs 1 Granted Action. Success reveals quality. 1st raise reveals base prices, extra raises bank +1k0 for Haggling.`}
+                        ? 'No Granted Actions available - ask your GM for one'
+                        : `Appraise - Commerce/Intelligence, TN ${shop.appraise_tn || 15}. Costs 1 Granted Action. Success reveals quality. 1st raise reveals base prices, extra raises bank +1k0 for Haggling.`}
                       onClick={() => {
                         if (myGrantedActions < 1) return;
                         const commerceSkillForAppraise = (myChar.skills || []).find(s => s.name === 'Commerce');
@@ -1016,20 +1016,20 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                           baseKeep: myChar.fire || 2,
                           label: `Appraise ${shop.name}`,
                           raiseExplainer: [
-                            '✓ Success — reveals quality of all items in this shop.',
-                            '★ 1st raise — also reveals true market prices (what items are actually worth).',
-                            '★ Each extra raise — banks +1k0 on your next Commerce roll here (for Haggling).',
+                            '✓ Success - reveals quality of all items in this shop.',
+                            '★ 1st raise - also reveals true market prices (what items are actually worth).',
+                            '★ Each extra raise - banks +1k0 on your next Commerce roll here (for Haggling).',
                           ].join('\n'),
                           onComplete: (total, raises, opposedRoll, success) => {
                             const r = raises || 0;
                             // Use the roll's own authoritative success flag (matches the roll banner) rather
-                            // than re-deriving it here — re-deriving from the raw TN ignored any wound-penalty/
+                            // than re-deriving it here - re-deriving from the raw TN ignored any wound-penalty/
                             // technique modifiers DiceModal had already folded into the real threshold, which
                             // could disagree with the banner on an exact TN match.
                             if (success) {
                               const bonusRolls = Math.max(0, r - 1); // raises beyond the 1st bank +1k0 each
                               setAppraisalResults(prev => ({ ...prev, [shop.id]: { revealQuality: true, revealTrueCost: r >= 1, bonusRolls } }));
-                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' — base prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
+                              if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} appraised ${shop.name}${r >= 1 ? ' - base prices revealed' : ''}${bonusRolls > 0 ? ` (+${bonusRolls}k0 banked for next Commerce roll here)` : ''}`);
                             } else {
                               if (onLogEvent) onLogEvent('ti-zoom-money', `${myChar.name} failed to appraise ${shop.name}`);
                             }
@@ -1049,14 +1049,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                 {cartHasItems && (
                   <div style={{ border: '2px solid var(--gold)', borderRadius: 8, padding: '.75rem', background: 'rgba(200,150,42,.05)' }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <i className="ti ti-shopping-cart" /> Cart — {cartItemCount} item{cartItemCount !== 1 ? 's' : ''}
+                      <i className="ti ti-shopping-cart" /> Cart - {cartItemCount} item{cartItemCount !== 1 ? 's' : ''}
                       {discountPct > 0 && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 4 }}>({discountPct}% off)</span>}
                     </div>
                     {/* Cart items */}
                     {cart.items.map((ci, idx) => {
                       const markedUnitCost = parseCopperAmount(ci.markup ? applyMarkup(ci.price, ci.markup) : ci.price, ci.quality);
-                      // Haggle discounts the marked-up price by discountPct — it never reveals/uses the
-                      // true base cost (see cartFinalTotal above) — so line items must apply the same
+                      // Haggle discounts the marked-up price by discountPct - it never reveals/uses the
+                      // true base cost (see cartFinalTotal above) - so line items must apply the same
                       // percentage-off logic, not switch to base price, to stay consistent with the Total.
                       const unitCost = hr?.success ? Math.max(1, Math.round(markedUnitCost * (1 - discountPct / 100))) : markedUnitCost;
                       const lineTotal = unitCost * (ci.qty || 1);
@@ -1078,14 +1078,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                       </span>
                     </div>
 
-                    {/* Pending raise allocation — shown after a successful Haggle roll */}
+                    {/* Pending raise allocation - shown after a successful Haggle roll */}
                     {pendingRaises > 0 && (
                       <div style={{ marginTop: '.6rem', padding: '.5rem .65rem', background: 'rgba(160,96,224,.1)', border: '1px solid #a060e0', borderRadius: 6 }}>
                         <div style={{ fontSize: 12, color: '#c080f0', fontWeight: 600, marginBottom: '.2rem' }}>
                           🎲 Haggle succeeded! {pendingRaises} raise{pendingRaises !== 1 ? 's' : ''} to spend:
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem', lineHeight: 1.4 }}>
-                          Haggle succeeded — 10% off already applied.
+                          Haggle succeeded - 10% off already applied.
                           {discountPct > 10 && <span style={{ color: 'var(--green)' }}> {discountPct}% total discount so far.</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
@@ -1100,15 +1100,15 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             −10% off cart
                           </button>
                           <button className="btn btn-sm" style={{ fontSize: 11, borderColor: 'var(--gold)', color: 'var(--gold)' }}
-                            title="Pay the asking price and call it fair — gain Integrity. The markup you already talked down stays removed."
+                            title="Pay the asking price and call it fair - gain Integrity. The markup you already talked down stays removed."
                             onClick={() => {
                               setHaggleResults(prev => ({ ...prev, [shop.id]: {
                                 ...hr, raisesAvailable: pendingRaises - 1,
                                 raisesSpent: { ...hr.raisesSpent, iCanPay: (hr.raisesSpent?.iCanPay || 0) + 1 },
                               } }));
-                              if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} declined a further discount at ${shop.name} — integrity gain pending checkout`);
+                              if (onLogEvent) onLogEvent('ti-award', `${myChar?.name || 'Player'} declined a further discount at ${shop.name} - integrity gain pending checkout`);
                             }}>
-                            I can pay — +Integrity (pay the asking price and call it fair)
+                            I can pay - +Integrity (pay the asking price and call it fair)
                           </button>
                         </div>
                       </div>
@@ -1116,14 +1116,14 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
                     {/* Cart actions */}
                     <div style={{ display: 'flex', gap: '.5rem', marginTop: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                      {/* Haggle — cart-level: negotiates down the price of what's actually in the cart.
+                      {/* Haggle - cart-level: negotiates down the price of what's actually in the cart.
                           Freely available during downtime, not during encounters, costs 1 Granted Action. */}
                       {onRoll && myChar && shopkeeper && !encActive && (
                         <button className="btn btn-sm" disabled={myGrantedActions < 1}
                           style={{ borderColor: '#a060e0', color: '#c080f0' }}
                           title={myGrantedActions < 1
-                            ? 'No Granted Actions available — ask your GM for one'
-                            : `Haggle — Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness. Costs 1 Granted Action.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success = 10% off; each raise = another 10% off, or Integrity instead.`}
+                            ? 'No Granted Actions available - ask your GM for one'
+                            : `Haggle - Commerce/Awareness opposed by ${shopkeeper.name}'s Commerce/Awareness. Costs 1 Granted Action.${apr?.bonusRolls > 0 ? ` +${apr.bonusRolls}k0 from your Appraise.` : ''} Success = 10% off; each raise = another 10% off, or Integrity instead.`}
                           onClick={() => {
                             if (myGrantedActions < 1) return;
                             const commerceSkill = (myChar.skills || []).find(s => s.name === 'Commerce');
@@ -1131,7 +1131,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                             const skShopkeeperCommerce = (shopkeeper.skills || []).find(s => s.name === 'Commerce');
                             const skRoll = (skShopkeeperCommerce?.rank || 0) + (shopkeeper.awareness || 2);
                             const skKeep = shopkeeper.air || 2;
-                            // Roll the shopkeeper's side now — their result becomes this roll's effective TN
+                            // Roll the shopkeeper's side now - their result becomes this roll's effective TN
                             const shopkeeperResult = rollExplodingKeep(skRoll, skKeep);
                             onSpendGrantedAction && onSpendGrantedAction();
                             onRoll({
@@ -1141,23 +1141,23 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                               baseKeep: myChar.air || 2,
                               character: myChar,
                               bonusNotes: bonusRoll > 0 ? [`+${bonusRoll}k0 from Appraise`] : [],
-                              label: `Haggle ${shop.name} — opposing ${shopkeeper.name} rolled ${shopkeeperResult}`,
+                              label: `Haggle ${shop.name} - opposing ${shopkeeper.name} rolled ${shopkeeperResult}`,
                               raiseExplainer: [
-                                '✓ Success — 10% off the cart total.',
-                                '★ Each raise (after rolling) — choose one per raise:',
+                                '✓ Success - 10% off the cart total.',
+                                '★ Each raise (after rolling) - choose one per raise:',
                                 '   • 10% off the cart total (stacks, capped at 70% off)',
-                                '   • "I can pay" — pay the asking price and call it fair, gain Integrity.',
+                                '   • "I can pay" - pay the asking price and call it fair, gain Integrity.',
                               ].join('\n'),
                               onComplete: (total, raises, opposedRoll, success) => {
                                 const r = raises || 0;
                                 // Use the roll's own authoritative success flag (matches the roll banner) rather
-                                // than re-deriving it here — see Appraise's onComplete above for why.
+                                // than re-deriving it here - see Appraise's onComplete above for why.
                                 setHaggleResults(prev => ({ ...prev, [shop.id]: { success, raisesAvailable: r, raisesSpent: { discount10: 0, iCanPay: 0 } } }));
-                                // Consume banked appraise bonus rolls — they only apply to the next Commerce roll
+                                // Consume banked appraise bonus rolls - they only apply to the next Commerce roll
                                 if (apr?.bonusRolls > 0) setAppraisalResults(prev => ({ ...prev, [shop.id]: { ...apr, bonusRolls: 0 } }));
                                 if (onLogEvent) onLogEvent('ti-coins', success
                                   ? `${myChar.name} won the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult})${r > 0 ? ` with ${r} raise${r !== 1 ? 's' : ''} to spend` : ''}!`
-                                  : `${myChar.name} lost the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult}) — paying asking price.`);
+                                  : `${myChar.name} lost the haggle against ${shopkeeper.name} (${total} vs ${shopkeeperResult}) - paying asking price.`);
                               },
                             });
                           }}>
@@ -1166,7 +1166,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                       )}
                       {onRoll && myChar && !shopkeeper && (
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          (no shopkeeper assigned — haggling unavailable)
+                          (no shopkeeper assigned - haggling unavailable)
                         </span>
                       )}
                       {/* Clear cart */}
@@ -1183,7 +1183,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
                         title={pendingRaises > 0 ? 'Spend your remaining raises first' : undefined}
                         onClick={() => handleCartCheckout(shop)}>
                         <i className="ti ti-check" style={{ marginRight: 3 }} />
-                        Checkout — {discountedTotal} copper
+                        Checkout - {discountedTotal} copper
                       </button>
                     </div>
                   </div>
@@ -1225,7 +1225,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
         </div>
       </div>
 
-      {/* Shop tabs — fits 2 wide when there's room (auto-fit/minmax collapses to 1 wide on narrow
+      {/* Shop tabs - fits 2 wide when there's room (auto-fit/minmax collapses to 1 wide on narrow
           screens without needing a media query, matching how the rest of the app has no breakpoint
           system yet) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 4, marginBottom: '1rem', alignItems: 'center' }}>
@@ -1337,21 +1337,21 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               {/* GM-only: appraise TN, shopkeeper, and markup tier */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span title="Hidden from players — the TN for the Appraise roll">Appraise TN:</span>
+                <span title="Hidden from players - the TN for the Appraise roll">Appraise TN:</span>
                 <input type="number" min={5} max={50} value={activeShop.appraise_tn || 15} style={{ width: 44, fontSize: 11, padding: '1px 4px' }}
                   onChange={e => updateActiveShop({ appraise_tn: parseInt(e.target.value) || 15 })} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span title="The NPC players haggle against — uses their actual Commerce/Awareness">Shopkeeper:</span>
+                <span title="The NPC players haggle against - uses their actual Commerce/Awareness">Shopkeeper:</span>
                 <select value={activeShop.shopkeeper_id || ''} onChange={e => updateActiveShop({ shopkeeper_id: e.target.value || null })} style={{ fontSize: 11, maxWidth: 140 }}>
-                  <option value="">— none (no haggle) —</option>
+                  <option value="">- none (no haggle) -</option>
                   {(characters || []).filter(c => c.is_npc).map(npc => (
                     <option key={npc.id} value={npc.id}>{npc.name}</option>
                   ))}
                 </select>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span title="Markup tier — affects how much prices are inflated">Markup:</span>
+                <span title="Markup tier - affects how much prices are inflated">Markup:</span>
                 <select value={activeShop.markup_tier || 'fair'} onChange={e => updateActiveShop({ markup_tier: e.target.value })} style={{ fontSize: 11 }}>
                   <option value="fair">Fair (1-3%)</option>
                   <option value="medium">Medium (5-20%)</option>
@@ -1381,7 +1381,7 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
             {(activeShop.items || []).length === 0 && (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.3rem 0' }}>
-                No items — use <strong>Stock from Catalogue</strong> above to pick what this shop carries, or add custom items below.
+                No items - use <strong>Stock from Catalogue</strong> above to pick what this shop carries, or add custom items below.
               </div>
             )}
 

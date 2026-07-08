@@ -9,7 +9,7 @@ const TYPES = [
 ];
 
 // ── FeedbackTab ─────────────────────────────────────────────────────────────
-// Append-only feedback board for players — visible to everyone, three sections matching TYPES
+// Append-only feedback board for players - visible to everyone, three sections matching TYPES
 // above. Players can't edit or delete their own posts (it's a running record, not a chat), but
 // the GM can delete individual entries to triage/clear the board between sessions.
 export default function FeedbackTab({ feedback = [], onAddFeedback, onDeleteFeedback, username, isGM }) {
@@ -27,7 +27,7 @@ export default function FeedbackTab({ feedback = [], onAddFeedback, onDeleteFeed
     if (result) {
       setDraft('');
     } else {
-      setSubmitError('Post failed to save — check the browser console, or ask Charles to verify the feedback table\'s RLS policy in Supabase.');
+      setSubmitError('Post failed to save - check the browser console, or ask Charles to verify the feedback table\'s RLS policy in Supabase.');
     }
     setSubmitting(false);
   };
@@ -40,7 +40,7 @@ export default function FeedbackTab({ feedback = [], onAddFeedback, onDeleteFeed
         <i className="ti ti-message-report" style={{ marginRight: 5 }} />Feedback
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Spot something off, or wish Sandy did something differently? Drop a note below — this is a running
+        Spot something off, or wish Sandy did something differently? Drop a note below - this is a running
         list for Charles to work through between sessions, not a live chat.
       </div>
 
@@ -80,7 +80,7 @@ export default function FeedbackTab({ feedback = [], onAddFeedback, onDeleteFeed
         </div>
       )}
 
-      {/* List for the active section — newest first (feedback array is already ordered that way) */}
+      {/* List for the active section - newest first (feedback array is already ordered that way) */}
       {(() => {
         const items = feedback.filter(f => f.type === activeType);
         if (items.length === 0) return <Empty message={`No ${activeMeta?.label.toLowerCase()} feedback yet.`} />;

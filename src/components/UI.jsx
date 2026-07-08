@@ -124,7 +124,7 @@ export function Silhouette({ type, size = 32, color }) {
       {/* Hollow glowing eyes */}
       <ellipse cx="13" cy="6.5" rx="1.3" ry="1.8" fill="#9aff90" />
       <ellipse cx="19" cy="6.5" rx="1.3" ry="1.8" fill="#9aff90" />
-      {/* Hunched, emaciated torso — asymmetric to read as crouched/feral */}
+      {/* Hunched, emaciated torso - asymmetric to read as crouched/feral */}
       <path d="M9 13 Q16 11 23 14 L21 27 Q16 31 11 27 Z" {...props} />
       {/* Ribs suggestion */}
       <path d="M13 16 L19 16 M13 19 L19 19 M13 22 L19 22" stroke={dark} strokeWidth="0.8" fill="none" />
@@ -214,11 +214,11 @@ export function Silhouette({ type, size = 32, color }) {
       <ellipse cx="16" cy="5" rx="4" ry="5" {...props} />
       {/* Slender body */}
       <path d="M10 11 Q16 9 22 11 L21 36 Q16 38 11 36 Z" {...props} />
-      {/* Tattoo glows — lines */}
+      {/* Tattoo glows - lines */}
       <line x1="13" y1="14" x2="11" y2="22" stroke="#e0d0ff" strokeWidth="1.5" opacity="0.9" />
       <line x1="16" y1="12" x2="16" y2="24" stroke="#e0d0ff" strokeWidth="1.5" opacity="0.9" />
       <line x1="19" y1="14" x2="21" y2="22" stroke="#e0d0ff" strokeWidth="1.5" opacity="0.9" />
-      {/* Arms — long */}
+      {/* Arms - long */}
       <rect x="3" y="11" width="8" height="16" rx="4" {...props} />
       <rect x="21" y="11" width="8" height="16" rx="4" {...props} />
       {/* Tattoo on arms */}
@@ -273,7 +273,7 @@ export function Silhouette({ type, size = 32, color }) {
 
   if (type === 'ebonite') return (
     <svg width={size} height={h} viewBox="0 0 32 44">
-      {/* Full helm — no face */}
+      {/* Full helm - no face */}
       <ellipse cx="16" cy="6" rx="6" ry="6" {...props} />
       <rect x="10" y="6" width="12" height="6" rx="1" {...props} />
       {/* Visor slit */}
@@ -299,7 +299,7 @@ export function Silhouette({ type, size = 32, color }) {
     <svg width={size} height={h} viewBox="0 0 32 44">
       {/* Hunched head */}
       <ellipse cx="16" cy="8" rx="5" ry="5" {...props} />
-      {/* Hunched body — leaning forward */}
+      {/* Hunched body - leaning forward */}
       <path d="M9 14 Q16 11 22 14 L20 32 Q16 34 10 32 Z" {...props} transform="rotate(8, 16, 22)" />
       {/* Hood/cloak */}
       <path d="M8 12 Q16 8 24 12 L26 20 Q16 18 6 20 Z" {...dimProps} />
@@ -321,7 +321,7 @@ export function Silhouette({ type, size = 32, color }) {
       {/* Tagelmust headwrap */}
       <path d="M10 3 Q16 0 22 3 L24 8 Q20 6 16 7 Q12 6 8 8 Z" {...dimProps} />
       <path d="M8 8 L6 14" stroke={dim} strokeWidth="3" />
-      {/* Desert robes — wide */}
+      {/* Desert robes - wide */}
       <path d="M7 12 Q16 10 25 12 L28 40 Q16 44 4 40 Z" {...props} />
       {/* Belt */}
       <path d="M8 24 Q16 26 24 24" fill="none" stroke={dim} strokeWidth="2" />
@@ -334,7 +334,7 @@ export function Silhouette({ type, size = 32, color }) {
 
   if (type === 'jinn') return (
     <svg width={size} height={h} viewBox="0 0 32 44">
-      {/* No lower body — smoke trails */}
+      {/* No lower body - smoke trails */}
       <ellipse cx="16" cy="7" rx="6" ry="6" {...props} />
       {/* Ethereal upper body */}
       <path d="M8 13 Q16 10 24 13 L22 28 Q16 30 10 28 Z" fill={dim} stroke={c} strokeWidth="0.5" opacity="0.8" />
@@ -372,7 +372,7 @@ export function CharacterSilhouette({ school, size = 32, color }) {
   return <Silhouette type={getArchetype(school)} size={size} color={color} />;
 }
 
-// ── SilhouetteToken — pure SVG <g> for embedding inside SVG grids ─────────────
+// ── SilhouetteToken - pure SVG <g> for embedding inside SVG grids ─────────────
 // cx, cy = center of token circle, r = radius
 export function SilhouetteToken({ type = 'warrior', cx, cy, r, color = '#c8962a' }) {
   const c = color;
@@ -497,7 +497,7 @@ export function SilhouetteToken({ type = 'warrior', cx, cy, r, color = '#c8962a'
   return <g transform={t}>{inner}</g>;
 }
 
-// ── Scroll Lore — click the scroll icon for full description ─────────────────
+// ── Scroll Lore - click the scroll icon for full description ─────────────────
 export function ScrollLore({ title, text, color = 'var(--gold-dim)', size = 11 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -541,12 +541,12 @@ export function Empty({ icon = 'ti-ghost', message, action }) {
 }
 
 // ── Weapon / Armor Icons ──────────────────────────────────────────────────────
-// One distinct icon per weapon SKILL CATEGORY (not per individual weapon name — the rulebook has too many
+// One distinct icon per weapon SKILL CATEGORY (not per individual weapon name - the rulebook has too many
 // named weapons to hand-draw each uniquely, but every weapon maps cleanly to one of these 8 skills).
 // getWeaponIconType(weaponName) resolves a weapon's display name to its icon category.
 export function getWeaponIconType(weaponName) {
   if (!weaponName) return null;
-  // weaponName may come in as "Longsword (3k2)" from drawnWeapon strings — strip the DR suffix
+  // weaponName may come in as "Longsword (3k2)" from drawnWeapon strings - strip the DR suffix
   const cleanName = weaponName.split(' (')[0].trim();
   const w = WEAPONS_LIST.find(x => x.name === cleanName);
   if (!w) return null;
@@ -557,7 +557,7 @@ export function getWeaponIconType(weaponName) {
   return skillToType[w.skill] || null;
 }
 
-// Is this weapon two-handed (occupies both hands — no off-hand icon should render alongside it)?
+// Is this weapon two-handed (occupies both hands - no off-hand icon should render alongside it)?
 export function isWeaponTwoHanded(weaponName) {
   if (!weaponName) return false;
   const cleanName = weaponName.split(' (')[0].trim();
@@ -652,7 +652,7 @@ export function triggerVoidSwirl(event) {
   setTimeout(() => el.remove(), 650);
 }
 
-// ── Rulebook reference modal — magnifying glass icon opens this for any gear item ─────────
+// ── Rulebook reference modal - magnifying glass icon opens this for any gear item ─────────
 export function RulebookEntryButton({ itemName, size = 13, color = 'var(--text-muted)' }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -683,7 +683,7 @@ function RulebookEntryModal({ itemName, onClose }) {
           <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.6rem', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <span>DR {weapon.dr}</span>
             <span>{weapon.skill}</span>
-            {weapon.price && weapon.price !== '—' && <span>{weapon.price.replace('c', ' copper')}</span>}
+            {weapon.price && weapon.price !== '-' && <span>{weapon.price.replace('c', ' copper')}</span>}
             {weapon.twoHanded && <span>Two-handed</span>}
           </div>
         )}
@@ -693,7 +693,7 @@ function RulebookEntryModal({ itemName, onClose }) {
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             {shortEntry}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.6rem', fontStyle: 'italic' }}>
-              Full rulebook entry not yet added for this item — ask the GM to check the book directly.
+              Full rulebook entry not yet added for this item - ask the GM to check the book directly.
             </div>
           </div>
         ) : (

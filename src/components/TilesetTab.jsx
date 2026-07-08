@@ -9,12 +9,54 @@ export default function TilesetTab({ isDeveloper }) {
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
       <MasterAtlasPanel />
       <TileDefaultsPanel />
+      <ContainerImagePanel />
       <DoodadLibraryPanel />
     </div>
   );
 }
 
-// ── Master Atlas — the shared 768×768 sprite sheet every Battle Grid's Tileset row draws from ──────
+// ── Container image - the single shared icon used for every placed chest/container. Containers are
+// deliberately standalone (not a tile type, not a doodad) - nothing else on the grid is directly
+// interactable, so folding "interactable" into either of those systems risked every future tile/doodad
+// needing interaction-handling. Just one image for now, not a library - simple on purpose.
+function ContainerImagePanel() {
+  const [imageUrl, setImageUrl] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      setImageUrl(data?.settings?.container_image_url || '');
+      setLoaded(true);
+    });
+  }, []);
+
+  const save = async () => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), container_image_url: imageUrl } })
+      .eq('id', GAME_ID);
+    if (!error) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else console.error('save container_image_url failed:', error.message);
+  };
+
+  if (!loaded) return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>;
+
+  return (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Container Icon</div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Single shared image for every treasure chest/container placed on a Battle Grid, in the Grid
+        Creator and live encounters alike. Leave blank to use a plain chest emoji fallback.
+      </p>
+      <input type="text" placeholder="Container image URL" value={imageUrl}
+        onChange={e => setImageUrl(e.target.value)} style={{ fontSize: 12, width: '100%', marginBottom: 6 }} />
+      <button className="btn btn-p" onClick={save}>{saved ? '✓ Saved' : 'Save Container Icon'}</button>
+    </div>
+  );
+}
+
+// ── Master Atlas - the shared 768×768 sprite sheet every Battle Grid's Tileset row draws from ──────
 function MasterAtlasPanel() {
   const [atlasUrl, setAtlasUrl] = useState('');
   const [saved, setSaved] = useState(false);
@@ -42,7 +84,7 @@ function MasterAtlasPanel() {
     <div style={{ marginBottom: '1.5rem' }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Master Atlas</div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
-        768×768 image, 12×12 grid of 64×64 tiles. Rows are tilesets (themes), columns are terrain types —
+        768×768 image, 12×12 grid of 64×64 tiles. Rows are tilesets (themes), columns are terrain types -
         a saved Battle Grid's Tileset choice just moves down to a different row of this same shared image.
       </p>
       <input type="text" placeholder="Master atlas image URL" value={atlasUrl}
@@ -52,7 +94,7 @@ function MasterAtlasPanel() {
   );
 }
 
-// ── Tile Defaults — default color/icon per terrain type, with an optional default image URL ──────
+// ── Tile Defaults - default color/icon per terrain type, with an optional default image URL ──────
 function TileDefaultsPanel() {
   const [imageUrls, setImageUrls] = useState({});
   const [saved, setSaved] = useState(false);
@@ -80,7 +122,7 @@ function TileDefaultsPanel() {
     <div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '1rem' }}>
         Each terrain type's default color/label stand-in, until the master atlas image exists. Set an optional
-        default image URL per type — once a real tileset image is chosen for a battle grid, that takes priority instead.
+        default image URL per type - once a real tileset image is chosen for a battle grid, that takes priority instead.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '.5rem 1rem', alignItems: 'center' }}>
         {TILE_TYPES.map(t => (
@@ -103,9 +145,18 @@ function TileDefaultsPanel() {
   );
 }
 
-// ── Doodad Library — dev-defined multi-square props (trees, buildings, ponds, etc.) that the Battle
+// Purely cosmetic overlay effects for doodads - do NOT block line-of-sight or feed into the lighting
+// system (confirmed with Charles: visual only for now). Rendered in GridCreatorTab.jsx/EncounterTab.jsx.
+const DOODAD_EFFECTS = [
+  { key: 'none', label: 'None' },
+  { key: 'sandstorm', label: 'Sandstorm' },
+  { key: 'fog', label: 'Thick Fog' },
+  { key: 'smoke', label: 'Smoke' },
+];
+
+// ── Doodad Library - dev-defined multi-square props (trees, buildings, ponds, etc.) that the Battle
 // Grid Creator's placement panel reads from. Footprint is a plain width×height rectangle for now
-// (every occupied cell gets the same tileType) — irregular/L-shaped footprints are a deliberate
+// (every occupied cell gets the same tileType) - irregular/L-shaped footprints are a deliberate
 // later extension (add an optional per-cell mask; absent = full rectangle, so nothing here needs to
 // change to support it). Placement/auto-terrain-assignment and rendering live in GridCreatorTab.jsx.
 function DoodadLibraryPanel() {
@@ -113,7 +164,7 @@ function DoodadLibraryPanel() {
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall' });
+  const [draft, setDraft] = useState({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall', shape: 'rectangle', effect: 'none' });
 
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
@@ -133,9 +184,9 @@ function DoodadLibraryPanel() {
 
   const addDoodad = () => {
     if (!draft.name.trim() || !draft.imageUrl.trim()) return;
-    const entry = { id: `doodad_${Date.now()}`, name: draft.name.trim(), width: Math.max(1, draft.width), height: Math.max(1, draft.height), imageUrl: draft.imageUrl.trim(), tileType: draft.tileType };
+    const entry = { id: `doodad_${Date.now()}`, name: draft.name.trim(), width: Math.max(1, draft.width), height: Math.max(1, draft.height), imageUrl: draft.imageUrl.trim(), tileType: draft.tileType, shape: draft.shape || 'rectangle', effect: draft.effect || 'none' };
     persist([...doodads, entry]);
-    setDraft({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall' });
+    setDraft({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall', shape: 'rectangle', effect: 'none' });
     setShowAdd(false);
   };
 
@@ -148,7 +199,7 @@ function DoodadLibraryPanel() {
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Doodad Library</div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
         Multi-square props (trees, buildings, ponds, fire pits...) for the Battle Grid Creator's placement panel.
-        Every cell the doodad occupies automatically becomes the chosen tile type when placed — the doodad's own
+        Every cell the doodad occupies automatically becomes the chosen tile type when placed - the doodad's own
         image then renders on top of that. Each doodad is its own image, not a shared spritesheet.
       </p>
 
@@ -160,6 +211,8 @@ function DoodadLibraryPanel() {
           <span style={{ fontSize: 13, flex: 1 }}>{d.name}</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{d.width}×{d.height}</span>
           <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{TILE_TYPES.find(t => t.key === d.tileType)?.label || d.tileType}</span>
+          {d.shape === 'circle' && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>◯ circle</span>}
+          {d.effect && d.effect !== 'none' && <span style={{ fontSize: 11, color: 'var(--gold)' }}>✨ {DOODAD_EFFECTS.find(e => e.key === d.effect)?.label || d.effect}</span>}
           <button onClick={() => removeDoodad(d.id)} title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
         </div>
       ))}
@@ -175,7 +228,18 @@ function DoodadLibraryPanel() {
                 {TILE_TYPES.filter(t => !t.isPcStart).map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </label>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shape
+              <select value={draft.shape} onChange={e => setDraft(p => ({ ...p, shape: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
+                <option value="rectangle">Rectangle</option>
+                <option value="circle">Circle</option>
+              </select>
+            </label>
           </div>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Effect (visual only, purely cosmetic - no line-of-sight impact)
+            <select value={draft.effect} onChange={e => setDraft(p => ({ ...p, effect: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
+              {DOODAD_EFFECTS.map(ef => <option key={ef.key} value={ef.key}>{ef.label}</option>)}
+            </select>
+          </label>
           <input type="text" placeholder="Image URL" value={draft.imageUrl} onChange={e => setDraft(p => ({ ...p, imageUrl: e.target.value }))} style={{ fontSize: 12 }} />
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-sm btn-p" disabled={!draft.name.trim() || !draft.imageUrl.trim()} onClick={addDoodad}>Add</button>

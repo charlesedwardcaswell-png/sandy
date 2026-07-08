@@ -12,7 +12,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
   const [selected, setSelected] = useState(
     characters.reduce((acc, c) => ({ ...acc, [c.id]: true }), {})
   );
-  // Trimmed to just the title/summary field — npcs/factions/loot/changes were free-text v1 fields that
+  // Trimmed to just the title/summary field - npcs/factions/loot/changes were free-text v1 fields that
   // duplicated what's now live-tracked elsewhere (faction standing below, quest log, character sheets).
   // "event" is kept because LogTab's session title display falls back to it (s.title || s.recap?.event).
   const [recap, setRecap] = useState({ event: '' });
@@ -52,7 +52,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
       <div className="modal" style={{ maxWidth: 460 }}>
         <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
           <span><i className="ti ti-player-stop" /> End Session {sessionNum}</span>
-          <input type="text" placeholder="Session title — what happened that mattered most?"
+          <input type="text" placeholder="Session title - what happened that mattered most?"
             value={recap.event} onChange={e => setRecap(r => ({ ...r, event: e.target.value }))}
             style={{ flex: 1, minWidth: 180, fontSize: 13 }} />
         </div>
@@ -85,7 +85,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
           </div>
           <div className="modal-section">
             <span className="modal-label">Reason (optional)</span>
-            <input type="text" placeholder={`e.g. Session ${sessionNum} — main story beat`}
+            <input type="text" placeholder={`e.g. Session ${sessionNum} - main story beat`}
               value={xpReason} onChange={e => setXpReason(e.target.value)} style={{ width: '100%' }} />
           </div>
           <div className="modal-section">
@@ -94,7 +94,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
             {characters.map(c => (
               <label key={c.id} className="chk-row">
                 <input type="checkbox" checked={!!selected[c.id]} onChange={() => setSelected(s => ({ ...s, [c.id]: !s[c.id] }))} />
-                {c.name} — {c.school} ({c.xp_total || 0} XP)
+                {c.name} - {c.school} ({c.xp_total || 0} XP)
               </label>
             ))}
           </div>
@@ -104,7 +104,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
 
         {tab === 'awards' && (<>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.75rem', lineHeight: 1.5 }}>
-            <strong style={{ color: 'var(--gold)' }}>Integrity:</strong> enter a GM value — new integrity = average of current + your value.<br />
+            <strong style={{ color: 'var(--gold)' }}>Integrity:</strong> enter a GM value - new integrity = average of current + your value.<br />
             <strong style={{ color: 'var(--gold)' }}>Reputation:</strong> set directly as a whole number. Leave blank to leave unchanged.
           </div>
           <div style={{ display: 'flex', gap: 4, marginBottom: '.75rem' }}>
@@ -114,7 +114,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
           </div>
 
           {presentChars.length === 0 && (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No PCs marked present — check PCs Present on the XP tab first.</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No PCs marked present - check PCs Present on the XP tab first.</div>
           )}
 
           {presentChars.map(c => {
@@ -131,7 +131,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
                   {/* Integrity */}
                   <div style={{ flex: 1, minWidth: 150 }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
-                      Integrity — current: <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{curInt.toFixed(1)}</span>
+                      Integrity - current: <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{curInt.toFixed(1)}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <input type="number" min={0} max={10} step={0.5}
@@ -150,7 +150,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
                   {/* Reputation */}
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
-                      Reputation — current: <span style={{ color: '#c8a040', fontWeight: 600 }}>{c.reputation ?? 1}</span>
+                      Reputation - current: <span style={{ color: '#c8a040', fontWeight: 600 }}>{c.reputation ?? 1}</span>
                     </div>
                     <input type="number" min={0} step={1}
                       placeholder="Set value"
@@ -167,7 +167,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
 
         {tab === 'recap' && (<>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '.75rem 0 .5rem' }}>
-            <i className="ti ti-shield-half" style={{ marginRight: 5 }} />Adjust faction standing for this session — applies immediately, same as the Party tab.
+            <i className="ti ti-shield-half" style={{ marginRight: 5 }} />Adjust faction standing for this session - applies immediately, same as the Party tab.
           </div>
           <div className="card">
             {FACTIONS_DATA.map(fDef => {

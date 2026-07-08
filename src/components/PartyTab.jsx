@@ -22,7 +22,7 @@ function ItemIcon({ category }) {
   return <i className={`ti ${icon}`} style={{ fontSize: 14, color: 'var(--gold-dim)', flexShrink: 0, width: 16, textAlign: 'center' }} />;
 }
 
-// Faction row with a collapsible free-text notes field — casual party-wide tracking, editable by anyone,
+// Faction row with a collapsible free-text notes field - casual party-wide tracking, editable by anyone,
 // not gated to GM-only like the NPC GM Notes field. Saves on blur to avoid per-keystroke realtime resets.
 export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes }) {
   const [expanded, setExpanded] = useState(false);
@@ -51,7 +51,7 @@ export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdat
         <div style={{ padding: '0 .25rem .5rem 2rem' }}>
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             onBlur={() => { if (draft !== savedNotes) onUpdateRepNotes(fDef.name, draft); }}
-            placeholder="Party notes — what we know, who to trust, debts owed..."
+            placeholder="Party notes - what we know, who to trust, debts owed..."
             style={{ width: '100%', minHeight: 50, fontSize: 12, padding: '.4rem .5rem', resize: 'vertical', boxSizing: 'border-box' }} />
         </div>
       )}
@@ -59,7 +59,7 @@ export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdat
   );
 }
 
-export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, myCharId, onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater, onViewCharacter, onViewNpc }) {
+export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, onUpdateNPC, myCharId, myCharIds = [], onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater, onViewCharacter, onViewNpc, hidePcSheetsFromOthers = false }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -88,6 +88,39 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
     if (delta === 0) return;
     onUpdateInventory({ copper: Math.max(0, (inventory.copper || 0) + delta) });
     setCopperDelta('');
+  };
+
+  // Shared control - each player toggles their own checkbox per party-asset NPC to opt in to
+  // controlling that NPC's turn in encounters. Replaces the old single-owner "assigned to" bar
+  // (Daftar) and the old exclusive take-over checkbox (character sheet) - multiple players can now
+  // share control of the same NPC. GM can toggle any player's box; a player can only toggle their own.
+  const partyPCs = characters.filter(c => !c.is_npc);
+  const SharedControlRow = ({ npc, isFull }) => {
+    if (partyPCs.length === 0) return null;
+    const shared = npc.shared_controllers || [];
+    const updater = isFull ? onUpdateCharacter : onUpdateNPC;
+    return (
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }} onClick={e => e.stopPropagation()}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center' }}>Share control:</span>
+        {partyPCs.map(pc => {
+          const checked = shared.includes(pc.id);
+          const canToggle = isGM || myCharIds.includes(pc.id);
+          return (
+            <label key={pc.id} title={canToggle ? `${checked ? 'Stop controlling' : 'Take actions for'} ${npc.name} as ${pc.name}` : `Only ${pc.name}'s player or the GM can toggle this`}
+              style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: checked ? 'var(--green)' : 'var(--text-muted)', cursor: canToggle ? 'pointer' : 'default', opacity: canToggle ? 1 : 0.5 }}>
+              <input type="checkbox" checked={checked} disabled={!canToggle}
+                onChange={() => {
+                  if (!updater) return;
+                  const next = checked ? shared.filter(id => id !== pc.id) : [...shared, pc.id];
+                  updater(npc.id, { shared_controllers: next });
+                }}
+                style={{ margin: 0, cursor: canToggle ? 'pointer' : 'default' }} />
+              {pc.name}
+            </label>
+          );
+        })}
+      </div>
+    );
   };
 
   const addItem = () => {
@@ -141,7 +174,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
         />
       )}
 
-      {/* Party name — GM-editable; players see it as a plain header. Also feeds the Daftar tab's title. */}
+      {/* Party name - GM-editable; players see it as a plain header. Also feeds the Daftar tab's title. */}
       <div style={{ marginBottom: '1.25rem' }}>
         {gmView ? (
           <input defaultValue={partyName} placeholder="Name your party..."
@@ -154,7 +187,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
 
       {/* Party members + Faction standing */}
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        {/* Water supply — full width above party/faction, only in drought mode */}
+        {/* Water supply - full width above party/faction, only in drought mode */}
         {waterDroughtEnabled && (
           <div style={{ flex: '0 0 100%' }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#3a80c0', marginBottom: '.75rem' }}>
@@ -170,7 +203,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                     {partyWater} {partyWater === 1 ? 'unit' : 'units'}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {partyWater === 0 ? 'No water — dehydration risk' : partyWater <= 2 ? 'Running low' : 'Adequate supply'}
+                    {partyWater === 0 ? 'No water - dehydration risk' : partyWater <= 2 ? 'Running low' : 'Adequate supply'}
                   </div>
                 </div>
                 {isGM && onSetPartyWater && (
@@ -191,7 +224,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                         ))}
                       </div>
                       <span style={{ fontSize: 11, color: units <= 1 ? '#c84030' : 'var(--text-muted)' }}>{units}</span>
-                      {(isGM || char.id === myCharId) && (
+                      {(isGM || myCharIds.includes(char.id)) && (
                         <button className="btn btn-sm" style={{ fontSize: 10, padding: '1px 5px', opacity: canTake ? 1 : 0.4 }}
                           disabled={!canTake} onClick={() => onTakeWater(char.id)}>Take</button>
                       )}
@@ -212,17 +245,21 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
             <div style={{ fontSize: 14, color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>No characters created yet.</div>
           ) : (
             <div>
-              {/* PCs + party-asset Full NPCs only — this used to render every character including
+              {/* PCs + party-asset Full NPCs only - this used to render every character including
                   every hostile/unassigned NPC in the game, visible to players. */}
               {characters.filter(c => !c.is_npc || c.is_party_asset).map(c => {
                 const woundRank = getWoundRank(c.current_wounds || 0, c.max_wounds || 10);
                 const wColor = WOUND_COLORS[woundRank];
                 const magicEq = (c.equipment || []).filter(e => e.is_magic);
-                const clickable = !!onViewCharacter;
+                // "Hide PC sheets from other players" - only restricts PCs, not party-asset NPC
+                // companions (those are meant to be visible party-wide already). GM (including PCView,
+                // since that's meant to preview exactly what a player sees) is never restricted.
+                const hiddenFromMe = hidePcSheetsFromOthers && !gmView && !c.is_npc && !myCharIds.includes(c.id);
+                const clickable = !!onViewCharacter && !hiddenFromMe;
                 return (
                   <div key={c.id} className="party-card"
                     style={clickable ? { cursor: 'pointer' } : undefined}
-                    title={clickable ? `View ${c.name}'s sheet` : undefined}
+                    title={clickable ? `View ${c.name}'s sheet` : (hiddenFromMe ? `${c.name}'s sheet is private` : undefined)}
                     onClick={clickable ? () => onViewCharacter(c.id) : undefined}>
                     <div style={{ width: 44, height: 56, borderRadius: 5, background: 'var(--bg-mid)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                       {(c.avatar_url || '').trim()
@@ -252,6 +289,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                           ))}
                         </div>
                       )}
+                      {c.is_npc && <SharedControlRow npc={c} isFull />}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{c.copper || 0}</div>
@@ -260,7 +298,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                   </div>
                 );
               })}
-              {/* Party-asset Quick NPCs (from the Daftar, not the characters table) — lighter card,
+              {/* Party-asset Quick NPCs (from the Daftar, not the characters table) - lighter card,
                   same click-to-view-sheet shortcut. */}
               {npcs.filter(n => n.is_party_asset).map(n => (
                 <div key={n.id} className="party-card" style={{ cursor: onViewNpc ? 'pointer' : undefined }}
@@ -274,6 +312,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                       {n.name}<span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 6 }}>🐾 party</span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{n.faction} · {n.school} R{n.rank || 1}</div>
+                    <SharedControlRow npc={n} isFull={false} />
                   </div>
                 </div>
               ))}
@@ -329,7 +368,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
             )}
           </div>
 
-          {/* Magic items — shown first with full badge */}
+          {/* Magic items - shown first with full badge */}
           {magicItems.length > 0 && (
             <div style={{ marginBottom: '.75rem' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem' }}>✦ Magic Items</div>
@@ -404,7 +443,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
             <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', padding: '.25rem 0' }}>No items in party inventory.</div>
           )}
 
-          {/* Add item — GM only */}
+          {/* Add item - GM only */}
           {gmView && (
             <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <input placeholder="Item name" value={newItemName} onChange={e => setNewItemName(e.target.value)}
@@ -435,7 +474,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
                   <span style={{ padding: '1px 5px', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', fontSize: 11 }}>{e.encounter_type}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{e.rounds} rds</span>
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '—')}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>vs {Array.isArray(e.enemies) ? e.enemies.map(en => en.name || en).join(', ') : (e.enemies || '-')}</div>
               </div>
             ))}
           </div>

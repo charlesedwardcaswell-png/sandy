@@ -61,8 +61,8 @@ export default function PoisonReferenceModal({ onClose }) {
                   { label: 'Onset', val: p.onset },
                   { label: 'Effect', val: p.effect },
                   { label: 'Resist', val: p.resist + (p.resistTN ? ` (TN ${p.resistTN})` : '') },
-                  { label: 'Heal TN', val: p.healTN ? String(p.healTN) : '—' },
-                  { label: 'Craft TN', val: p.craftTN ? String(p.craftTN) : '—' },
+                  { label: 'Heal TN', val: p.healTN ? String(p.healTN) : '-' },
+                  { label: 'Craft TN', val: p.craftTN ? String(p.craftTN) : '-' },
                 ].map(row => (
                   <div key={row.label} style={{ display: 'flex', gap: '.5rem', marginBottom: '.3rem', fontSize: 12 }}>
                     <span style={{ color: 'var(--text-muted)', minWidth: 70, flexShrink: 0 }}>{row.label}:</span>

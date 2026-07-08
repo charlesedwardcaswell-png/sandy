@@ -14,7 +14,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
   // All-Time skill usage = sum of each closed session's own recorded count, plus the live current
   // session's count. The old "total" field on skillLog just incremented forever in memory with no
-  // session-boundary awareness, and got reset to {} whenever a session ended — so it was never a
+  // session-boundary awareness, and got reset to {} whenever a session ended - so it was never a
   // real all-time figure. This aggregates from what's actually persisted per session instead.
   const allTimeTotals = {};
   (sessionLog || []).forEach(s => {
@@ -39,7 +39,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
     return acc;
   }, {});
 
-  // Prep-only (not-yet-started) sessions now live exclusively in Preparation → Session Prep — Log stays
+  // Prep-only (not-yet-started) sessions now live exclusively in Preparation → Session Prep - Log stays
   // "pure record keeping" and only ever shows sessions that are active or have actually been played.
   // rawSess keeps the full list for renumbering collision checks (still need to avoid colliding with a
   // hidden prep session's number even though it isn't rendered here).
@@ -203,11 +203,11 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                           {recap.loot && <RecapRow label="Loot / Rewards" value={recap.loot} />}
                           {recap.changes && <RecapRow label="Character Changes" value={recap.changes} />}
                         </>)}
-                        {/* Full archived event timeline for this closed session — dice rolled, equipment
+                        {/* Full archived event timeline for this closed session - dice rolled, equipment
                             changes, spells cast, everything that was logged while it was live. Previously
                             this data was saved to event_log but never displayed once a session closed.
                             Filters out gmOnly entries (character claims, NPC creation, etc.) for players,
-                            same as the live ticker already does — this view previously showed everyone
+                            same as the live ticker already does - this view previously showed everyone
                             everything regardless of viewer. */}
                         {(() => {
                           const visibleEvents = (s.events || []).filter(e => isGM || !e.gmOnly);
@@ -233,7 +233,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                       </div>
                     )}
 
-                    {/* GM Notes & Player Notes — live-editable on any session, active or archived.
+                    {/* GM Notes & Player Notes - live-editable on any session, active or archived.
                         GM Notes is GM-only (private prep/secrets); Player Notes is collaborative,
                         visible and editable by everyone. */}
                     <SessionNotesSection session={s} isGM={isGM} onUpdateSessionRecap={onUpdateSessionRecap} />
@@ -297,7 +297,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                         ))}
                       </div>
                     )}
-                    {/* Prepared quests for this session — auto-created when the session becomes active */}
+                    {/* Prepared quests for this session - auto-created when the session becomes active */}
                     {isGM && (
                       <div style={{ marginTop: '.6rem' }}>
                         <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -396,7 +396,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
       {eventLog.length > 0 && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-title">
-            <i className="ti ti-timeline" style={{ marginRight: 4 }} />This Session — Events
+            <i className="ti ti-timeline" style={{ marginRight: 4 }} />This Session - Events
             <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>{eventLog.length} events</span>
           </div>
           <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -442,7 +442,7 @@ function SessionNotesSection({ session, isGM, onUpdateSessionRecap }) {
       {isGM && (
         <div>
           <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.25rem', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <i className="ti ti-lock" style={{ fontSize: 11 }} /> GM Notes <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(private — only you see this)</span>
+            <i className="ti ti-lock" style={{ fontSize: 11 }} /> GM Notes <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(private - only you see this)</span>
           </div>
           <textarea value={gmDraft} onChange={e => setGmDraft(e.target.value)}
             onBlur={() => { if (gmDraft !== (recap.gmNotes || '')) onUpdateSessionRecap(session.id, { gmNotes: gmDraft }); }}

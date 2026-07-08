@@ -72,7 +72,7 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid, character,
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-        {label || `${pool.rolled + (voidSpent ? 1 : 0)}k${pool.kept + (voidSpent ? 1 : 0)}`} — keep {effectiveKept}{voidSpent ? ' (Void)' : ''}
+        {label || `${pool.rolled + (voidSpent ? 1 : 0)}k${pool.kept + (voidSpent ? 1 : 0)}`} - keep {effectiveKept}{voidSpent ? ' (Void)' : ''}
         {pool.bonus > 0 && <span style={{ color: '#c0a0e0', marginLeft: 6 }}>+{pool.bonus} bonus</span>}
         {pool.tn && <span style={{ color: 'var(--gold-dim)', marginLeft: 6 }}>TN {pool.tn}</span>}
       </div>
@@ -119,7 +119,7 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid, character,
         <button className="btn btn-sm" onClick={() => { setDice(rollDice(pool.rolled)); setKept(new Set()); setExploded(new Set()); }}>
           Reroll
         </button>
-        {/* Luck reroll — only for characters with Luck advantage and uses remaining. Same mechanism as
+        {/* Luck reroll - only for characters with Luck advantage and uses remaining. Same mechanism as
             DiceModal: fresh reroll of the whole pool, player re-picks kept dice from the new set. */}
         {(() => {
           if (!character) return null;
@@ -139,7 +139,7 @@ function DicePicker({ pool, onConfirm, label, allowVoid, currentVoid, character,
             </button>
           );
         })()}
-        {/* Unlucky reroll — GM tells the player when to use it; same mechanism as Luck */}
+        {/* Unlucky reroll - GM tells the player when to use it; same mechanism as Luck */}
         {(() => {
           if (!character) return null;
           const unluckyDis = (character.disadvantages || []).find(d => (d.name || d) === 'Unlucky');
@@ -191,7 +191,7 @@ function Portrait({ side, duel, showResult }) {
 
 // ── Main DuelPane ─────────────────────────────────────────────────────────────
 
-// ── RollBlock — must be top-level to prevent dice resetting on re-render ────────
+// ── RollBlock - must be top-level to prevent dice resetting on re-render ────────
 function RollBlock({ name, pool, rollKey, side, rolledValue, onRoll, canAct, allowVoid = false, currentVoid = 1, character, onLuckUsed, onUnluckyUsed }) {
   const hasRolled = rolledValue != null;
   const [isRolling, setIsRolling] = React.useState(false);
@@ -235,7 +235,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
 
   const pc = (side) => pcsMap?.[duel[side]?.id] || duel[side];
 
-  // Luck/Unlucky use-tracking — mirrors the same pattern DiceModal's callers use elsewhere. No-ops
+  // Luck/Unlucky use-tracking - mirrors the same pattern DiceModal's callers use elsewhere. No-ops
   // gracefully for NPCs (no full character record in pcsMap, so onUpdateCharacter has nothing to update).
   const decrementUse = (side, listKey, name) => {
     const full = pcsMap?.[duel[side]?.id];
@@ -304,7 +304,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
   const getDmgPool = (side) => {
     const c = pc(side);
     // c comes from pcsMap (full character objects), which don't carry an encounter-combatant
-    // "drawnWeapon" string — that field only exists on combatants. Look up the actually-equipped/
+    // "drawnWeapon" string - that field only exists on combatants. Look up the actually-equipped/
     // wielded weapon from the character's own equipment instead (same source Combat Preview uses).
     const wielded = (c?.equipment || []).find(e => e.dr && e.inUse && !e.isAmmo);
     const drStr = (wielded?.dr || '1k1').toLowerCase();
@@ -478,7 +478,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Roll did not meet the TN — no intel gained, but still won the assessment.
+                      Roll did not meet the TN - no intel gained, but still won the assessment.
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: '.5rem', fontStyle: 'italic' }}>
@@ -487,7 +487,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                 </>
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  Tied assessment — no intel gained, no Focus bonus. Both approach as equals.
+                  Tied assessment - no intel gained, no Focus bonus. Both approach as equals.
                 </div>
               )}
             </div>
@@ -536,7 +536,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#c08040', marginBottom: '.3rem' }}>⚡ Kharmic Strike</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     Neither duelist won by 5 or more. Both will strike simultaneously.<br />
-                    The cause of the duel is considered dropped — no victor, no loser.
+                    The cause of the duel is considered dropped - no victor, no loser.
                   </div>
                 </>
               ) : (
@@ -545,7 +545,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                     {duel[focusResult.winner].name} strikes first
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Won by {focusResult.diff} — earns first strike
+                    Won by {focusResult.diff} - earns first strike
                     {focusResult.freeRaises > 0 && ` + ${focusResult.freeRaises} Free Raise${focusResult.freeRaises > 1 ? 's' : ''} on the Strike roll`}
                   </div>
                 </>
@@ -560,13 +560,13 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
         <div style={{ width: '100%', maxWidth: 560 }}>
           {duel.altStrike ? (
             <div style={{ fontSize: 12, color: '#c0a0e0', textAlign: 'center', marginBottom: '1rem', lineHeight: 1.6 }}>
-              ⚔ <strong>Neither duelist made contact.</strong> Initiative rolled — {duel.challenger.name} {duel.altStrike.cInit} vs {duel.defender.name} {duel.altStrike.dInit}.<br />
+              ⚔ <strong>Neither duelist made contact.</strong> Initiative rolled - {duel.challenger.name} {duel.altStrike.cInit} vs {duel.defender.name} {duel.altStrike.dInit}.<br />
               Taking turns striking one at a time until someone lands a hit.<br />
               <strong>{duel[duel.altStrike.order[duel.altStrike.turn % 2]].name}</strong> strikes now.
             </div>
           ) : duel.kharmic ? (
             <div style={{ fontSize: 12, color: '#c08040', textAlign: 'center', marginBottom: '1rem', lineHeight: 1.6 }}>
-              ⚡ <strong>Kharmic Strike</strong> — both duelists strike simultaneously.<br />
+              ⚡ <strong>Kharmic Strike</strong> - both duelists strike simultaneously.<br />
               Roll <strong>Tahaddi / Reflexes</strong> vs opponent's Armor TN (5 + Reflexes×5).<br />
               Free Raises from Focus add to this roll. Declare additional raises before rolling.
             </div>
@@ -606,7 +606,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                       <button className="rep-btn" disabled={!can} onClick={() => setStrikeRaises(r => ({ ...r, [side]: r[side] + 1 }))}>+</button>
                     </div>
                   )}
-                  {/* Maneuvers — same options as a normal attack roll. Strike IS an attack roll. */}
+                  {/* Maneuvers - same options as a normal attack roll. Strike IS an attack roll. */}
                   {!hasRolled && can && (
                     <div style={{ marginBottom: '.4rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', justifyContent: 'center' }}
@@ -665,7 +665,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                             if (hit) {
                               onUpdate({ phase: 'damage', winner: side, damageRolls: {}, strikeRolls: { ...duel.strikeRolls, [side]: total }, altStrike: null });
                             } else {
-                              // Miss — pass the turn to the other duelist and roll again next time
+                              // Miss - pass the turn to the other duelist and roll again next time
                               onUpdate({ strikeRolls: {}, altStrike: { ...duel.altStrike, turn: duel.altStrike.turn + 1 } });
                             }
                           } else {
@@ -691,10 +691,10 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
             <div style={{ background: 'rgba(200,150,42,.08)', border: '1px solid rgba(200,150,42,.25)', borderRadius: 6, padding: '.75rem 1.25rem', textAlign: 'center' }}>
               {duel.kharmic ? (
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  {strikeResult.cHit && strikeResult.dHit && <div style={{ color: '#c08040', marginBottom: '.25rem' }}>Both duelists landed a blow — a true kharmic exchange.</div>}
+                  {strikeResult.cHit && strikeResult.dHit && <div style={{ color: '#c08040', marginBottom: '.25rem' }}>Both duelists landed a blow - a true kharmic exchange.</div>}
                   {strikeResult.cHit && !strikeResult.dHit && <div>{duel.challenger.name} struck. {duel.defender.name} missed.</div>}
                   {!strikeResult.cHit && strikeResult.dHit && <div>{duel.defender.name} struck. {duel.challenger.name} missed.</div>}
-                  {!strikeResult.cHit && !strikeResult.dHit && <div style={{ color: 'var(--text-muted)' }}>Both missed. Destiny intervenes — cause of duel dropped.</div>}
+                  {!strikeResult.cHit && !strikeResult.dHit && <div style={{ color: 'var(--text-muted)' }}>Both missed. Destiny intervenes - cause of duel dropped.</div>}
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -724,7 +724,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
           </div>
           {['challenger','defender'].map(side => {
             // strikeResult requires BOTH sides' strikeRolls to be populated, which isn't true coming out of
-            // an alt-strike resolution (only the eventual winner's roll survives — the other side's misses
+            // an alt-strike resolution (only the eventual winner's roll survives - the other side's misses
             // got cleared each turn). Fall back to duel.winner, which alt-strike sets correctly on a hit.
             const hit = strikeResult ? (side === 'challenger' ? strikeResult.cHit : strikeResult.dHit) : (duel.winner === side);
             // Scorpion Strike: in non-kharmic duel, loser may still hit if roll beats Armor TN
@@ -732,7 +732,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
             const isScorpionStrike = !duel.kharmic && isLoser && hit;
             if (!hit) return (
               <div key={side} style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '.75rem', fontSize: 12 }}>
-                {duel[side].name} — missed, no damage roll
+                {duel[side].name} - missed, no damage roll
               </div>
             );
             const dmg = getDmgPool(side);
@@ -742,7 +742,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
             return (
               <div key={side} style={{ marginBottom: '1.25rem', padding: '.75rem', background: 'var(--bg-panel)', borderRadius: 6, border: '1px solid rgba(200,150,42,.3)' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: isScorpionStrike ? '#c0a0e0' : 'var(--gold)', marginBottom: '.35rem' }}>
-                  {duel[side].name} — {dmg.label}
+                  {duel[side].name} - {dmg.label}
                   {isScorpionStrike && <span style={{ fontSize: 11, color: '#c0a0e0', marginLeft: 6 }}>⚡ Scorpion Strike</span>}
                 </div>
                 {hasDmg ? (
@@ -841,10 +841,10 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                 else if (strikeResult.dHit && !strikeResult.cHit) winner = 'defender';
                 else if (strikeResult.cHit && strikeResult.dHit) winner = duel.strikeFirst; // first striker wins if both hit
                 else {
-                  // Neither made contact — a miss never wins the duel outright. Per Charles's ruling: roll
+                  // Neither made contact - a miss never wins the duel outright. Per Charles's ruling: roll
                   // Initiative and take turns striking one at a time until someone lands a hit, instead of
                   // resolving simultaneously again. Initiative = Reflexes + Insight Rank (rolled), keep
-                  // Reflexes — same formula as combat.
+                  // Reflexes - same formula as combat.
                   const cFull = pcsMap?.[duel.challenger?.id] || duel.challenger;
                   const dFull = pcsMap?.[duel.defender?.id] || duel.defender;
                   const cRank = cFull?.insight_rank || cFull?.school_rank || 1;
@@ -871,7 +871,7 @@ export default function DuelPane({ duel, myCharId, isGM, pcsMap, onUpdate, onUpd
                   ['challenger','defender'].forEach(side => {
                     const rawDmg = duel.damageRolls[side];
                     if (rawDmg == null) return;
-                    const totalDmg = rawDmg; // Damage roll has no raises — raises are for attack rolls only
+                    const totalDmg = rawDmg; // Damage roll has no raises - raises are for attack rolls only
                     const charId = duel[side]?.id;
                     const char = pcsMap?.[charId];
                     if (char && totalDmg > 0) {

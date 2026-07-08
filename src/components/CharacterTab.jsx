@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked = false, encounterActive = false, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45 }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked = false, encounterActive = false, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45, hidePcSheetsFromOthers = false }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -23,6 +23,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
   const [noSessionWarning, setNoSessionWarning] = useState(false);
   const [claimEncounterNotice, setClaimEncounterNotice] = useState(false);
   const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
+  const gmView = isGM && !isPCView;
+  // "Hide PC sheets from other players" - restricts the player-facing "Player Characters" picker to
+  // just your own claimed character(s). GM (including PCView, which previews exactly what a player
+  // sees) is never restricted. Only affects PCs, not party-asset NPC companions (those have their
+  // own separate list just below and are meant to stay visible party-wide).
+  const visiblePcs = characters.filter(c => !c.is_npc && (!hidePcSheetsFromOthers || gmView || myIds.includes(c.id)));
 
   // Allow parent to trigger Jinn Randomizer via ref (from spell cast)
   React.useEffect(() => {
@@ -54,28 +60,32 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
     }
   }, [jumpToNpcId, npcs, onClearNpcJump]);
 
-  // Set initial selection — prefer a claimed character over the first non-NPC character. This must
+  // Set initial selection - prefer a claimed character over the first non-NPC character. This must
   // NOT run every time `characters` gets a new array reference (which happens on basically every
   // parent render) and treat an intentionally-selected Full NPC as "invalid" just because NPCs are
-  // filtered out of playerCharsNow below — that was overwriting a just-completed jump-to-NPC-sheet
+  // filtered out of playerCharsNow below - that was overwriting a just-completed jump-to-NPC-sheet
   // (see the jump effect above) back to the player's own character on the very next render.
   useEffect(() => {
     const playerCharsNow = characters.filter(c => !c.is_npc);
     if (playerCharsNow.length > 0) {
       const claimed = playerCharsNow.find(c => myIds.includes(c.id));
-      // Valid = currently selected id still exists as ANY character (PC or NPC) — checking against
+      // Valid = currently selected id still exists as ANY character (PC or NPC) - checking against
       // ALL characters, not just playerCharsNow, so a legitimate NPC-sheet selection isn't clobbered.
       const current = selId && characters.find(c => c.id === selId);
       if (!current) {
-        // No valid selection — default to a claimed character or the first PC
-        setSelId(claimed ? claimed.id : playerCharsNow[0].id);
+        // No valid selection - default to a claimed character, or the first *visible* PC (respects
+        // Hide PC Sheets: an unclaimed player shouldn't default straight into someone else's private
+        // sheet just because it happened to be first in the list).
+        const visibleNow = playerCharsNow.filter(c => !hidePcSheetsFromOthers || gmView || myIds.includes(c.id));
+        const fallback = claimed || visibleNow[0];
+        if (fallback) setSelId(fallback.id);
       }
       // Do NOT forcibly reset to claimed if user has manually navigated elsewhere
     }
-  }, [characters, myIds]);
+  }, [characters, myIds, hidePcSheetsFromOthers, gmView]);
 
-  // Player view — see all characters, but canEdit is restricted to characters this player has actually
-  // claimed (myCharIds). The old "edit any (honour system)" comment here was stale/inaccurate — canEdit
+  // Player view - see all characters, but canEdit is restricted to characters this player has actually
+  // claimed (myCharIds). The old "edit any (honour system)" comment here was stale/inaccurate - canEdit
   // does gate real edit capability (see CharacterSheet), it was just checking the wrong field (singular
   // myCharId, which only ever holds the FIRST-claimed character) for anyone who'd claimed more than one.
   if (!isGM && !isPCView) {
@@ -107,7 +117,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
         <div style={{ marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
           {playerChars.length > 0 && (
             <select className="pc-sel" value={selId || ''} onChange={e => setSelId(e.target.value)} style={{ flex: 1 }}>
-              {playerChars.map(c => <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>)}
+              {playerChars.map(c => <option key={c.id} value={c.id}>{c.name} - {c.school} R{c.school_rank}</option>)}
             </select>
           )}
           {(() => {
@@ -126,8 +136,8 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                 }}
                 style={{ borderColor: 'rgba(74,122,200,.4)', color: '#80a8d8' }}>
                 <option value="" disabled>Party NPCs</option>
-                {partyFullNpcs.map(c => <option key={'f_' + c.id} value={'f_' + c.id}>{c.name} — {c.school || c.faction || 'NPC'}</option>)}
-                {partyQuickNpcs.map(n => <option key={'q_' + n.id} value={'q_' + n.id}>{n.name} — {n.faction}</option>)}
+                {partyFullNpcs.map(c => <option key={'f_' + c.id} value={'f_' + c.id}>{c.name} - {c.school || c.faction || 'NPC'}</option>)}
+                {partyQuickNpcs.map(n => <option key={'q_' + n.id} value={'q_' + n.id}>{n.name} - {n.faction}</option>)}
               </select>
             );
           })()}
@@ -144,7 +154,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
               <button
                 className={`btn btn-sm ${isMine ? 'btn-p' : ''}`}
                 onClick={() => { if (encounterActive && !isMine) setClaimEncounterNotice(true); onClaimCharacter(selId); }}
-                title={isMine ? 'Click to unclaim this character' : claimedByOther ? `Controlled by ${claimedBy} — click to also claim` : 'Claim this character as one you control (you can control multiple)'}
+                title={isMine ? 'Click to unclaim this character' : claimedByOther ? `Controlled by ${claimedBy} - click to also claim` : 'Claim this character as one you control (you can control multiple)'}
                 style={isMine ? {} : claimedByOther ? { borderColor: '#4a8a40', color: '#6aba60' } : { borderColor: 'var(--gold-dim)', color: 'var(--gold-dim)' }}
               >
                 {isMine
@@ -159,7 +169,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
           {hasSummonAbility && onCreateNPC && (
             <button className="btn btn-sm" onClick={() => setJinnOpen(true)}
               style={{ borderColor: 'rgba(160,120,200,.5)', color: 'var(--gold)' }}
-              title="You know Jinn Summoning — open the Summoning ritual">
+              title="You know Jinn Summoning - open the Summoning ritual">
               ✦ Summon Jinn
             </button>
           )}
@@ -167,20 +177,20 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
         {noSessionWarning && (
           <div style={{ fontSize: 12, color: 'var(--red, #c84030)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
             <i className="ti ti-alert-triangle" style={{ fontSize: 12 }} />
-            You can't create a character right now — there's no active session. Ask your GM to start one.
+            You can't create a character right now - there's no active session. Ask your GM to start one.
             <button onClick={() => setNoSessionWarning(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
           </div>
         )}
         {claimEncounterNotice && (
           <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 6 }}>
             <i className="ti ti-alert-triangle" style={{ fontSize: 12 }} />
-            Heads up — an encounter is currently active. Claiming a character mid-encounter can be confusing (turn order, granted actions, etc.) — it went through, just flagging it.
+            Heads up - an encounter is currently active. Claiming a character mid-encounter can be confusing (turn order, granted actions, etc.) - it went through, just flagging it.
             <button onClick={() => setClaimEncounterNotice(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>×</button>
           </div>
         )}
         {playerChars.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '1rem' }}>
-            No characters yet — create yours above.
+            No characters yet - create yours above.
           </div>
         )}
         {selId && characters.find(c => c.id === selId && !c.is_npc) && (
@@ -200,7 +210,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
             onLogEvent={onLogEvent}
           />
         )}
-        {/* Companion sheet — party-flagged is_npc characters, viewable by any player. Control is opt-in
+        {/* Companion sheet - party-flagged is_npc characters, viewable by any player. Control is opt-in
             via the checkbox rendered inside CharacterSheet itself (single controller, self-service). */}
         {!isGM && selId && (() => {
           const comp = characters.find(c => c.id === selId && c.is_npc && c.is_party_asset);
@@ -208,7 +218,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
           return (
             <div>
               <div style={{ fontSize: 12, color: '#80a8d8', marginBottom: '.4rem', padding: '.3rem .6rem', background: 'rgba(74,122,200,.08)', borderRadius: 4, border: '1px solid rgba(74,122,200,.25)' }}>
-                <i className="ti ti-paw" style={{ marginRight: 5 }} />Party NPC — check the box below if you want to take actions for this NPC in encounters.
+                <i className="ti ti-paw" style={{ marginRight: 5 }} />Party NPC - check the box below if you want to take actions for this NPC in encounters.
               </div>
               <CharacterSheet
                 char={comp}
@@ -226,34 +236,23 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
             </div>
           );
         })()}
-        {/* Quick NPC sheet — party-flagged npcs table entries, viewable by any player */}
+        {/* Quick NPC sheet - party-flagged npcs table entries, viewable by any player */}
         {!isGM && selNpcId && (() => {
           const npc = (npcs || []).find(n => n.id === selNpcId && n.is_party_asset);
           if (!npc) return null;
-          const isController = npc.controller_id === myCharId;
           return (
             <div>
               <div style={{ fontSize: 12, color: 'var(--gold-dim)', marginBottom: '.4rem', padding: '.3rem .6rem', background: 'rgba(200,150,42,.08)', borderRadius: 4, border: '1px solid rgba(200,150,42,.25)' }}>
-                <i className="ti ti-user-bolt" style={{ marginRight: 5 }} />Quick NPC — check the box below if you want to take actions for this NPC in encounters.
+                <i className="ti ti-user-bolt" style={{ marginRight: 5 }} />Quick NPC - to take actions for this NPC in encounters, check the "Share control" box for your character on the Party tab.
               </div>
               <div className="card">
                 <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{npc.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{npc.faction} — {npc.school} R{npc.rank || 1}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{npc.faction} - {npc.school} R{npc.rank || 1}</div>
                 {npc.weapon && (
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Weapon: {npc.weapon} ({npc.weapon_dr || '3k2'})</div>
                 )}
                 {npc.player_notes && (
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontStyle: 'italic' }}>{npc.player_notes}</div>
-                )}
-                {myCharId && (
-                  <label className="chk-row" style={{ fontSize: 11, marginTop: 4, color: isController ? 'var(--green)' : 'var(--text-muted)' }}
-                    title={npc.controller_id && !isController
-                      ? 'Someone else is controlling this NPC in encounters — checking this takes over'
-                      : 'Take actions for this NPC on its turn in encounters (including downtime)'}>
-                    <input type="checkbox" checked={isController}
-                      onChange={e => onUpdateNPC && onUpdateNPC(npc.id, { controller_id: e.target.checked ? myCharId : null })} />
-                    {npc.controller_id && !isController ? 'Controlled by another player — take over?' : 'Take actions for this NPC in encounters'}
-                  </label>
                 )}
               </div>
             </div>
@@ -306,18 +305,18 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
 
       {view === 'sheet' && (characters.length > 0 || (npcs?.length || 0) > 0) && (
           <>
-            {/* 1 — Player Characters */}
-            {characters.filter(c => !c.is_npc).length > 0 && (
+            {/* 1 - Player Characters */}
+            {visiblePcs.length > 0 && (
               <select className="pc-sel"
                 value={(!selNpcId && selId && !characters.find(c => c.id === selId)?.is_npc) ? selId : ''}
                 onChange={e => { setSelId(e.target.value); setSelNpcId(null); setShowDel(0); }}>
                 <option value="" disabled>Player Characters</option>
-                {characters.filter(c => !c.is_npc).map(c => (
-                  <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>
+                {visiblePcs.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} - {c.school} R{c.school_rank}</option>
                 ))}
               </select>
             )}
-            {/* Companions assigned by GM — is_npc characters with claimed_by_name matching this player's character names */}
+            {/* Companions assigned by GM - is_npc characters with claimed_by_name matching this player's character names */}
             {!isGM && !isPCView && (() => {
               const myCharNames = (characters || []).filter(c => myCharIds.includes(c.id) && !c.is_npc).map(c => c.name);
               const companions = characters.filter(c => c.is_npc && myCharNames.includes(c.claimed_by_name));
@@ -329,12 +328,12 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                   style={{ borderColor: 'rgba(74,122,200,.4)', color: '#80a8d8' }}>
                   <option value="" disabled>My Companions</option>
                   {companions.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} — {c.school || c.faction || 'Companion'}</option>
+                    <option key={c.id} value={c.id}>{c.name} - {c.school || c.faction || 'Companion'}</option>
                   ))}
                 </select>
               );
             })()}
-            {/* 2 — Full NPC sheets (GM only) */}
+            {/* 2 - Full NPC sheets (GM only) */}
             {isGM && characters.filter(c => c.is_npc).length > 0 && (
               <select className="pc-sel"
                 value={(!selNpcId && selId && characters.find(c => c.id === selId)?.is_npc) ? selId : ''}
@@ -342,18 +341,18 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                 style={{ borderColor: 'rgba(200,64,48,.4)', color: 'var(--text-secondary)' }}>
                 <option value="" disabled>Full NPC Sheets</option>
                 {characters.filter(c => c.is_npc).map(c => (
-                  <option key={c.id} value={c.id}>{c.name} — {c.school} R{c.school_rank}</option>
+                  <option key={c.id} value={c.id}>{c.name} - {c.school} R{c.school_rank}</option>
                 ))}
               </select>
             )}
-            {/* 3 — Library (quick) NPCs */}
+            {/* 3 - Library (quick) NPCs */}
             {(npcs?.length || 0) > 0 && (
               <select className="pc-sel" value={selNpcId || ''} onChange={e => { setSelNpcId(e.target.value || null); setShowDel(0); }} style={{ borderColor: 'rgba(200,150,42,.4)', color: 'var(--gold-dim)' }}>
                 <option value="">Quick NPCs</option>
-                {npcs.map(n => <option key={n.id} value={n.id}>{n.name} — {n.faction}</option>)}
+                {npcs.map(n => <option key={n.id} value={n.id}>{n.name} - {n.faction}</option>)}
               </select>
             )}
-            {/* GM-only delete — single clean confirmation flow */}
+            {/* GM-only delete - single clean confirmation flow */}
             {isGM && !isPCView && !selNpcId && (
               <>
                 {showDel === 0 && (
@@ -385,7 +384,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
         for (let r = 1; r <= (npc.rank || 1); r++) { if (sd?.techniques?.[r]) npcTechniques.push({ rank: r, text: sd.techniques[r] }); }
         const combinedLore = npcTechniques.length > 0
           ? npcTechniques.map(t => `Rank ${t.rank}: ${t.text}`).join('\n\n')
-          : 'No technique data found for this school — check the school name matches one in the reference data.';
+          : 'No technique data found for this school - check the school name matches one in the reference data.';
         const alreadyPromoted = !!npc.character_id && characters.some(c => c.id === npc.character_id);
 
         const promoteNpc = async () => {
@@ -416,7 +415,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
           const earth = 2 + Math.floor(rankBonus * 0.3);
           const water = 2 + (typeRings.water ? Math.ceil(rankBonus * 0.4) : Math.floor(rankBonus * 0.2));
           const voidR = 2;
-          // Individual traits — start at ring value, bonus_trait gets +1
+          // Individual traits - start at ring value, bonus_trait gets +1
           const makeTrait = (ring, traitName) => ring + (bonusTrait === traitName ? 1 : 0);
           const startRef = makeTrait(air,   'Reflexes');
           const startAwa = makeTrait(air,   'Awareness');
@@ -451,7 +450,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
             setSelId(newChar.id);
             setEditMode(true);
           } else {
-            setPromoteError('Promote failed: character creation returned no result — check the browser console for a Supabase error.');
+            setPromoteError('Promote failed: character creation returned no result - check the browser console for a Supabase error.');
           }
           } catch (err) {
             console.error('promoteNpc error:', err);
@@ -463,7 +462,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
           <div className="card" style={{ maxWidth: 540 }}>
             <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {npc.name}
-              <ScrollLore title={`${npc.name} — ${npc.school} Techniques`} text={combinedLore} />
+              <ScrollLore title={`${npc.name} - ${npc.school} Techniques`} text={combinedLore} />
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.5rem' }}>
               {npc.faction} · {npc.school} Rank {npc.rank}
@@ -477,23 +476,18 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                 <label className="chk-row" style={{ fontSize: 11, color: npc.is_party_asset ? 'var(--green)' : 'var(--text-muted)' }}
                   title="Party members show up in every player's Character tab so anyone can view the sheet or opt in to control it">
                   <input type="checkbox" checked={!!npc.is_party_asset}
-                    onChange={e => onUpdateNPC(npc.id, { is_party_asset: e.target.checked, ...(e.target.checked ? {} : { controller_id: null }) })} />
+                    onChange={e => onUpdateNPC(npc.id, { is_party_asset: e.target.checked, ...(e.target.checked ? {} : { shared_controllers: [] }) })} />
                   Party Asset
                 </label>
                 {npc.is_party_asset && (
-                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Assign to:</span>
-                    <select value={npc.controller_id || ''} onChange={e => onUpdateNPC(npc.id, { controller_id: e.target.value || null })}
-                      style={{ fontSize: 11, flex: 1, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 3 }}>
-                      <option value="">— Unassigned (players may self-claim) —</option>
-                      {characters.filter(c => !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Players opt in to control this NPC via "Share control" on the Party tab's Party Overview.
                   </div>
                 )}
               </div>
             )}
 
-            {/* ── Stats block — computed same way as Promote ── */}
+            {/* ── Stats block - computed same way as Promote ── */}
             {(() => {
               const rank = npc.rank || 1;
               const schoolType = sd?.type || 'Warrior';
@@ -524,7 +518,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
               return (
                 <div style={{ marginBottom: '.75rem' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
-                    Estimated Stats — {schoolType} Rank {rank}
+                    Estimated Stats - {schoolType} Rank {rank}
                     {bonusTrait && <span style={{ color: 'var(--gold-dim)', marginLeft: 6 }}>Bonus: {bonusTrait}</span>}
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: 12 }}>
@@ -598,11 +592,11 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                         if (status === 'auto') return null;
                         if (status === 'manual') return (
                           <i className="ti ti-hand-stop" style={{ fontSize: 11, color: 'var(--gold-dim)' }}
-                            title="Not automated — this NPC's effect needs to be handled manually. Applies to attack rolls automatically where possible; this one doesn't." />
+                            title="Not automated - this NPC's effect needs to be handled manually. Applies to attack rolls automatically where possible; this one doesn't." />
                         );
                         return (
                           <i className="ti ti-help-circle" style={{ fontSize: 11, color: 'var(--text-muted)' }}
-                            title="Not yet reviewed — may not be reflected in NPC attack rolls." />
+                            title="Not yet reviewed - may not be reflected in NPC attack rolls." />
                         );
                       })()}
                     </div>
@@ -636,7 +630,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
               </div>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: '.5rem 0' }}>
-              This is a lightweight library NPC — no full sheet. Manage visibility and notes from the NPC tab.
+              This is a lightweight library NPC - no full sheet. Manage visibility and notes from the NPC tab.
             </div>
             {alreadyPromoted ? (
               <button className="btn btn-sm" onClick={() => { setSelId(npc.character_id); setSelNpcId(null); }}>
@@ -751,26 +745,26 @@ function RankUpOverlay({ char, newRank, onConfirm }) {
         <div style={{ fontSize: 11, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '.5rem' }}>Insight Rank {newRank} Achieved</div>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)', marginBottom: '.5rem' }}>Choose Your Next Technique</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-          You have reached the insight threshold for Rank {newRank}. Select your technique below — this cannot be changed once confirmed.
+          You have reached the insight threshold for Rank {newRank}. Select your technique below - this cannot be changed once confirmed.
         </div>
 
-        {/* Option A — Continue current school */}
+        {/* Option A - Continue current school */}
         {currentSchoolTech && (
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.5rem' }}>Continue Your School</div>
-            <TechOption label={`${char.school} — Rank ${newRank}`} name={currentSchoolTech} desc={currentSchoolDesc}
+            <TechOption label={`${char.school} - Rank ${newRank}`} name={currentSchoolTech} desc={currentSchoolDesc}
               selected={choice?.techName === currentSchoolTech}
               onSelect={() => setChoice({ school: char.school, techName: currentSchoolTech, techDesc: currentSchoolDesc })} />
           </div>
         )}
 
-        {/* Option B — Rank 1 of any other school (multi-school) */}
+        {/* Option B - Rank 1 of any other school (multi-school) */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>Begin a New School — Rank 1</div>
+          <div style={{ fontSize: 12, color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.3rem' }}>Begin a New School - Rank 1</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', fontStyle: 'italic' }}>Takes you into another tradition. You forfeit your current school's Rank {newRank} technique.</div>
           <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
             {allSchoolRank1.map(x => (
-              <TechOption key={x.school} label={`${x.school} — Rank 1`} name={x.techName} desc={x.techDesc}
+              <TechOption key={x.school} label={`${x.school} - Rank 1`} name={x.techName} desc={x.techDesc}
                 selected={choice?.techName === x.techName && choice?.school === x.school}
                 onSelect={() => setChoice(x)} />
             ))}
@@ -781,7 +775,7 @@ function RankUpOverlay({ char, newRank, onConfirm }) {
           {choice && <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>Selected: <strong style={{ color: 'var(--gold)' }}>{choice.techName}</strong></div>}
           {!choice && <div style={{ flex: 1, fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Make a selection above to continue.</div>}
           <button className="btn btn-p" disabled={!choice} onClick={() => onConfirm(choice)}>
-            Confirm Rank {newRank} — {choice?.techName || '…'}
+            Confirm Rank {newRank} - {choice?.techName || '…'}
           </button>
         </div>
       </div>
@@ -840,7 +834,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
     const to = effectiveFrom + 1;
     // Elemental Blessing: -1 XP cost per rank for Traits associated with the chosen Ring, floored at 1
     const elementalBlessing = (char.advantages || []).find(a => (a.name || a) === 'Elemental Blessing' && a.ring);
-    const traitRing = TRAIT_RING_MAP[traitKey]?.ring; // lowercase e.g. 'air'; undefined for 'void', which is correct — Elemental Blessing explicitly excludes Void
+    const traitRing = TRAIT_RING_MAP[traitKey]?.ring; // lowercase e.g. 'air'; undefined for 'void', which is correct - Elemental Blessing explicitly excludes Void
     const elementalDiscount = elementalBlessing && elementalBlessing.ring.toLowerCase() === traitRing ? 1 : 0;
     // Enlightened: -2 XP cost per rank specifically for raising the Void Ring
     const hasEnlightened = (char.advantages || []).some(a => (a.name || a) === 'Enlightened');
@@ -888,7 +882,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
         if (exists) {
           updates.skills = currentSkills.map(s => s.name === item.key ? { ...s, rank: item.to } : s);
         } else {
-          // New skill — add it to the character's skill list
+          // New skill - add it to the character's skill list
           updates.skills = [...currentSkills, { name: item.key, rank: item.to, school: false, emphases: [] }];
         }
       } else if (item.type === 'emphasis') {
@@ -897,7 +891,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
           if (s.name !== skillName) return s;
           const updated = { ...s, emphases: [...new Set([...(s.emphases || []), emphasis])] };
           // Gorilla Bodyguard advantage: gaining the Gorilla emphasis on Animal Handling
-          // automatically grants Animal Handling 5 if below that rank — BUT ONLY if the
+          // automatically grants Animal Handling 5 if below that rank - BUT ONLY if the
           // character actually has the Gorilla Bodyguard advantage
           const hasGorillaBG = (char.advantages || []).some(a => (a.name || a) === 'Gorilla Bodyguard');
           if (skillName === 'Animal Handling' && emphasis === 'Gorilla' && hasGorillaBG && (s.rank || 0) < 5) {
@@ -977,7 +971,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                   <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>{t.label}<span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>{t.ring}</span></span>
                   <span style={{ fontSize: 16, fontWeight: 700, color: pending ? 'var(--green)' : 'var(--gold)', minWidth: 20, textAlign: 'center' }}>{displayVal}</span>
                   {pending && <span style={{ fontSize: 11, color: 'var(--green)' }}>↑</span>}
-                  {isLockedByGreyCrone && <span style={{ fontSize: 10, color: 'var(--red)' }} title="Curse of the Grey Crone — cannot be raised with XP">🔒 locked</span>}
+                  {isLockedByGreyCrone && <span style={{ fontSize: 10, color: 'var(--red)' }} title="Curse of the Grey Crone - cannot be raised with XP">🔒 locked</span>}
                   {!isLockedByGreyCrone && displayVal < 5 && (
                     <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 6px' }}
                       onClick={() => addTraitToCart(t.key, cur)} title={`${nextCost} XP`}>
@@ -1039,7 +1033,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                             )}
                             {pending && <button className="btn btn-sm" style={{ fontSize: 10, color: 'var(--red)' }} onClick={() => removeFromCart(cartKey)}>✕</button>}
                           </div>
-                          {/* Emphases — show owned + XP purchase option */}
+                          {/* Emphases - show owned + XP purchase option */}
                           {currentRank > 0 && (
                           <div style={{ paddingLeft: '.5rem', paddingBottom: 2 }}>
                             {(s?.emphases || []).map(e => {
@@ -1050,7 +1044,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                                 </span>
                               );
                             })}
-                            {/* XP emphasis purchase — from predefined list only */}
+                            {/* XP emphasis purchase - from predefined list only */}
                             {showEmphasis && (() => {
                               const ownedEmphases = s?.emphases || [];
                               const allowedEmphases = SKILL_EMPHASES[sName] || [];
@@ -1112,7 +1106,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
               <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Total</span>
               <span style={{ fontSize: 14, color: canAfford ? 'var(--gold)' : 'var(--red)' }}>{cartCost} XP</span>
             </div>
-            {!canAfford && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.3rem' }}>Not enough XP — remove some advances or ask your GM for more XP.</div>}
+            {!canAfford && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: '.3rem' }}>Not enough XP - remove some advances or ask your GM for more XP.</div>}
           </div>
         )}
 
@@ -1120,7 +1114,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
         <div style={{ display: 'flex', gap: '.75rem' }}>
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-p" disabled={!canAfford || cartCost === 0} onClick={confirmSpend}>
-            Confirm — Spend {cartCost} XP
+            Confirm - Spend {cartCost} XP
           </button>
         </div>
       </div>
@@ -1150,7 +1144,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
 
   const update = (field, value) => onUpdate(char.id, { [field]: value });
 
-  // Batch update — one Supabase call for XP spending
+  // Batch update - one Supabase call for XP spending
   const batchUpdate = (updates) => {
     onUpdate(char.id, updates);
     // Check if the new state triggers a rank-up
@@ -1160,7 +1154,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     if (projRank > (char.school_rank || 1)) setPendingRankUp(true);
   };
 
-  // Equipment slot classification — enforces single-slot rules for worn items
+  // Equipment slot classification - enforces single-slot rules for worn items
   const getEquipSlot = (itemName) => {
     const n = (itemName || '').toLowerCase();
     if (n.includes('shield') || n.includes('parma') || n.includes('scutum')) return 'shield';
@@ -1185,7 +1179,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     const newItem = w
       ? { name: addEq, dr: w.dr, skill: w.skill, equipped: true, inUse: false }
       : shield
-      ? { name: addEq, equipped: false, inUse: false } // shield stats resolved by name via SHIELDS lookup in getArmorBonus/getShieldBonus — GM equips it explicitly
+      ? { name: addEq, equipped: false, inUse: false } // shield stats resolved by name via SHIELDS lookup in getArmorBonus/getShieldBonus - GM equips it explicitly
       : arrowType
       ? { name: addEq, dr: arrowType.dr, isAmmo: true, equipped: true, inUse: false, count: parseInt(addEq.match(/\((\d+)/)?.[1], 10) || 60 }
       : { name: addEq, dr: '', skill: '', equipped: true, inUse: false };
@@ -1201,8 +1195,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   useEffect(() => { setImgError(false); }, [avatarUrl]);
   const [urlDraft, setUrlDraft] = useState(char.avatar_url || '');
   const [descDraft, setDescDraft] = useState(char.description || '');
+  const [nameDraft, setNameDraft] = useState(char.name || '');
   useEffect(() => { setUrlDraft(char.avatar_url || ''); }, [char.id, char.avatar_url]);
   useEffect(() => { setDescDraft(char.description || ''); }, [char.id, char.description]);
+  useEffect(() => { setNameDraft(char.name || ''); }, [char.id, char.name]);
   const [tokenDraft, setTokenDraft] = useState(char.token_url || '');
   useEffect(() => { setTokenDraft(char.token_url || ''); }, [char.id, char.token_url]);
 
@@ -1210,7 +1206,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
   const woundColor = ['#4a8a40','#8a8a30','#a87830','#c86030','#c84030','#a02828','#801818','#600010'][wR] || '#4a8a40';
 
   const SKILL_MASTERIES = {
-    // ── Weapon Skills — per L5R 4th Ed (used verbatim per LBS conversion doc) ──
+    // ── Weapon Skills - per L5R 4th Ed (used verbatim per LBS conversion doc) ──
     Swordsmanship: {
       3: "Damage rolls with swords are increased by +1k0.",
       5: "A sword may be readied as a Free Action rather than a Simple Action.",
@@ -1374,11 +1370,36 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         />
       )}
 
+      {/* ── GM PC ownership assignment (new) - simple dropdown of known player labels (the distinct
+          claimed_by_name values already in use across the game's PCs), plus a wipe/clear option.
+          There's no real player-account system to pick from (see BACKLOG.md), so this works off
+          whatever labels already exist rather than a proper account list. Wiping actually revokes
+          local access too - see the reconciliation effect in App.js that watches for this. ── */}
+      {!char.is_npc && isGM && (() => {
+        const assigned = char.claimed_by_name;
+        const knownNames = Array.from(new Set((allChars || []).filter(c => !c.is_npc && c.claimed_by_name).map(c => c.claimed_by_name))).sort();
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.5rem .75rem', background: assigned ? 'rgba(74,138,64,.1)' : 'var(--bg-panel)', borderRadius: 5, border: `1px solid ${assigned ? 'rgba(74,138,64,.35)' : 'var(--border)'}` }}>
+            <i className="ti ti-user-cog" style={{ fontSize: 14, color: assigned ? 'var(--green)' : 'var(--text-muted)' }} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>Owner:</span>
+            <select value={assigned || ''} onChange={e => {
+              const val = e.target.value;
+              onUpdate && onUpdate(char.id, { claimed_by_name: val || null });
+            }} style={{ flex: 1, fontSize: 12, background: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 4px' }}>
+              <option value="">- Unclaimed (wipe ownership) -</option>
+              {knownNames.map(n => <option key={n} value={n}>{n}</option>)}
+              {assigned && !knownNames.includes(assigned) && <option value={assigned}>{assigned}</option>}
+            </select>
+            {assigned && <span style={{ fontSize: 11, color: 'var(--green)', flexShrink: 0 }}>owned by {assigned}</span>}
+          </div>
+        );
+      })()}
+
       {/* ── Player name banner / GM companion assignment ── */}
       {(() => {
         const isMine = myCharIds.includes(char.id);
         const playerName = char.player_name;
-        // GM companion assignment — shown only on is_npc character sheets so GM can assign
+        // GM companion assignment - shown only on is_npc character sheets so GM can assign
         // hirelings/animals/ghul/jinn to a player. The player sees their claimed companions in
         // their character list and can view (but not control) them. NPCs never get downtime actions.
         if (char.is_npc && isGM) {
@@ -1392,7 +1413,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 const val = e.target.value;
                 onUpdate && onUpdate(char.id, { claimed_by_name: val || null });
               }} style={{ flex: 1, fontSize: 12, background: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 4px' }}>
-                <option value="">— Unassigned —</option>
+                <option value="">- Unassigned -</option>
                 {pcChars.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
               {assigned && <span style={{ fontSize: 11, color: '#80a8d8', flexShrink: 0 }}>assigned to {assigned}</span>}
@@ -1404,7 +1425,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.75rem', padding: '.6rem .75rem', background: isMine ? 'rgba(74,138,64,.15)' : 'var(--bg-dark)', borderRadius: 5, border: `1px solid ${isMine ? 'rgba(74,138,64,.4)' : 'var(--border)'}` }}>
               <i className="ti ti-user-check" style={{ fontSize: 16, color: isMine ? 'var(--green)' : 'var(--gold-dim)' }} />
               <span style={{ fontSize: 20, fontWeight: 800, color: isMine ? 'var(--green)' : 'var(--text-primary)', letterSpacing: '.02em' }}>{playerName}</span>
-              {isMine && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 2, fontStyle: 'italic' }}>— your character</span>}
+              {isMine && <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 2, fontStyle: 'italic' }}>- your character</span>}
               {isMine && onUnclaimCharacter && (
                 <button className="btn btn-sm" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', borderColor: 'var(--border)' }}
                   onClick={() => onUnclaimCharacter(char.id)}
@@ -1418,12 +1439,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         return null;
       })()}
 
-      {/* ── Identity/Rings/Wounds row — sits side by side when there's room, stacks on narrow screens */}
+      {/* ── Identity/Rings/Wounds row - sits side by side when there's room, stacks on narrow screens */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
 
       {/* ── Card 1: Portrait + Identity ── */}
       <div className="card" style={{ margin: 0, flex: '1 1 340px' }}>
-        {/* Edit/Lock, Export, Import — one row, identically styled, above the portrait */}
+        {/* Edit/Lock, Export, Import - one row, identically styled, above the portrait */}
         <div style={{ display: 'flex', gap: 6, marginBottom: '.6rem', flexWrap: 'wrap' }}>
           {isGM && (
             <button className={`btn btn-sm ${canEdit ? 'btn-p' : ''}`}
@@ -1450,20 +1471,60 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 try {
                   const parsed = JSON.parse(text);
                   const charData = parsed.character || parsed;
-                  if (!charData.name || !charData.school) { alert('Invalid character file — missing name or school.'); return; }
+                  if (!charData.name || !charData.school) { alert('Invalid character file - missing name or school.'); return; }
                   // controller_id references a specific PC's character id from wherever this was
-                  // exported — meaningless (or actively wrong) here, so always reset it on import.
+                  // exported - meaningless (or actively wrong) here, so always reset it on import.
                   const { id, game_id, created_at, updated_at, controller_id, ...cleanData } = charData;
                   await onCreateCharacter({ ...cleanData, name: charData.name + ' (imported)' });
-                } catch { alert('Could not read that file — make sure it\'s a Sandy character export.'); }
+                } catch { alert('Could not read that file - make sure it\'s a Sandy character export.'); }
                 e.target.value = '';
               }} />
             </label>
           )}
         </div>
+        {/* Name - above the portrait, full width, editable in edit mode */}
+        <div style={{ marginBottom: '.6rem' }}>
+          {canEdit ? (
+            <input type="text" value={nameDraft} onChange={e => setNameDraft(e.target.value)}
+              onBlur={() => { if (nameDraft.trim() && nameDraft !== char.name) update('name', nameDraft.trim()); else setNameDraft(char.name || ''); }}
+              onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+              style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', width: '100%', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px' }} />
+          ) : (
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+            {canEdit && isGM ? (
+              <select value={char.faction || ''} onChange={e => update('faction', e.target.value)}
+                style={{ fontSize: 11, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
+                <option value="">- No faction -</option>
+                {FACTIONS_LIST.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            ) : (
+              char.faction && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{char.faction}</div>
+            )}
+            {char.subfaction && (
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.8 }}>{char.subfaction}</div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--gold-dim)' }}>{char.school} R{char.school_rank}</div>
+          </div>
+          {isGM && char.is_npc && (
+            <label className="chk-row" style={{ fontSize: 11, marginTop: 4, color: char.is_party_asset ? 'var(--green)' : 'var(--text-muted)' }}
+              title="Party members show up in every player's Character tab so anyone can view the sheet or opt in to control it">
+              <input type="checkbox" checked={!!char.is_party_asset}
+                onChange={e => update('is_party_asset', e.target.checked)} />
+              Party Asset
+            </label>
+          )}
+          {!isGM && char.is_npc && char.is_party_asset && myCharId && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+              To take actions for this NPC in encounters, check "Share control" for your character on the Party tab.
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-          {/* Portrait column — large, scaleable by GM setting */}
+          {/* Portrait column - large, scaleable by GM setting */}
           {avatarUrl && !imgError ? (
             <div
               style={{
@@ -1491,49 +1552,16 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             </div>
           )}
 
-          {/* Name block — top left, shares row with portrait */}
-          <div style={{ minWidth: 160, flexShrink: 0 }}>
-            <div style={{ marginBottom: '.4rem' }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>{char.name}</div>
-                {canEdit && isGM ? (
-                  <select value={char.faction || ''} onChange={e => update('faction', e.target.value)}
-                    style={{ fontSize: 11, marginTop: 2, marginBottom: 2, background: 'var(--bg-panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 3 }}>
-                    <option value="">— No faction —</option>
-                    {FACTIONS_LIST.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                ) : (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{char.faction}</div>
-                )}
-                {char.subfaction && (
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.8 }}>{char.subfaction}</div>
-                )}
-                <div style={{ fontSize: 12, color: 'var(--gold-dim)' }}>{char.school} R{char.school_rank}</div>
-                {isGM && char.is_npc && (
-                  <label className="chk-row" style={{ fontSize: 11, marginTop: 4, color: char.is_party_asset ? 'var(--green)' : 'var(--text-muted)' }}
-                    title="Party members show up in every player's Character tab so anyone can view the sheet or opt in to control it">
-                    <input type="checkbox" checked={!!char.is_party_asset}
-                      onChange={e => update('is_party_asset', e.target.checked)} />
-                    Party Asset
-                  </label>
-                )}
-                {!isGM && char.is_npc && char.is_party_asset && myCharId && (
-                  <label className="chk-row" style={{ fontSize: 11, marginTop: 4, color: char.controller_id === myCharId ? 'var(--green)' : 'var(--text-muted)' }}
-                    title={char.controller_id && char.controller_id !== myCharId
-                      ? 'Someone else is controlling this NPC in encounters — checking this takes over'
-                      : 'Take actions for this NPC on its turn in encounters (including downtime)'}>
-                    <input type="checkbox" checked={char.controller_id === myCharId}
-                      onChange={e => onUpdate(char.id, { controller_id: e.target.checked ? myCharId : null })} />
-                    {char.controller_id && char.controller_id !== myCharId ? 'Controlled by another player — take over?' : 'Take actions for this NPC in encounters'}
-                  </label>
-                )}
-              </div>
-            {/* Description — physical appearance / backstory, free text */}
+          {/* Description column - now gets the full remaining width beside the portrait instead of
+              being squeezed into the old fixed 160px name column (name moved above, see above). */}
+          <div style={{ flex: '1 1 200px', minWidth: 160 }}>
+            {/* Description - physical appearance / backstory, free text */}
             <div style={{ marginBottom: '.5rem' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>Description</div>
               {canEdit ? (
                 <textarea value={descDraft} onChange={e => setDescDraft(e.target.value)}
                   onBlur={() => { if (descDraft !== (char.description || '')) update('description', descDraft); }}
-                  placeholder="Physical description, mannerisms, backstory…" rows={3}
+                  placeholder="Physical description, mannerisms, backstory…" rows={5}
                   style={{ width: '100%', fontSize: 12, resize: 'vertical' }} />
               ) : (
                 char.description
@@ -1549,7 +1577,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   onBlur={() => { if (urlDraft !== (char.avatar_url || '')) update('avatar_url', urlDraft); }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                   placeholder="https://..." style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Token URL <span style={{ fontWeight: 400 }}>(grid map token — 64×64px GIF/PNG works best)</span></div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Token URL <span style={{ fontWeight: 400 }}>(grid map token - 64×64px GIF/PNG works best)</span></div>
                 <input type="text" value={tokenDraft} onChange={e => setTokenDraft(e.target.value)}
                   onBlur={() => { if (tokenDraft !== (char.token_url || '')) update('token_url', tokenDraft); }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
@@ -1567,7 +1595,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   ))}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-                  {/* Faction default swatch — click to reset to faction colour */}
+                  {/* Faction default swatch - click to reset to faction colour */}
                   {(() => {
                     const factionCol = FACTION_COLORS[char.faction];
                     if (!factionCol) return null;
@@ -1593,7 +1621,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 <button className="btn btn-sm" style={{ marginTop: '.4rem', fontSize: 11 }} onClick={() => setShowAvatarPicker(false)}>Done</button>
               </div>
             )}
-            {/* Armor TN / Init — prominent */}
+            {/* Armor TN / Init - prominent */}
             <div style={{ marginTop: '.4rem' }}>
               {(() => {
                 const armorBns = getArmorBonus(char.equipment || []);
@@ -1601,7 +1629,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 const baseTN = totalTN - armorBns;
                 const equippedArmor = (char.equipment || []).find(e => e.equipped && (ARMOR_TN_BONUS[e.name] !== undefined || e.name?.toLowerCase().includes('armor') || e.name?.toLowerCase().includes('chain') || e.name?.toLowerCase().includes('lorica')));
                 const armorDesc = equippedArmor ? (GEAR_DESCRIPTIONS[equippedArmor.name] || '') : '';
-                // Best attack roll example — highest-rank combat skill the character actually has
+                // Best attack roll example - highest-rank combat skill the character actually has
                 const COMBAT_SKILLS = ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves','Assassin Ranged Weapons','Tahaddi'];
                 const bestCombatSkill = (char.skills || [])
                   .filter(s => COMBAT_SKILLS.includes(s.name))
@@ -1613,12 +1641,12 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   const ringVal = char[mapped.ring.toLowerCase()] || 2;
                   return { roll: (bestCombatSkill.rank || 0) + traitVal, keep: ringVal, skillName: bestCombatSkill.name };
                 })();
-                // Equipped weapon damage example — whatever's currently wielded
+                // Equipped weapon damage example - whatever's currently wielded
                 const wieldedWeapon = (char.equipment || []).find(e => e.dr && e.inUse && !e.isAmmo);
                 return (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {/* TN, Attack, and Damage as matched stat boxes — same size/style, vertically aligned,
+                      {/* TN, Attack, and Damage as matched stat boxes - same size/style, vertically aligned,
                           instead of TN standing alone as a huge number while Attack/Damage were tiny inline
                           text off to the side. */}
                       <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '4px 10px', minWidth: 68 }}>
@@ -1637,6 +1665,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Damage</div>
                         </div>
                       )}
+                      <div style={{ textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--gold-dim)', borderRadius: 6, padding: '4px 10px', minWidth: 68 }}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{char.reflexes || 2}k{char.air || 2}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginTop: 2 }}>Init</div>
+                      </div>
                     </div>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--gold-dim)', marginTop: 1 }}>
@@ -1646,14 +1678,6 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic', maxWidth: 200, lineHeight: 1.4 }}>{armorDesc}</div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        Init <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{char.reflexes || 2}k{char.air || 2}</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        XP <span style={{ color: xpAvail > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 600 }}>{xpAvail}</span>
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
@@ -1662,7 +1686,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         </div>
       </div>
 
-      {/* ── Card 2: Rings Diagram — five interlocking rings ── */}
+      {/* ── Card 2: Rings Diagram - five interlocking rings ── */}
       <div className="card" style={{ margin: 0, flex: '1 1 320px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {(() => {
@@ -1687,7 +1711,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <circle key={r.key + '_ring2'} cx={r.cx} cy={r.cy} r={62}
                         fill="none" stroke={RING_COLORS[r.key]} strokeWidth={3} strokeOpacity={0.5} />
                     ))}
-                    {/* Orbs — the value circles */}
+                    {/* Orbs - the value circles */}
                     {rings.map(r => (
                       <g key={r.key}>
                         <circle cx={r.cx} cy={r.cy} r={28}
@@ -1703,7 +1727,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       </g>
                     ))}
 
-                    {/* Trait labels — LEFT rings (Fire, Earth): value just outside ring, name further left */}
+                    {/* Trait labels - LEFT rings (Fire, Earth): value just outside ring, name further left */}
                     {rings.filter(r => r.side === 'left').map(r =>
                       (r.traits || []).map(([name, val], ti) => {
                         const ty = r.cy + (ti === 0 ? -13 : 13);
@@ -1720,7 +1744,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       })
                     )}
 
-                    {/* Trait labels — RIGHT rings (Air, Water): value just outside ring, name further right */}
+                    {/* Trait labels - RIGHT rings (Air, Water): value just outside ring, name further right */}
                     {rings.filter(r => r.side === 'right').map(r =>
                       (r.traits || []).map(([name, val], ti) => {
                         const ty = r.cy + (ti === 0 ? -13 : 13);
@@ -1737,8 +1761,8 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       })
                     )}
 
-                    {/* Void dots below void orb — big, black when spent.
-                        GM-only: players cannot directly add/remove Void Points — only Recovery,
+                    {/* Void dots below void orb - big, black when spent.
+                        GM-only: players cannot directly add/remove Void Points - only Recovery,
                         GM action, or the Meditation skill should change this. */}
                     {char.void && (() => {
                       const vr = rings.find(r => r.key === 'Void');
@@ -1769,28 +1793,28 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
       <div className="card" style={{ margin: 0, flex: '1 1 280px' }}>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-          {/* ── Social Stats — top right column ── */}
+          {/* ── Social Stats - top right column ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0, minWidth: 90, order: 3 }}>
             {(() => {
               const perceivedIntegrityAdv = (char.advantages || []).find(a => (a.name || a) === 'Perceived Integrity');
               const perceivedIntegrityRank = perceivedIntegrityAdv?.rank || 1;
               const perceivedIntegrityValue = (Number(char.integrity) || 0) + perceivedIntegrityRank;
               return [
-                // Perceived Integrity — derived (Integrity + advantage rank), not independently editable.
+                // Perceived Integrity - derived (Integrity + advantage rank), not independently editable.
                 // Shown right above real Integrity per Charles's direction, rather than trying to filter who
                 // sees which value (Sandy's sheets don't have per-viewer permissions to hook that into).
                 ...(perceivedIntegrityAdv ? [{ label: 'Perceived Integrity', value: perceivedIntegrityValue, color: '#e0c060', borderColor: '#c0a040', key: 'perceived_integrity', isDecimal: true, isDerived: true }] : []),
                 { label: 'Integrity', value: char.integrity ?? 0, color: '#c8a040', borderColor: '#a07830', key: 'integrity', isDecimal: true },
                 { label: (char.disadvantages || []).some(d => (d.name || d) === 'Infamous') ? 'Infamy' : 'Reputation', value: char.reputation ?? 1, color: '#c8a040', borderColor: '#a07830', key: 'reputation', isDecimal: true },
                 { label: 'Status', value: char.status ?? 1, color: '#80a8c8', borderColor: '#6080a0', key: 'status', isDecimal: true },
-                // Water units — only shown in drought mode; GM can edit, players see their own
+                // Water units - only shown in drought mode; GM can edit, players see their own
                 ...(waterDroughtEnabled && !char.is_npc ? [{ label: 'Water', value: char.water_units ?? 0, color: '#3a80c0', borderColor: '#2a60a0', key: 'water_units', isWater: true }] : []),
               ];
             })().map(({ label, value, color, borderColor, key, isDecimal, isWater, isDerived }) => (
               <div key={key} style={{ textAlign: 'center', background: 'var(--bg-panel)', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '4px 12px', width: '100%' }}>
                 <div
                   style={{ fontSize: 28, fontWeight: 900, color: isWater && value <= 1 ? '#c84030' : color, lineHeight: 1, cursor: isWater || isDerived ? 'default' : 'pointer' }}
-                  title={isWater ? `Water units on hand (max 5)` : isDerived ? 'Integrity + Perceived Integrity advantage rank — what others perceive your Integrity to be' : `Click to view ${label} reference table`}
+                  title={isWater ? `Water units on hand (max 5)` : isDerived ? 'Integrity + Perceived Integrity advantage rank - what others perceive your Integrity to be' : `Click to view ${label} reference table`}
                   onClick={() => !isWater && !isDerived && setShowSocialRef(key)}
                 >
                   {isWater
@@ -1818,7 +1842,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             ))}
           </div>
 
-          {/* ── Wounds chart — LEFT of status block ── */}
+          {/* ── Wounds chart - LEFT of status block ── */}
           <div style={{ flexShrink: 0, minWidth: 200, maxWidth: 260, order: 2 }}>
             {(() => {
               const earth = char.earth || char.stamina || 2;
@@ -1834,7 +1858,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 { label: 'Injured',  penalty: `+${Math.max(0, 15 - soteReduction)}`,  total: rankTotal,    color: '#c84030' },
                 { label: 'Crippled', penalty: `+${Math.max(0, 20 - soteReduction)}`,  total: rankTotal,    color: '#a02828' },
                 { label: 'Down',     penalty: `+${Math.max(0, 40 - soteReduction)}`,  total: rankTotal,    color: '#801818' },
-                { label: 'Out',      penalty: '—',                                     total: earth * 5,    color: '#600010' },
+                { label: 'Out',      penalty: '-',                                     total: earth * 5,    color: '#600010' },
               ];
               const thresholds = WRANKS.reduce((acc, r, i) => { acc.push((acc[i - 1] || 0) + r.total); return acc; }, []);
               const current = char.current_wounds || 0;
@@ -1888,7 +1912,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
       </div>
 
       <div className="g2">
-      {/* Left column — Skills prominent */}
+      {/* Left column - Skills prominent */}
       <div>
         {/* Active Conditions (from xp_log with type='condition') */}
         {(() => {
@@ -1970,7 +1994,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         ))}
                       </span>
                       <SkillDots rank={s.rank} />
-                      {/* Sample roll — click to cycle through traits */}
+                      {/* Sample roll - click to cycle through traits */}
                       {(() => {
                         const baseName = s.name.split(':')[0].trim();
                         const traitInfo = SKILL_TRAIT_MAP[s.name] || SKILL_TRAIT_MAP[baseName];
@@ -1998,7 +2022,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         return (
                           <span
                             onClick={() => setSkillTraitOverride(o => ({ ...o, [s.name]: nextTrait }))}
-                            title={`${roll}k${keep} (${activeTrait} / ${ringKey}) — click to change trait`}
+                            title={`${roll}k${keep} (${activeTrait} / ${ringKey}) - click to change trait`}
                             style={{ fontSize: 10, color: activeTrait !== defaultTrait ? 'var(--gold)' : 'var(--text-muted)', marginLeft: 2, whiteSpace: 'nowrap', cursor: 'pointer', borderBottom: '1px dashed var(--border)' }}>
                             {roll}k{keep}
                           </span>
@@ -2056,7 +2080,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         <i className="ti ti-star" style={{ fontSize: 10 }} />R{rank}: {desc}
                       </div>
                     ))}
-                    {/* Skill description — shown when expanded */}
+                    {/* Skill description - shown when expanded */}
                     {expandedSkills[s.name] && (() => {
                       const baseName = s.name.split(':')[0].trim();
                       const desc = SKILL_DESCRIPTIONS[s.name] || SKILL_DESCRIPTIONS[baseName];
@@ -2119,10 +2143,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
           {/* Recent XP log */}
           {(char.xp_log || []).slice(-3).map((e, i) => (
             <div key={i} style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0', borderBottom: '1px solid rgba(107,78,40,.2)' }}>
-              <span style={{ color: e.amount > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{e.amount > 0 ? `+${e.amount}` : e.amount} XP</span> — {e.reason}
+              <span style={{ color: e.amount > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>{e.amount > 0 ? `+${e.amount}` : e.amount} XP</span> - {e.reason}
             </div>
           ))}
-          {/* Spend XP button — visible to players for any character they've claimed (myCharIds, not
+          {/* Spend XP button - visible to players for any character they've claimed (myCharIds, not
               the singular myCharId which only ever holds the first character a player ever claimed) */}
           {myCharIds.includes(char.id) && (
             <button className="btn btn-p" style={{ width: '100%', marginTop: '.5rem', opacity: xpAvail <= 0 ? 0.5 : 1 }} onClick={() => setShowXpPanel(true)}>
@@ -2146,9 +2170,9 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
 
       </div>
 
-      {/* Right column — Equipment, Techniques, Spells, Advantages */}
+      {/* Right column - Equipment, Techniques, Spells, Advantages */}
       <div>
-        {/* Equipment — copper shown inline next to title, GM-only edit */}
+        {/* Equipment - copper shown inline next to title, GM-only edit */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
             <span className="card-title" style={{ marginBottom: 0 }}>Equipment</span>
@@ -2188,7 +2212,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
               : gearDesc || null;
             const qualData = ITEM_QUALITIES[e.quality || 'standard'] || ITEM_QUALITIES.standard;
             // Magic items (from MagicItemCreator) often have a custom GM-chosen name that isn't in the
-            // fixed WEAPONS_LIST/GEAR_LIST, so the name-based lookups below miss them — fall back to the
+            // fixed WEAPONS_LIST/GEAR_LIST, so the name-based lookups below miss them - fall back to the
             // item's own item_type ('Weapon'/'Armor') which is always set correctly at creation time.
             const isWeapon = (!!e.dr || e.item_type === 'Weapon') && !e.isAmmo;
             const eqSlot = getEquipSlot(e.name);
@@ -2218,7 +2242,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           : null;
                         onUpdate(char.id, { equipment: eq, current_weapon: currentWeapon });
                       } else if (isAmmo) {
-                        // Nocked arrow — single slot, like armor. Doesn't touch current_weapon; the bow
+                        // Nocked arrow - single slot, like armor. Doesn't touch current_weapon; the bow
                         // stays the wielded weapon, this just picks which arrow type it's firing.
                         const nowNocked = !e.inUse;
                         const eq = (char.equipment || []).map((x, xi) => {
@@ -2230,7 +2254,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       } else if (isClothing) {
                         // Clothing: one per slot (cloak/clothes/shoes). Equipping a new item in the same
                         // slot automatically removes the previously equipped one. Quality tier adjusts
-                        // Status by CLOTHING_STATUS_DELTA — delta is recomputed from all equipped clothing
+                        // Status by CLOTHING_STATUS_DELTA - delta is recomputed from all equipped clothing
                         // so equipping/unequipping always lands on the correct total.
                         const nowWorn = !e.equipped;
                         const eq = (char.equipment || []).map((x, xi) => {
@@ -2246,7 +2270,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         onUpdate(char.id, { equipment: eq, status: newStatus });
                       } else {
                         // Armor / Shield / other single-slot items: toggle equipped, unequip any other
-                        // item occupying the SAME slot (armor unequips armor, shield unequips shield —
+                        // item occupying the SAME slot (armor unequips armor, shield unequips shield -
                         // shields are their own slot so they don't conflict with armor, matching the
                         // conversion doc's rule that shields stack on top of armor rather than compete).
                         const nowWorn = !e.equipped;
@@ -2267,7 +2291,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       color: ((isWeapon || isAmmo) ? e.inUse : e.equipped) ? 'var(--gold)' : 'var(--text-muted)',
                       pointerEvents: canWield ? 'auto' : 'none', opacity: canWield ? 1 : 0.5,
                     }}
-                    title={isWeapon ? (e.inUse ? 'Currently wielding — click to sheathe' : 'Click to wield') : isAmmo ? (e.inUse ? 'Currently nocked — click to unnock' : 'Click to nock this arrow type') : isClothing ? (e.equipped ? `Worn (${clothingSlot} slot) — click to remove` : `Click to wear (${clothingSlot} slot)`) : (e.equipped ? 'Currently worn — click to remove' : 'Click to wear')}
+                    title={isWeapon ? (e.inUse ? 'Currently wielding - click to sheathe' : 'Click to wield') : isAmmo ? (e.inUse ? 'Currently nocked - click to unnock' : 'Click to nock this arrow type') : isClothing ? (e.equipped ? `Worn (${clothingSlot} slot) - click to remove` : `Click to wear (${clothingSlot} slot)`) : (e.equipped ? 'Currently worn - click to remove' : 'Click to wear')}
                   >
                     {isWeapon
                       ? (e.inUse ? '⚔ Wielding' : 'Wield')
@@ -2426,7 +2450,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 {['Ashalan', 'Senpet', 'Yodotai', 'Ebonite', 'Assassin'].map(faction => {
                   const items = WEAPONS_LIST.filter(w => w.faction === faction);
                   return items.length > 0 ? (
-                    <optgroup key={faction} label={`Faction Weapons — ${faction}`}>
+                    <optgroup key={faction} label={`Faction Weapons - ${faction}`}>
                       {items.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dr})</option>)}
                     </optgroup>
                   ) : null;
@@ -2473,7 +2497,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                   <div style={{ flex: 1, display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 120 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: currentTech ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: currentTech ? 'normal' : 'italic' }}>
-                        {currentTech || '— not set —'}
+                        {currentTech || '- not set -'}
                       </div>
                     </div>
                     <select style={{ fontSize: 11, maxWidth: 220 }}
@@ -2485,18 +2509,18 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       }}>
                       <option value="">Change technique…</option>
                       {schoolTechAtRank && (
-                        <optgroup label={`${char.school} — Rank ${rank}`}>
+                        <optgroup label={`${char.school} - Rank ${rank}`}>
                           <option value={schoolTechAtRank}>{schoolTechAtRank}</option>
                         </optgroup>
                       )}
                       {othersAtThisRank.length > 0 && (
-                        <optgroup label={`Other Schools — Rank ${rank}`}>
+                        <optgroup label={`Other Schools - Rank ${rank}`}>
                           {othersAtThisRank.map(x => (
                             <option key={x.school + rank} value={x.tech}>{x.school}: {x.tech}</option>
                           ))}
                         </optgroup>
                       )}
-                      <optgroup label="Any School — Rank 1 (start new school)">
+                      <optgroup label="Any School - Rank 1 (start new school)">
                         {allSchoolRank1.map(x => (
                           <option key={x.school + '1'} value={x.tech}>{x.school}: {x.tech}</option>
                         ))}
@@ -2510,14 +2534,14 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                         {currentTech}
                         {(() => {
                           const status = getTechniqueAutomationStatus(currentTech);
-                          if (status === 'auto') return null; // no icon needed — works automatically, no clutter
+                          if (status === 'auto') return null; // no icon needed - works automatically, no clutter
                           if (status === 'manual') return (
                             <i className="ti ti-hand-stop" style={{ fontSize: 12, color: 'var(--gold-dim)' }}
-                              title="This technique's effects aren't automated in the dice roller — handle it manually with the GM. Its full effect is described below." />
+                              title="This technique's effects aren't automated in the dice roller - handle it manually with the GM. Its full effect is described below." />
                           );
                           return (
                             <i className="ti ti-help-circle" style={{ fontSize: 12, color: 'var(--text-muted)' }}
-                              title="This technique hasn't been reviewed yet — its effects may not be reflected anywhere in the app. Handle manually with the GM for now." />
+                              title="This technique hasn't been reviewed yet - its effects may not be reflected anywhere in the app. Handle manually with the GM for now." />
                           );
                         })()}
                       </div>
@@ -2584,22 +2608,22 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     const already = (char.advantages || []).some(a => a.name === name);
                     if (already) return;
                     const patch = { advantages: [...(char.advantages || []), { name, cost: adv?.cost || 0, notes: '' }] };
-                    // Fame: "+1 Reputation Rank" — direct, immediate, one-time stat add (like Weakness's trait
+                    // Fame: "+1 Reputation Rank" - direct, immediate, one-time stat add (like Weakness's trait
                     // reduction) rather than a roll-time hook, since it's not a dice modifier at all.
                     if (name === 'Fame') patch.reputation = (char.reputation ?? 1) + 1;
-                    // Gentry: variable cost (8-30pt) holding — LBS doesn't give an exact koku/copper table for
+                    // Gentry: variable cost (8-30pt) holding - LBS doesn't give an exact koku/copper table for
                     // this, so this is a documented estimate (cost × 3 copper), not an official value. Uses
                     // whatever cost was set at add time; if the GM later edits Gentry's point cost, the money
                     // grant won't retroactively adjust (same one-time-grant limitation as Weakness/Doubt).
                     if (name === 'Gentry') patch.copper = (char.copper || 0) + (adv?.cost || 8) * 3;
-                    // Wealthy: "each rank grants 2 additional koku" — rank stored as a.rank (default 1, like Luck)
+                    // Wealthy: "each rank grants 2 additional koku" - rank stored as a.rank (default 1, like Luck)
                     if (name === 'Wealthy') patch.copper = (char.copper || 0) + 2;
-                    // Social Position: "+1 Status Rank" — direct, immediate stat change, same pattern as Fame
+                    // Social Position: "+1 Status Rank" - direct, immediate stat change, same pattern as Fame
                     if (name === 'Social Position') patch.status = (char.status ?? 1) + 1;
                     onUpdate(char.id, patch);
                     // Gorilla Bodyguard: auto-spawn the trained ape as a full character using the confirmed
                     // Ozaru stat block, so it shows up claimable in the Character tab immediately. Sets
-                    // claimed_by_name to the owner's name as a visible association — true one-click claiming
+                    // claimed_by_name to the owner's name as a visible association - true one-click claiming
                     // for the SPECIFIC player isn't automatable from here (claim state lives in that player's
                     // own browser localStorage, not something a background handler can set remotely); the
                     // player still needs to tap "Claim" on the new gorilla themselves, one click.
@@ -2623,7 +2647,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           current_weapon: `Smash (${g.attack || '5k4'})`,
                           claimed_by_name: char.name,
                         });
-                        if (onLogEvent) onLogEvent('ti-paw', `${char.name}'s Gorilla Bodyguard created — tap Claim on it to control it directly`);
+                        if (onLogEvent) onLogEvent('ti-paw', `${char.name}'s Gorilla Bodyguard created - tap Claim on it to control it directly`);
                       }
                     }
                   }}>
@@ -2650,7 +2674,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     }
                     {(() => {
                       const status = getAdvantageAutomationStatus(a.name);
-                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook — no clutter otherwise
+                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook - no clutter otherwise
                       return <i className="ti ti-bolt" style={{ fontSize: 12, color: 'var(--gold-dim)' }}
                         title="This advantage's bonus is applied automatically in the dice roller when relevant." />;
                     })()}
@@ -2665,7 +2689,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Ring:</span>
                       <select style={{ fontSize: 11 }} value={a.ring || ''} onChange={e => updateAdv({ ring: e.target.value || undefined })}>
-                        <option value="">— choose —</option>
+                        <option value="">- choose -</option>
                         {['Air', 'Earth', 'Fire', 'Water'].map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
                       {a.ring && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>-1 XP cost to raise {a.ring}-Ring Traits</span>}
@@ -2678,7 +2702,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Skill:</span>
                       <select style={{ fontSize: 11 }} value={a.skill || ''} onChange={e => updateAdv({ skill: e.target.value || undefined })}>
-                        <option value="">— choose —</option>
+                        <option value="">- choose -</option>
                         {(char.skills || []).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                       </select>
                       {a.skill && <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>Raises on {a.skill} capped by Skill Rank instead of Void Ring, if higher.</span>}
@@ -2718,7 +2742,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                           skill: 'Courtier', ring: 'Air', ringVal: awareness,
                           baseRoll: (courtierSkill?.rank || 0) + awareness, baseKeep: awareness, tn: 20,
                           character: char, currentVoid: char.current_void,
-                          label: 'Well-Connected — favor from court contact',
+                          label: 'Well-Connected - favor from court contact',
                         })}>
                           <i className="ti ti-dice" style={{ marginRight: 3 }} />Roll {(courtierSkill?.rank || 0) + awareness}k{awareness}
                         </button>
@@ -2765,10 +2789,10 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     const already = (char.disadvantages || []).some(d => d.name === name);
                     if (already) return;
                     const patch = { disadvantages: [...(char.disadvantages || []), { name, value: dis?.value || 0, notes: '' }] };
-                    // Dishonored: "Status Rank 1" — direct, immediate stat set (the "may not gain Status while
-                    // active" restriction isn't enforced — would need to gate the Status-editing UI, not done)
+                    // Dishonored: "Status Rank 1" - direct, immediate stat set (the "may not gain Status while
+                    // active" restriction isn't enforced - would need to gate the Status-editing UI, not done)
                     if (name === 'Dishonored') patch.status = 1;
-                    // Social Disadvantage: "begin with Status Rank 0" — same pattern
+                    // Social Disadvantage: "begin with Status Rank 0" - same pattern
                     if (name === 'Social Disadvantage') patch.status = 0;
                     onUpdate(char.id, patch);
                   }}>
@@ -2795,7 +2819,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     }
                     {(() => {
                       const status = getDisadvantageAutomationStatus(d.name);
-                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook — no clutter otherwise
+                      if (status !== 'auto') return null; // only flag the ones with a real dice-roll hook - no clutter otherwise
                       return <i className="ti ti-bolt" style={{ fontSize: 12, color: 'var(--red)' }}
                         title="This disadvantage's penalty is applied automatically in the dice roller when relevant." />;
                     })()}
@@ -2830,7 +2854,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Affected Trait:</span>
                         <select style={{ fontSize: 11 }} value={d.trait || ''} onChange={e => e.target.value && chooseTrait(e.target.value)}>
-                          <option value="">— choose —</option>
+                          <option value="">- choose -</option>
                           {TRAITS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         {d.trait && <span style={{ fontSize: 11, color: 'var(--red)' }}>{d.trait} reduced by 1 (permanent, until this disadvantage is removed)</span>}
@@ -2845,7 +2869,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     const chooseTrait = (newTrait) => {
                       const patch = {};
                       // Restore the previously-chosen trait to a sane default if switching (can't know their
-                      // true pre-curse value once locked, so restore to 2 — GM can correct manually if needed)
+                      // true pre-curse value once locked, so restore to 2 - GM can correct manually if needed)
                       if (d.trait) patch[traitField(d.trait)] = 2;
                       patch[traitField(newTrait)] = 1;
                       const updatedDisadvantages = (char.disadvantages || []).map((x, xi) => xi === di ? { ...x, trait: newTrait } : x);
@@ -2855,7 +2879,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Locked Trait:</span>
                         <select style={{ fontSize: 11 }} value={d.trait || ''} onChange={e => e.target.value && chooseTrait(e.target.value)}>
-                          <option value="">— choose —</option>
+                          <option value="">- choose -</option>
                           {TRAITS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         {d.trait && <span style={{ fontSize: 11, color: 'var(--red)' }}>{d.trait} locked to 1, cannot be raised with XP. Insight Rank XP thresholds reduced by 5 each.</span>}
@@ -2888,7 +2912,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen Skill:</span>
                         <select style={{ fontSize: 11 }} value={d.skill || ''} onChange={e => updateDis({ skill: e.target.value || undefined })}>
-                          <option value="">— choose —</option>
+                          <option value="">- choose -</option>
                           {options.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         {d.skill && <span style={{ fontSize: 11, color: 'var(--red)' }}>XP cost to raise {d.skill} is doubled</span>}
@@ -2904,7 +2928,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chosen School Skill:</span>
                         <select style={{ fontSize: 11 }} value={d.skill || ''} onChange={e => updateDis({ skill: e.target.value || undefined })}>
-                          <option value="">— choose —</option>
+                          <option value="">- choose -</option>
                           {options.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         {d.skill && <span style={{ fontSize: 11, color: 'var(--red)' }}>+5 TN on every {d.skill} roll (mandatory wasted Raise)</span>}
@@ -2918,7 +2942,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Missing:</span>
                       <select style={{ fontSize: 11 }} value={d.limb || ''} onChange={e => updateDis({ limb: e.target.value || undefined })}>
-                        <option value="">— choose —</option>
+                        <option value="">- choose -</option>
                         <option value="Arm/Hand">Arm / Hand</option>
                         <option value="Leg/Foot">Leg / Foot</option>
                         <option value="Eye">Eye</option>
@@ -3017,7 +3041,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
   const cpSpent = traitCost + skillCost + advCost;
   const cpAvailable = TOTAL_CP + disCost;
   const cpRemaining = cpAvailable - cpSpent;
-  const disTotal = disRawTotal; // for display purposes — full total
+  const disTotal = disRawTotal; // for display purposes - full total
 
   function adjustTrait(trait, delta) {
     const cur = traits[trait], base = getBaseTraitValue(trait);
@@ -3102,7 +3126,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
       <div className="cc-progress">{steps.map((_, i) => <div key={i} className={`cc-prog-dot ${i < step - 1 ? 'done' : i === step - 1 ? 'active' : ''}`} />)}</div>
       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.25rem' }}>Step {step}: {steps[step - 1]}</div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-        {step === 1 ? 'Choose your faction.' : step === 2 ? 'Choose your sub-faction — grants a bonus trait.' : step === 3 ? 'Choose your school.' : step === advStep ? 'Choose advantages and disadvantages. They may grant or cost Character Points.' : step === traitsStep ? 'Spend your Character Points on traits and skills.' : step === spellStep ? `Select starting ${school === "Ra'Shari Diviner" ? 'Cokaloi (6)' : 'spells (3)'}.` : 'Name your character and set a login password.'}
+        {step === 1 ? 'Choose your faction.' : step === 2 ? 'Choose your sub-faction - grants a bonus trait.' : step === 3 ? 'Choose your school.' : step === advStep ? 'Choose advantages and disadvantages. They may grant or cost Character Points.' : step === traitsStep ? 'Spend your Character Points on traits and skills.' : step === spellStep ? `Select starting ${school === "Ra'Shari Diviner" ? 'Cokaloi (6)' : 'spells (3)'}.` : 'Name your character and set a login password.'}
       </div>
 
       {/* Step 1: Faction */}
@@ -3151,7 +3175,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
                     )}
                     {fd?.page && (
                       <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: '.2rem' }}>
-                        📖 Read more in the rulebook — page {fd.page}
+                        📖 Read more in the rulebook - page {fd.page}
                         {fd.loreKey && (
                           <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>
                             · see Lore Reference in NPC tab
@@ -3223,7 +3247,7 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
                   <div style={{ marginTop: '.5rem', paddingTop: '.5rem', borderTop: '1px solid rgba(107,78,40,.3)' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem' }}>School Skills:</div>
                     <div style={{ fontSize: 12, color: 'var(--gold-light)' }}>{sd.skills.join(', ')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>R1 Technique: <span style={{ color: 'var(--text-secondary)' }}>{sd.techniques?.[1] || '—'}</span></div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>R1 Technique: <span style={{ color: 'var(--text-secondary)' }}>{sd.techniques?.[1] || '-'}</span></div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.25rem' }}>Equipment: <span style={{ color: 'var(--text-secondary)' }}>{sd.equipment?.join(', ')}</span></div>
                   </div>
                 )}
@@ -3481,12 +3505,12 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
           <div className="card">
             <div className="card-title">Summary</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-              {[['Faction', faction], ['Sub-faction', subfaction], ['School', school], ['Type', SCHOOL_DATA[school]?.type || '—'], ['Integrity', SCHOOL_DATA[school]?.integrity || '—'], ['Starting Copper', SCHOOL_DATA[school]?.starting_copper || 0]].map(([l, v]) => (
+              {[['Faction', faction], ['Sub-faction', subfaction], ['School', school], ['Type', SCHOOL_DATA[school]?.type || '-'], ['Integrity', SCHOOL_DATA[school]?.integrity || '-'], ['Starting Copper', SCHOOL_DATA[school]?.starting_copper || 0]].map(([l, v]) => (
                 <div key={l} className="srow"><span className="sl">{l}</span><span className="sv">{v}</span></div>
               ))}
             </div>
             <div style={{ marginTop: '.5rem', fontSize: 12, color: 'var(--text-muted)' }}>
-              R1 Technique: <span style={{ color: 'var(--text-secondary)' }}>{SCHOOL_DATA[school]?.techniques?.[1] || '—'}</span>
+              R1 Technique: <span style={{ color: 'var(--text-secondary)' }}>{SCHOOL_DATA[school]?.techniques?.[1] || '-'}</span>
             </div>
           </div>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '.5rem', justifyContent: 'space-between' }}>
@@ -3515,7 +3539,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
   const maxRank = school ? (SAHIR_SCHOOLS_LIST.includes(school) ? 8 : 5) : 5;
 
   // Derive default name from school + rank
-  const defaultName = school ? `${school} — Rank ${rank}` : '';
+  const defaultName = school ? `${school} - Rank ${rank}` : '';
   const creatureChoices = creatureType
     ? CREATURES_LIBRARY.filter(c => (CREATURE_TYPE_CATEGORIES[creatureType] || []).includes(c.category))
     : [];
@@ -3539,7 +3563,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
       player_notes: '',
       spells: isSahir ? generateNpcSpells(rank) : [],
     });
-    if (!result) setSaveError("Couldn't save this NPC — check the browser console for the error, or that the npcs table matches expected columns.");
+    if (!result) setSaveError("Couldn't save this NPC - check the browser console for the error, or that the npcs table matches expected columns.");
   };
 
   const submitCreature = async () => {
@@ -3563,7 +3587,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
       from_bestiary: true,
       is_party_asset: false,
     });
-    if (!result) setSaveError("Couldn't save this NPC — check the browser console for the error, or that the npcs table matches expected columns.");
+    if (!result) setSaveError("Couldn't save this NPC - check the browser console for the error, or that the npcs table matches expected columns.");
   };
 
   return (
@@ -3711,7 +3735,7 @@ function NPCQuickCreate({ onComplete, onCancel }) {
               </div>
               <div style={{ marginBottom: '.3rem' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Rank {rank} Technique: </span>
-                <span style={{ color: 'var(--gold-dim)' }}>{sd.techniques?.[rank] || '—'}</span>
+                <span style={{ color: 'var(--gold-dim)' }}>{sd.techniques?.[rank] || '-'}</span>
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)' }}>Skills: </span>

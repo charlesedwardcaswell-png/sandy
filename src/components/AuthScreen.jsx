@@ -22,7 +22,7 @@ export function AuthScreen({ onGMLogin, onPlayerLogin, onObserver, onDeveloperLo
 
   const tryLogin = () => {
     setError('');
-    // Developer backdoor — works regardless of which slot is selected; never displayed in UI
+    // Developer backdoor - works regardless of which slot is selected; never displayed in UI
     if (pw === 'dev') { playLogin(); onDeveloperLogin(); return; }
     if (selected === 'gm') {
       if (pw === gmPassword) { playLogin(); onGMLogin(); return; }

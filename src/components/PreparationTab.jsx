@@ -3,12 +3,12 @@ import GridCreatorTab from './GridCreatorTab';
 import ItemCreatorTab from './ItemCreatorTab';
 import SessionPrepTab from './SessionPrepTab';
 
-// Phase 1: Battle Grid Creator + Item/Magic Item Creator. Phase 2: Session Prep (reveal model) —
+// Phase 1: Battle Grid Creator + Item/Magic Item Creator. Phase 2: Session Prep (reveal model) -
 // associates existing quests/npcs/shops/gm-inventory items with a not-yet-started session; nothing
 // is created here, starting that session just flips visibility / hands items off.
 //
 // A Shop Manager sub-tab briefly lived here (shop-level create/rename/delete/hide-toggle, splitting
-// off from ShopTab's per-item editing). Charles asked for it to be undone — ShopTab now owns shop
+// off from ShopTab's per-item editing). Charles asked for it to be undone - ShopTab now owns shop
 // management completely again, same as before that split. Don't re-split this without being asked.
 export default function PreparationTab({ isDeveloper, characters, onUpdateCharacter, inventory, onUpdateInventory, onLogEvent, allSessions, quests, npcs, onSaveReveals, onCreatePrepSession, onSavePreparedEncounters, npcsFromLog, onCreateQuest, onUnretireSession }) {
   const [subTab, setSubTab] = useState('sessionprep');

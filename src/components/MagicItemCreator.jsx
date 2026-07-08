@@ -13,16 +13,16 @@ const MUNDANE_CATEGORIES = ['Quest Item', 'Weapon', 'Armor', 'Gear', 'Loot', 'Co
 
 // Shared base-item catalog for reskinning: pick a real item, keep its mechanics/description locked,
 // only override name/price/flavor-notes. Used by BOTH mundane items ("From base item") and magic items
-// (a magic Weapon or Armor can lock to a real weapon/shield's stats) — this used to be two separate,
+// (a magic Weapon or Armor can lock to a real weapon/shield's stats) - this used to be two separate,
 // overlapping pickers (a Weapon-only one here, and a wider one in ItemCreatorTab); merged into one.
 // Normalizes several differently-shaped data sources into one shape:
 // { name, price, mechanicsSummary, description, mechanicalFields (spread onto the created item as-is) }
 const BASE_ITEM_CATALOG = {
   Weapon: WEAPONS_LIST.map(w => ({
-    name: w.name, price: w.price !== '—' ? w.price : '',
+    name: w.name, price: w.price !== '-' ? w.price : '',
     mechanicsSummary: `DR ${w.dr} · ${w.skill}${w.twoHanded ? ' · Two-Handed' : ''}${w.special ? ' · ' + w.special : ''}`,
     description: GEAR_FULL_ENTRY[w.name] || w.special || '',
-    // item_type overrides CharacterTab's name-based wield/wear detection — without it, a renamed
+    // item_type overrides CharacterTab's name-based wield/wear detection - without it, a renamed
     // weapon or piece of armor would silently stop registering as equippable at all.
     mechanicalFields: { dr: w.dr, skill: w.skill, size: w.size, twoHanded: w.twoHanded, isSword: w.isSword, special: w.special, item_type: 'Weapon' },
   })),
@@ -31,12 +31,12 @@ const BASE_ITEM_CATALOG = {
     mechanicsSummary: `+${s.tnBonus} TN, Reduction ${s.reduction}${s.note ? ' · ' + s.note : ''}`,
     description: s.note || '',
     // tn_bonus (snake_case) + is_shield so getArmorBonus()/getShieldBonus() recognize a renamed shield
-    // item correctly — a name-based lookup alone breaks the moment the GM renames it.
+    // item correctly - a name-based lookup alone breaks the moment the GM renames it.
     mechanicalFields: { tn_bonus: s.tnBonus, reduction: s.reduction, size: s.size, note: s.note, item_type: 'Armor', is_shield: true },
   })),
   Poison: POISONS_LIST.map(p => ({
     name: p.name, price: p.craftInputCost || '',
-    mechanicsSummary: `${p.effect} · Resist TN ${p.resistTN ?? '—'}`,
+    mechanicsSummary: `${p.effect} · Resist TN ${p.resistTN ?? '-'}`,
     description: `${p.method}, onset ${p.onset}. ${p.effect}. Resist: ${p.resist}.${p.craftNotes ? ' ' + p.craftNotes : ''}`,
     mechanicalFields: { method: p.method, onset: p.onset, effect: p.effect, resist: p.resist, resistTN: p.resistTN, healTN: p.healTN, craftTN: p.craftTN, craftNotes: p.craftNotes, disease: p.disease, craftInputItem: p.craftInputItem },
   })),
@@ -50,7 +50,7 @@ const BASE_ITEM_CATALOG = {
     name, price: '',
     mechanicsSummary: ARMOR_TN_BONUS[name] ? `+${ARMOR_TN_BONUS[name]} Armor TN` : '',
     description: GEAR_FULL_ENTRY[name] || GEAR_DESCRIPTIONS[name] || '',
-    // Armor items must carry an explicit tn_bonus field — getArmorBonus() checks this before falling
+    // Armor items must carry an explicit tn_bonus field - getArmorBonus() checks this before falling
     // back to a by-name lookup, which would silently break the moment the item is renamed. item_type
     // likewise overrides CharacterTab's name-based "is this armor" detection for the same reason.
     mechanicalFields: ARMOR_TN_BONUS[name] ? { tn_bonus: ARMOR_TN_BONUS[name], item_type: 'Armor' } : {},
@@ -66,10 +66,10 @@ const NUMERIC_OVERRIDES = {
   Gear: [{ key: 'tn_bonus', label: 'Armor TN Bonus', type: 'number', onlyIf: (base) => base.mechanicalFields.tn_bonus !== undefined }],
 };
 const BASE_ITEM_CATEGORY_TO_ITEM_CATEGORY = { Weapon: 'Weapon', Shield: 'Armor', Poison: 'Consumable', Powder: 'Consumable', Gear: 'Gear' };
-// Which base categories a magic item's Type can lock to — a magic Weapon locks to a real weapon,
+// Which base categories a magic item's Type can lock to - a magic Weapon locks to a real weapon,
 // a magic Armor locks to a real shield (inheriting is_shield so it stacks like a shield, not a
 // highest-only armor slot). Other magic types (Accessory/Consumable/Artifact/Curiosity) have no
-// mechanical base — they're flavor/effect-only, same as before this merge.
+// mechanical base - they're flavor/effect-only, same as before this merge.
 const MAGIC_TYPE_TO_BASE_CATEGORY = { Weapon: 'Weapon', Armor: 'Shield' };
 
 export function MagicItemBadge({ item, compact = false }) {
@@ -113,15 +113,15 @@ export function MagicItemBadge({ item, compact = false }) {
 
 // defaultMagic controls the initial state of the "Magic Item" toggle depending on which button
 // opened the modal (PartyTab's "✦ Create Magic Item" vs Preparation's single "+ Create Item"),
-// but the toggle itself is always available — either entry point can create either kind of item.
+// but the toggle itself is always available - either entry point can create either kind of item.
 export default function MagicItemCreator({ onClose, onCreateForCharacter, onCreateForParty, onCreateForShop, onCreateForGMInventory, characters, shops = [], defaultMagic = false }) {
   const [isMagic, setIsMagic] = useState(defaultMagic);
   const [name, setName] = useState('');
   const [rarity, setRarity] = useState('rare');
   const [itemType, setItemType] = useState('Weapon');          // magic mode: TYPES
   const [mundaneCategory, setMundaneCategory] = useState('Gear'); // mundane mode, custom (no base): MUNDANE_CATEGORIES
-  const [qty, setQty] = useState(1);       // mundane only — magic items are always qty 1
-  const [price, setPrice] = useState('');  // mundane only — magic items show computed base/estimated price instead
+  const [qty, setQty] = useState(1);       // mundane only - magic items are always qty 1
+  const [price, setPrice] = useState('');  // mundane only - magic items show computed base/estimated price instead
   const [useBaseItem, setUseBaseItem] = useState(false); // mundane only; magic mode's base linking is implied by picking a base item name directly
   const [baseCategory, setBaseCategory] = useState('Weapon'); // mundane only: Weapon | Shield | Poison | Powder | Gear
   const [baseItemName, setBaseItemName] = useState('');
@@ -138,7 +138,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
 
   const rarityData = RARITIES.find(r => r.key === rarity) || RARITIES[0];
 
-  // In magic mode, which base category applies is implied by Type (Weapon→Weapon, Armor→Shield —
+  // In magic mode, which base category applies is implied by Type (Weapon→Weapon, Armor→Shield -
   // a magic shield-based Armor item inherits is_shield so it stacks like a shield, not a highest-only
   // armor slot). Other magic types have no mechanical base, same as before this merge.
   const magicBaseCategory = MAGIC_TYPE_TO_BASE_CATEGORY[itemType] || null;
@@ -176,10 +176,10 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
   const changeBaseCategory = (c) => { setBaseCategory(c); setBaseItemName(''); setNumOverrides({}); setName(''); setPrice(''); };
 
   // Base cost (magic only): the linked base item's real price if chosen, otherwise a flat fallback
-  // by rarity. Magic markup on top scales with rarity — shown so the GM knows what a shop would charge.
+  // by rarity. Magic markup on top scales with rarity - shown so the GM knows what a shop would charge.
   const FALLBACK_BASE_PRICE = { uncommon: 10, rare: 20, legendary: 50, artifact: 100 };
   const parseBasePrice = (priceStr) => {
-    if (!priceStr || priceStr === '—') return FALLBACK_BASE_PRICE[rarity] || 20;
+    if (!priceStr || priceStr === '-') return FALLBACK_BASE_PRICE[rarity] || 20;
     const match = String(priceStr).match(/(\d+(?:\.\d+)?)/);
     return match ? parseFloat(match[1]) : (FALLBACK_BASE_PRICE[rarity] || 20);
   };
@@ -193,7 +193,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
     const f = mergedFields;
     if (baseCategory === 'Weapon') return `DR ${f.dr} · ${f.skill}${f.twoHanded ? ' · Two-Handed' : ''}${f.special ? ' · ' + f.special : ''}`;
     if (baseCategory === 'Shield') return `+${f.tn_bonus} TN, Reduction ${f.reduction}${f.note ? ' · ' + f.note : ''}`;
-    if (baseCategory === 'Poison') return `${f.effect} · Resist TN ${f.resistTN ?? '—'}`;
+    if (baseCategory === 'Poison') return `${f.effect} · Resist TN ${f.resistTN ?? '-'}`;
     if (baseCategory === 'Gear') return f.tn_bonus ? `+${f.tn_bonus} Armor TN` : selectedBase.mechanicsSummary;
     return selectedBase.mechanicsSummary;
   })() : null;
@@ -301,14 +301,14 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Base item picker — magic mode: implied by Type, single dropdown. Mundane mode: pick a base category first. */}
+        {/* Base item picker - magic mode: implied by Type, single dropdown. Mundane mode: pick a base category first. */}
         {isMagic && magicBaseCategory && (
           <div style={{ marginBottom: '.75rem' }}>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
               Base {magicBaseCategory === 'Weapon' ? 'Weapon' : 'Shield'} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(determines mechanics and base cost)</span>
             </label>
             <select value={baseItemName} onChange={e => handleSelectBaseItem(e.target.value)} style={{ width: '100%' }}>
-              <option value="">— custom / not a standard {magicBaseCategory.toLowerCase()} —</option>
+              <option value="">- custom / not a standard {magicBaseCategory.toLowerCase()} -</option>
               {baseOptions.map(b => <option key={b.name} value={b.name}>{b.name}{b.mechanicsSummary ? ` (${b.mechanicsSummary})` : ''}</option>)}
             </select>
           </div>
@@ -319,21 +319,21 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
               {Object.keys(BASE_ITEM_CATALOG).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <select value={baseItemName} onChange={e => handleSelectBaseItem(e.target.value)} style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
-              <option value="">— choose base {baseCategory.toLowerCase()} —</option>
+              <option value="">- choose base {baseCategory.toLowerCase()} -</option>
               {baseOptions.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
             </select>
           </div>
         )}
 
-        {/* Locked mechanics preview — shared between magic and mundane base-linked items */}
+        {/* Locked mechanics preview - shared between magic and mundane base-linked items */}
         {selectedBase && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.75rem', padding: '.4rem .5rem', background: 'rgba(107,78,40,.08)', borderRadius: 4 }}>
-            <span style={{ color: 'var(--gold-dim)', fontWeight: 600 }}>Mechanics (locked): </span>{isMagic ? (selectedBase.mechanicsSummary || '—') : (mundaneSummary || '—')}
+            <span style={{ color: 'var(--gold-dim)', fontWeight: 600 }}>Mechanics (locked): </span>{isMagic ? (selectedBase.mechanicsSummary || '-') : (mundaneSummary || '-')}
             {selectedBase.description && <div style={{ marginTop: 3, fontStyle: 'italic' }}>{selectedBase.description}</div>}
           </div>
         )}
 
-        {/* Numeric overrides — shared, e.g. DR for a magic/mundane weapon, TN Bonus + Reduction for a shield */}
+        {/* Numeric overrides - shared, e.g. DR for a magic/mundane weapon, TN Bonus + Reduction for a shield */}
         {selectedBase && activeOverrides.length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: '.75rem' }}>
             {activeOverrides.map(o => (
@@ -346,7 +346,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Freeform mechanics — magic items with no base linked (custom weapon/armor, as before this merge) */}
+        {/* Freeform mechanics - magic items with no base linked (custom weapon/armor, as before this merge) */}
         {isMagic && itemType === 'Weapon' && !selectedBase && (
           <div style={{ marginBottom: '.75rem' }}>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Damage (if weapon, e.g. 3k2)</label>
@@ -362,12 +362,12 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Base cost — magic only, shown so the GM knows what shop price will be derived from */}
+        {/* Base cost - magic only, shown so the GM knows what shop price will be derived from */}
         {isMagic && (
           <div style={{ marginBottom: '.75rem', padding: '.5rem .65rem', background: 'var(--bg-panel)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted)' }}>
             Base item cost: <strong style={{ color: 'var(--gold-dim)' }}>{basePrice} copper</strong>
             {' '}→ estimated shop price at {rarityData.label}: <strong style={{ color: 'var(--gold)' }}>{estimatedShopPrice} copper</strong>
-            {!selectedBase && magicBaseCategory && <span> (no base item selected — using rarity fallback)</span>}
+            {!selectedBase && magicBaseCategory && <span> (no base item selected - using rarity fallback)</span>}
           </div>
         )}
 
@@ -386,7 +386,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Effect — magic only */}
+        {/* Effect - magic only */}
         {isMagic && (
           <div style={{ marginBottom: '.75rem' }}>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Magical Effect (shown on sheet)</label>
@@ -395,10 +395,10 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Flavor text — shared, stored as description (magic) or notes (mundane) */}
+        {/* Flavor text - shared, stored as description (magic) or notes (mundane) */}
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
-            {isMagic ? 'Flavour Description (optional)' : (useBaseItem ? 'Flavor description (optional — reskin text, mechanics stay locked)' : 'Notes (optional)')}
+            {isMagic ? 'Flavour Description (optional)' : (useBaseItem ? 'Flavor description (optional - reskin text, mechanics stay locked)' : 'Notes (optional)')}
           </label>
           {isMagic ? (
             <textarea value={flavorText} onChange={e => setFlavorText(e.target.value)} rows={2}
@@ -410,7 +410,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           )}
         </div>
 
-        {/* Preview — magic only */}
+        {/* Preview - magic only */}
         {isMagic && name && (
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Preview</label>
@@ -418,7 +418,7 @@ export default function MagicItemCreator({ onClose, onCreateForCharacter, onCrea
           </div>
         )}
 
-        {/* Destination — shared */}
+        {/* Destination - shared */}
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Send to</label>
           <select value={destination} onChange={e => setDestination(e.target.value)} style={{ width: '100%' }}>

@@ -27,7 +27,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     setStanceConfirmed(false);
     setSelectedAction(null);
   }, [combatantId]);
-  // Right-click token context menu on the Battle Grid sets this — jump straight to the chosen
+  // Right-click token context menu on the Battle Grid sets this - jump straight to the chosen
   // action with the target preselected, instead of requiring the target/action buttons below.
   useEffect(() => {
     if (!quickTargetRequest) return;
@@ -39,9 +39,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
   const [forgeryDocName, setForgeryDocName] = useState('');
-  const [forgeryOriginalExample, setForgeryOriginalExample] = useState(false); // -10 TN — authentic handwriting/chop to copy
-  const [forgeryFromMemory, setForgeryFromMemory] = useState(false); // +10 TN — no reference at all, working from memory
-  const [forgeryQualityMaterials, setForgeryQualityMaterials] = useState(false); // informational only — no fixed TN number given, GM discretion on TN and/or detection difficulty
+  const [forgeryOriginalExample, setForgeryOriginalExample] = useState(false); // -10 TN - authentic handwriting/chop to copy
+  const [forgeryFromMemory, setForgeryFromMemory] = useState(false); // +10 TN - no reference at all, working from memory
+  const [forgeryQualityMaterials, setForgeryQualityMaterials] = useState(false); // informational only - no fixed TN number given, GM discretion on TN and/or detection difficulty
   const [simpleActionConfirmed, setSimpleActionConfirmed] = useState({}); // techName -> bool, for Simple Action Attack techniques whose condition needs a GM/player call (weapon type, lone opponent, mounted, etc.)
   const [showContestedPicker, setShowContestedPicker] = useState(false);
   const [contestedOpponentId, setContestedOpponentId] = useState('');
@@ -51,10 +51,10 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   if (!isNPCTurn && !character) return null;
 
-  // Attack range/reach/LOS check — same rule as the Battle Grid's right-click quick-target menu:
+  // Attack range/reach/LOS check - same rule as the Battle Grid's right-click quick-target menu:
   // melee is reach-enforced, ranged has no max range cap but is blocked by walls (line of sight).
   // No grid position on either side (non-grid encounter, or a combatant never placed) means there's
-  // nothing to check against — attack is always allowed in that case. Defined here (before the
+  // nothing to check against - attack is always allowed in that case. Defined here (before the
   // isNPCTurn early return) so both the GM-controlled-NPC panel and the PC panel below can use it.
   const getRangeIssue = (target) => {
     const hasPos = combatant?.gridX !== undefined && target?.gridX !== undefined;
@@ -67,18 +67,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       return isRangedSkill(skillName) ? (dist > 1 && !losBlocked) : dist <= getMeleeReach(skillName);
     });
     if (usable) return '';
-    if (dist <= 1) return 'No ranged weapon drawn — target is adjacent';
-    return losBlocked ? 'No line of sight — a wall blocks the shot' : 'Target out of melee reach — no ranged weapon drawn';
+    if (dist <= 1) return 'No ranged weapon drawn - target is adjacent';
+    return losBlocked ? 'No line of sight - a wall blocks the shot' : 'Target out of melee reach - no ranged weapon drawn';
   };
 
-  // NPC turn — simplified panel for GM
+  // NPC turn - simplified panel for GM
   if (isNPCTurn) {
-    // Compute wound penalty for NPC here (can't use the declaration below — it comes after the return)
+    // Compute wound penalty for NPC here (can't use the declaration below - it comes after the return)
     const npcWoundRank = Math.min(7, Math.floor((combatant.wound || 0)));
     const NPC_WOUND_PENALTIES = [0, 3, 5, 10, 15, 20, 40, 999];
     const npcWoundPenalty = NPC_WOUND_PENALTIES[npcWoundRank] || 0;
 
-    // NPC attack pool — read actual rings and weapon from combatant
+    // NPC attack pool - read actual rings and weapon from combatant
     const npcAgi   = combatant.agility  || combatant.fire || 2;
     const npcRef   = combatant.reflexes || combatant.air  || 2;
     const npcAir   = combatant.air      || 2;
@@ -92,12 +92,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     // Armor TN: 5 + (Reflexes × 5) + armor bonus
     const npcArmorTN = 5 + (npcRef * 5) + (combatant.armor_bonus || 0);
     return (
-      <div style={{ background: 'var(--bg-deep)', backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,64,48,.06) 0%, transparent 70%)', borderTop: '2px solid var(--red)', boxShadow: '0 -4px 24px rgba(0,0,0,.5)', padding: '1rem', position: 'sticky', bottom: 0, zIndex: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
+      <div style={{ background: 'var(--bg-deep)', backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,64,48,.06) 0%, transparent 70%)', borderTop: '2px solid var(--red)', padding: '.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>
-            <i className="ti ti-skull" style={{ marginRight: 5 }} />{combatant.name} — NPC Turn
+            <i className="ti ti-skull" style={{ marginRight: 5 }} />{combatant.name} - NPC Turn
           </div>
-          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
             {STANCES.map(s => {
               // Same ring-matched palette as the PC stance selector below, for visual consistency.
               const stanceColors = { 'Attack': '#e09050', 'Full Attack': '#60b0d0', 'Defense': '#a0c0e0', 'Full Defense': '#80c090', 'Center': '#c0a0e0' };
@@ -144,14 +144,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 else if (action.id === 'skill') { setShowSkillPicker(true); setSelectedAction(null); }
                 else setSelectedAction(action.id);
               }}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.3rem', padding: '.6rem .25rem',
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: '.4rem', padding: '.75rem .25rem',
                 background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
-                border: `1px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
-                borderRadius: 6, cursor: action.disabled ? 'not-allowed' : 'pointer',
+                border: `2px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
+                borderRadius: 8, cursor: action.disabled ? 'not-allowed' : 'pointer', transition: 'all .15s',
                 opacity: action.disabled ? 0.4 : 1,
                 fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
-              <i className={`ti ${action.icon}`} style={{ fontSize: 20, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
-              <span style={{ fontSize: 12, fontWeight: 500 }}>{action.label}</span>
+              <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
             </button>
           ))}
         </div>
@@ -182,11 +184,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   targetName: enemies.find(e => e.id === selectedTarget)?.name,
                   targetId: selectedTarget,
                   woundPenalty: npcWoundPenalty,
-                  bonusNotes: [`${npcWeaponName} — DR ${npcDR}`, `TN ${npcArmorTN} (target Armor)`],
+                  bonusNotes: [`${npcWeaponName} - DR ${npcDR}`, `TN ${npcArmorTN} (target Armor)`],
                 });
                 onSpendAction && onSpendAction('full');
               }}>
-                ⚔ Roll Attack — {npcAtkRoll}k{npcAtkKeep} vs TN {npcArmorTN}
+                ⚔ Roll Attack - {npcAtkRoll}k{npcAtkKeep} vs TN {npcArmorTN}
               </button>
             )}
           </div>
@@ -238,7 +240,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   setSelectedTarget(null);
                   setSelectedAction(null);
                 }}>
-                  Roll {sk.name} — {sk.roll}k{sk.keep} vs TN 15
+                  Roll {sk.name} - {sk.roll}k{sk.keep} vs TN 15
                 </button>
               );
             })()}
@@ -252,7 +254,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const hasBadHealth = (character.disadvantages || []).some(d => (d.name || d) === 'Bad Health');
   const effectiveEarth = Math.max(1, (character.earth || 2) - (hasBadHealth ? 1 : 0));
   let woundRank = getWoundRank(character.current_wounds, effectiveEarth * 17, effectiveEarth);
-  // Permanent Wound disadvantage: first Wound Rank is always considered full — floor at rank 1 once any wound is taken
+  // Permanent Wound disadvantage: first Wound Rank is always considered full - floor at rank 1 once any wound is taken
   const hasPermanentWound = (character.disadvantages || []).some(d => (d.name || d) === 'Permanent Wound');
   if (hasPermanentWound && (character.current_wounds || 0) > 0) woundRank = Math.max(woundRank, 1);
   // Wound penalties are TN additions per L5R 4th Ed; Strength of the Earth reduces by 3
@@ -267,7 +269,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const woundPenaltyIncrease = hasLowPainThreshold ? 5 : 0;
   const woundPenalty = Math.max(0, (WOUND_TN_PENALTY[woundRank] || 0) - woundPenaltyReduction + woundPenaltyIncrease);
 
-  // Drawn weapons and dual-wield penalties — computed at top level for use in roll TN
+  // Drawn weapons and dual-wield penalties - computed at top level for use in roll TN
   const drawnList = combatant.drawnWeapons || (combatant.drawnWeapon ? [combatant.drawnWeapon] : []);
   const isDualWielding = drawnList.length >= 2;
   const primaryHandPenalty = isDualWielding ? -5 : 0;
@@ -290,7 +292,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   // the penalty). Uses TN-increase convention to match how dualWieldPenalty is already applied below.
   const equippedShieldPenalty = getShieldBonus(character?.equipment || []).attackPenalty; // 0, -5, -10, or -15
 
-  // Targetable pool — enemies always, allies too if friendly-fire targeting is enabled
+  // Targetable pool - enemies always, allies too if friendly-fire targeting is enabled
   const targetPool = allowFriendly ? [...enemies, ...allies] : enemies;
 
   // Categorise skills
@@ -317,18 +319,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   const centerExtraKeep = hasCenterBonus ? 1 : 0;
   const centerBonus = combatant.stance === 'Center' ? (character?.school_rank || 1) : 0;
 
-  // Nocked arrow — a special arrow type marked inUse alongside the bow (own equipment toggle, not
+  // Nocked arrow - a special arrow type marked inUse alongside the bow (own equipment toggle, not
   // part of the Draw Weapon action). Only matters for Archery attacks. Falls back to Standard/no
   // effect if nothing's nocked or the nocked item was used up.
   const nockedArrowItem = (character?.equipment || []).find(e => e.isAmmo && e.inUse);
   const nockedArrow = nockedArrowItem ? ARROW_TYPES[nockedArrowItem.name] : null;
 
   // Skill mastery bonuses (ranks 3, 5, 7). NOTE: real L5R 4E Bugei (combat) skill mastery abilities
-  // (confirmed against a clean wiki source this session — see MASTERY_AUDIT.md) essentially never take
+  // (confirmed against a clean wiki source this session - see MASTERY_AUDIT.md) essentially never take
   // the form of "add a rolled die to this skill's own attack pool." They're damage-only bonuses, free
-  // actions, Initiative bonuses, conditional/situational effects, or cross-skill bonuses instead — none
+  // actions, Initiative bonuses, conditional/situational effects, or cross-skill bonuses instead - none
   // of which fit this simple table. The previous Swordsmanship/Brawling/Athletics entries here (and the
-  // Knives/Spears/Staves/Heavy Weapons/Chain Weapons stopgap added earlier this session) were WRONG —
+  // Knives/Spears/Staves/Heavy Weapons/Chain Weapons stopgap added earlier this session) were WRONG -
   // removed rather than left in place actively misleading players. See MASTERY_AUDIT.md for what each
   // skill's real mastery abilities are and where (if anywhere) they've been wired instead.
   const MASTERY_ROLL_BONUS = {
@@ -343,7 +345,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     Spellcraft: { 3: true },
   };
 
-  // Spell emphasis — free raise if spell type matches emphasis
+  // Spell emphasis - free raise if spell type matches emphasis
   const spellEmphases = character.spell_type_emphases || [];
 
   const LOW_SKILLS = new Set(SKILL_CATEGORIES['Low (Common/Criminal)'] || []);
@@ -359,7 +361,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     const ringVal = character[ringKey] || 2;
 
     // Crafty: unskilled Low Skill rolls treated as rank 1 instead of rank 0.
-    // Auto-applies when the character has the advantage and skill.rank === 0 — no manual checkbox needed.
+    // Auto-applies when the character has the advantage and skill.rank === 0 - no manual checkbox needed.
     const effectiveRank = (hasCrafty && skill.rank === 0 && LOW_SKILLS.has(skill.name)) ? 1 : skill.rank;
 
     const masteryBonuses = MASTERY_ROLL_BONUS[skill.name] || {};
@@ -379,7 +381,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     // Jinn protection, same as CombatantCard/NPC-attack resolution
     const jinnBonus = (t.faction === 'Jinn' && Object.values(t?.techniques || {}).some(x => typeof x === 'string' && x.includes('+TN to Be Hit = highest Ring')))
       ? Math.max(t.air || 2, t.earth || 2, t.fire || 2, t.water || 2) : 0;
-    // Previously this ignored the target's stance entirely — a target in Full Defense or Defense stance
+    // Previously this ignored the target's stance entirely - a target in Full Defense or Defense stance
     // would show a lower TN here than everywhere else in the app computed for them. Fixed via the shared
     // getArmorTN() helper, same as CombatantCard and the NPC attack resolver.
     const isArcheryArrow = skillName === 'Archery' && nockedArrow;
@@ -403,7 +405,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     const pool = getPool(selectedSkill);
     const isAttack = combatSkills.some(s => s.name === selectedSkill.name) && selectedSkill.name !== 'Defense' && selectedSkill.name !== 'Athletics';
     // Forgery: Original Example / Working From Memory adjust the creation TN directly (GM-set base TN
-    // already accounts for document complexity — these layer a further modifier on top).
+    // already accounts for document complexity - these layer a further modifier on top).
     const forgeryTnMod = selectedSkill.name === 'Forgery'
       ? (forgeryOriginalExample ? -10 : 0) + (forgeryFromMemory ? 10 : 0)
       : 0;
@@ -433,7 +435,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     const bonusNotes = [];
     if (selectedSkill.name === 'Forgery' && forgeryOriginalExample) bonusNotes.push('Original example on hand: −10 TN');
     if (selectedSkill.name === 'Forgery' && forgeryFromMemory) bonusNotes.push('Working from memory: +10 TN');
-    if (selectedSkill.name === 'Forgery' && forgeryQualityMaterials) bonusNotes.push('High-quality materials used — GM discretion on TN/detection difficulty');
+    if (selectedSkill.name === 'Forgery' && forgeryQualityMaterials) bonusNotes.push('High-quality materials used - GM discretion on TN/detection difficulty');
     if (stanceRollBonus > 0) bonusNotes.push(`Full Attack: +2k1 to attacks (−10 Armor TN)`);
     if (dualWieldPenalty !== 0) bonusNotes.push(`Dual wield: ${dualWieldPenalty} TN to this attack`);
     if (shieldPenalty !== 0) bonusNotes.push(`Shield: ${shieldPenalty} TN (carrying a shield)`);
@@ -450,12 +452,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       const ownsSelectedEmphasis = ((character?.skills || []).find(s => s.name === selectedSkill.name)?.emphases || []).includes(selectedEmphasis);
       bonusNotes.push(ownsSelectedEmphasis
         ? `Emphasis (${selectedEmphasis}): reroll 1s on kept dice`
-        : `Emphasis (${selectedEmphasis}): untrained — describes the roll, no reroll bonus`);
+        : `Emphasis (${selectedEmphasis}): untrained - describes the roll, no reroll bonus`);
     }
     if (pool.masteryRoll > 0) bonusNotes.push(`Rank ${selectedSkill.rank} Mastery: +${pool.masteryRoll} rolled die`);
     if (qualityRollBonus > 0) bonusNotes.push(`${qualityData.label} quality: +${qualityRollBonus}${qualityKeepBonus > 0 ? `k${qualityKeepBonus}` : ' rolled die'}`);
 
-    // Arrow tracking — consume one arrow per Archery attack when the GM has the setting enabled.
+    // Arrow tracking - consume one arrow per Archery attack when the GM has the setting enabled.
     // Doesn't block the attack when ammo runs out; just tracks and warns, GM discretion from there.
     // The nocked arrow's own DR replaces the bow's when one is nocked (see effectiveDr below); its
     // armor effect (ignore/double) is applied to target TN up in getTargetTN.
@@ -464,7 +466,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       if (nockedArrowItem && nockedArrow) {
         effectiveDr = nockedArrow.dr;
         if (nockedArrow.effect === 'ignoreArmor') bonusNotes.push(`${nockedArrow.label} arrow: target's armor bonus ignored`);
-        else if (nockedArrow.effect === 'doubleArmor') bonusNotes.push(`${nockedArrow.label} arrow: target's armor bonus doubled (range halved — not enforced)`);
+        else if (nockedArrow.effect === 'doubleArmor') bonusNotes.push(`${nockedArrow.label} arrow: target's armor bonus doubled (range halved - not enforced)`);
         else if (nockedArrow.effect === 'signal') bonusNotes.push(`${nockedArrow.label} arrow: signaling/distraction only, not a real attack`);
         if (arrowTracking) {
           const idx = character.equipment.findIndex(x => x === nockedArrowItem);
@@ -473,7 +475,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             const eq = character.equipment.map((x, xi) => xi === idx ? { ...x, count: remaining } : x);
             onUpdateCharacter(character.id, { equipment: eq });
           }
-          bonusNotes.push(remaining > 0 ? `${nockedArrow.label} arrow used — ${remaining} left` : `${nockedArrow.label} arrow used — none left!`);
+          bonusNotes.push(remaining > 0 ? `${nockedArrow.label} arrow used - ${remaining} left` : `${nockedArrow.label} arrow used - none left!`);
         }
       } else if (arrowTracking) {
         const quiverIdx = (character.equipment || []).findIndex(x => x.name?.startsWith('Quiver'));
@@ -484,9 +486,9 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             const eq = character.equipment.map((x, xi) => xi === quiverIdx ? { ...x, count: remaining } : x);
             onUpdateCharacter(character.id, { equipment: eq });
           }
-          bonusNotes.push(remaining > 0 ? `Arrow used — ${remaining} left in quiver` : `Arrow used — quiver empty!`);
+          bonusNotes.push(remaining > 0 ? `Arrow used - ${remaining} left in quiver` : `Arrow used - quiver empty!`);
         } else {
-          bonusNotes.push(`No quiver equipped — arrow tracking on, nothing to consume`);
+          bonusNotes.push(`No quiver equipped - arrow tracking on, nothing to consume`);
         }
       }
     }
@@ -542,7 +544,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
 
   const actions = actionsLeft || { full: 1, simple: 2 };
   const noActionsLeft = actions.full <= 0 && actions.simple <= 0;
-  // Once any action (including movement) has been taken this turn, stance is locked — matches the
+  // Once any action (including movement) has been taken this turn, stance is locked - matches the
   // same "has this combatant acted" signal used elsewhere (actions.full/simple below their fresh-turn
   // defaults of 1/2).
   const stanceLocked = actions.full < 1 || actions.simple < 2;
@@ -552,9 +554,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       background: 'var(--bg-deep)',
       backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(200,150,42,.07) 0%, transparent 70%), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(200,150,42,.04) 39px, rgba(200,150,42,.04) 40px)',
       borderTop: '2px solid var(--gold)',
-      boxShadow: '0 -4px 24px rgba(0,0,0,.5)',
-      padding: '1rem',
-      position: 'sticky', bottom: 0, zIndex: 100,
+      padding: '.75rem',
     }}>
 
       {/* Full-screen spell picker overlay */}
@@ -694,7 +694,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 2, textTransform: 'uppercase', letterSpacing: '.05em' }}>Actions:</div>
           {/* Full action pip */}
-          <div title="Full (Complex) Action remaining — costs 1 Full Action" style={{
+          <div title="Full (Complex) Action remaining - costs 1 Full Action" style={{
             height: 28, borderRadius: 4, padding: '0 8px',
             background: actions.full > 0 ? 'var(--gold)' : 'var(--bg-panel)',
             border: `2px solid ${actions.full > 0 ? 'var(--gold)' : 'var(--border)'}`,
@@ -726,7 +726,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         )}
       </div>
 
-      {/* ── Step 1: Stance — large when no stance, compact after ── */}
+      {/* ── Step 1: Stance - large when no stance, compact after ── */}
       <div style={{ marginBottom: stanceChosen ? '.5rem' : '1rem' }}>
         {!stanceChosen && (
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)', textAlign: 'center', marginBottom: '.6rem', letterSpacing: '.05em' }}>
@@ -780,8 +780,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         </div>
         {combatant.stance && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>
-            {combatant.stance === 'Full Attack' && '⚔ +2k1 attack rolls · −10 Armor TN · melee only'}
-            {combatant.stance === 'Full Defense' && '🛡 Defense roll result ÷2 (round up) added to base Armor TN — only Free Actions remain'}
+            {combatant.stance === 'Full Attack' && '🔥 +2k1 attack rolls · −10 Armor TN · melee only'}
+            {combatant.stance === 'Full Defense' && '🪨 Defense roll result ÷2 (round up) added to base Armor TN - only Free Actions remain'}
             {combatant.stance === 'Defense' && (() => {
               const airRing = character?.air || 2;
               const defSkillRank = (character?.skills || []).find(s => s.name === 'Defense')?.rank || combatant.defenseSkillRank || 0;
@@ -789,16 +789,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               // Previously omitted armor bonus entirely, understating the player's actual TN in this tooltip
               const armorBonus = getArmorBonus(character?.equipment || []) || combatant.armorBonus || 0;
               const totalTN = getArmorTN({ reflexes: character?.reflexes || combatant.reflexes, armorBonus, stance: 'Defense', airRing, defenseSkillRank: defSkillRank });
-              return `🌬 Air stance: +${bonus} Armor TN (Air ${airRing}${defSkillRank > 0 ? ` + Defense Skill ${defSkillRank}` : ''}) = TN ${totalTN} — cannot attack`;
+              return `💨 Air stance: +${bonus} Armor TN (Air ${airRing}${defSkillRank > 0 ? ` + Defense Skill ${defSkillRank}` : ''}) = TN ${totalTN} - cannot attack`;
             })()}
-            {combatant.stance === 'Attack' && '💧 Attack stance — no restrictions'}
-            {combatant.stance === 'Center' && '◉ Forfeiting all actions — bonus applies to your FIRST roll next turn'}
+            {combatant.stance === 'Attack' && '💧 Attack stance - no restrictions'}
+            {combatant.stance === 'Center' && '⚫ Forfeiting all actions - bonus applies to your FIRST roll next turn'}
             {hasCenterBonus && <span style={{ color: 'var(--gold)', fontWeight: 700 }}> ✦ Center bonus ready: +{1 + voidRing}k1 on first roll this turn!</span>}
           </div>
         )}
       </div>
 
-      {/* ── Step 2: Actions — only shown after stance chosen ── */}
+      {/* ── Step 2: Actions - only shown after stance chosen ── */}
       {!stanceChosen ? (
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '.5rem 0' }}>
           Choose a stance above to continue
@@ -830,16 +830,16 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             color: combatant._movesUsed >= 1 ? '#6a50d0' : '#4a90d0',
             hidden: combatant.stance === 'Center' || combatant._movesUsed >= 2,
             title: combatant._movesUsed >= 1
-                 ? `Move Again — adds another Water Ring (${character?.water || combatant.water || 2}) squares to your range (2nd Simple Action)`
-                 : `Move — adds Water Ring (${character?.water || combatant.water || 2}) squares to your range (Simple Action). You always have 1 free square without this.` },
+                 ? `Move Again - adds another Water Ring (${character?.water || combatant.water || 2}) squares to your range (2nd Simple Action)`
+                 : `Move - adds Water Ring (${character?.water || combatant.water || 2}) squares to your range (Simple Action). You always have 1 free square without this.` },
           { id: 'defend',  icon: 'ti-shield',               label: 'Full Defense', actionType: 'Full',   color: '#4a8a40',
             hidden: ['Full Defense','Full Attack','Center','Attack'].includes(combatant.stance),
-            title: 'Declare Full Defense (Full Action) — rolls Agility/Defense, half the result (rounded up) is added to your Armor TN' },
-          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: noActionsLeft ? 'var(--gold)' : 'var(--text-muted)',     title: 'Pass — skip your turn', glow: noActionsLeft },
+            title: 'Declare Full Defense (Full Action) - rolls Agility/Defense, half the result (rounded up) is added to your Armor TN' },
+          { id: 'pass',    icon: 'ti-player-skip-forward',  label: 'Pass Turn',    actionType: 'Free',   color: noActionsLeft ? 'var(--gold)' : 'var(--text-muted)',     title: 'Pass - skip your turn', glow: noActionsLeft },
           { id: 'spell',   icon: 'ti-sparkles',              label: 'Cast Spell',   actionType: 'Full',   color: '#c0a0e0',
             hidden: !(character?.spells?.length > 0) || ['Full Attack','Full Defense','Center'].includes(combatant.stance),
             title: 'Cast a Spell (Full Action)' },
-          { id: 'free',    icon: 'ti-bolt',                  label: 'Free Action',  actionType: 'Free',   color: 'var(--text-muted)',     title: 'Declare a Free Action — speak, spend Void, etc.' },
+          { id: 'free',    icon: 'ti-bolt',                  label: 'Free Action',  actionType: 'Free',   color: 'var(--text-muted)',     title: 'Declare a Free Action - speak, spend Void, etc.' },
         ].filter(action => !action.hidden).map(action => (
           <button key={action.id}
             title={action.title || action.label}
@@ -848,12 +848,12 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               if (action.id === 'defend') {
                 // Clicking Full Defense: switch to stance AND immediately roll
                 onStanceChange('Full Defense');
-                // Full Defense — Complex Action. Must be in Full Defense stance.
-                // Roll Agility/Defense (TN 5). Half the result (rounded up) is ADDED to base Armor TN —
+                // Full Defense - Complex Action. Must be in Full Defense stance.
+                // Roll Agility/Defense (TN 5). Half the result (rounded up) is ADDED to base Armor TN -
                 // confirmed against the conversion doc's own "Rules Confirmed" record and matches the
                 // formula EncounterTab.jsx actually computes (5 + Reflexes×5 + armor + half this roll).
                 // A stale, superseded base-rulebook analysis in project docs claims "replaces," which is
-                // wrong — don't reintroduce that.
+                // wrong - don't reintroduce that.
                 const defenseSkill = (character?.skills || []).find(s => s.name === 'Defense');
                 const agl = character?.agility || 2;
                 const defRank = defenseSkill?.rank || 0;
@@ -944,7 +944,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                         ...(allies.includes(e) ? { borderColor: 'var(--green-dim)', color: 'var(--green)' } : undefined),
                         ...(rangeIssue ? { opacity: 0.4, cursor: 'not-allowed' } : undefined),
                       }}>
-                      {e.name.split(' —')[0]}
+                      {e.name.split(' -')[0]}
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>TN {getTargetTN(e.id)}</span>
                     </button>
                   );
@@ -957,7 +957,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             <div style={{ minWidth: 160 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.06em' }}>Weapon</div>
               <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                {/* Only drawn weapon is available — use Draw Weapon to change */}
+                {/* Only drawn weapon is available - use Draw Weapon to change */}
                 {combatant.drawnWeapon && combatant.drawnWeapon !== 'Unarmed (1k1)' && (() => {
                   const wName = combatant.drawnWeapon.split(' (')[0];
                   const wDr = combatant.dr || (combatant.drawnWeapon.match(/\(([^)]+)\)/)?.[1] || '1k1');
@@ -979,7 +979,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 </button>
               </div>
               {/* Grapple trigger: selecting the Grappling emphasis on an Unarmed attack initiates a grapple
-                  contact roll instead of a normal damaging attack — open to everyone per the emphasis
+                  contact roll instead of a normal damaging attack - open to everyone per the emphasis
                   redesign, not gated behind actually owning the emphasis (Charles: "should trigger... even
                   if they don't have the emphasis"). */}
               {selectedWeapon?.name === 'Unarmed' && (
@@ -1015,11 +1015,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 const wSkill = (character.skills || []).find(s => s.name === selectedWeapon.skill)
                   || (character.skills || []).find(s => ['Swordsmanship','Knives','Spears','Archery','Brawling','Polearms','Staves'].includes(s.name));
                 const pool = wSkill ? getPool(wSkill) : { roll: (character.agility || 2) + 1, keep: character.fire || 2, ringKey: 'fire', ringVal: character.fire || 2 };
-                // Simple Action Attack techniques (e.g. City Guard R3 "Implacable Foe") — this flag existed on
+                // Simple Action Attack techniques (e.g. City Guard R3 "Implacable Foe") - this flag existed on
                 // 8 techniques but was never actually enforced anywhere; wiring it in now. Auto-applies for
                 // unconditional entries and stance-matched ones; shows a manual confirm checkbox for anything
                 // needing a GM/player judgment call (specific weapon, "lone opponent", "mounted", etc.) rather
-                // than guessing — same pattern used throughout this session for conditions Sandy can't verify.
+                // than guessing - same pattern used throughout this session for conditions Sandy can't verify.
                 const simpleActionEntries = Object.values(character.techniques || {})
                   .map(t => typeof t === 'object' ? t.name : t)
                   .filter(Boolean)
@@ -1037,7 +1037,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       <label key={e.name} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: 'var(--text-muted)', marginBottom: 2 }}>
                         <input type="checkbox" checked={!!simpleActionConfirmed[e.name]}
                           onChange={ev => setSimpleActionConfirmed(p => ({ ...p, [e.name]: ev.target.checked }))} />
-                        {e.name}: this attack qualifies ({e.conditional}) — Simple Action instead of Full
+                        {e.name}: this attack qualifies ({e.conditional}) - Simple Action instead of Full
                       </label>
                     ))}
                   </div>
@@ -1046,7 +1046,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     const isGrappleContact = selectedWeapon.name === 'Unarmed' && selectedEmphasis === 'Grappling';
                     const target = targetPool.find(t => t.id === selectedTarget);
                     // Grapple contact: armor gives no TN bonus against this roll, per the actual rulebook
-                    // text ("Armor provides no TN bonus against this attack"). No dr — the contact roll
+                    // text ("Armor provides no TN bonus against this attack"). No dr - the contact roll
                     // doesn't deal damage; success instead leads into a Contested Strength roll for control.
                     const contactTn = getArmorTN({ reflexes: target?.reflexes, excludeArmor: true });
                     onRoll({
@@ -1072,8 +1072,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     onSpendAction && onSpendAction(attackIsSimpleAction ? 'simple' : 'full');
                   }}>
                     {selectedWeapon.name === 'Unarmed' && selectedEmphasis === 'Grappling'
-                      ? <>Initiate Grapple — {pool.roll}k{pool.keep} vs TN {getArmorTN({ reflexes: targetPool.find(t => t.id === selectedTarget)?.reflexes, excludeArmor: true })} (no armor bonus)</>
-                      : <>Roll {selectedWeapon.name} — {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
+                      ? <>Initiate Grapple - {pool.roll}k{pool.keep} vs TN {getArmorTN({ reflexes: targetPool.find(t => t.id === selectedTarget)?.reflexes, excludeArmor: true })} (no armor bonus)</>
+                      : <>Roll {selectedWeapon.name} - {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}
                           {attackIsSimpleAction && <span style={{ marginLeft: 5, fontSize: 10, opacity: 0.85 }}>(Simple Action)</span>}
                         </>}
                   </button>
@@ -1101,7 +1101,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   {woundPenalty > 0 && <span style={{ color: 'var(--red)' }}> (+{woundPenalty} TN wound penalty)</span>}
                 </div>
               </div>
-              {/* Manual TN entry — GM tells the player what to type */}
+              {/* Manual TN entry - GM tells the player what to type */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                 <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>TN (ask your GM):</label>
                 <input type="number" min={5} max={60} defaultValue={
@@ -1112,10 +1112,10 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   style={{ width: 60, fontSize: 16, fontWeight: 700, color: 'var(--gold)', textAlign: 'center' }} />
               </div>
               {/* Emphasis selector. Open to every emphasis the skill can have (SKILL_EMPHASES), not just
-                  ones the character owns — selecting an emphasis also describes the *nature* of the roll
+                  ones the character owns - selecting an emphasis also describes the *nature* of the roll
                   (e.g. Brawling(Grappling) vs Brawling(Striking)), which matters regardless of training.
                   Owned emphases are tagged "reroll 1s" since only those grant that mechanical benefit.
-                  Exception: Craft: Poison emphases represent specific known recipes, not roll-flavor —
+                  Exception: Craft: Poison emphases represent specific known recipes, not roll-flavor -
                   kept owned-only, since "selecting" an unknown poison recipe isn't a rules-supported thing
                   the way picking a combat approach is. Flagging this as an interpretation call, not a
                   confirmed rule, in case it needs correcting. */}
@@ -1158,7 +1158,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Target:</label>
                   <select value={skillTarget} onChange={e => setSkillTarget(e.target.value)}
                     style={{ fontSize: 12, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}>
-                    <option value="">— pick target —</option>
+                    <option value="">- pick target -</option>
                     {[...enemies, ...allies].map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     {allCharacters.filter(c => c.id !== character?.id).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
@@ -1169,7 +1169,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                   <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Boast about:</label>
                   <select value={boastTarget} onChange={e => setBoastTarget(e.target.value)}
                     style={{ fontSize: 12, padding: '2px 4px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }}>
-                    <option value="">— no boast (just storytelling) —</option>
+                    <option value="">- no boast (just storytelling) -</option>
                     {allCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   {boastTarget && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Success: +0.1 Rep per raise (TN 15)</span>}
@@ -1183,7 +1183,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     <option value={character?.id}>{character?.name} (self)</option>
                     {allCharacters.filter(c => c.id !== character?.id && !c.is_npc).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>TN 15 — success heals 1k1 wounds</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>TN 15 - success heals 1k1 wounds</span>
                 </div>
               )}
               {selectedSkill.name === 'Forgery' && (
@@ -1195,7 +1195,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       style={{ fontSize: 12, width: 140, padding: '2px 5px', background: 'var(--bg-panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3 }} />
                   </div>
                   {/* Creation TN modifiers. Base TN (typed above) = 10 + the TN originally used to make
-                      the item — simple letters/handwriting ≈ 15, complex documents (tax receipts, etc.)
+                      the item - simple letters/handwriting ≈ 15, complex documents (tax receipts, etc.)
                       ≈ 25 minimum, per GM judgment. These layer on top of that base. */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}>
@@ -1207,7 +1207,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                       Working from memory (+10 TN)
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}
-                      title="No fixed TN number for this one — logs a note for the GM to factor into the creation TN and/or later detection difficulty at their discretion.">
+                      title="No fixed TN number for this one - logs a note for the GM to factor into the creation TN and/or later detection difficulty at their discretion.">
                       <input type="checkbox" checked={forgeryQualityMaterials} onChange={e => setForgeryQualityMaterials(e.target.checked)} style={{ accentColor: 'var(--gold)' }} />
                       High-quality materials (GM discretion)
                     </label>
@@ -1232,7 +1232,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                         <button key={e.id} className={`btn btn-sm ${selectedTarget === e.id ? 'btn-p' : ''}`} style={{ fontSize: 12, opacity: rangeIssue ? 0.4 : 1, cursor: rangeIssue ? 'not-allowed' : 'pointer' }}
                           disabled={!!rangeIssue} title={rangeIssue || undefined}
                           onClick={() => { if (rangeIssue) return; setSelectedTarget(e.id); }}>
-                          {e.name.split(' —')[0]}
+                          {e.name.split(' -')[0]}
                         </button>
                       );
                     })}
@@ -1242,18 +1242,18 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               {showContestedPicker && (
                 <div style={{ background: 'rgba(80,120,220,.08)', border: '1px solid #5078dc', borderRadius: 6, padding: '.5rem', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 11, color: '#7098f0', fontWeight: 600 }}>
-                    Contested Roll — your {selectedSkill.name} vs their chosen skill (costs a Full Action)
+                    Contested Roll - your {selectedSkill.name} vs their chosen skill (costs a Full Action)
                   </div>
                   <select value={contestedOpponentId} onChange={e => { setContestedOpponentId(e.target.value); setContestedOpponentSkill(''); }} style={{ fontSize: 12 }}>
-                    <option value="">— choose opponent —</option>
-                    {targetPool.map(t => <option key={t.id} value={t.id}>{t.name.split(' —')[0]}</option>)}
+                    <option value="">- choose opponent -</option>
+                    {targetPool.map(t => <option key={t.id} value={t.id}>{t.name.split(' -')[0]}</option>)}
                   </select>
                   {contestedOpponentId && (() => {
                     const opp = targetPool.find(t => t.id === contestedOpponentId);
                     const oppSkills = (opp?.skills || []).map(s => s.name);
                     return (
                       <select value={contestedOpponentSkill} onChange={e => setContestedOpponentSkill(e.target.value)} style={{ fontSize: 12 }}>
-                        <option value="">— their skill —</option>
+                        <option value="">- their skill -</option>
                         {oppSkills.map(s => <option key={s} value={s}>{s}</option>)}
                         <option value={`Trait: Willpower`}>Trait: Willpower</option>
                       </select>
@@ -1286,7 +1286,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 {onStartContestedRoll && !showContestedPicker && (
                   <button className="btn btn-sm" style={{ borderColor: '#5078dc', color: '#7098f0' }}
                     onClick={() => setShowContestedPicker(true)}
-                    title="Start a Contested Roll using this skill against a chosen opponent's skill — costs a Full Action">
+                    title="Start a Contested Roll using this skill against a chosen opponent's skill - costs a Full Action">
                     <i className="ti ti-swords" style={{ marginRight: 4 }} />Contested Roll
                   </button>
                 )}
@@ -1311,8 +1311,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         return (
           <div style={{ padding: '.6rem .75rem', background: 'rgba(74,144,208,.08)', border: '1px solid rgba(74,144,208,.3)', borderRadius: 5 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#4a90d0', marginBottom: '.35rem' }}>
-              🏃 Move — up to {waterRing} square{waterRing !== 1 ? 's' : ''}
-              {isFullAttack && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>(free — toward enemies only)</span>}
+              🏃 Move - up to {waterRing} square{waterRing !== 1 ? 's' : ''}
+              {isFullAttack && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>(free - toward enemies only)</span>}
             </div>
             {onGrid ? (
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
@@ -1321,7 +1321,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               </div>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                Grid is not active — movement is narrative. Describe where you move to the GM.
+                Grid is not active - movement is narrative. Describe where you move to the GM.
               </div>
             )}
             <button className="btn btn-sm" style={{ marginTop: '.4rem' }} onClick={() => setSelectedAction(null)}>Done</button>
@@ -1333,7 +1333,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
       {selectedAction === 'free' && (
         <div style={{ padding: '.6rem .75rem', background: 'rgba(100,100,100,.08)', border: '1px solid var(--border)', borderRadius: 5 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-            Free Action — declare what you're doing (optional):
+            Free Action - declare what you're doing (optional):
           </div>
           {/* Quick free actions */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.5rem' }}>
@@ -1405,11 +1405,11 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           }
           // Check if new weapon is two-handed
           if (wData.twoHanded) {
-            onDrawWeapon([weaponStr]);  // replace all — two-handed goes alone
+            onDrawWeapon([weaponStr]);  // replace all - two-handed goes alone
             setSelectedAction(null);
             return;
           }
-          // Check if currently drawn weapon is two-handed — must unequip first
+          // Check if currently drawn weapon is two-handed - must unequip first
           if (drawnList.some(w => getWeaponData(w).twoHanded)) {
             onDrawWeapon([weaponStr]);
             setSelectedAction(null);
@@ -1423,7 +1423,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
         return (
           <div style={{ padding: '.5rem', background: 'rgba(107,78,40,.08)', borderRadius: 5, marginBottom: '.5rem' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-              Select weapon(s) to draw <span style={{ color: 'var(--gold)' }}>(up to 2)</span> — tap to toggle:
+              Select weapon(s) to draw <span style={{ color: 'var(--gold)' }}>(up to 2)</span> - tap to toggle:
             </div>
             <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
               {allWeapons.map(e => {

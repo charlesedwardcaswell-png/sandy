@@ -12,7 +12,7 @@ const TIERS = {
 const TYPES = {
   Mighty:  { desc: 'Warriors and bodyguards.',    traitRolls: [3,5,7], protRolls: [1,2,3], abilRolls: [1,2,3], combatRolls: [2,3,4] },
   Sly:     { desc: 'Spies and infiltrators.',     traitRolls: [3,5,7], protRolls: [0,1,2], abilRolls: [1,2,3], combatRolls: [3,4,5] },
-  Hardy:   { desc: 'Hard to kill — tanks.',       traitRolls: [3,5,7], protRolls: [1,2,3], abilRolls: [0,1,2], combatRolls: [2,3,4] },
+  Hardy:   { desc: 'Hard to kill - tanks.',       traitRolls: [3,5,7], protRolls: [1,2,3], abilRolls: [0,1,2], combatRolls: [2,3,4] },
   Mystical:{ desc: 'Magic-heavy assistants.',     traitRolls: [3,5,9], protRolls: [0,1,2], abilRolls: [4,5,6], combatRolls: [0,1,2] },
   Labor:   { desc: 'Manual labor and crafting.',  traitRolls: [5,7,9], protRolls: [0,0,0], abilRolls: [1,2,3], combatRolls: [0,0,0] },
 };
@@ -46,11 +46,11 @@ const DURATION_BONUSES = [
 ];
 
 const NEGOTIATION_OUTCOMES = [
-  { condition: 'Sahir wins or ties',          demand: 'Minor task — speak well of the Jinn or flatter its ego.' },
-  { condition: 'Sahir loses by 1–5',          demand: 'Simple task requiring some effort — acquire a minor object or destroy something of small value.' },
-  { condition: 'Sahir loses by 6–10',         demand: 'Involved or perilous task — defeat the Jinn in a contest or acquire a dangerous item.' },
-  { condition: 'Sahir loses by 11–15',        demand: 'Difficult or costly task — build a work in the Jinn\'s honor or give up something valuable.' },
-  { condition: 'Sahir loses by more than 15', demand: 'Monumental task — offer the sahir\'s firstborn or accept permanent amnesia.' },
+  { condition: 'Sahir wins or ties',          demand: 'Minor task - speak well of the Jinn or flatter its ego.' },
+  { condition: 'Sahir loses by 1–5',          demand: 'Simple task requiring some effort - acquire a minor object or destroy something of small value.' },
+  { condition: 'Sahir loses by 6–10',         demand: 'Involved or perilous task - defeat the Jinn in a contest or acquire a dangerous item.' },
+  { condition: 'Sahir loses by 11–15',        demand: 'Difficult or costly task - build a work in the Jinn\'s honor or give up something valuable.' },
+  { condition: 'Sahir loses by more than 15', demand: 'Monumental task - offer the sahir\'s firstborn or accept permanent amnesia.' },
 ];
 
 const JINN_NAME_LISTS = {
@@ -171,7 +171,7 @@ function DicePicker({ rolled, kept, bonus = 0, tn, onConfirm, allowVoid = false,
           <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: useVoid ? '#c0a0e0' : 'var(--text-muted)' }}>
             <input type="checkbox" checked={useVoid} onChange={e => setUseVoid(e.target.checked)}
               disabled={currentVoid < 1} style={{ accentColor: '#c0a0e0' }} />
-            Void Point (+1k1) {currentVoid < 1 ? '— none left' : `(${currentVoid} remaining)`}
+            Void Point (+1k1) {currentVoid < 1 ? '- none left' : `(${currentVoid} remaining)`}
           </label>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
@@ -184,7 +184,7 @@ function DicePicker({ rolled, kept, bonus = 0, tn, onConfirm, allowVoid = false,
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '.4rem' }}>
-        {actualRolled}k{actualKept}{bonus > 0 ? ` +${bonus}` : ''} — keep {actualKept} highest
+        {actualRolled}k{actualKept}{bonus > 0 ? ` +${bonus}` : ''} - keep {actualKept} highest
         {actualTN ? <span style={{ marginLeft: 8, color: 'var(--gold-dim)' }}>TN {actualTN}</span> : ''}
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: '.4rem' }}>Click to keep · click unkept 10 to explode</div>
@@ -238,7 +238,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   const [summoner, setSummoner]   = useState(myCharId || null);
   const [summonRoll, setSummonRoll] = useState(null);   // total from dice picker
   const [rolling, setRolling]     = useState(false);
-  // chosenResults derived live from preCommits — no separate state needed
+  // chosenResults derived live from preCommits - no separate state needed
   const [tier, setTier]     = useState(null);
   const [type, setType]     = useState(null);
   const [built, setBuilt]   = useState(null);           // { traits, protections, abilities, combat }
@@ -264,7 +264,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
   const rollPool_n = airRing + theologyRank;
   const rollPool_k = airRing;
 
-  // Raises declared by the player before rolling — each raise = 1 table choice
+  // Raises declared by the player before rolling - each raise = 1 table choice
   const baseTN = 5;
   const [declaredRaises, setDeclaredRaises] = useState(0); // set when roll confirms
   const maxChoices = declaredRaises;
@@ -329,14 +329,14 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
     // Protections and combat bonuses are also recorded as techniques.
     // Techniques must be strings (rank → string) per character schema
     const techniques = {
-      1: 'Invincible — No mortal weapon can permanently slay a Jinn. If reduced past Out, the Jinn returns to its realm and remembers.',
-      2: 'Shapeshifting — May change its own shape at will as a Free Action.',
+      1: 'Invincible - No mortal weapon can permanently slay a Jinn. If reduced past Out, the Jinn returns to its realm and remembers.',
+      2: 'Shapeshifting - May change its own shape at will as a Free Action.',
     };
     let techRank = 3;
-    built.protections.forEach(p => { techniques[techRank++] = `Protection — ${p}`; });
-    built.combat.forEach(c => { techniques[techRank++] = `Combat Bonus — ${c}`; });
+    built.protections.forEach(p => { techniques[techRank++] = `Protection - ${p}`; });
+    built.combat.forEach(c => { techniques[techRank++] = `Combat Bonus - ${c}`; });
     built.abilities.forEach(a => { techniques[techRank++] = a.split(': ')[1] || a; });
-    if (personality) techniques[techRank++] = `Personality — ${personality}`;
+    if (personality) techniques[techRank++] = `Personality - ${personality}`;
 
     // ── Map ability strings to actual spells from SAHIR_DISCIPLINES ────────────
     // e.g. "Summoning: ML2 Primal Elements" → find spell name "Primal Elements 2"
@@ -409,12 +409,12 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
       is_npc: true,
     };
 
-    // Jinn go into the characters table (is_npc: true) — full stat block requires it
+    // Jinn go into the characters table (is_npc: true) - full stat block requires it
     const creator = onCreateCharacter || onCreateNPC;
     if (!creator) {
       console.error('JinnRandomizer: no creator function available');
       setSaving(false);
-      alert('Error: could not save Jinn — no create function available.');
+      alert('Error: could not save Jinn - no create function available.');
       return;
     }
     const result = await creator(charData);
@@ -484,7 +484,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.6 }}>
               Cast <strong>Jinn Summoning 1</strong> on Hakhim's Seal.<br />
               Roll <strong>Air / Lore: Theology</strong> (keep Air). Base TN: <strong style={{ color: 'var(--gold)' }}>5</strong>.<br />
-              Call Raises to choose Jinn attributes manually — one raise per choice.
+              Call Raises to choose Jinn attributes manually - one raise per choice.
             </div>
 
             {/* Summoner picker */}
@@ -493,7 +493,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               {isGM ? (
                 <select value={summoner || ''} onChange={e => setSummoner(e.target.value || null)}
                   style={{ width: '100%', fontSize: 13 }}>
-                  <option value="">— Select character —</option>
+                  <option value="">- Select character -</option>
                   {pcChars.map(c => <option key={c.id} value={c.id}>{c.name} (Rank {c.school_rank || 1})</option>)}
                 </select>
               ) : (
@@ -529,12 +529,12 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                 <div style={{ fontSize: 36, fontWeight: 900, color: summonRoll >= 10 ? 'var(--green)' : '#c84030' }}>{summonRoll}</div>
                 {summonRoll >= 10 ? (
                   <div style={{ fontSize: 14, color: 'var(--green)', fontWeight: 600 }}>
-                    ✓ Success — TN {baseTN + Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0) * 5}
+                    ✓ Success - TN {baseTN + Object.values(preCommits).reduce((s, arr) => s + (arr?.length || 0), 0) * 5}
                     {declaredRaises > 0 && <span style={{ color: 'var(--gold)', marginLeft: 8 }}>+{declaredRaises} raise{declaredRaises > 1 ? 's' : ''} → {declaredRaises} free table choice{declaredRaises > 1 ? 's' : ''}</span>}
                   </div>
                 ) : (
                   <div style={{ fontSize: 14, color: '#c84030' }}>
-                    ✗ Failed — Jinn does not appear. {isGM && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>GM may override for dramatic purposes.</span>}
+                    ✗ Failed - Jinn does not appear. {isGM && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>GM may override for dramatic purposes.</span>}
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: '1rem' }}>
@@ -556,7 +556,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.75rem', marginBottom: '1.5rem' }}>
               {Object.entries(TIERS).map(([key, t]) => {
-                const locked = summonerInsight < t.rankReq; // always enforced — GM picks summoner who must meet rank
+                const locked = summonerInsight < t.rankReq; // always enforced - GM picks summoner who must meet rank
                 return (
                   <button key={key} className={`btn ${tier === key ? 'btn-p' : ''}`}
                     disabled={locked}
@@ -622,8 +622,8 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
           return (
             <div>
               <div style={{ marginBottom: '1rem', padding: '.5rem .75rem', background: 'rgba(160,100,220,.08)', border: '1px solid rgba(160,100,220,.25)', borderRadius: 5, fontSize: 12 }}>
-                You called <strong style={{ color: 'var(--gold)' }}>{maxChoices}</strong> raise{maxChoices !== 1 ? 's' : ''} — you may choose <strong style={{ color: '#c0a0e0' }}>{choicesRemaining}</strong> result{choicesRemaining !== 1 ? 's' : ''} from the tables below.
-                The rest will be rolled randomly. Choose wisely — the random results won't be revealed until after you commit.
+                You called <strong style={{ color: 'var(--gold)' }}>{maxChoices}</strong> raise{maxChoices !== 1 ? 's' : ''} - you may choose <strong style={{ color: '#c0a0e0' }}>{choicesRemaining}</strong> result{choicesRemaining !== 1 ? 's' : ''} from the tables below.
+                The rest will be rolled randomly. Choose wisely - the random results won't be revealed until after you commit.
               </div>
 
               {sections.map(({ key, label, options }) => {
@@ -633,7 +633,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                 return (
                   <div key={key} style={{ marginBottom: '1rem' }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
-                      {label} ({count} slot{count !== 1 ? 's' : ''}{committed.length ? ` — ${committed.length} chosen` : ' — all random'})
+                      {label} ({count} slot{count !== 1 ? 's' : ''}{committed.length ? ` - ${committed.length} chosen` : ' - all random'})
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
                       {committed.map((val, i) => (
@@ -692,7 +692,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               <input value={name} onChange={e => setName(e.target.value)} placeholder={`${type} ${tier} Jinn`} style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
 
-            {/* Chosen results FIRST — then rolled results */}
+            {/* Chosen results FIRST - then rolled results */}
             {(() => {
               const sections = [
                 { label: 'Trait Bonuses', key: 'traits', options: TRAIT_OPTIONS },
@@ -732,7 +732,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
 
               return (
                 <>
-                  {/* CHOSEN results — shown first, purple */}
+                  {/* CHOSEN results - shown first, purple */}
                   {chosenEntries.length > 0 && (
                     <div style={{ marginBottom: '.75rem', padding: '.5rem .75rem', background: 'rgba(160,100,220,.06)', border: '1px solid rgba(160,100,220,.2)', borderRadius: 5 }}>
                       <div style={{ fontSize: 11, color: '#c0a0e0', fontWeight: 600, marginBottom: 6 }}>✦ Your Chosen Results</div>
@@ -741,12 +741,12 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
                       </div>
                     </div>
                   )}
-                  {/* ROLLED results — shown after */}
+                  {/* ROLLED results - shown after */}
                   {rolledEntries.length > 0 && (
                     <div style={{ marginBottom: '.75rem' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>
                         Rolled Results
-                        {choicesLeft > 0 && <span style={{ color: '#c0a0e0', fontWeight: 400, marginLeft: 6 }}>(click a result to swap it for a chosen value — {choicesLeft} remaining)</span>}
+                        {choicesLeft > 0 && <span style={{ color: '#c0a0e0', fontWeight: 400, marginLeft: 6 }}>(click a result to swap it for a chosen value - {choicesLeft} remaining)</span>}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {rolledEntries.map(e => renderTag(e, false))}
@@ -809,7 +809,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
             {summoningBonus > 0 && (
               <div style={{ background: 'rgba(200,150,42,.1)', border: '1px solid rgba(200,150,42,.3)', borderRadius: 5, padding: '.4rem .75rem', marginBottom: '.75rem', fontSize: 12, color: 'var(--gold)' }}>
                 <i className="ti ti-star" style={{ marginRight: 6 }} />
-                Jinn Summoning 1 active — +{summoningBonus} rolled dice already added to your Commerce/Awareness roll below
+                Jinn Summoning 1 active - +{summoningBonus} rolled dice already added to your Commerce/Awareness roll below
               </div>
             )}
 
@@ -826,7 +826,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               </div>
             </div>
 
-            {/* Jinn roll — automatic */}
+            {/* Jinn roll - automatic */}
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
                 Jinn's Commerce roll ({TIERS[tier]?.skills?.commerce || 3} skill, rolled automatically)
@@ -841,7 +841,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               )}
             </div>
 
-            {/* PC Commerce/Awareness roll — full DicePicker */}
+            {/* PC Commerce/Awareness roll - full DicePicker */}
             {jinnRoll !== null && (() => {
               // Commerce skill + Awareness ring
               const commerceSkill = (summonerChar?.skills || []).find(s => s.name === 'Commerce')?.rank || 1;
@@ -852,7 +852,7 @@ export default function JinnRandomizer({ onClose, onCreateNPC, onCreateCharacter
               return (
                 <div style={{ marginBottom: '1rem' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
-                    Sahir's Commerce / Awareness roll — {comRolled}k{comKept}
+                    Sahir's Commerce / Awareness roll - {comRolled}k{comKept}
                     {summoningBonus > 0 && <span style={{ color: 'var(--gold)', marginLeft: 6 }}>+{summoningBonus} rolled dice (Jinn Summoning 1)</span>}
                     {DURATION_BONUSES[duration].bonus > 0 && <span style={{ color: '#c0a0e0', marginLeft: 6 }}>+{DURATION_BONUSES[duration].bonus} duration bonus added to total</span>}
                   </div>

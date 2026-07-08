@@ -44,7 +44,7 @@ export function generateGroup(setting, difficulty) {
     const rank = difficulty === 'Deadly' ? 3 : difficulty === 'Hard' ? 2 : 1;
     return {
       id: 'npc_' + Date.now() + Math.random(),
-      name: `${school} — Rank ${rank}`,
+      name: `${school} - Rank ${rank}`,
       school, rank, faction,
       dr: '3k2', drawnWeapon: 'Weapon (3k2)',
       reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
@@ -73,7 +73,7 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
     if (!school) return;
     onAdd({
       id: 'npc_' + Date.now(),
-      name: `${school} — Rank ${rank}`,
+      name: `${school} - Rank ${rank}`,
       school, rank, faction,
       dr: '3k2', drawnWeapon: 'Weapon (3k2)',
       reflexes: rank + 1, agility: rank + 1, air: rank + 1, fire: rank + 1,
@@ -115,6 +115,7 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
       fire: (n.rings?.Fire) || (n.rank || 1),
       wound: 0, stance: 'Attack', statusEffects: [], type: 'npc', fromLog: true,
       controllerId: n.controller_id || null,
+      sharedControllerIds: n.shared_controllers || [],
       sourceId: n.id, sourceType: 'npc',
     });
     setLogSel('');
@@ -122,19 +123,19 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-      {/* From NPC Log — dropdown */}
+      {/* From NPC Log - dropdown */}
       {npcsFromLog && npcsFromLog.length > 0 && (
         <div style={{ display: 'flex', gap: '.3rem', alignItems: 'center' }}>
           <select value={logSel} onChange={e => setLogSel(e.target.value)} style={{ fontSize: 12, flex: 1 }}>
             <option value="">From NPC Log…</option>
             {npcsFromLog.map(n => (
-              <option key={n.id} value={n.id}>{n.name} — {n.faction} Rank {n.rank || 1}</option>
+              <option key={n.id} value={n.id}>{n.name} - {n.faction} Rank {n.rank || 1}</option>
             ))}
           </select>
           <button className="btn btn-sm btn-p" disabled={!logSel} onClick={addFromLog} style={{ fontSize: 12 }}>Add</button>
         </div>
       )}
-      {/* From Library — faction/school/rank dropdowns, or Creatures/Monsters bestiary */}
+      {/* From Library - faction/school/rank dropdowns, or Creatures/Monsters bestiary */}
       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={faction} onChange={e => { setFaction(e.target.value); setSchool(''); setCreatureType(''); setCreatureId(''); }} style={{ fontSize: 12 }}>
           <option value="">From Library…</option>
@@ -176,6 +177,9 @@ export function NPCPicker({ npcsFromLog, onAdd, label = 'Add NPC' }) {
 // Shared between EncounterTab (mode='live') and LogTab (mode='prep').
 // mode='live'  → shows "Begin Encounter →" → calls onCommit(setup)
 // mode='prep'  → shows "Save to Session Prep" → calls onCommit(setup), no participant picker needed
+// Outdoor Lighting: Dusk/Dawn start Dim, Night/Evening start Dark, everything else starts Full.
+const OUTDOOR_LIGHT_BY_TIME = { Dawn: 'Dim', Dusk: 'Dim', Night: 'Dark', Evening: 'Dark', Morning: 'Full', Midday: 'Full', Afternoon: 'Full' };
+
 export default function EncounterBuilder({
   mode = 'live',           // 'live' | 'prep'
   initialSetup = {},
@@ -184,7 +188,8 @@ export default function EncounterBuilder({
   sessionNumber,
   preparedEncounters = [],
   customRoundLimits = {},
-  onCommit,                // fn(setup) — begin or save
+  currentTimeOfDay = '',
+  onCommit,                // fn(setup) - begin or save
   onCancel,
 }) {
   const [s, setS] = useState({
@@ -201,6 +206,7 @@ export default function EncounterBuilder({
     presetGridId: null,
     themeRow: null,
     doodads: [],
+    containers: [],
     gridTiles: {},
     ...initialSetup,
   });
@@ -214,7 +220,7 @@ export default function EncounterBuilder({
     });
   }, []);
 
-  const defaultName = `Session ${sessionNumber || '?'} — ${s.setting || '?'} — ${s.type || '?'}`;
+  const defaultName = `Session ${sessionNumber || '?'} - ${s.setting || '?'} - ${s.type || '?'}`;
   const diff = calcDifficulty(s.selectedNPCs || []);
   const diffPct = { Easy: 25, Moderate: 50, Hard: 75, Deadly: 100 }[diff] || 0;
 
@@ -256,12 +262,33 @@ export default function EncounterBuilder({
           })()}
         </div>
 
-        {/* Grid vs. non-grid (theater-of-mind) decision — made once, at setup, not toggled mid-fight.
-            Undefined (existing saved setups from before this existed) defaults to true — unchanged
+        {/* Grid vs. non-grid (theater-of-mind) decision - made once, at setup, not toggled mid-fight.
+            Undefined (existing saved setups from before this existed) defaults to true - unchanged
             behavior for anything already in flight. */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '1rem', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
           <input type="checkbox" checked={s.useGrid !== false} onChange={e => upS({ useGrid: e.target.checked })} />
-          Use Battle Grid <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(unchecked = theater-of-mind — no positions, no range/reach checks)</span>
+          Use Battle Grid <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(unchecked = theater-of-mind - no positions, no range/reach checks)</span>
+        </label>
+
+        {/* Intrigue Encounter - just the two presets Charles wanted: Free Move on (so turn order
+            still exists for structure but nobody's gated on waiting for their turn to act) and every
+            NPC tagged Friendly (a visible reminder, not a hard block - GM still adjudicates). Together
+            these are what "essentially disables combat while keeping the turn structure for actions"
+            actually means in practice; no extra combat-suppression logic needed beyond that. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '1rem', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <input type="checkbox" checked={!!s.intrigueEncounter} onChange={e => upS({ intrigueEncounter: e.target.checked })} />
+          Intrigue Encounter <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>
+            (Free Move on, all NPCs marked Friendly - for social/intrigue scenes rather than combat)
+          </span>
+        </label>
+
+        {/* Outdoor Lighting - sets the encounter's starting lightMode from the current time of day
+            instead of always starting Dark. GM can still change it manually once the encounter is live. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '1rem', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <input type="checkbox" checked={!!s.outdoorLighting} onChange={e => upS({ outdoorLighting: e.target.checked })} />
+          Outdoor Lighting <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>
+            (sets starting lighting from time of day{currentTimeOfDay ? ` - currently ${currentTimeOfDay}, starts ${OUTDOOR_LIGHT_BY_TIME[currentTimeOfDay] || 'Full'}` : ''})
+          </span>
         </label>
 
         {/* Prebuilt battle grid */}
@@ -271,16 +298,16 @@ export default function EncounterBuilder({
             <select value={s.presetGridId || ''} style={{ width: '100%' }} onChange={e => {
               const g = savedGrids.find(g => g.id === e.target.value);
               const keepManual = (s.selectedNPCs || []).filter(n => !n._fromPresetGrid);
-              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual, doodads: [] }); return; }
+              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual, doodads: [], containers: [] }); return; }
               // Prebuilt NPCs (built-in library only) painted onto this saved grid in the Battle Grid
-              // Creator — carry their saved x/y through as gridX/gridY so beginEncounter places them
+              // Creator - carry their saved x/y through as gridX/gridY so beginEncounter places them
               // there directly instead of using its automatic column-based placement.
               const prebuilt = (g.prebuiltNpcs || [])
                 .filter(n => n.x !== null && n.x !== undefined && n.y !== null && n.y !== undefined)
                 .map(n => ({ ...n, id: n.id || `npc_preset_${Date.now()}_${Math.random()}`, gridX: n.x, gridY: n.y, _fromPresetGrid: true }));
-              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt], doodads: g.doodads || [] });
+              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt], doodads: g.doodads || [], containers: g.containers || [] });
             }}>
-              <option value="">— None, set up manually —</option>
+              <option value="">- None, set up manually -</option>
               {savedGrids.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
             </select>
           </div>
@@ -326,7 +353,7 @@ export default function EncounterBuilder({
         {!s.presetGridId && (
           <div style={{ marginBottom: '1rem' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', display: 'block', marginBottom: '.4rem' }}>
-              Grid Background URL <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional — shown faintly behind grid)</span>
+              Grid Background URL <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional - shown faintly behind grid)</span>
             </span>
             <input type="text" value={s.bgUrl || ''} onChange={e => upS({ bgUrl: e.target.value })}
               placeholder="https://..." style={{ width: '100%' }} />
@@ -365,8 +392,8 @@ export default function EncounterBuilder({
           )}
         </div>
 
-        {/* Participants — only shown in live mode. Includes both PCs and Full NPCs (characters
-            table rows with is_npc: true, e.g. a promoted named villain) — Full NPCs default to
+        {/* Participants - only shown in live mode. Includes both PCs and Full NPCs (characters
+            table rows with is_npc: true, e.g. a promoted named villain) - Full NPCs default to
             unchecked so they don't silently auto-join every encounter; PCs default to checked. */}
         {mode === 'live' && (
           <div style={{ marginBottom: '1rem' }}>
