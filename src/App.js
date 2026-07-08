@@ -31,7 +31,7 @@ import {
 // Single source for the version string - shown in the browser tab title and on the welcome screen
 // (no longer in the in-app header, which was cluttering the mobile view). Bump this alongside every
 // version bump at packaging time.
-export const SANDY_VERSION = 194;
+export const SANDY_VERSION = 198;
 // Toggle back to true once Charles has copyright clearance to link the rulebook PDFs.
 const SHOW_RULEBOOK_LINKS = false;
 

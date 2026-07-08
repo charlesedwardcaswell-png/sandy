@@ -738,7 +738,7 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
 
   const toggleFaction = name => setOpenFactions(o => ({ ...o, [name]: !o[name] }));
 
-  const DEFAULT_DAFTAR_TAGLINE = "Herein, for posterity, is recorded the name and standing of all who cross this party's path.";
+  const DEFAULT_DAFTAR_TAGLINE = "The party record";
   const [partyName, setPartyName] = useState('');
   const [daftarTagline, setDaftarTagline] = useState('');
   React.useEffect(() => {

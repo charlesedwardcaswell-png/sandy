@@ -225,11 +225,38 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
   const setMovingWithRef = (id) => { setMoving(id); movingRef.current = id; };
   const [newPinPos, setNewPinPos] = useState(null);
   const [editingPin, setEditingPin] = useState(null);
+  const [showAddMap, setShowAddMap] = useState(false);
+  const [newMapName, setNewMapName] = useState('');
+  const [newMapUrl, setNewMapUrl] = useState('');
+  const [newMapUrlNight, setNewMapUrlNight] = useState('');
   const [imgAspect, setImgAspect] = useState(null);
   const [mapImageDay, setMapImageDay] = useState(DEFAULT_MAP);
   const [mapImageNight, setMapImageNight] = useState('');
+  const [customMaps, setCustomMaps] = useState([]); // [{id, name, url}] - additional maps beyond the built-in Surface/Underground
   const mapImage = (isNight && mapImageNight) ? mapImageNight : mapImageDay;
   const mapRef = useRef(null);
+  const mapBoxRef = useRef(null); // outer sizing container - measured to fit the map fully within the viewport
+  const [mapBoxSize, setMapBoxSize] = useState(null); // { width, height } in px, or null until first measured
+  // Scale the map to fit fully within the visible viewport (both width and height), not just the
+  // column width - previously it was width:100% with height derived from aspect ratio alone, so on
+  // a tall/narrow window the map could render taller than the viewport and require scrolling to see
+  // the bottom of it.
+  useEffect(() => {
+    const recompute = () => {
+      if (!mapBoxRef.current) return;
+      const ratio = imgAspect || 4 / 3;
+      const availableWidth = mapBoxRef.current.clientWidth;
+      const top = mapBoxRef.current.getBoundingClientRect().top;
+      const availableHeight = Math.max(200, window.innerHeight - top - 16); // 16px bottom breathing room
+      let w = availableWidth;
+      let h = w / ratio;
+      if (h > availableHeight) { h = availableHeight; w = h * ratio; }
+      setMapBoxSize({ width: w, height: h });
+    };
+    recompute();
+    window.addEventListener('resize', recompute);
+    return () => window.removeEventListener('resize', recompute);
+  }, [imgAspect]);
   // Drag state
   const dragRef = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
@@ -241,8 +268,30 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
       if (data?.settings?.map_url) setMapImageDay(data.settings.map_url);
       if (data?.settings?.map_url_night) setMapImageNight(data.settings.map_url_night);
+      setCustomMaps(data?.settings?.custom_maps || []);
     });
   }, []);
+
+  const addCustomMap = async (name, url, urlNight) => {
+    const entry = { id: `map_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: name.trim(), url: url.trim(), urlNight: (urlNight || '').trim() };
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const next = [...(current?.settings?.custom_maps || []), entry];
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), custom_maps: next } })
+      .eq('id', GAME_ID);
+    if (!error) { setCustomMaps(next); setLayer(entry.id); setSelected(null); }
+    else console.error('save custom_maps failed:', error.message);
+  };
+
+  const removeCustomMap = async (id) => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const next = (current?.settings?.custom_maps || []).filter(m => m.id !== id);
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), custom_maps: next } })
+      .eq('id', GAME_ID);
+    if (!error) { setCustomMaps(next); if (layer === id) setLayer('surface'); }
+    else console.error('remove custom_maps failed:', error.message);
+  };
 
   const safePins = (pins || []).filter(Boolean);
   const visiblePins = safePins.filter(p => {
@@ -346,11 +395,51 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         />
       )}
 
+      {showAddMap && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddMap(false)}>
+          <div className="modal" style={{ maxWidth: 380 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div className="modal-title" style={{ margin: 0 }}>
+                <i className="ti ti-map-2" style={{ marginRight: 6 }} />Add Map
+              </div>
+              <button className="btn btn-sm" onClick={() => setShowAddMap(false)}>✕</button>
+            </div>
+            <div className="modal-section">
+              <span className="modal-label">Map Name</span>
+              <input value={newMapName} onChange={e => setNewMapName(e.target.value)} placeholder="e.g. 'Sewer Level'" style={{ width: '100%' }} autoFocus />
+            </div>
+            <div className="modal-section">
+              <span className="modal-label">Image URL (Day)</span>
+              <input value={newMapUrl} onChange={e => setNewMapUrl(e.target.value)} placeholder="https://..." style={{ width: '100%' }} />
+            </div>
+            <div className="modal-section">
+              <span className="modal-label">Image URL (Night) <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 400 }}>(optional - falls back to Day if blank)</span></span>
+              <input value={newMapUrlNight} onChange={e => setNewMapUrlNight(e.target.value)} placeholder="https://..." style={{ width: '100%' }} />
+            </div>
+            <button className="btn btn-p" disabled={!newMapName.trim() || !newMapUrl.trim()}
+              onClick={() => { addCustomMap(newMapName, newMapUrl, newMapUrlNight); setShowAddMap(false); }}>
+              <i className="ti ti-plus" style={{ marginRight: 4 }} />Add Map
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.5rem', flexWrap: 'wrap' }}>
         <div className="layer-tog">
           <button className={`layer-btn ${layer === 'surface' ? 'active' : ''}`} onClick={() => { setLayer('surface'); setSelected(null); }}>Surface</button>
           <button className={`layer-btn ${layer === 'underground' ? 'active' : ''}`} onClick={() => { setLayer('underground'); setSelected(null); }}>Underground</button>
+          {customMaps.map(m => (
+            <button key={m.id} className={`layer-btn ${layer === m.id ? 'active' : ''}`}
+              onClick={() => { setLayer(m.id); setSelected(null); }}
+              title={gmView ? 'Right-click to remove' : undefined}
+              onContextMenu={gmView ? e => { e.preventDefault(); if (window.confirm(`Remove map "${m.name}"? Its pins stay in the database but won't be reachable from any tab.`)) removeCustomMap(m.id); } : undefined}>
+              {m.name}
+            </button>
+          ))}
+          {gmView && (
+            <button className="layer-btn" title="Add a map" onClick={() => { setNewMapName(''); setNewMapUrl(''); setNewMapUrlNight(''); setShowAddMap(true); }}>+</button>
+          )}
         </div>
         {gmView && (
           <button className={`btn btn-sm ${placing ? 'btn-p' : ''}`}
@@ -388,10 +477,14 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
         </div>
       )}
 
-      {/* Map container - aspect ratio locked to image, NO max-height (it breaks ring/pin alignment) */}
-      <div style={{
-        position: 'relative', width: '100%',
-        aspectRatio: imgAspect ? `${imgAspect}` : '4/3',
+      {/* Map container - sized in JS to fit fully within the viewport (both width and height), not
+          just aspect-ratio-locked to 100% width, which could overflow the viewport vertically. */}
+      <div ref={mapBoxRef} style={{
+        position: 'relative',
+        width: mapBoxSize ? mapBoxSize.width : '100%',
+        height: mapBoxSize ? mapBoxSize.height : undefined,
+        aspectRatio: mapBoxSize ? undefined : (imgAspect ? `${imgAspect}` : '4/3'),
+        maxWidth: '100%',
         overflow: 'hidden', borderRadius: 6,
         background: '#1a1208',
       }}>
@@ -422,6 +515,20 @@ export default function MapTab({ isGM, isPCView, pins, onCreatePin, onUpdatePin,
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(0.25) saturate(0.4)' }}
           />
         )}
+
+        {/* Custom maps - added via the + tab, with the same day/night swap as Surface */}
+        {(() => {
+          const activeCustomMap = customMaps.find(m => m.id === layer);
+          if (!activeCustomMap) return null;
+          const src = (isNight && activeCustomMap.urlNight) ? activeCustomMap.urlNight : activeCustomMap.url;
+          return (
+            <img src={src} alt={activeCustomMap.name}
+              onLoad={e => setImgAspect(e.target.naturalWidth / e.target.naturalHeight)}
+              onError={e => { e.target.style.display = 'none'; }}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          );
+        })()}
 
         {/* Ring overlays - viewBox 100×100, preserveAspectRatio:none maps 1:1 to container pixels
              ry = % of container height, rx = ry/imgAspect → perfect circles on screen */}

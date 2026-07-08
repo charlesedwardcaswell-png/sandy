@@ -1091,7 +1091,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
           })()}
 
           {/* Movement range glow - three tiers: free (always 1sq, teal), move1 (after Move action, blue), move2 (after Move Again, purple) */}
-          {!selected && isMyTurn && (() => {
+          {!dragging && isMyTurn && (() => {
             const tierStyle = {
               free:  { fill: 'rgba(40,180,140,.15)',  stroke: 'rgba(40,180,140,.5)',  label: 'Free' },
               move1: { fill: 'rgba(74,144,208,.18)',  stroke: 'rgba(74,144,208,.5)',  label: '1 Action' },
@@ -2342,7 +2342,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     const actor = pcsMap[myCombatantsInRange[0].id];
     if (!actor) return;
     upEnc({ setup: { ...setup, containers: (setup.containers || []).map(ct => ct.id === containerId ? { ...ct, looted: true } : ct) } });
-    const items = (container.contents || []).map(it => ({ name: it.name, qty: it.qty || 1, equipped: false, inUse: false, category: 'Gear' }));
+    // Contents can be either a real item (full data - dr, tn_bonus, item_type, etc. - picked from GM
+    // Inventory) or a plain flavor-text line ({name, qty} only, no mechanics). Preserve whatever fields
+    // a real item has instead of collapsing everything down to a name-only Gear line.
+    const items = (container.contents || []).map(it => ({ ...it, qty: it.qty || 1, equipped: false, inUse: false, category: it.category || 'Gear' }));
     if (items.length && onUpdateCharacter) onUpdateCharacter(actor.id, { equipment: [...(actor.equipment || []), ...items] });
     if (onLogEvent) onLogEvent('ti-box', `${actor.name} opened ${container.name} and found${items.length ? ': ' + items.map(i => i.name).join(', ') : ' nothing'}.`);
   };
@@ -3077,7 +3080,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
           {/* ── Left: party cards + NPC scene + start button ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '.75rem', textAlign: 'center', fontStyle: 'italic' }}>
-            {session ? 'No encounter active - downtime / between scenes' : 'No session active'}
+            {session ? 'No encounter active - downtime' : 'No session active'}
           </div>
 
           {/* Training Dummy - players can practice rolls any time between encounters, even with no

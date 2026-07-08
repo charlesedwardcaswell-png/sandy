@@ -45,10 +45,11 @@ export default function ResourcePackTab({ isGM }) {
   const [partyInventory, setPartyInventory] = useState([]);
   const [doodadLibrary, setDoodadLibrary] = useState([]);
   const [gameSettings, setGameSettings] = useState({});
+  const [customMaps, setCustomMaps] = useState([]);
 
   const [sel, setSel] = useState({
     quests: [], quickNpcs: [], fullNpcs: [], mapPins: [], shops: [], battleGrids: [],
-    gmInventory: [], preppedSessions: [], factionStandings: [], partyInventory: [], settings: [],
+    gmInventory: [], preppedSessions: [], factionStandings: [], partyInventory: [], settings: [], customMaps: [],
   });
   const [open, setOpen] = useState({}); // which category sections are expanded
   const [packName, setPackName] = useState('');
@@ -82,6 +83,7 @@ export default function ResourcePackTab({ isGM }) {
     setGmInventory(settings.gm_inventory || []);
     setDoodadLibrary(settings.doodad_library || []);
     setGameSettings(SETTINGS_KEYS.reduce((acc, k) => { if (settings[k] !== undefined) acc[k] = settings[k]; return acc; }, {}));
+    setCustomMaps(settings.custom_maps || []);
     setLoading(false);
   };
 
@@ -127,6 +129,10 @@ export default function ResourcePackTab({ isGM }) {
         factionStandings: factionStandings.filter(f => sel.factionStandings.includes(f.id)).map(({ id, game_id, ...rest }) => rest),
         partyInventory: partyInventory.filter(i => sel.partyInventory.includes(i.id || i.name)),
         settings: sel.settings.length > 0 ? gameSettings : {},
+        // Maps keep their real id (unlike other categories, which get fresh ids on import) - Map Pins
+        // reference a map by this same id via their map_layer field, so preserving it means exporting
+        // a custom map together with its pins (both categories) keeps them correctly linked after import.
+        customMaps: customMaps.filter(m => sel.customMaps.includes(m.id)),
       },
     };
     const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
@@ -244,6 +250,12 @@ export default function ResourcePackTab({ isGM }) {
       if (cats.gmInventory?.length) {
         settings.gm_inventory = [...(settings.gm_inventory || []), ...cats.gmInventory];
         log.push(`${cats.gmInventory.length} GM inventory item(s)`);
+      }
+      if (cats.customMaps?.length) {
+        const existingIds = new Set((settings.custom_maps || []).map(m => m.id));
+        const newMaps = cats.customMaps.filter(m => !existingIds.has(m.id));
+        settings.custom_maps = [...(settings.custom_maps || []), ...newMaps];
+        log.push(`${newMaps.length} map(s)${cats.customMaps.length - newMaps.length ? ` (${cats.customMaps.length - newMaps.length} skipped - already present)` : ''}`);
       }
       if (cats.partyInventory?.length) {
         // Party inventory items live on the group_inventory row, not games.settings - handled separately below.
@@ -370,6 +382,7 @@ export default function ResourcePackTab({ isGM }) {
         <Section catKey="quickNpcs" label="Quick NPCs" icon="ti-user" items={quickNpcs} getId={n => n.id} getLabel={n => n.name} getSublabel={n => n.faction} />
         <Section catKey="fullNpcs" label="Full NPCs" icon="ti-user-star" items={fullNpcs} getId={c => c.id} getLabel={c => c.name} getSublabel={c => `${c.school} R${c.school_rank}`} />
         <Section catKey="mapPins" label="Map Pins" icon="ti-map-pin" items={mapPins} getId={p => p.id} getLabel={p => p.label || p.title || 'Pin'} />
+        <Section catKey="customMaps" label="Maps" icon="ti-map-2" items={customMaps} getId={m => m.id} getLabel={m => m.name} getSublabel={() => 'export with its Map Pins to keep them linked'} />
         <Section catKey="shops" label="Shops" icon="ti-building-store" items={shops} getId={s => s.id} getLabel={s => s.name} />
         <Section catKey="battleGrids" label="Battle Grids" icon="ti-grid-dots" items={battleGrids} getId={g => g.id} getLabel={g => g.label || g.name} />
         <Section catKey="gmInventory" label="GM Inventory" icon="ti-briefcase" items={gmInventory} getId={i => i.id || i.name} getLabel={i => i.name} />

@@ -66,6 +66,8 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [placedShops, setPlacedShops] = useState([]); // [{id, shopId, x, y}] - x/y null until placed; references a live shop by id
   const [placingShopIdx, setPlacingShopIdx] = useState(null);
   const [containerDraftContents, setContainerDraftContents] = useState(''); // one item per line
+  const [gmInventory, setGmInventory] = useState([]); // live GM Inventory - items picked here move into the container, off the GM's shelf
+  const [containerDraftItems, setContainerDraftItems] = useState([]); // full item objects picked from GM Inventory, staged for the container being built
 
   // Zoom/pan - same convention as the live Battle Grid: 1.0 = fully fit, lower = zoomed in.
   // Needed once grids got up to 48×48 - the old fixed "shrink the whole grid into 480px" view made
@@ -89,6 +91,7 @@ export default function GridCreatorTab({ isDeveloper }) {
       setDoodadLibrary(data?.settings?.doodad_library || []);
       setShops(data?.settings?.shops_v2 || []);
       setContainerImageUrl(data?.settings?.container_image_url || '');
+      setGmInventory(data?.settings?.gm_inventory || []);
       setLoaded(true);
     });
   }, []);
@@ -695,21 +698,66 @@ export default function GridCreatorTab({ isDeveloper }) {
           </div>
           <input type="text" value={containerDraftName} onChange={e => setContainerDraftName(e.target.value)}
             placeholder="Container name (e.g. 'Old Chest')" style={{ fontSize: 12, width: '100%', marginBottom: 4 }} />
+
+          {/* Real items from GM Inventory - keeps their actual mechanical data (dr, tn_bonus, etc.)
+              instead of becoming an inert name-only Gear line. Picking one here removes it from GM
+              Inventory once the container is actually created - it now lives in the container instead. */}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Add a real item from GM Inventory:</div>
+          {gmInventory.length === 0 ? (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 4 }}>GM Inventory is empty.</div>
+          ) : (
+            <select defaultValue="" style={{ fontSize: 12, width: '100%', marginBottom: 4 }}
+              onChange={e => {
+                const item = gmInventory.find(i => i.id === e.target.value);
+                if (!item) return;
+                setContainerDraftItems(prev => [...prev, item]);
+                e.target.value = '';
+              }}>
+              <option value="">+ Pick an item…</option>
+              {gmInventory.map(i => <option key={i.id} value={i.id}>{i.name}{i.qty > 1 ? ` x${i.qty}` : ''}</option>)}
+            </select>
+          )}
+          {containerDraftItems.length > 0 && (
+            <div style={{ marginBottom: 4 }}>
+              {containerDraftItems.map((item, i) => (
+                <div key={item.id + '_' + i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0' }}>
+                  <span style={{ flex: 1, color: 'var(--gold-dim)' }}>{item.name}{item.qty > 1 ? ` x${item.qty}` : ''}</span>
+                  <button onClick={() => setContainerDraftItems(prev => prev.filter((_, j) => j !== i))}
+                    title="Remove" style={{ fontSize: 10, padding: '0 4px', color: 'var(--red)' }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Or flavor text, one item per line (no real mechanics - names only):</div>
           <textarea value={containerDraftContents} onChange={e => setContainerDraftContents(e.target.value)}
             placeholder="Contents, one item per line (e.g. 'Silk Rope', 'Healing Salve x2')" rows={2}
             style={{ fontSize: 12, width: '100%', marginBottom: 4, resize: 'vertical' }} />
-          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={() => {
+          <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={async () => {
             if (!containerDraftName.trim()) return;
-            const contents = containerDraftContents.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+            const textContents = containerDraftContents.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
               const m = line.match(/^(.*?)\s*x(\d+)$/i);
               return m ? { name: m[1].trim(), qty: parseInt(m[2], 10) } : { name: line, qty: 1 };
             });
+            const realItems = containerDraftItems.map(({ id, added_at, ...itemData }) => itemData);
+            const contents = [...realItems, ...textContents];
             setPlacedContainers(prev => {
               const next = [...prev, { id: `container_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: containerDraftName.trim(), contents, x: null, y: null }];
               setPlacingContainerIdx(next.length - 1);
               return next;
             });
-            setContainerDraftName('Chest'); setContainerDraftContents('');
+            // Picked items leave GM Inventory now that they're actually in the container.
+            if (containerDraftItems.length > 0) {
+              const pickedIds = new Set(containerDraftItems.map(i => i.id));
+              const nextGmInventory = gmInventory.filter(i => !pickedIds.has(i.id));
+              const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+              const { error } = await supabase.from('games')
+                .update({ settings: { ...(current?.settings || {}), gm_inventory: nextGmInventory } })
+                .eq('id', GAME_ID);
+              if (!error) setGmInventory(nextGmInventory);
+              else console.error('save gm_inventory failed:', error.message);
+            }
+            setContainerDraftName('Chest'); setContainerDraftContents(''); setContainerDraftItems([]);
           }}>
             <i className="ti ti-plus" style={{ marginRight: 4 }} />Add Container
           </button>
