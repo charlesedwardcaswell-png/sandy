@@ -51,6 +51,7 @@ export default function GridCreatorTab({ isDeveloper }) {
   // rectangle for now - see DoodadLibraryPanel comment for the planned irregular-footprint extension),
   // then the doodad's own image renders on top of that footprint.
   const [doodadLibrary, setDoodadLibrary] = useState([]); // [{id, name, width, height, imageUrl, tileType}]
+  const [shops, setShops] = useState([]); // live shops_v2 list - for picking which shop a placed token references
   const [placedDoodads, setPlacedDoodads] = useState([]); // [{id, defId, x, y}] - x/y null until placed
   const [placingDoodadIdx, setPlacingDoodadIdx] = useState(null);
   const [doodadDimFilter, setDoodadDimFilter] = useState(''); // "2x1" etc. - '' means "all"
@@ -62,6 +63,8 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [placedContainers, setPlacedContainers] = useState([]); // [{id, name, contents:[{name,qty}], x, y}]
   const [placingContainerIdx, setPlacingContainerIdx] = useState(null);
   const [containerDraftName, setContainerDraftName] = useState('Chest');
+  const [placedShops, setPlacedShops] = useState([]); // [{id, shopId, x, y}] - x/y null until placed; references a live shop by id
+  const [placingShopIdx, setPlacingShopIdx] = useState(null);
   const [containerDraftContents, setContainerDraftContents] = useState(''); // one item per line
 
   // Zoom/pan - same convention as the live Battle Grid: 1.0 = fully fit, lower = zoomed in.
@@ -84,6 +87,7 @@ export default function GridCreatorTab({ isDeveloper }) {
       setAtlasUrl(data?.settings?.master_atlas_url || '');
       setTileDefaultImages(data?.settings?.tile_default_images || {});
       setDoodadLibrary(data?.settings?.doodad_library || []);
+      setShops(data?.settings?.shops_v2 || []);
       setContainerImageUrl(data?.settings?.container_image_url || '');
       setLoaded(true);
     });
@@ -153,7 +157,7 @@ export default function GridCreatorTab({ isDeveloper }) {
     // Non-devs can't see or change the lock checkbox - preserve whatever lock state an existing entry already had
     const priorLocked = targetId ? (existing.find(g => g.id === targetId)?.locked || false) : false;
     const locked = isDeveloper ? saveLocked : priorLocked;
-    const entry = { id: targetId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, containers: placedContainers, locked, createdAt: Date.now() };
+    const entry = { id: targetId || `grid_${Date.now()}`, label, envType, name: saveName, size, themeRow, bgUrl, tiles, prebuiltNpcs, doodads: placedDoodads, containers: placedContainers, shopTokens: placedShops, locked, createdAt: Date.now() };
     const next = targetId ? existing.map(g => g.id === targetId ? entry : g) : [...existing, entry];
     const { error } = await supabase.from('games')
       .update({ settings: { ...(current?.settings || {}), saved_battle_grids: next } })
@@ -180,6 +184,8 @@ export default function GridCreatorTab({ isDeveloper }) {
     setPlacingDoodadIdx(null);
     setPlacedContainers(g.containers || []);
     setPlacingContainerIdx(null);
+    setPlacedShops(g.shopTokens || []);
+    setPlacingShopIdx(null);
   };
 
   const deleteGrid = async (id) => {
@@ -264,15 +270,20 @@ export default function GridCreatorTab({ isDeveloper }) {
             const vy = Math.max(0, Math.min(W - vh, cy - vh / 2));
             return `${vx} ${vy} ${vw} ${vh}`;
           })()}
-          width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: panDrag ? 'grabbing' : (placingNpcIdx !== null || placingDoodadIdx !== null || placingContainerIdx !== null || brush) ? 'crosshair' : zoom < 1.0 ? 'grab' : 'default', userSelect: 'none' }}
+          width="100%" style={{ maxWidth: 480, background: 'rgba(10,8,4,.8)', border: '1px solid rgba(107,78,40,.4)', borderRadius: 4, display: 'block', cursor: panDrag ? 'grabbing' : (placingNpcIdx !== null || placingDoodadIdx !== null || placingContainerIdx !== null || placingShopIdx !== null || brush) ? 'crosshair' : zoom < 1.0 ? 'grab' : 'default', userSelect: 'none' }}
           onMouseDown={e => {
             const c = cellFromEvent(e);
             if (!c) {
               // Missed the grid entirely (or nothing to place/paint) - if zoomed in, treat this as
               // the start of a pan drag instead of doing nothing.
-              if (zoom < 1.0 && placingNpcIdx === null && placingDoodadIdx === null && placingContainerIdx === null && !brush) {
+              if (zoom < 1.0 && placingNpcIdx === null && placingDoodadIdx === null && placingContainerIdx === null && placingShopIdx === null && !brush) {
                 setPanDrag({ startClientX: e.clientX, startClientY: e.clientY, startOffset: panOffset });
               }
+              return;
+            }
+            if (placingShopIdx !== null) {
+              setPlacedShops(prev => prev.map((s, i) => i === placingShopIdx ? { ...s, x: c.x, y: c.y } : s));
+              setPlacingShopIdx(null);
               return;
             }
             if (placingContainerIdx !== null) {
@@ -430,6 +441,19 @@ export default function GridCreatorTab({ isDeveloper }) {
               </g>
             );
           })}
+          {/* Shop tokens - standalone, single-tile, references a live shop by id */}
+          {placedShops.map((s, i) => {
+            if (s.x === null || s.x === undefined || s.y === null || s.y === undefined) return null;
+            const cx = s.x * CELL + CELL / 2;
+            const cy = s.y * CELL + CELL / 2;
+            const stillExists = shops.some(sh => sh.id === s.shopId);
+            return (
+              <g key={`shop-${s.id || i}`} style={{ pointerEvents: 'none' }} opacity={placingShopIdx === i ? 0.5 : 1}>
+                <rect x={s.x * CELL + 2} y={s.y * CELL + 2} width={CELL - 4} height={CELL - 4} fill={stillExists ? '#6a8a30' : '#c84020'} stroke="#fff" strokeWidth="1" rx="2" />
+                <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontFamily="sans-serif">{stillExists ? '🏪' : '🔥'}</text>
+              </g>
+            );
+          })}
         </svg>
         {placingNpcIdx !== null && (
           <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
@@ -443,6 +467,12 @@ export default function GridCreatorTab({ isDeveloper }) {
             <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingContainerIdx(null)}>Cancel</button>
           </div>
         )}
+        {placingShopIdx !== null && (
+          <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
+            Click the grid to place: <strong>{shops.find(sh => sh.id === placedShops[placingShopIdx]?.shopId)?.name || 'Shop'}</strong>
+            <button className="btn btn-sm" style={{ fontSize: 11, marginLeft: 8, padding: '1px 6px' }} onClick={() => setPlacingShopIdx(null)}>Cancel</button>
+          </div>
+        )}
         {placingDoodadIdx !== null && (
           <div style={{ fontSize: 12, color: 'var(--gold)', marginTop: 4 }}>
             Click the grid to place: <strong>{doodadLibrary.find(d => d.id === placedDoodads[placingDoodadIdx]?.defId)?.name}</strong>
@@ -452,7 +482,7 @@ export default function GridCreatorTab({ isDeveloper }) {
 
         <div style={{ display: 'flex', gap: 8, marginTop: '.75rem', flexWrap: 'wrap' }}>
           <button className="btn btn-p" onClick={() => setShowSaveForm(v => !v)}>{activeGridId ? 'Save Changes…' : 'Save As…'}</button>
-          <button className="btn" onClick={() => { setActiveGridId(null); setLoadedSaveName(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); setPlacedContainers([]); setPlacingContainerIdx(null); }}>New Grid</button>
+          <button className="btn" onClick={() => { setActiveGridId(null); setLoadedSaveName(null); setTiles({}); setPaintBuffer({}); setBgUrl(''); setSaveName(''); setSaveLocked(false); setShowSaveForm(false); setPrebuiltNpcs([]); setPlacingNpcIdx(null); setPlacedDoodads([]); setPlacingDoodadIdx(null); setPlacedContainers([]); setPlacingContainerIdx(null); setPlacedShops([]); setPlacingShopIdx(null); }}>New Grid</button>
           <button className="btn" style={{ borderColor: 'rgba(60,140,180,.5)', color: '#7ab8d0' }}
             title="Procedurally generates a connected tunnel network - narrow confined corridors, a water channel, occasional junction chambers. Replaces the current tiles."
             onClick={() => {
@@ -698,6 +728,52 @@ export default function GridCreatorTab({ isDeveloper }) {
                       {isPlaced ? 'Move' : 'Place'}
                     </button>
                     <button onClick={() => { setPlacedContainers(prev => prev.filter((_, j) => j !== i)); if (placingContainerIdx === i) setPlacingContainerIdx(null); }}
+                      title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>
+            Shops <span style={{ fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>(Commerce - references a real shop from the Bazaar)</span>
+          </div>
+          {shops.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No shops created yet - add one in the Shop tab first.</div>
+          ) : (
+            <select defaultValue="" style={{ fontSize: 12, width: '100%' }}
+              onChange={e => {
+                const shopId = e.target.value;
+                if (!shopId) return;
+                setPlacedShops(prev => {
+                  const next = [...prev, { id: `shoptoken_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, shopId, x: null, y: null }];
+                  setPlacingShopIdx(next.length - 1);
+                  return next;
+                });
+                e.target.value = '';
+              }}>
+              <option value="">+ Add shop to grid…</option>
+              {shops.map(sh => <option key={sh.id} value={sh.id}>{sh.name}</option>)}
+            </select>
+          )}
+          {placedShops.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {placedShops.map((s, i) => {
+                const isPlaced = s.x !== null && s.x !== undefined;
+                const shop = shops.find(sh => sh.id === s.shopId);
+                return (
+                  <div key={s.id || i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, marginTop: 4,
+                    background: placingShopIdx === i ? 'rgba(200,150,42,.15)' : 'rgba(107,78,40,.08)' }}>
+                    <span style={{ fontSize: 12, flex: 1, color: shop ? 'var(--text-primary)' : 'var(--red)' }}>{shop?.name || 'Shop deleted'}</span>
+                    <span style={{ fontSize: 11, color: isPlaced ? 'var(--green)' : 'var(--text-muted)' }}>
+                      {isPlaced ? `(${s.x},${s.y})` : 'unplaced'}
+                    </span>
+                    <button onClick={() => setPlacingShopIdx(i)} title="Place on grid" style={{ fontSize: 11, padding: '2px 6px' }}>
+                      {isPlaced ? 'Move' : 'Place'}
+                    </button>
+                    <button onClick={() => { setPlacedShops(prev => prev.filter((_, j) => j !== i)); if (placingShopIdx === i) setPlacingShopIdx(null); }}
                       title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
                   </div>
                 );

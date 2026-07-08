@@ -500,7 +500,7 @@ export const ATLAS_GRID = 12;   // 12×12 tiles
 export const ATLAS_TILE = ATLAS_SIZE / ATLAS_GRID; // 64px per source tile
 
 // ── Battle Grid ───────────────────────────────────────────────────────────────
-function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, onClearGrid, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightMode = 'dark', onSetLightMode, litCells = null, dimCells = null, onQuickTarget, playerGlow = false, onSetPlayerGlow, atlasUrl = '', tileDefaultImages = {}, themeRow = null, doodads = [], doodadLibrary = [], everyoneHelps = false, everyoneHelpsPlus = false, isObserver = false, freeMove = false, onSetFreeMove, focusTokenId = null, onSetFocusToken, placingDoodadDef = null, onPlaceDoodad, onSetPlacingDoodadDef, containers = [], containerImageUrl = '', onInvestigateContainer }) {
+function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCharIds, isMyTurn, onMove, settingBg, activePing, onPing, portraitScale = 1.0, gridTiles = {}, onPaintTiles, lightMode = 'dark', onSetLightMode, litCells = null, dimCells = null, onQuickTarget, playerGlow = false, onSetPlayerGlow, atlasUrl = '', tileDefaultImages = {}, themeRow = null, doodads = [], doodadLibrary = [], everyoneHelps = false, everyoneHelpsPlus = false, isObserver = false, freeMove = false, onSetFreeMove, focusTokenId = null, onSetFocusToken, placingDoodadDef = null, onPlaceDoodad, onSetPlacingDoodadDef, containers = [], containerImageUrl = '', onInvestigateContainer, shopTokens = [], shops = [], onOpenShopCommerce }) {
   const myIds = (myCharIds && myCharIds.length) ? myCharIds : (myCharId ? [myCharId] : []);
   const [selected, setSelected] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
@@ -532,6 +532,7 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
   const [dragPos, setDragPos] = useState(null);      // { svgX, svgY } current drag position in SVG coords
   // Right-click token context menu - "Attack"/"Skill" quick-target, filtered by melee/ranged reach
   const [ctxMenu, setCtxMenu] = useState(null); // { targetId, screenX, screenY }
+  const [shopCtxMenu, setShopCtxMenu] = useState(null); // { shopTokenId, screenX, screenY }
   const canOpenCtxMenu = isGM || isMyTurn;
   const svgRef = React.useRef(null);
   // Terrain paint-mode editor (GM only) - text stand-ins for tiles until the master atlas exists
@@ -781,6 +782,10 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
     if (!isOwnToken && !canHelp) return false;                       // Players can only move their own token(s), unless Everyone Helps applies
     if (freeMove && isOwnToken) return true;                         // Free Move bypasses turn order for your own token (still subject to the lighting one-step rule elsewhere)
     if (!isMyTurn) return false;                                     // Only on their turn (isMyTurn already includes the Everyone Helps case)
+    // A PC must lock in a stance before moving on their own turn - this is the same gate the turn
+    // panel's own "choose a stance to continue" screen enforces, but that's local UI state (resets on
+    // every panel remount) so it never stopped moving a token by dragging it directly on the grid.
+    if (tok?.type === 'pc' && !tok?._stanceLockedIn) return false;
     return true;
   };
 
@@ -1143,12 +1148,35 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
             const containerItems = containers
               .filter(ct => ct.x !== null && ct.x !== undefined && ct.y !== null && ct.y !== undefined)
               .map(ct => ({ ...ct, _isContainer: true }));
+            const shopItems = shopTokens
+              .filter(st => st.x !== null && st.x !== undefined && st.y !== null && st.y !== undefined && shops.some(s => s.id === st.shopId))
+              .map(st => ({ ...st, _isShop: true }));
             const renderItems = [
               ...combatants.map(c => ({ ...c, _sortY: c.gridY })),
               ...doodadItems.map(d => ({ ...d, _sortY: d.y + d._def.height - 1 })),
               ...containerItems.map(ct => ({ ...ct, _sortY: ct.y })),
+              ...shopItems.map(st => ({ ...st, _sortY: st.y })),
             ];
             return [...renderItems].sort((a, b) => (a._sortY ?? -1) - (b._sortY ?? -1)).map(item => {
+            if (item._isShop) {
+              const st = item;
+              const shop = shops.find(s => s.id === st.shopId);
+              const cx = st.x * CELL + CELL / 2;
+              const cy = st.y * CELL + CELL / 2;
+              return (
+                <g key={`shop-${st.id}`} style={{ cursor: 'pointer' }}
+                  onMouseDown={e => e.stopPropagation()}
+                  onContextMenu={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShopCtxMenu({ shopTokenId: st.id, screenX: e.clientX, screenY: e.clientY });
+                  }}>
+                  <rect x={st.x * CELL + 2} y={st.y * CELL + 2} width={CELL - 4} height={CELL - 4} fill="#6a8a30" stroke="#fff" strokeWidth="1" rx="2" />
+                  <text x={cx} y={cy + 4} textAnchor="middle" fontSize="12" fontFamily="sans-serif">🏪</text>
+                  <title>{shop?.name || 'Shop'} - right-click while adjacent to enter Commerce</title>
+                </g>
+              );
+            }
             if (item._isContainer) {
               const ct = item;
               const cx = ct.x * CELL + CELL / 2;
@@ -1355,7 +1383,11 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
       </div>
 
       {(() => {
-        const unplaced = combatants.filter(c => c.gridX === undefined || c.gridY === undefined);
+        const unplacedAll = combatants.filter(c => c.gridX === undefined || c.gridY === undefined);
+        // Unplaced NPCs are a GM-only holding area (surprise reinforcements shouldn't be visible to
+        // players before the GM places them on the grid) - unplaced PCs stay visible to everyone since
+        // there's nothing secret about a player's own token waiting to be placed.
+        const unplaced = (isGM && !isObserver) ? unplacedAll : unplacedAll.filter(c => c.type !== 'npc');
         if (!unplaced.length) return null;
         return (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', padding: '4px', background: 'rgba(10,8,4,.6)', borderRadius: 4, border: '1px solid rgba(107,78,40,.3)', maxWidth: W, marginTop: 4 }}>
@@ -1373,10 +1405,6 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
           </div>
         );
       })()}
-
-      {isGM && combatants.some(c => c.gridX !== undefined) && (
-        <button className="btn btn-sm" style={{ fontSize: 11, marginTop: 4 }} onClick={onClearGrid}>Clear Grid</button>
-      )}
 
       {ctxMenu && (() => {
         const target = combatants.find(c => c.id === ctxMenu.targetId);
@@ -1416,6 +1444,30 @@ function BattleGrid({ combatants, active, pcsMap, gridSize, isGM, myCharId, myCh
               <button onClick={() => { onQuickTarget && onQuickTarget(target.id, 'skill'); close(); }}
                 style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }}>
                 <i className="ti ti-sparkles" style={{ marginRight: 6, fontSize: 12 }} />Skill
+              </button>
+              <button onClick={close} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 10px', fontSize: 11, background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                Cancel
+              </button>
+            </div>
+          </>
+        );
+      })()}
+      {shopCtxMenu && (() => {
+        const token = shopTokens.find(st => st.id === shopCtxMenu.shopTokenId);
+        if (!token) { setShopCtxMenu(null); return null; }
+        const shop = shops.find(s => s.id === token.shopId);
+        const close = () => setShopCtxMenu(null);
+        return (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={close} onContextMenu={e => { e.preventDefault(); close(); }} />
+            <div style={{ position: 'fixed', left: shopCtxMenu.screenX, top: shopCtxMenu.screenY, zIndex: 500,
+              background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.6)', minWidth: 150, overflow: 'hidden' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '5px 10px', borderBottom: '1px solid var(--border)' }}>
+                Shop: <span style={{ color: 'var(--gold)' }}>{shop?.name || 'Unknown'}</span>
+              </div>
+              <button onClick={() => { onOpenShopCommerce && onOpenShopCommerce(token.id); close(); }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                <i className="ti ti-shopping-cart" style={{ marginRight: 6, fontSize: 12 }} />Commerce
               </button>
               <button onClick={close} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 10px', fontSize: 11, background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 Cancel
@@ -1832,7 +1884,7 @@ function AddEnemy({ npcsFromLog, fullNpcs = [], onAdd }) {
   );
 }
 
-export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted', playerGlowDefault = false, isObserver = false, everyoneHelps = false, everyoneHelpsPlus = false }) {
+export default function EncounterTab({ isGM, isPCView, characters, myCharId, myCharIds, session, encounter, setEncounter, npcsFromLog, fullNpcs = [], onUpdateCharacter, onAddEncounterEntry, onLogEvent, onLogSkill, preparedEncounters = [], onSavePreparedEncounters, onGlobalRoll, portraitScale = 1.0, onViewCharacter, onViewNpc, arrowTracking = false, downtimeMode = 'gm_granted', playerGlowDefault = false, isObserver = false, everyoneHelps = false, everyoneHelpsPlus = false, shops = [], onOpenShop }) {
   // Ownership checks must use the full set of characters this player controls, not just the
   // first-ever-claimed one - a player with two claimed characters was invisible to every
   // "is this mine" check below whenever their second character was the one up. Falls back to
@@ -2187,6 +2239,26 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     || (!isObserver && active?.type === 'npc' && everyoneHelpsPlus)
     || (!isObserver && active?.type === 'npc' && (active?.sharedControllerIds || []).some(id => myIds.includes(id)));
 
+  // Orphaned shop tokens: if a shop referenced by a placed grid token was deleted from the Bazaar,
+  // that cell becomes a real 'fire' terrain tile (Charles's call) instead of silently dangling. GM-only
+  // so only one client ever performs the write; runs once per shop-list change, not every render.
+  React.useEffect(() => {
+    if (!isGM || isPCView) return;
+    const tokens = setup?.shopTokens || [];
+    if (tokens.length === 0) return;
+    const orphaned = tokens.filter(t => !shops.some(s => s.id === t.shopId));
+    if (orphaned.length === 0) return;
+    const survivors = tokens.filter(t => shops.some(s => s.id === t.shopId));
+    const nextTiles = { ...gridTiles };
+    orphaned.forEach(t => {
+      if (t.x !== null && t.x !== undefined && t.y !== null && t.y !== undefined) {
+        nextTiles[`${t.x},${t.y}`] = { type: 'fire' };
+      }
+    });
+    upEnc({ setup: { ...setup, shopTokens: survivors }, gridTiles: nextTiles });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGM, isPCView, shops, setup?.shopTokens]);
+
   // Free Move auto-disable: the moment any enemy transitions from hidden to visible while Free Move
   // is on, turn it off and go back to strict turn order. Tracks each enemy's hidden/visible state
   // per-render (not just "is anyone visible right now") so this only fires on an actual reveal, not
@@ -2273,6 +2345,22 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     const items = (container.contents || []).map(it => ({ name: it.name, qty: it.qty || 1, equipped: false, inUse: false, category: 'Gear' }));
     if (items.length && onUpdateCharacter) onUpdateCharacter(actor.id, { equipment: [...(actor.equipment || []), ...items] });
     if (onLogEvent) onLogEvent('ti-box', `${actor.name} opened ${container.name} and found${items.length ? ': ' + items.map(i => i.name).join(', ') : ' nothing'}.`);
+  };
+
+  // Commerce - right-click a shop token while adjacent to jump the acting player's own Shop tab to
+  // that one shop (bypassing the normal "shops closed during an encounter" rule for just this one),
+  // and grant them 2 Granted Actions specifically to spend on Appraise/Haggle there.
+  const handleOpenShopCommerce = (shopTokenId) => {
+    const token = (setup?.shopTokens || []).find(t => t.id === shopTokenId);
+    if (!token) return;
+    const shop = shops.find(s => s.id === token.shopId);
+    if (!shop) return; // orphaned - the reconciliation effect will turn this into a fire tile shortly
+    const myCombatantsInRange = combatants.filter(c => myIds.includes(c.id) && c.gridX !== undefined && chebyshevDist(c.gridX, c.gridY, token.x, token.y) <= 1);
+    if (myCombatantsInRange.length === 0) return; // not adjacent - silently do nothing
+    const actor = pcsMap[myCombatantsInRange[0].id];
+    if (!actor) return;
+    if (onOpenShop) onOpenShop(shop.id, actor.id);
+    if (onLogEvent) onLogEvent('ti-shopping-cart', `${actor.name} enters Commerce with ${shop.name}.`);
   };
 
   const beginEncounter = (s) => {
@@ -2385,7 +2473,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     if (s.intrigueEncounter) {
       all = all.map(c => c.type === 'npc' ? { ...c, disposition: 'friendly' } : c);
     }
-    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {}, playerGlow: playerGlowDefault, showGrid: useGrid, freeMove: !!s.intrigueEncounter, ...(outdoorLightMode ? { lightMode: outdoorLightMode } : {}) });
+    upEnc({ state: 'active', trainingSession: false, setup: s, combatants: all, activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, gridTiles: s.gridTiles || {}, playerGlow: playerGlowDefault, showGrid: useGrid, freeMove: !!s.intrigueEncounter, revealedShopId: null, ...(outdoorLightMode ? { lightMode: outdoorLightMode } : {}) });
     setNpcTargets({});
   };
 
@@ -2406,7 +2494,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       const centerCarryBonus = currentCombatant?.stance === 'Center' ? (currentCombatant._centerBonus || true) : false;
       nextCombatants = nextCombatants.map((c, i) => {
         let updated = i === nextIdx
-          ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0, _tookNonMoveAction: false,
+          ? { ...c, _actionsLeft: { full: 1, simple: 2 }, _movesUsed: 0, _tookNonMoveAction: false, _stanceLockedIn: false,
               // Refresh startX/Y to current position at start of each turn - range is measured from here
               startX: c.gridX !== undefined ? c.gridX : c.startX,
               startY: c.gridY !== undefined ? c.gridY : c.startY }
@@ -2838,7 +2926,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
 
   const handleStanceChange = (id, stance, fullDefenseBonus) => {
     upEnc({ combatants: combatants.map(c => c.id === id
-      ? { ...c, stance, fullDefenseBonus: stance === 'Full Defense' ? (fullDefenseBonus ?? 10) : undefined }
+      ? { ...c, stance, fullDefenseBonus: stance === 'Full Defense' ? (fullDefenseBonus ?? 10) : undefined, _stanceLockedIn: true }
       : c
     ) });
     // Keep character.current_stance in sync - DiceModal reads this to apply stance-gated technique bonuses
@@ -2969,7 +3057,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       onUpdateCharacter(c.id, { equipment: eq });
       if (onLogEvent) onLogEvent('ti-arrow-back', `${pc.name} recovers ${recovered} of ${consumed} arrows spent this encounter`);
     }
-    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs, grantedActions: {} });
+    upEnc({ state: 'idle', combatants: [], activeTurn: 0, round: 1, dmgBanner: null, envQuirk: null, lastEncounterNPCs: lastNPCs, grantedActions: {}, revealedShopId: null });
     setNpcTargets({});
     setTargeting(null);
   };
@@ -3742,134 +3830,234 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       {view === 'columns' && (
         <div style={{ display: 'grid', gridTemplateColumns: showGrid ? '260px auto' : '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
 
-          {/* Left column - all combatants when grid on, just party when grid off */}
+          {/* Left column - merged initiative-order list when grid is on (rotates each turn so the
+              active combatant is always first); just Party, ungrouped, when grid is off (unchanged). */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
-            </div>
-            {party.map(c => (
-              <CombatantCard key={c.id} c={c}
-                isActive={c.id === active?.id}
-                isGM={isGM} isPCView={isPCView}
-                myCharId={myCharId} myCharIds={myIds} pcs={pcsMap}
-                onShowSummary={setSummaryCombatant}
-                onGMWound={gmWound}
-                onApplyStatus={applyStatus}
-                onRemoveStatus={removeStatus}
-                targeting={null}
-                onSetTarget={null}
-                compact={compact}
-                portraitScale={portraitScale}
-                onVoidDefense={handleVoidDefense}
-                onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
-                onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
-                inMelee={isInMelee(c, combatants)}
-                onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false} onFocusToken={setFocusTokenId}
-                turnPanel={c.id === active?.id && active?.type === 'pc' && (isGM || myIds.includes(active.id) || ((everyoneHelps || everyoneHelpsPlus) && !isObserver)) ? (
-                  <PCTurnPanel
-                    combatant={active}
-                    character={pcsMap[active.id]}
-                    enemies={enemies}
-                    allies={party.filter(cc => cc.id !== active.id)}
-                    actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
-                    showGrid={showGrid}
-                    onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
-                    onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
-                    onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
-                    onMoveAction={() => {
-                      const movesUsed = (active._movesUsed || 0) + 1;
-                      upEnc({
-                        combatants: combatants.map(cc => cc.id === active.id ? { ...cc, _movesUsed: movesUsed } : cc),
-                        ...(setup?.useGrid !== false ? { showGrid: true } : {}),
-                      });
-                    }}
-                    onUndoMove={() => {
-                      const movesUsed = active._movesUsed || 0;
-                      upEnc({
-                        combatants: combatants.map(cc => cc.id === active.id ? {
-                          ...cc,
-                          gridX: cc.startX, gridY: cc.startY,
-                          _movesUsed: 0,
-                          _actionsLeft: { ...(cc._actionsLeft || { full: 1, simple: 2 }), simple: Math.min(2, (cc._actionsLeft?.simple ?? 2) + movesUsed) },
-                          statusEffects: (cc.statusEffects || []).filter(e => !e.startsWith('Terrain: ')),
-                        } : cc),
-                      });
-                    }}
-                    onPass={(freeActionText) => {
-                      if (freeActionText && freeActionText !== 'Free Action' && onLogEvent) {
-                        onLogEvent('ti-bolt', `${active.name}: ${freeActionText}`);
-                      }
-                      advanceTurn();
-                    }}
-                    onSpendAction={spendAction}
-                    onStartContestedRoll={(mySkillName, opponentId, opponentSkillName) => {
-                      const opponent = combatants.find(cc => cc.id === opponentId);
-                      if (!opponent) return;
-                      startContestedRoll(pcsMap[active.id], mySkillName, opponent, opponentSkillName);
-                      spendAction('full');
-                    }}
-                    arrowTracking={arrowTracking}
-                    quickTargetRequest={quickTargetRequest}
-                    gridTiles={gridTiles}
-                  />
-                ) : null}
-              />
-            ))}
-            {/* When grid is on, show enemies in the same left column */}
-            {showGrid && enemies.length > 0 && (
+            {showGrid ? (
               <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#c84030', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #8a3030', marginBottom: '.5rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <i className="ti ti-skull" style={{ fontSize: 13 }} /> Enemies ({enemyCountLabel(enemies)})
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid var(--gold-dim)', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <i className="ti ti-list-numbers" style={{ fontSize: 13 }} /> Turn Order ({combatants.length})
                 </div>
-                {enemies.map(c => (
-                  isEnemyShrouded(c) ? (
-                    <div key={c.id} style={{ padding: '.5rem', marginBottom: 4, background: 'rgba(0,0,0,.4)', border: '1px dashed rgba(107,78,40,.4)', borderRadius: 5, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
-                      <i className="ti ti-eye-off" style={{ marginRight: 4 }} /> Hidden in darkness
-                    </div>
-                  ) : (
-                    <CombatantCard key={c.id} c={c}
-                      isActive={c.id === active?.id}
-                      isGM={isGM} isPCView={isPCView}
-                      myCharId={myCharId} myCharIds={myIds} pcs={pcsMap}
-                      onGMWound={gmWound}
-                      onApplyStatus={applyStatus}
-                      onRemoveStatus={removeStatus}
-                      targeting={targeting}
-                      compact={compact}
-                      portraitScale={portraitScale}
-                      onSetTarget={(npcId, action) => { handleSetNPCAction(npcId, action); if (action === 'Attack') setTargeting(npcId); }}
-                      onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
-                      inMelee={isInMelee(c, combatants)}
-                      onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false} onFocusToken={setFocusTokenId}
-                      hasDetectedStealth={stealthDetectorIds.has(c.id)}
-                      turnPanel={c.id === active?.id && active?.type === 'npc' && (isGM || myIds.includes(active.controllerId) || (active.sharedControllerIds || []).some(id => myIds.includes(id)) || (everyoneHelpsPlus && !isObserver)) && !isPCView ? (
-                        <PCTurnPanel
-                          combatant={active}
-                          character={null}
-                          enemies={party}
-                          isNPCTurn
-                          actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
-                          onRoll={(ctx) => setModal({ ...ctx, combatantId: active.id })}
-                          onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
-                          onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
-                          onPass={advanceTurn}
-                          onSpendAction={spendAction}
-                          quickTargetRequest={quickTargetRequest}
-                          gridTiles={gridTiles}
+                {(() => {
+                  const initiativeOrder = [...combatants].sort((a, b) => b.init - a.init);
+                  const activeIdx = initiativeOrder.findIndex(cc => cc.id === active?.id);
+                  const rotated = activeIdx >= 0 ? [...initiativeOrder.slice(activeIdx), ...initiativeOrder.slice(0, activeIdx)] : initiativeOrder;
+                  return rotated.map(c => {
+                    if (c.type === 'npc' && isEnemyShrouded(c)) {
+                      return (
+                        <div key={c.id} style={{ padding: '.5rem', marginBottom: 4, background: 'rgba(0,0,0,.4)', border: '1px dashed rgba(107,78,40,.4)', borderRadius: 5, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                          <i className="ti ti-eye-off" style={{ marginRight: 4 }} /> Hidden in darkness
+                        </div>
+                      );
+                    }
+                    if (c.type === 'npc') {
+                      return (
+                        <CombatantCard key={c.id} c={c}
+                          isActive={c.id === active?.id}
+                          isGM={isGM} isPCView={isPCView}
+                          myCharId={myCharId} myCharIds={myIds} pcs={pcsMap}
+                          onGMWound={gmWound}
+                          onApplyStatus={applyStatus}
+                          onRemoveStatus={removeStatus}
+                          targeting={targeting}
+                          compact={compact}
+                          portraitScale={portraitScale}
+                          onSetTarget={(npcId, action) => { handleSetNPCAction(npcId, action); if (action === 'Attack') setTargeting(npcId); }}
+                          onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'pc' } : x) }) : null}
+                          inMelee={isInMelee(c, combatants)}
+                          onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false} onFocusToken={setFocusTokenId}
+                          hasDetectedStealth={stealthDetectorIds.has(c.id)}
+                          turnPanel={c.id === active?.id && active?.type === 'npc' && (isGM || myIds.includes(active.controllerId) || (active.sharedControllerIds || []).some(id => myIds.includes(id)) || (everyoneHelpsPlus && !isObserver)) && !isPCView ? (
+                            <PCTurnPanel
+                              combatant={active}
+                              character={null}
+                              enemies={party}
+                              isNPCTurn
+                              actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
+                              onRoll={(ctx) => setModal({ ...ctx, combatantId: active.id })}
+                              onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
+                              onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
+                              onPass={advanceTurn}
+                              onSpendAction={spendAction}
+                              quickTargetRequest={quickTargetRequest}
+                              gridTiles={gridTiles}
+                            />
+                          ) : null}
                         />
-                      ) : null}
-                    />
-                  )
-                ))}
-                {isGM && !isPCView && (
-                  <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
-                    const nc = { ...npc, wound: 0, stance: 'Attack', init: rollExplodingKeep((npc.reflexes || 2) + (npc.rank || 1), npc.reflexes || 2), statusEffects: [], _action: null };
-                    const pos = findFreeGridCell(setup?.gridSize, gridTiles, combatants);
-                    const placedNc = pos ? { ...nc, gridX: pos.x, gridY: pos.y, startX: pos.x, startY: pos.y } : nc;
-                    upEnc({ combatants: [...combatants, placedNc].sort((a, b) => b.init - a.init) });
-                  }} />
-                )}
+                      );
+                    }
+                    return (
+                      <CombatantCard key={c.id} c={c}
+                        isActive={c.id === active?.id}
+                        isGM={isGM} isPCView={isPCView}
+                        myCharId={myCharId} myCharIds={myIds} pcs={pcsMap}
+                        onShowSummary={setSummaryCombatant}
+                        onGMWound={gmWound}
+                        onApplyStatus={applyStatus}
+                        onRemoveStatus={removeStatus}
+                        targeting={null}
+                        onSetTarget={null}
+                        compact={compact}
+                        portraitScale={portraitScale}
+                        onVoidDefense={handleVoidDefense}
+                        onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
+                        onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
+                        inMelee={isInMelee(c, combatants)}
+                        onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false} onFocusToken={setFocusTokenId}
+                        turnPanel={c.id === active?.id && active?.type === 'pc' && (isGM || myIds.includes(active.id) || ((everyoneHelps || everyoneHelpsPlus) && !isObserver)) ? (
+                          <PCTurnPanel
+                            combatant={active}
+                            character={pcsMap[active.id]}
+                            enemies={enemies}
+                            allies={party.filter(cc => cc.id !== active.id)}
+                            actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
+                            showGrid={showGrid}
+                            onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
+                            onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
+                            onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
+                            onMoveAction={() => {
+                              const movesUsed = (active._movesUsed || 0) + 1;
+                              upEnc({
+                                combatants: combatants.map(cc => cc.id === active.id ? { ...cc, _movesUsed: movesUsed } : cc),
+                                ...(setup?.useGrid !== false ? { showGrid: true } : {}),
+                              });
+                            }}
+                            onUndoMove={() => {
+                              const movesUsed = active._movesUsed || 0;
+                              upEnc({
+                                combatants: combatants.map(cc => cc.id === active.id ? {
+                                  ...cc,
+                                  gridX: cc.startX, gridY: cc.startY,
+                                  _movesUsed: 0,
+                                  _actionsLeft: { ...(cc._actionsLeft || { full: 1, simple: 2 }), simple: Math.min(2, (cc._actionsLeft?.simple ?? 2) + movesUsed) },
+                                  statusEffects: (cc.statusEffects || []).filter(e => !e.startsWith('Terrain: ')),
+                                } : cc),
+                              });
+                            }}
+                            onPass={(freeActionText) => {
+                              if (freeActionText && freeActionText !== 'Free Action' && onLogEvent) {
+                                onLogEvent('ti-bolt', `${active.name}: ${freeActionText}`);
+                              }
+                              advanceTurn();
+                            }}
+                            onSpendAction={spendAction}
+                            onStartContestedRoll={(mySkillName, opponentId, opponentSkillName) => {
+                              const opponent = combatants.find(cc => cc.id === opponentId);
+                              if (!opponent) return;
+                              startContestedRoll(pcsMap[active.id], mySkillName, opponent, opponentSkillName);
+                              spendAction('full');
+                            }}
+                            arrowTracking={arrowTracking}
+                            quickTargetRequest={quickTargetRequest}
+                            gridTiles={gridTiles}
+                          />
+                        ) : null}
+                      />
+                    );
+                  });
+                })()}
               </>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#6aba60', textTransform: 'uppercase', letterSpacing: '.1em', paddingBottom: '.4rem', borderBottom: '2px solid #4a8a40', marginBottom: '.5rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <i className="ti ti-shield" style={{ fontSize: 13 }} /> Party ({party.length})
+                </div>
+                {party.map(c => (
+                  <CombatantCard key={c.id} c={c}
+                    isActive={c.id === active?.id}
+                    isGM={isGM} isPCView={isPCView}
+                    myCharId={myCharId} myCharIds={myIds} pcs={pcsMap}
+                    onShowSummary={setSummaryCombatant}
+                    onGMWound={gmWound}
+                    onApplyStatus={applyStatus}
+                    onRemoveStatus={removeStatus}
+                    targeting={null}
+                    onSetTarget={null}
+                    compact={compact}
+                    portraitScale={portraitScale}
+                    onVoidDefense={handleVoidDefense}
+                    onSwapSide={isGM && !isPCView ? () => upEnc({ combatants: combatants.map(x => x.id === c.id ? { ...x, type: 'npc' } : x) }) : null}
+                    onViewCharacter={onViewCharacter} onViewNpc={onViewNpc}
+                    inMelee={isInMelee(c, combatants)}
+                    onToggleGlow={toggleGlow} hasGrid={setup?.useGrid !== false} onFocusToken={setFocusTokenId}
+                    turnPanel={c.id === active?.id && active?.type === 'pc' && (isGM || myIds.includes(active.id) || ((everyoneHelps || everyoneHelpsPlus) && !isObserver)) ? (
+                      <PCTurnPanel
+                        combatant={active}
+                        character={pcsMap[active.id]}
+                        enemies={enemies}
+                        allies={party.filter(cc => cc.id !== active.id)}
+                        actionsLeft={active._actionsLeft || { full: 1, simple: 2 }}
+                        showGrid={showGrid}
+                        onRoll={(ctx) => setModal({ ...ctx, character: pcsMap[active.id], combatantId: active.id })}
+                        onStanceChange={(stance, fdBonus) => handleStanceChange(active.id, stance, fdBonus)}
+                        onDrawWeapon={(weapon) => { handleDrawWeapon(active.id, weapon); if (!isFreeWeaponDraw(weapon)) spendAction('simple'); }}
+                        onMoveAction={() => {
+                          const movesUsed = (active._movesUsed || 0) + 1;
+                          upEnc({
+                            combatants: combatants.map(cc => cc.id === active.id ? { ...cc, _movesUsed: movesUsed } : cc),
+                            ...(setup?.useGrid !== false ? { showGrid: true } : {}),
+                          });
+                        }}
+                        onUndoMove={() => {
+                          const movesUsed = active._movesUsed || 0;
+                          upEnc({
+                            combatants: combatants.map(cc => cc.id === active.id ? {
+                              ...cc,
+                              gridX: cc.startX, gridY: cc.startY,
+                              _movesUsed: 0,
+                              _actionsLeft: { ...(cc._actionsLeft || { full: 1, simple: 2 }), simple: Math.min(2, (cc._actionsLeft?.simple ?? 2) + movesUsed) },
+                              statusEffects: (cc.statusEffects || []).filter(e => !e.startsWith('Terrain: ')),
+                            } : cc),
+                          });
+                        }}
+                        onPass={(freeActionText) => {
+                          if (freeActionText && freeActionText !== 'Free Action' && onLogEvent) {
+                            onLogEvent('ti-bolt', `${active.name}: ${freeActionText}`);
+                          }
+                          advanceTurn();
+                        }}
+                        onSpendAction={spendAction}
+                        onStartContestedRoll={(mySkillName, opponentId, opponentSkillName) => {
+                          const opponent = combatants.find(cc => cc.id === opponentId);
+                          if (!opponent) return;
+                          startContestedRoll(pcsMap[active.id], mySkillName, opponent, opponentSkillName);
+                          spendAction('full');
+                        }}
+                        arrowTracking={arrowTracking}
+                        quickTargetRequest={quickTargetRequest}
+                        gridTiles={gridTiles}
+                      />
+                    ) : null}
+                  />
+                ))}
+              </>
+            )}
+            {showGrid && isGM && !isPCView && (
+              <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
+                // Newly-spawned NPCs land unplaced (no gridX/gridY) in the GM-only holding tray below
+                // the map instead of auto-appearing on the grid - GM places them when ready to reveal.
+                const nc = { ...npc, wound: 0, stance: 'Attack', init: rollExplodingKeep((npc.reflexes || 2) + (npc.rank || 1), npc.reflexes || 2), statusEffects: [], _action: null };
+                upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
+              }} />
+            )}
+            {showGrid && isGM && !isPCView && shops.length > 0 && (
+              <div style={{ marginTop: '.5rem', padding: '.4rem .5rem', background: 'rgba(106,138,48,.06)', border: '1px solid rgba(106,138,48,.2)', borderRadius: 5 }}>
+                <div style={{ fontSize: 10, color: '#6a8a30', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.4rem', fontWeight: 700 }}>
+                  🏪 Add Shop
+                </div>
+                <select defaultValue="" style={{ fontSize: 12, width: '100%' }}
+                  onChange={e => {
+                    const shopId = e.target.value;
+                    if (!shopId) return;
+                    const pos = findFreeGridCell(setup?.gridSize, gridTiles, combatants);
+                    const token = { id: `shoptoken_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, shopId, x: pos?.x ?? null, y: pos?.y ?? null };
+                    upEnc({ setup: { ...setup, shopTokens: [...(setup?.shopTokens || []), token] } });
+                    e.target.value = '';
+                  }}>
+                  <option value="">+ Add shop to grid…</option>
+                  {shops.map(sh => <option key={sh.id} value={sh.id}>{sh.name}</option>)}
+                </select>
+              </div>
             )}
           </div>
 
@@ -3907,6 +4095,9 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
               containers={setup?.containers || []}
               containerImageUrl={containerImageUrl}
               onInvestigateContainer={handleInvestigateContainer}
+              shopTokens={setup?.shopTokens || []}
+              shops={shops}
+              onOpenShopCommerce={handleOpenShopCommerce}
               everyoneHelps={everyoneHelps}
               everyoneHelpsPlus={everyoneHelpsPlus}
               isObserver={isObserver}
@@ -3928,14 +4119,6 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
                   const newEffects = tileDef?.statusEffect ? [...clearedEffects, tileDef.statusEffect] : clearedEffects;
                   return { ...c, gridX: x, gridY: y, statusEffects: newEffects, ...(isFirstPlace ? { startX: x, startY: y } : {}) };
                 })});
-              }}
-              onClearGrid={() => {
-                upEnc({ combatants: combatants.map(c => ({
-                  ...c,
-                  gridX: c.startX !== undefined ? c.startX : undefined,
-                  gridY: c.startY !== undefined ? c.startY : undefined,
-                  statusEffects: (c.statusEffects || []).filter(e => !e.startsWith('Terrain: ')),
-                }))});
               }}
               activePing={encounter?.gridPing && Date.now() - (encounter.gridPing.ts || 0) < 3000 ? encounter.gridPing : null}
               onPing={(ping) => {
@@ -4014,10 +4197,10 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
             {/* Reinforce mid-encounter */}
             {isGM && !isPCView && (
               <AddEnemy npcsFromLog={npcsFromLog} fullNpcs={fullNpcs} onAdd={npc => {
+                // Newly-spawned NPCs land unplaced (no gridX/gridY) in the GM-only holding tray below
+                // the map instead of auto-appearing on the grid - GM places them when ready to reveal.
                 const nc = { ...npc, wound: 0, stance: 'Attack', init: rollExplodingKeep((npc.reflexes || 2) + (npc.rank || 1), npc.reflexes || 2), statusEffects: [], _action: null };
-                const pos = findFreeGridCell(setup?.gridSize, gridTiles, combatants);
-                const placedNc = pos ? { ...nc, gridX: pos.x, gridY: pos.y, startX: pos.x, startY: pos.y } : nc;
-                upEnc({ combatants: [...combatants, placedNc].sort((a, b) => b.init - a.init) });
+                upEnc({ combatants: [...combatants, nc].sort((a, b) => b.init - a.init) });
               }} />
             )}
           </div>

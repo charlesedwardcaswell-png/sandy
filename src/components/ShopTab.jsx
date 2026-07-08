@@ -407,7 +407,7 @@ function ShopCatalogue({ onAdd, onClose }) {
 }
 
 
-export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false, hideShopFromPlayers = false, onSetHideShopFromPlayers }) {
+export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, characters, onUpdateCharacter, onLogEvent, onPurchase, onWipeShops, onRoll, myCharId, myGrantedActions = 0, onSpendGrantedAction, encActive = false, hideShopFromPlayers = false, onSetHideShopFromPlayers, revealedShopId = null }) {
   const gmView = isGM && !isPCView;
 
   // All shops - loaded from/saved to Supabase
@@ -828,22 +828,16 @@ export default function ShopTab({ isGM, isPCView, inventory, onUpdateInventory, 
 
   const pcChars = (characters || []).filter(c => !c.is_npc);
 
-  // What players see: only open shops with visible items
+  // What players see: only open shops with visible items - except during an active encounter, where
+  // only a shop revealed via Commerce (walking up to its grid token) is visible, regardless of its
+  // "open" downtime flag; every other shop stays hidden per existing behavior.
   if (!gmView) {
-    if (encActive) {
-      return (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          <i className="ti ti-swords" style={{ fontSize: 32, display: 'block', marginBottom: '.5rem', opacity: 0.3 }} />
-          Shops are closed during an encounter.
-        </div>
-      );
-    }
-    const openShops = shops.filter(s => s.open);
+    const openShops = encActive ? shops.filter(s => s.id === revealedShopId) : shops.filter(s => s.open);
     if (openShops.length === 0) {
       return (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          <i className="ti ti-shopping-cart" style={{ fontSize: 32, display: 'block', marginBottom: '.5rem', opacity: 0.3 }} />
-          No shops are open right now.
+          <i className={`ti ${encActive ? 'ti-swords' : 'ti-shopping-cart'}`} style={{ fontSize: 32, display: 'block', marginBottom: '.5rem', opacity: 0.3 }} />
+          {encActive ? 'Shops are closed during an encounter.' : 'No shops are open right now.'}
         </div>
       );
     }

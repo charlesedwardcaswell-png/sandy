@@ -31,7 +31,7 @@ import {
 // Single source for the version string - shown in the browser tab title and on the welcome screen
 // (no longer in the in-app header, which was cluttering the mobile view). Bump this alongside every
 // version bump at packaging time.
-export const SANDY_VERSION = 193;
+export const SANDY_VERSION = 194;
 // Toggle back to true once Charles has copyright clearance to link the rulebook PDFs.
 const SHOW_RULEBOOK_LINKS = false;
 
@@ -358,7 +358,7 @@ export default function App() {
       // Only reset if we've been sessionless for a moment
       const timer = setTimeout(() => {
         if (!sessionTransitionRef.current) {
-          setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, grantedActions: {}, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
+          setEncounter({ state: 'idle', setup: { type: null, setting: null, desc: '', name: '', selectedNPCs: [] }, combatants: [], activeTurn: 0, dmgBanner: null, envQuirk: null, round: 1, grantedActions: {}, revealedShopId: null, timeOfDay: 'Morning', campaignDay: 1, campaignWeek: 1 });
         }
       }, 1500);
       return () => clearTimeout(timer);
@@ -517,6 +517,11 @@ export default function App() {
   const [startingCP, setStartingCP] = useState(45);
   const [partyWater, setPartyWater] = useState(0);
   const [portraitScale, setPortraitScale] = useState(1.0); // units of water in the party supply (drought mode only)
+  // Read-only mirror of shops_v2 for tabs that need to reference shops without owning their state
+  // (Grid Creator/Spawn panel for Commerce placement) - ShopTab still owns the authoritative
+  // read/write copy via its own fetch+subscribe; this just needs to know what shops exist and their
+  // names for picking/labeling purposes.
+  const [shops, setShops] = useState([]);
 
   // Load music URL and jinn art URL from games settings on mount
   // Also subscribe to realtime changes so party water, portrait scale, drought mode etc.
@@ -540,6 +545,7 @@ export default function App() {
     if (settings.starting_cp !== undefined) setStartingCP(settings.starting_cp || 45);
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
+    if (settings.shops_v2 !== undefined) setShops(settings.shops_v2 || []);
   };
   useEffect(() => {
     // Initial load
@@ -982,7 +988,7 @@ export default function App() {
     clearTimeout(saveTimer.current);
     setSkillLog({});
     setFullEventLog([]);
-    setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0, grantedActions: {} }));
+    setEncounter(e => ({ ...e, state: 'idle', combatants: [], activeTurn: 0, grantedActions: {}, revealedShopId: null }));
     setShowSessionEnd(false);
     refetchSessionLog();
   };
@@ -1102,9 +1108,6 @@ export default function App() {
 
   return (
     <div className="app" id="app-root" style={{ zoom: zoom }} onContextMenu={e => e.preventDefault()}>
-      <div style={{ position: 'fixed', top: 2, left: 4, fontSize: 9, color: 'var(--text-muted)', opacity: 0.5, zIndex: 9999, pointerEvents: 'none', userSelect: 'none' }}>
-        Sandy v{SANDY_VERSION}
-      </div>
       {showSessionEnd && (
         <SessionEndModal
           session={session}
@@ -1119,6 +1122,7 @@ export default function App() {
       )}
 
       <div className="hdr">
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', opacity: 0.6, flexShrink: 0, userSelect: 'none' }}>Sandy v{SANDY_VERSION}</span>
         <div className="hdr-sp" />
         {/* Time of day - centred in header */}
         {!disableTimeTracking && (
@@ -1390,6 +1394,12 @@ export default function App() {
             isObserver={isObserver}
             everyoneHelps={everyoneHelps}
             everyoneHelpsPlus={everyoneHelpsPlus}
+            shops={shops}
+            onOpenShop={(shopId, charId) => {
+              const cur = (encounter?.grantedActions || {})[charId] || 0;
+              handleSetEncounter(e => ({ ...e, revealedShopId: shopId, grantedActions: { ...(e.grantedActions || {}), [charId]: cur + 2 } }));
+              handleTabChange('shop');
+            }}
           />
         )}
         {tab === 'map' && (
@@ -1526,6 +1536,7 @@ export default function App() {
             } : undefined}
             hideShopFromPlayers={hideShopFromPlayers}
             onSetHideShopFromPlayers={handleSetHideShopFromPlayers}
+            revealedShopId={encounter?.revealedShopId || null}
           />
         )}
         {tab === 'settings' && gmView && <SettingsTab

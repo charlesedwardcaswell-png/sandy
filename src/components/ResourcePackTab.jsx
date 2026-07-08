@@ -4,6 +4,19 @@ import { GAME_ID } from '../data/constants';
 
 const PACK_FORMAT_VERSION = 1;
 
+// Same field list SettingsTab itself persists together as "Settings" - gameplay toggles plus the
+// image/media URLs also managed from that tab. Deliberately excludes anything covered by its own
+// Resource Pack category already (shops_v2, saved_battle_grids, gm_inventory, doodad_library, etc.)
+// and anything instance-specific that should never travel between campaigns (gm_password, campaignDay/
+// Week, timeOfDay, user_themes, party_name).
+const SETTINGS_KEYS = [
+  'map_url', 'map_url_night', 'music_url', 'setting_urls', 'round_limits', 'jinn_art_url',
+  'disable_reroll', 'water_drought_enabled', 'rings_overlay', 'portrait_scale',
+  'downtime_mode', 'downtime_actions_per_char', 'arrow_tracking', 'starting_cp',
+  'hide_shop_from_players', 'hide_feedback_tab', 'player_glow_default', 'disable_time_tracking',
+  'everyone_helps', 'everyone_helps_plus', 'hide_pc_sheets_from_others',
+];
+
 // ── Resource Packs ──────────────────────────────────────────────────────────────
 // Unlike the Campaign Backup (Danger Zone) export/import, which is a full, destructive
 // snapshot of the whole game, a Resource Pack is a hand-picked SUBSET of content -
@@ -31,10 +44,11 @@ export default function ResourcePackTab({ isGM }) {
   const [factionStandings, setFactionStandings] = useState([]);
   const [partyInventory, setPartyInventory] = useState([]);
   const [doodadLibrary, setDoodadLibrary] = useState([]);
+  const [gameSettings, setGameSettings] = useState({});
 
   const [sel, setSel] = useState({
     quests: [], quickNpcs: [], fullNpcs: [], mapPins: [], shops: [], battleGrids: [],
-    gmInventory: [], preppedSessions: [], factionStandings: [], partyInventory: [],
+    gmInventory: [], preppedSessions: [], factionStandings: [], partyInventory: [], settings: [],
   });
   const [open, setOpen] = useState({}); // which category sections are expanded
   const [packName, setPackName] = useState('');
@@ -67,6 +81,7 @@ export default function ResourcePackTab({ isGM }) {
     setBattleGrids(settings.saved_battle_grids || []);
     setGmInventory(settings.gm_inventory || []);
     setDoodadLibrary(settings.doodad_library || []);
+    setGameSettings(SETTINGS_KEYS.reduce((acc, k) => { if (settings[k] !== undefined) acc[k] = settings[k]; return acc; }, {}));
     setLoading(false);
   };
 
@@ -111,6 +126,7 @@ export default function ResourcePackTab({ isGM }) {
         preppedSessions: preppedSessions.filter(s => sel.preppedSessions.includes(s.id)).map(({ id, game_id, ...rest }) => rest),
         factionStandings: factionStandings.filter(f => sel.factionStandings.includes(f.id)).map(({ id, game_id, ...rest }) => rest),
         partyInventory: partyInventory.filter(i => sel.partyInventory.includes(i.id || i.name)),
+        settings: sel.settings.length > 0 ? gameSettings : {},
       },
     };
     const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
@@ -133,12 +149,16 @@ export default function ResourcePackTab({ isGM }) {
       try {
         const pack = JSON.parse(ev.target.result);
         if (pack?.format !== 'sandy_resource_pack' || !pack.categories) { setImportStatus('Not a valid Sandy resource pack file.'); return; }
-        const total = Object.values(pack.categories).reduce((s, arr) => s + (arr?.length || 0), 0);
+        const settingsCount = Object.keys(pack.categories.settings || {}).length;
+        const total = Object.values(pack.categories).reduce((s, arr) => s + (arr?.length || 0), 0) + settingsCount;
         setPendingPack(pack);
         const factionNote = pack.categories.factionStandings?.length
-          ? ` Note: this pack includes Faction Standings, which will REPLACE your current standings entirely (the one exception to the additive rule).`
+          ? ` Note: this pack includes Faction Standings, which will REPLACE your current standings entirely (one exception to the additive rule).`
           : '';
-        setImportStatus(`"${pack.pack_name}" - ${total} item(s) ready to add. This ADDS to your current campaign; nothing existing is touched or overwritten.${factionNote}`);
+        const settingsNote = settingsCount > 0
+          ? ` Note: this pack includes ${settingsCount} Setting(s), which will OVERWRITE those specific settings in your current campaign (another exception to the additive rule).`
+          : '';
+        setImportStatus(`"${pack.pack_name}" - ${total} item(s) ready to add. This ADDS to your current campaign; nothing existing is touched or overwritten.${factionNote}${settingsNote}`);
       } catch { setImportStatus('Could not parse file - must be a valid Sandy resource pack JSON.'); }
     };
     reader.readAsText(file);
@@ -212,6 +232,14 @@ export default function ResourcePackTab({ isGM }) {
       // Everything below lives inside games.settings - fetch once, merge all of it, write once.
       const { data: gameRow } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
       const settings = { ...(gameRow?.settings || {}) };
+
+      // Settings - the second deliberate exception to "additive, never overwrite": each key present in
+      // the pack overwrites that same key in the target campaign. Only ever touches the whitelisted
+      // settings keys themselves, never anything else sharing this same JSONB column (shops, grids, etc).
+      if (cats.settings && Object.keys(cats.settings).length > 0) {
+        Object.assign(settings, cats.settings);
+        log.push(`${Object.keys(cats.settings).length} setting(s) (overwrote matching keys)`);
+      }
 
       if (cats.gmInventory?.length) {
         settings.gm_inventory = [...(settings.gm_inventory || []), ...cats.gmInventory];
@@ -361,6 +389,20 @@ export default function ResourcePackTab({ isGM }) {
           </div>
         )}
         <Section catKey="partyInventory" label="Party Inventory" icon="ti-backpack" items={partyInventory} getId={i => i.id || i.name} getLabel={i => i.name} />
+        {/* Settings - same all-or-nothing pattern as Faction Standings. Overwrites just the matching
+            keys in the target campaign's games.settings on import; everything else in that shared JSONB
+            column (shops, grids, etc, each its own category above) is left untouched. */}
+        {Object.keys(gameSettings).length > 0 && (
+          <div style={{ marginBottom: '.5rem', border: '1px solid var(--border)', borderRadius: 5, padding: '.5rem .75rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={sel.settings.length > 0}
+                onChange={e => setSel(p => ({ ...p, settings: e.target.checked ? ['__settings__'] : [] }))} />
+              <i className="ti ti-settings" style={{ fontSize: 14, color: 'var(--gold-dim)' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>Settings</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{Object.keys(gameSettings).length} keys - all or nothing, overwrites matching keys on import</span>
+            </label>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: '.5rem' }}>

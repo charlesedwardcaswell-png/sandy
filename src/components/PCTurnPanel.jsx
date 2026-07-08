@@ -28,13 +28,36 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
     setSelectedAction(null);
   }, [combatantId]);
   // Right-click token context menu on the Battle Grid sets this - jump straight to the chosen
-  // action with the target preselected, instead of requiring the target/action buttons below.
+  // action with the target (and, for Attack, the weapon) preselected, then fire the roll immediately -
+  // same as if the player had picked target/weapon manually and clicked "Roll ... vs TN ...".
+  const fireAttackRef = React.useRef(null);
   useEffect(() => {
     if (!quickTargetRequest) return;
     setSelectedTarget(quickTargetRequest.targetId);
     setSelectedAction(quickTargetRequest.action);
+    if (quickTargetRequest.action === 'attack') {
+      let weapon = null;
+      if (combatant.drawnWeapon && combatant.drawnWeapon !== 'Unarmed (1k1)') {
+        const drawnName = combatant.drawnWeapon.split(' (')[0];
+        const eq = (character?.equipment || []).find(e => e.name === drawnName);
+        if (eq) weapon = { name: eq.name, dr: eq.dr, skill: eq.skill || 'Swordsmanship' };
+      }
+      if (!weapon) weapon = { name: 'Unarmed', dr: '1k1', skill: 'Brawling' };
+      setSelectedWeapon(weapon);
+      setAutoFireRequest({ weapon, targetId: quickTargetRequest.targetId, ts: quickTargetRequest.ts });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickTargetRequest?.ts]);
+  const [autoFireRequest, setAutoFireRequest] = useState(null);
+  // fireAttackRef is (re)assigned every render further down, once wSkill/pool/penalties are computed -
+  // by the time this effect actually runs (after commit), that render has already completed, so the
+  // ref reflects the fresh weapon/target just set above.
+  useEffect(() => {
+    if (!autoFireRequest) return;
+    if (fireAttackRef.current) fireAttackRef.current(autoFireRequest.weapon, autoFireRequest.targetId);
+    setAutoFireRequest(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFireRequest?.ts]);
   const [spellRaises, setSpellRaises] = useState(0);
   const [skillTarget, setSkillTarget] = useState(''); // for social skills
   const [boastTarget, setBoastTarget] = useState(''); // for storytelling boast
@@ -1030,6 +1053,39 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                 const manualEntries = simpleActionEntries.filter(e => e.conditional && !(e.stances && e.stances.includes(combatant.stance)));
                 const manualConfirmed = manualEntries.some(e => simpleActionConfirmed[e.name]);
                 const attackIsSimpleAction = autoQualifies || manualConfirmed;
+                const doFireAttack = () => {
+                  const isGrappleContact = selectedWeapon.name === 'Unarmed' && selectedEmphasis === 'Grappling';
+                  const target = targetPool.find(t => t.id === selectedTarget);
+                  // Grapple contact: armor gives no TN bonus against this roll, per the actual rulebook
+                  // text ("Armor provides no TN bonus against this attack"). No dr - the contact roll
+                  // doesn't deal damage; success instead leads into a Contested Strength roll for control.
+                  const contactTn = getArmorTN({ reflexes: target?.reflexes, excludeArmor: true });
+                  onRoll({
+                    skill: wSkill?.name || selectedWeapon.skill,
+                    ring: pool.ringKey,
+                    ringVal: pool.ringVal,
+                    trait: pool.traitKey,
+                    traitVal: pool.traitVal,
+                    baseRoll: pool.roll,
+                    baseKeep: pool.keep,
+                    tn: isGrappleContact ? contactTn : (getTargetTN(selectedTarget) + (dualWieldPenalty || 0) + (equippedShieldPenalty || 0)),
+                    isAttack: true,
+                    isGrappleContact,
+                    dr: isGrappleContact ? undefined : selectedWeapon.dr,
+                    weaponName: selectedWeapon.name,
+                    targetName: target?.name,
+                    targetId: selectedTarget,
+                    currentVoid: character.current_void,
+                    woundPenalty,
+                    character,
+                    activeEmphasis: selectedEmphasis,
+                  });
+                  onSpendAction && onSpendAction(attackIsSimpleAction ? 'simple' : 'full');
+                };
+                // Keep the ref fresh every render this block is visible, so a right-click quick-target
+                // request (handled in an earlier effect, before this block's values exist) can fire the
+                // exact same roll on the very next effect pass, once these values are computed.
+                fireAttackRef.current = doFireAttack;
                 return (<>
                 {manualEntries.length > 0 && !autoQualifies && (
                   <div style={{ marginBottom: 6, fontSize: 11 }}>
@@ -1042,35 +1098,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     ))}
                   </div>
                 )}
-                <button className="btn btn-p" onClick={() => {
-                    const isGrappleContact = selectedWeapon.name === 'Unarmed' && selectedEmphasis === 'Grappling';
-                    const target = targetPool.find(t => t.id === selectedTarget);
-                    // Grapple contact: armor gives no TN bonus against this roll, per the actual rulebook
-                    // text ("Armor provides no TN bonus against this attack"). No dr - the contact roll
-                    // doesn't deal damage; success instead leads into a Contested Strength roll for control.
-                    const contactTn = getArmorTN({ reflexes: target?.reflexes, excludeArmor: true });
-                    onRoll({
-                      skill: wSkill?.name || selectedWeapon.skill,
-                      ring: pool.ringKey,
-                      ringVal: pool.ringVal,
-                      trait: pool.traitKey,
-                      traitVal: pool.traitVal,
-                      baseRoll: pool.roll,
-                      baseKeep: pool.keep,
-                      tn: isGrappleContact ? contactTn : (getTargetTN(selectedTarget) + (dualWieldPenalty || 0) + (equippedShieldPenalty || 0)),
-                      isAttack: true,
-                      isGrappleContact,
-                      dr: isGrappleContact ? undefined : selectedWeapon.dr,
-                      weaponName: selectedWeapon.name,
-                      targetName: target?.name,
-                      targetId: selectedTarget,
-                      currentVoid: character.current_void,
-                      woundPenalty,
-                      character,
-                      activeEmphasis: selectedEmphasis,
-                    });
-                    onSpendAction && onSpendAction(attackIsSimpleAction ? 'simple' : 'full');
-                  }}>
+                <button className="btn btn-p" onClick={doFireAttack}>
                     {selectedWeapon.name === 'Unarmed' && selectedEmphasis === 'Grappling'
                       ? <>Initiate Grapple - {pool.roll}k{pool.keep} vs TN {getArmorTN({ reflexes: targetPool.find(t => t.id === selectedTarget)?.reflexes, excludeArmor: true })} (no armor bonus)</>
                       : <>Roll {selectedWeapon.name} - {pool.roll}k{pool.keep} vs TN {getTargetTN(selectedTarget)}

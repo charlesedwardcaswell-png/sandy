@@ -207,6 +207,7 @@ export default function EncounterBuilder({
     themeRow: null,
     doodads: [],
     containers: [],
+    shopTokens: [],
     gridTiles: {},
     ...initialSetup,
   });
@@ -298,14 +299,14 @@ export default function EncounterBuilder({
             <select value={s.presetGridId || ''} style={{ width: '100%' }} onChange={e => {
               const g = savedGrids.find(g => g.id === e.target.value);
               const keepManual = (s.selectedNPCs || []).filter(n => !n._fromPresetGrid);
-              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual, doodads: [], containers: [] }); return; }
+              if (!g) { upS({ presetGridId: null, gridSize: 24, bgUrl: '', gridTiles: {}, themeRow: null, selectedNPCs: keepManual, doodads: [], containers: [], shopTokens: [] }); return; }
               // Prebuilt NPCs (built-in library only) painted onto this saved grid in the Battle Grid
               // Creator - carry their saved x/y through as gridX/gridY so beginEncounter places them
               // there directly instead of using its automatic column-based placement.
               const prebuilt = (g.prebuiltNpcs || [])
                 .filter(n => n.x !== null && n.x !== undefined && n.y !== null && n.y !== undefined)
                 .map(n => ({ ...n, id: n.id || `npc_preset_${Date.now()}_${Math.random()}`, gridX: n.x, gridY: n.y, _fromPresetGrid: true }));
-              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt], doodads: g.doodads || [], containers: g.containers || [] });
+              upS({ presetGridId: g.id, gridSize: g.size || 24, bgUrl: g.bgUrl || '', gridTiles: g.tiles || {}, themeRow: g.themeRow || 0, selectedNPCs: [...keepManual, ...prebuilt], doodads: g.doodads || [], containers: g.containers || [], shopTokens: g.shopTokens || [] });
             }}>
               <option value="">- None, set up manually -</option>
               {savedGrids.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
