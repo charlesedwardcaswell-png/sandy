@@ -209,25 +209,7 @@ export function useActiveSession() {
     if (session?.id === sessionId) setSession(null);
   };
 
-  const renumberSession = async (sessionId, newNumber) => {
-    // If newNumber is taken, shift all sessions >= newNumber up by 1 first
-    const existing = allSessions.find(s => s.session_number === newNumber && s.id !== sessionId);
-    if (existing) {
-      // Shift up: all sessions with number >= newNumber (except the one being moved)
-      const toShift = allSessions.filter(s => s.session_number >= newNumber && s.id !== sessionId);
-      for (const s of toShift) {
-        await supabase.from('sessions').update({ session_number: s.session_number + 1 }).eq('id', s.id);
-      }
-      setAllSessions(prev => prev.map(s =>
-        s.session_number >= newNumber && s.id !== sessionId ? { ...s, session_number: s.session_number + 1 } : s
-      ));
-    }
-    await supabase.from('sessions').update({ session_number: newNumber }).eq('id', sessionId);
-    setAllSessions(prev => prev.map(s => s.id === sessionId ? { ...s, session_number: newNumber } : s)
-      .sort((a, b) => a.session_number - b.session_number));
-  };
-
-  return { session, allSessions, loading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: fetch };
+  return { session, allSessions, loading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, refetch: fetch };
 }
 
 // ── Characters ────────────────────────────────────────────────────────────────

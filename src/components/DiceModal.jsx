@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RAISE_OPTIONS, ATTACK_MANEUVERS, SCHOOL_DATA, TECHNIQUE_ROLL_BONUSES, ADVANTAGE_ROLL_BONUSES, DISADVANTAGE_ROLL_BONUSES, WEAPONS_LIST } from '../data/constants';
 import { rollN } from '../lib/utils';
-import { playSuccess, playFailure, playClick, playDiceRoll } from '../lib/sounds';
+import { playSuccess, playFailure, playClick, playDiceRoll, playExplosionPop } from '../lib/sounds';
 import { triggerVoidSwirl } from './UI';
 
 // Parse the raise cost embedded in a maneuver label, e.g. "Disarm (3)" -> 3. Generic RAISE_OPTIONS
@@ -160,7 +160,7 @@ export function computeBonuses(character, skillName, isAttack, isDamage, current
 }
 
 // ── Dice Modal ────────────────────────────────────────────────────────────────
-export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, onUnluckyUsed, disableReroll = false }) {
+export default function DiceModal({ context, onClose, onResult, onLogEvent, onLuckUsed, onUnluckyUsed, disableReroll = false, backgroundArtUrl = '' }) {
   const [phase, setPhase] = useState('setup');
   // Dice animation - a "fake" 2D roll: cycle each die rapidly through random digits for ~700ms right
   // after the real roll is computed, then reveal the actual values and let the player interact
@@ -188,6 +188,12 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
   const [manualFreeRaises, setManualFreeRaises] = useState(0);
   const [dice, setDice] = useState([]);
   const [kept, setKept] = useState(new Set());
+  // Manual die explosion reveal - maps die index -> how many steps of its explosion chain have been
+  // clicked through so far. A die with d.exploded=true and revealedCount < d.chain.length is "armed"
+  // (quivering, waiting for a click) instead of showing its final total immediately.
+  const [explosionReveal, setExplosionReveal] = useState({});
+  const isDieArmed = (d, revealedCount) => d.exploded && revealedCount < d.chain.length;
+  const revealedDieTotal = (d, revealedCount) => 10 + d.chain.slice(0, revealedCount).reduce((s, v) => s + v, 0);
   const [rollResult, setRollResult] = useState(null);
   const [dmgDice, setDmgDice] = useState([]);
   const [dmgKept, setDmgKept] = useState(new Set());
@@ -326,17 +332,21 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
 
   const toggleRaise = (r) => setRaises(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]);
 
-  // Roll a single die, auto-exploding 10s immediately
+  // Roll a single die, computing the full explosion chain immediately (math is unchanged and final
+  // the instant this runs) - `chain` is revealed to the player one click at a time in the UI instead
+  // of auto-resolving, but `total`/`exploded`/`bonus` already hold the real final values throughout.
   const rollOneDie = () => {
     const base = Math.floor(Math.random() * 10) + 1;
-    if (base !== 10) return { total: base, exploded: false, bonus: 0 };
+    if (base !== 10) return { total: base, exploded: false, bonus: 0, chain: [] };
     let bonus = 0, last = 10, safety = 0;
+    const chain = [];
     while (last === 10 && safety < 10) {  // max 10 explosions per die
       last = Math.floor(Math.random() * 10) + 1;
+      chain.push(last);
       bonus += last;
       safety++;
     }
-    return { total: 10 + bonus, exploded: true, bonus };
+    return { total: 10 + bonus, exploded: true, bonus, chain };
   };
 
   const rollAllDice = (n) => Array.from({ length: n }, rollOneDie);
@@ -358,6 +368,7 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     setDice(newDice);
     setRerolledOnes(onesRerolled);
     setKept(new Set());
+    setExplosionReveal({});
     setRollResult(null);
     setPhase('rolling');
     setAnimating(true);
@@ -368,6 +379,20 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
     if (kept.has(i)) { const n = new Set(kept); n.delete(i); setKept(n); return; }
     if (kept.size >= keepCount) return;
     const n = new Set(kept); n.add(i); setKept(n);
+  };
+
+  // Die click during the rolling phase - if the die is still armed (mid-explosion, waiting on a
+  // click), advance its reveal by one step instead of toggling keep. Only once fully resolved does
+  // a click behave as the normal keep/unkeep toggle.
+  const handleDieClick = (i) => {
+    const d = dice[i];
+    const revealedCount = explosionReveal[i] || 0;
+    if (isDieArmed(d, revealedCount)) {
+      playExplosionPop();
+      setExplosionReveal(prev => ({ ...prev, [i]: revealedCount + 1 }));
+      return;
+    }
+    toggleKeep(i);
   };
 
   const confirmRoll = () => {
@@ -447,7 +472,13 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={useVoid ? { border: '3px solid #000', boxShadow: '0 0 24px rgba(0,0,0,.8), 0 0 0 1px #000' } : undefined}>
+      <div className="modal dice-modal" style={{
+        ...(useVoid ? { border: '3px solid #000', boxShadow: '0 0 24px rgba(0,0,0,.8), 0 0 0 1px #000' } : {}),
+        ...(backgroundArtUrl ? {
+          backgroundImage: `linear-gradient(rgba(20,14,6,.88), rgba(20,14,6,.88)), url(${backgroundArtUrl})`,
+          backgroundSize: 'cover', backgroundPosition: 'center',
+        } : {}),
+      }}>
         <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <div style={{ fontSize: 44, fontWeight: 800, color: 'var(--gold)', lineHeight: 1 }}>{tn}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: '.5rem' }}>Target Number</div>
@@ -773,18 +804,23 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
           <div className="modal-section">
             <span className="modal-label">Click to keep - {kept.size}/{keepCount} kept - TN {tn}{flatMod !== 0 ? ` (${flatMod >= 0 ? '+' : ''}${flatMod} modifier)` : ''}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '.5rem' }}>
-              {dice.map((d, i) => (
-                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded && !animating ? 'ten' : ''} ${animating ? 'die-spinning' : ''}`}
-                  onClick={animating ? undefined : () => toggleKeep(i)}
-                  title={animating ? '' : d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis - was 1)' : ''}
-                  style={animating ? { cursor: 'default' } : d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
-                  {animating ? (spinDigits[i] ?? d.total) : d.total}
-                  {!animating && d.exploded && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
+              {dice.map((d, i) => {
+                const revealedCount = explosionReveal[i] || 0;
+                const armed = !animating && isDieArmed(d, revealedCount);
+                const displayValue = animating ? (spinDigits[i] ?? d.total) : (d.exploded ? revealedDieTotal(d, revealedCount) : d.total);
+                return (
+                <div key={i} className={`die ${kept.has(i) ? 'kept' : ''} ${d.exploded && !animating && !armed ? 'ten' : ''} ${animating ? 'die-spinning' : ''} ${armed ? 'die-armed' : ''}`}
+                  onClick={animating ? undefined : () => handleDieClick(i)}
+                  title={animating ? '' : armed ? 'Click to explode!' : d.exploded ? `Exploded! 10 + ${d.bonus} = ${d.total}` : d.wasOne ? 'Emphasis: rerolled from 1' : rerolledOnes.includes(i) ? 'Re-rolled (Emphasis - was 1)' : ''}
+                  style={animating ? { cursor: 'default' } : armed ? { transform: `scale(${1 + 0.12 * revealedCount})` } : d.wasOne ? { border: '2px solid var(--gold)', boxShadow: '0 0 10px rgba(200,150,42,.5)' } : rerolledOnes.includes(i) ? { animation: 'emphasisReroll .6s ease-out', border: '2px solid var(--gold)', boxShadow: '0 0 12px rgba(200,150,42,.6)' } : {}}>
+                  {displayValue}
+                  {!animating && d.exploded && !armed && <span style={{ fontSize: 9, display: 'block', color: kept.has(i) ? '#1a1208' : '#c0a0e0', lineHeight: 1 }}>💥+{d.bonus}</span>}
                   {!animating && d.wasOne && !d.exploded && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★1↺</span>}
                   {!animating && rerolledOnes.includes(i) && !d.exploded && !d.wasOne && <span style={{ fontSize: 7, display: 'block', color: 'var(--gold-dim)', lineHeight: 1 }}>★re</span>}
                   {!animating && kept.has(i) && <span className="die-lbl">✓</span>}
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ marginTop: '.75rem', fontSize: 13, color: 'var(--text-muted)' }}>
               {animating ? (
@@ -817,10 +853,13 @@ export default function DiceModal({ context, onClose, onResult, onLogEvent, onLu
             <button className="btn btn-sm" disabled={animating} onClick={() => {
               const sortedIdx = dice.map((d, i) => ({ i, v: d.total })).sort((a, b) => b.v - a.v).map(x => x.i);
               setKept(new Set(sortedIdx.slice(0, keepCount)));
+              // Best-N fast-forwards past the manual explosion clicks - fully reveal every exploding
+              // die's chain immediately so a "kept" die is never shown still quivering/armed.
+              setExplosionReveal(Object.fromEntries(dice.map((d, i) => [i, d.chain.length])));
             }}>
               Best {keepCount}
             </button>
-            <button className="btn btn-sm" disabled={animating} onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); setAnimating(true); playDiceRoll(); }}
+            <button className="btn btn-sm" disabled={animating} onClick={() => { setDice(rollAllDice(rollCount)); setKept(new Set()); setExplosionReveal({}); setAnimating(true); playDiceRoll(); }}
               style={{ display: disableReroll ? 'none' : undefined }}>
               <i className="ti ti-refresh" /> Reroll
             </button>

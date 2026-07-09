@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import { TILE_TYPES } from './EncounterTab';
+import { ImageUrlField } from './UI';
 
 export default function TilesetTab({ isDeveloper }) {
   if (!isDeveloper) return null; // App.js already gates the parent tab; belt and suspenders
@@ -11,6 +12,64 @@ export default function TilesetTab({ isDeveloper }) {
       <TileDefaultsPanel />
       <ContainerImagePanel />
       <DoodadLibraryPanel />
+      <InterfaceArtPanel />
+    </div>
+  );
+}
+
+// ── Interface Art - background art for the app's own UI chrome (not the Battle Grid tileset). Three
+// slots for now: standard panes (the everyday card/panel look used across most tabs), the stance/
+// action panes (PCTurnPanel and the combatant card it lives in), and the dice roller window
+// (DiceModal). Upload/storage only for now - these URLs aren't wired into any actual rendering yet;
+// that's a separate follow-up once Charles decides exactly how an uploaded image should apply to a
+// pane (full background image? a themed border treatment? per-theme overrides?). Stored under
+// `games.settings.interface_art` so it's one JSONB blob rather than three top-level settings keys.
+function InterfaceArtPanel() {
+  const [art, setArt] = useState({ standard_panes: '', action_panes: '', dice_roller: '' });
+  const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      setArt({ standard_panes: '', action_panes: '', dice_roller: '', ...(data?.settings?.interface_art || {}) });
+      setLoaded(true);
+    });
+  }, []);
+
+  const save = async () => {
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), interface_art: art } })
+      .eq('id', GAME_ID);
+    if (!error) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else console.error('save interface_art failed:', error.message);
+  };
+
+  if (!loaded) return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>;
+
+  const SLOTS = [
+    { key: 'standard_panes', label: 'Standard Panes', desc: 'The everyday card/panel background used across most tabs.' },
+    { key: 'action_panes', label: 'Stance & Action Panes', desc: 'The combatant turn panel (stance selection, action buttons) in the Encounter tab.' },
+    { key: 'dice_roller', label: 'Dice Roller Window', desc: 'The dice roll modal.' },
+  ];
+
+  return (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Interface Art</div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+        Background art for the app's own UI chrome, not the Battle Grid tileset. <strong>Upload/storage
+        only for now</strong> - these images aren't applied to any pane yet, that wiring is a separate
+        follow-up once the exact look (full background? border treatment? per-theme?) is decided.
+      </p>
+      {SLOTS.map(s => (
+        <div key={s.key} style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 3 }}>{s.label}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{s.desc}</div>
+          <ImageUrlField value={art[s.key] || ''} onChange={v => setArt(prev => ({ ...prev, [s.key]: v }))}
+            placeholder={`${s.label} image URL`} pathPrefix="tileset" inputStyle={{ fontSize: 12 }} />
+        </div>
+      ))}
+      <button className="btn btn-p" onClick={save} style={{ marginTop: 6 }}>{saved ? '✓ Saved' : 'Save Interface Art'}</button>
     </div>
   );
 }
@@ -49,9 +108,9 @@ function ContainerImagePanel() {
         Single shared image for every treasure chest/container placed on a Battle Grid, in the Grid
         Creator and live encounters alike. Leave blank to use a plain chest emoji fallback.
       </p>
-      <input type="text" placeholder="Container image URL" value={imageUrl}
-        onChange={e => setImageUrl(e.target.value)} style={{ fontSize: 12, width: '100%', marginBottom: 6 }} />
-      <button className="btn btn-p" onClick={save}>{saved ? '✓ Saved' : 'Save Container Icon'}</button>
+      <ImageUrlField value={imageUrl} onChange={setImageUrl} placeholder="Container image URL"
+        pathPrefix="tileset" inputStyle={{ fontSize: 12, marginBottom: 6 }} />
+      <button className="btn btn-p" onClick={save} style={{ marginTop: 6 }}>{saved ? '✓ Saved' : 'Save Container Icon'}</button>
     </div>
   );
 }
@@ -87,9 +146,9 @@ function MasterAtlasPanel() {
         768×768 image, 12×12 grid of 64×64 tiles. Rows are tilesets (themes), columns are terrain types -
         a saved Battle Grid's Tileset choice just moves down to a different row of this same shared image.
       </p>
-      <input type="text" placeholder="Master atlas image URL" value={atlasUrl}
-        onChange={e => setAtlasUrl(e.target.value)} style={{ fontSize: 12, width: '100%', marginBottom: 6 }} />
-      <button className="btn btn-p" onClick={save}>{saved ? '✓ Saved' : 'Save Atlas URL'}</button>
+      <ImageUrlField value={atlasUrl} onChange={setAtlasUrl} placeholder="Master atlas image URL"
+        pathPrefix="tileset" inputStyle={{ fontSize: 12, marginBottom: 6 }} />
+      <button className="btn btn-p" onClick={save} style={{ marginTop: 6 }}>{saved ? '✓ Saved' : 'Save Atlas URL'}</button>
     </div>
   );
 }
@@ -131,10 +190,9 @@ function TileDefaultsPanel() {
               <span style={{ width: 14, height: 14, borderRadius: 3, background: t.color, display: 'inline-block', border: '1px solid rgba(255,255,255,.2)' }} />
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{t.short}</span>
             </div>
-            <input type="text" placeholder={`Default image URL for ${t.label} (optional)`}
-              value={imageUrls[t.key] || ''}
-              onChange={e => setImageUrls(prev => ({ ...prev, [t.key]: e.target.value }))}
-              style={{ fontSize: 12, padding: '4px 8px' }} />
+            <ImageUrlField value={imageUrls[t.key] || ''} onChange={v => setImageUrls(prev => ({ ...prev, [t.key]: v }))}
+              placeholder={`Default image URL for ${t.label} (optional)`} pathPrefix="tileset"
+              inputStyle={{ fontSize: 12, padding: '4px 8px' }} />
           </React.Fragment>
         ))}
       </div>
@@ -240,7 +298,8 @@ function DoodadLibraryPanel() {
               {DOODAD_EFFECTS.map(ef => <option key={ef.key} value={ef.key}>{ef.label}</option>)}
             </select>
           </label>
-          <input type="text" placeholder="Image URL" value={draft.imageUrl} onChange={e => setDraft(p => ({ ...p, imageUrl: e.target.value }))} style={{ fontSize: 12 }} />
+          <ImageUrlField value={draft.imageUrl} onChange={v => setDraft(p => ({ ...p, imageUrl: v }))}
+            placeholder="Image URL" pathPrefix="tileset" inputStyle={{ fontSize: 12 }} />
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-sm btn-p" disabled={!draft.name.trim() || !draft.imageUrl.trim()} onClick={addDoodad}>Add</button>
             <button className="btn btn-sm" onClick={() => setShowAdd(false)}>Cancel</button>

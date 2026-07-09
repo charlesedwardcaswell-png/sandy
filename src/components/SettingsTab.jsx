@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { GAME_ID } from '../data/constants';
 import ResourcePackTab from './ResourcePackTab';
+import { ImageUrlField } from './UI';
 
 const BACKUP_FORMAT_VERSION = 1; // bump only if the backup JSON's own shape changes, not for new tables/columns
 
@@ -624,13 +625,13 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>City Map</div>
             <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.5rem' }}>
-              <input value={mapUrl} onChange={e => setMapUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ flex: 1 }} />
+              <ImageUrlField value={mapUrl} onChange={setMapUrl} onCommit={saveImageSettings} placeholder="https://..." pathPrefix="settings" />
               <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setMapUrl(DEFAULT_MAP_URL); saveImageSettings(); }}>Use Default</button>
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>City Map (Night)</div>
             <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.5rem' }}>
-              <input value={mapUrlNight} onChange={e => setMapUrlNight(e.target.value)} onBlur={saveImageSettings} placeholder="Leave blank to disable night mode" style={{ flex: 1 }} />
+              <ImageUrlField value={mapUrlNight} onChange={setMapUrlNight} onCommit={saveImageSettings} placeholder="Leave blank to disable night mode" pathPrefix="settings" />
               <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setMapUrlNight(DEFAULT_MAP_URL_NIGHT); saveImageSettings(); }}>Use Default</button>
             </div>
 
@@ -649,7 +650,7 @@ export default function SettingsTab({ onWipe = {}, isDeveloper = false, isGM = f
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '.25rem', fontWeight: 600 }}>Jinn Art</div>
             <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem' }}>
-              <input value={jinnArtUrl} onChange={e => setJinnArtUrl(e.target.value)} onBlur={saveImageSettings} placeholder="https://..." style={{ flex: 1 }} />
+              <ImageUrlField value={jinnArtUrl} onChange={setJinnArtUrl} onCommit={saveImageSettings} placeholder="https://..." pathPrefix="settings" />
               <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => { setJinnArtUrl(DEFAULT_JINN_ART_URL); saveImageSettings(); }}>Use Default</button>
             </div>
 

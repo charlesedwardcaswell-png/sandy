@@ -134,3 +134,12 @@ export function playClick() {
     tone(c, { freq: 900, start: 0, dur: 0.05, type: 'square', gain: 0.07 });
   });
 }
+
+// Die explosion - clicked to trigger a pending 10-explosion. A quick percussive "pop": a short
+// filtered noise burst plus a fast upward pitch swoop, distinct from the generic click above.
+export function playExplosionPop() {
+  play(c => {
+    noiseBurst(c, { start: 0, dur: 0.1, gain: 0.16, filterFreq: 1800, filterType: 'bandpass' });
+    tone(c, { freq: 500, freqEnd: 1100, start: 0, dur: 0.12, type: 'sine', gain: 0.14 });
+  });
+}

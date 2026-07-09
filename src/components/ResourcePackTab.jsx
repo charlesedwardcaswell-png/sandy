@@ -89,10 +89,25 @@ export default function ResourcePackTab({ isGM }) {
 
   useEffect(() => { fetchAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggleSel = (cat, id) => setSel(prev => ({
-    ...prev,
-    [cat]: prev[cat].includes(id) ? prev[cat].filter(x => x !== id) : [...prev[cat], id],
-  }));
+  const toggleSel = (cat, id) => setSel(prev => {
+    const next = {
+      ...prev,
+      [cat]: prev[cat].includes(id) ? prev[cat].filter(x => x !== id) : [...prev[cat], id],
+    };
+    // Maps + their Map Pins are meant to travel together (that's the whole reason Maps keep their
+    // real id on export - see the pack-format note above) - selecting/deselecting a custom map now
+    // syncs its pins automatically instead of requiring a separate manual pick in Map Pins. Built-in
+    // Surface/Underground pins aren't tied to any "Maps" entry (those two layers aren't custom maps),
+    // so they're unaffected and still picked independently.
+    if (cat === 'customMaps') {
+      const nowSelected = next.customMaps.includes(id);
+      const pinIdsForMap = mapPins.filter(p => p.map_layer === id).map(p => p.id);
+      next.mapPins = nowSelected
+        ? [...new Set([...next.mapPins, ...pinIdsForMap])]
+        : next.mapPins.filter(pid => !pinIdsForMap.includes(pid));
+    }
+    return next;
+  });
   const totalSelected = Object.values(sel).reduce((s, arr) => s + arr.length, 0);
 
   // ── Export ──────────────────────────────────────────────────────────────────
@@ -382,7 +397,7 @@ export default function ResourcePackTab({ isGM }) {
         <Section catKey="quickNpcs" label="Quick NPCs" icon="ti-user" items={quickNpcs} getId={n => n.id} getLabel={n => n.name} getSublabel={n => n.faction} />
         <Section catKey="fullNpcs" label="Full NPCs" icon="ti-user-star" items={fullNpcs} getId={c => c.id} getLabel={c => c.name} getSublabel={c => `${c.school} R${c.school_rank}`} />
         <Section catKey="mapPins" label="Map Pins" icon="ti-map-pin" items={mapPins} getId={p => p.id} getLabel={p => p.label || p.title || 'Pin'} />
-        <Section catKey="customMaps" label="Maps" icon="ti-map-2" items={customMaps} getId={m => m.id} getLabel={m => m.name} getSublabel={() => 'export with its Map Pins to keep them linked'} />
+        <Section catKey="customMaps" label="Maps" icon="ti-map-2" items={customMaps} getId={m => m.id} getLabel={m => m.name} getSublabel={() => 'its Map Pins are included automatically'} />
         <Section catKey="shops" label="Shops" icon="ti-building-store" items={shops} getId={s => s.id} getLabel={s => s.name} />
         <Section catKey="battleGrids" label="Battle Grids" icon="ti-grid-dots" items={battleGrids} getId={g => g.id} getLabel={g => g.label || g.name} />
         <Section catKey="gmInventory" label="GM Inventory" icon="ti-briefcase" items={gmInventory} getId={i => i.id || i.name} getLabel={i => i.name} />

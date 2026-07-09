@@ -195,6 +195,16 @@ export function getMeleeReach(skillName) {
 }
 
 // Archery and Assassin Ranged Weapons are the only ranged combat skills in Sandy today.
+// Display-only helper: shows a weapon's base damage dice plus the Strength that will actually be
+// added to the rolled (not kept) dice when the damage is rolled (DiceModal already does this addition
+// for real - see its dmgRoll calc - this just surfaces it in the summary cards/pickers beforehand so
+// players aren't surprised at roll time). Ranged weapons never add Strength, so pass through unchanged.
+export function formatDamageWithStrength(dr, skillName, strength) {
+  if (!dr || !strength || isRangedSkill(skillName)) return dr;
+  if (!/^\d+k\d+$/.test(dr)) return dr;
+  return `${dr} +${strength}k0 Str`;
+}
+
 export function isRangedSkill(skillName) {
   return skillName === 'Archery' || skillName === 'Assassin Ranged Weapons';
 }

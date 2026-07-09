@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { STANCES, WEAPONS_LIST, SKILL_CATEGORIES, ITEM_QUALITIES, TECHNIQUE_SKILL_LINKS, SAHIR_DISCIPLINES, COKALOI_CATEGORIES, IS_COKALOI_SCHOOL, POISON_EMPHASES, SKILL_EMPHASES, getArmorBonus, getShieldBonus, SKILL_TRAIT_MAP, TECHNIQUE_ROLL_BONUSES, ARROW_TYPES } from '../data/constants';
-import { getWoundRank, getEffectiveWaterRing, getArmorTN, chebyshevDist, getMeleeReach, isRangedSkill, hasLineOfSight } from '../lib/utils';
+import { getWoundRank, getEffectiveWaterRing, getArmorTN, chebyshevDist, getMeleeReach, isRangedSkill, hasLineOfSight, formatDamageWithStrength } from '../lib/utils';
 import { playTileClick } from '../lib/sounds';
 import SpellConstellation from './SpellConstellation';
 
@@ -34,6 +34,17 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
   useEffect(() => {
     if (!quickTargetRequest) return;
     setSelectedTarget(quickTargetRequest.targetId);
+    // Grapple bypasses the normal weapon/target picker entirely - force Unarmed + the Grappling
+    // emphasis (the same combination doFireAttack already checks for isGrappleContact) and fire
+    // immediately, landing straight on the grapple contact roll.
+    if (quickTargetRequest.action === 'grapple') {
+      const weapon = { name: 'Unarmed', dr: '1k1', skill: 'Brawling' };
+      setSelectedAction('attack');
+      setSelectedWeapon(weapon);
+      setSelectedEmphasis('Grappling');
+      setAutoFireRequest({ weapon, targetId: quickTargetRequest.targetId, ts: quickTargetRequest.ts });
+      return;
+    }
     setSelectedAction(quickTargetRequest.action);
     if (quickTargetRequest.action === 'attack') {
       let weapon = null;
@@ -136,7 +147,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             })}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
           {[
             { id: 'attack', icon: 'ti-sword',              label: 'Attack',       color: '#c84030',
               disabled: combatant.stance === 'Full Defense' },
@@ -169,14 +180,14 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               }}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: '.4rem', padding: '.75rem .25rem',
+                gap: '.4rem', padding: '.6rem .3rem', flex: '1 1 72px', minWidth: 0,
                 background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
                 border: `2px solid ${selectedAction === action.id ? action.color : 'var(--border)'}`,
                 borderRadius: 8, cursor: action.disabled ? 'not-allowed' : 'pointer', transition: 'all .15s',
                 opacity: action.disabled ? 0.4 : 1,
                 fontFamily: 'inherit', color: selectedAction === action.id ? action.color : 'var(--text-secondary)' }}>
-              <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
-              <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
+              <i className={`ti ${action.icon}`} style={{ fontSize: 20, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
             </button>
           ))}
         </div>
@@ -257,7 +268,6 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
                     baseRoll: sk.roll,
                     baseKeep: sk.keep,
                     woundPenalty: npcWoundPenalty,
-                    character: combatant,
                   });
                   onSpendAction && onSpendAction('full');
                   setSelectedTarget(null);
@@ -837,7 +847,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
           </button>
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
         {[
           { id: 'attack',  icon: 'ti-sword',               label: 'Attack',       actionType: 'Full',   color: '#c84030',
             hidden: ['Full Defense','Defense','Center'].includes(combatant.stance),
@@ -917,7 +927,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             }}
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: '.4rem', padding: '.75rem .25rem',
+              gap: '.4rem', padding: '.6rem .3rem', flex: '1 1 72px', minWidth: 0,
               background: selectedAction === action.id ? `${action.color}22` : 'var(--bg-panel)',
               border: `2px solid ${selectedAction === action.id ? action.color : action.glow ? 'var(--gold)' : 'var(--border)'}`,
               borderRadius: 8, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
@@ -925,8 +935,8 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               boxShadow: selectedAction === action.id ? `0 0 10px ${action.color}44` : action.glow ? '0 0 12px rgba(200,150,42,.5)' : 'none',
             }}
           >
-            <i className={`ti ${action.icon}`} style={{ fontSize: 24, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
-            <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
+            <i className={`ti ${action.icon}`} style={{ fontSize: 20, color: selectedAction === action.id ? action.color : 'var(--text-muted)' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{action.label}</span>
             {action.actionType && (
               <span style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: '.04em',
@@ -1026,7 +1036,7 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
               ) : null}
               {selectedWeapon && (
                 <div style={{ fontSize: 11, color: 'var(--gold-dim)', marginTop: 3 }}>
-                  {selectedWeapon.skill} · {selectedWeapon.dr} dmg
+                  {selectedWeapon.skill} · {formatDamageWithStrength(selectedWeapon.dr, selectedWeapon.skill, character?.strength || character?.water || 0)} dmg
                 </div>
               )}
             </div>
@@ -1393,22 +1403,6 @@ export default function PCTurnPanel({ combatant, character, enemies, allies = []
             </button>
           </div>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-            <input id="free-action-input" placeholder="or type something custom…"
-              style={{ flex: 1, fontSize: 13, padding: '4px 8px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'inherit' }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const txt = e.target.value.trim();
-                  if (onPass) onPass(txt || 'Free Action');
-                  setSelectedAction(null);
-                  e.target.value = '';
-                }
-              }}
-            />
-            <button className="btn btn-sm btn-p" onClick={() => {
-              const txt = document.getElementById('free-action-input')?.value?.trim();
-              if (onPass) onPass(txt || 'Free Action');
-              setSelectedAction(null);
-            }}>Log it</button>
             <button className="btn btn-sm" onClick={() => setSelectedAction(null)}>Cancel</button>
           </div>
         </div>

@@ -1,6 +1,65 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { FACTION_ICONS, WOUND_RANKS, WOUND_COLORS, WEAPONS_LIST, GEAR_FULL_ENTRY, GEAR_DESCRIPTIONS } from '../data/constants';
 import { getArchetype } from '../lib/utils';
+import { uploadImage } from '../lib/supabase';
+
+// ── Image URL field with drag-and-drop upload ──────────────────────────────────
+// Drop-in replacement for a plain `<input type="text">` image-URL field. Keeps the URL text input as
+// the source of truth (so paste-a-URL keeps working exactly as before, and nothing downstream needs
+// to change) but adds a drop zone + file-picker button that uploads to Supabase Storage and writes
+// the resulting public URL into the same field. Style prop lets each call site match its existing
+// input sizing (they vary a lot across Tileset/Settings/Character).
+export function ImageUrlField({ value, onChange, placeholder, pathPrefix = 'uploads', inputStyle, onCommit }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) { alert('That file isn\'t an image.'); return; }
+    setUploading(true);
+    try {
+      const url = await uploadImage(file, pathPrefix);
+      onChange(url);
+      // A drag-drop/file-pick upload never fires the input's own onBlur, but for fields that only
+      // persist on blur (most of GM Settings' image fields), it needs the same "now commit this"
+      // signal - setTimeout lets the onChange above actually land in state first.
+      if (onCommit) setTimeout(onCommit, 0);
+    } catch (err) {
+      alert(err.message || 'Upload failed.');
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
+      }}
+      style={{ display: 'flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0,
+        borderRadius: 4, transition: 'background .1s',
+        background: dragOver ? 'rgba(200,150,42,.1)' : 'transparent',
+        outline: dragOver ? '2px dashed var(--gold-dim)' : 'none', outlineOffset: 2 }}>
+      <input type="text" placeholder={dragOver ? 'Drop image to upload...' : placeholder} value={value}
+        onChange={e => onChange(e.target.value)} onBlur={onCommit}
+        onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+        style={{ flex: 1, minWidth: 0, ...inputStyle }} />
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; }} />
+      <button type="button" className="btn btn-sm" style={{ flexShrink: 0, padding: '4px 7px' }}
+        disabled={uploading}
+        title="Drop an image here, or click to browse your files"
+        onClick={() => fileInputRef.current?.click()}>
+        <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-upload'}`} style={uploading ? { animation: 'dieSpin .6s linear infinite' } : undefined} />
+      </button>
+    </div>
+  );
+}
 
 // ── Faction Icon ──────────────────────────────────────────────────────────────
 export function FacIcon({ name, size = 16 }) {

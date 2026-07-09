@@ -31,7 +31,7 @@ import {
 // Single source for the version string - shown in the browser tab title and on the welcome screen
 // (no longer in the in-app header, which was cluttering the mobile view). Bump this alongside every
 // version bump at packaging time.
-export const SANDY_VERSION = 198;
+export const SANDY_VERSION = 207;
 // Toggle back to true once Charles has copyright clearance to link the rulebook PDFs.
 const SHOW_RULEBOOK_LINKS = false;
 
@@ -287,7 +287,7 @@ export default function App() {
   );
 
   const { characters, loading: charsLoading, createCharacter, updateCharacter, deleteCharacter, refetch: refetchChars } = useCharacters();
-  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, renumberSession, refetch: refetchSession } = useActiveSession();
+  const { session, allSessions, loading: sessLoading, startSession, activateSession, createPrepSession, unretireSession, endSession, updateSessionRecap, saveEncounter, saveEventLog, savePreparedEncounters, savePreparedQuests, savePreparedReveals, deleteSession, refetch: refetchSession } = useActiveSession();
   const { npcs, createNPC, updateNPC, deleteNPC, refetch: refetchNpcs } = useNPCs();
   const { feedback, addFeedback, deleteFeedback } = useFeedback();
   const { quests, createQuest, updateQuest, refetch: refetchQuests } = useQuests(session?.id);
@@ -522,6 +522,9 @@ export default function App() {
   // read/write copy via its own fetch+subscribe; this just needs to know what shops exist and their
   // names for picking/labeling purposes.
   const [shops, setShops] = useState([]);
+  // Interface Art (Developer Functions and Tileset -> Interface Art panel) - dice_roller is the first
+  // slot actually wired into rendering; standard_panes/action_panes are still upload-only (see BACKLOG).
+  const [diceRollerArtUrl, setDiceRollerArtUrl] = useState('');
 
   // Load music URL and jinn art URL from games settings on mount
   // Also subscribe to realtime changes so party water, portrait scale, drought mode etc.
@@ -546,6 +549,7 @@ export default function App() {
     if (settings.party_water !== undefined) setPartyWater(settings.party_water || 0);
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
     if (settings.shops_v2 !== undefined) setShops(settings.shops_v2 || []);
+    if (settings.interface_art?.dice_roller !== undefined) setDiceRollerArtUrl(settings.interface_art.dice_roller || '');
   };
   useEffect(() => {
     // Initial load
@@ -683,20 +687,30 @@ export default function App() {
 
   const safeChars = characters.filter(Boolean);
 
-  // Reconcile local ownership with the GM's "wipe ownership" dropdown - myCharIds only ever lives in
-  // THIS browser's localStorage, so a GM clearing claimed_by_name on the server does nothing to this
-  // player's own local access on its own. Whenever a currently-claimed character's claimed_by_name
-  // comes back empty (wiped), drop it from myCharIds here too. Deliberately narrow: only reacts to an
-  // explicit wipe (claimed_by_name falsy), not a reassignment to a different name - matching by name
-  // to detect "reassigned to someone else" would be unreliable (names change, aren't unique) and risks
-  // false-positive unclaims; a straight wipe is the one unambiguous signal.
+  // Reconcile local ownership with the server - myCharIds only ever lives in THIS browser's
+  // localStorage, so neither a GM's "wipe ownership" nor someone else claiming the same character
+  // does anything to this browser's own local access on its own. Two cases handled:
+  //  1. Explicit wipe - claimed_by_name comes back empty.
+  //  2. Reassignment - claimed_by_name is still non-empty, but no longer matches the label THIS
+  //     browser recorded when it claimed the character (see setClaimLabel above), meaning someone
+  //     else has since claimed it - this was the real cause of "everyone helps is off but players can
+  //     still control each other's characters" reports: players trading characters by each claiming
+  //     the other's, without the previous holder's browser ever finding out its old claim went stale.
   useEffect(() => {
     if (isGM || myCharIds.length === 0 || charsLoading || safeChars.length === 0) return;
+    const labels = readClaimLabels();
     const stillOwned = myCharIds.filter(id => {
       const c = safeChars.find(ch => ch.id === id);
-      return c && !!c.claimed_by_name; // character missing entirely (e.g. deleted) also drops it
+      if (!c || !c.claimed_by_name) return false; // missing entirely (deleted) or explicitly wiped
+      const recordedLabel = labels[id];
+      // No recorded label (e.g. claimed before this tracking existed) - fall back to the old
+      // any-non-empty check rather than mass-unclaiming everyone's pre-existing characters.
+      if (recordedLabel === undefined) return true;
+      return c.claimed_by_name === recordedLabel;
     });
     if (stillOwned.length !== myCharIds.length) {
+      const droppedIds = myCharIds.filter(id => !stillOwned.includes(id));
+      droppedIds.forEach(id => clearClaimLabel(id));
       localStorage.setItem('sandy_my_char_ids', JSON.stringify(stillOwned));
       setMyCharIds(stillOwned);
       push('ti-user-off', 'Your ownership of a character was cleared by the GM', { gmOnly: false });
@@ -787,6 +801,23 @@ export default function App() {
   const sessionNum = session?.session_number || (sessionLog.length > 0 ? Math.max(...sessionLog.map(s => s.session_number || 0)) + 1 : 1);
   const gmView = isGM && !isPCView;
 
+  // Snapshot of claimed_by_name at the moment THIS browser claimed each character, keyed by character
+  // id. claimed_by_name itself gets silently overwritten (not cleared) when someone else claims the
+  // same character later, so comparing the character's current claimed_by_name against what this
+  // browser recorded at claim time is how the reconciliation effect below detects a reassignment -
+  // not just an explicit GM wipe (which the effect already handled).
+  const readClaimLabels = () => { try { return JSON.parse(localStorage.getItem('sandy_my_claim_labels') || '{}'); } catch { return {}; } };
+  const setClaimLabel = (id, label) => {
+    const labels = readClaimLabels();
+    labels[id] = label;
+    localStorage.setItem('sandy_my_claim_labels', JSON.stringify(labels));
+  };
+  const clearClaimLabel = (id) => {
+    const labels = readClaimLabels();
+    delete labels[id];
+    localStorage.setItem('sandy_my_claim_labels', JSON.stringify(labels));
+  };
+
   const claimCharacter = (id) => {
     const char = safeChars.find(c => c.id === id);
     // If already claimed by this player, unclaim it
@@ -794,6 +825,7 @@ export default function App() {
       const next = myCharIds.filter(x => x !== id);
       localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
       setMyCharIds(next);
+      clearClaimLabel(id);
       if (char) handleUpdateChar(id, { claimed_by_name: null });
       push('ti-user-off', `Unclaimed ${char?.name || 'character'}`, { gmOnly: true });
     } else {
@@ -803,6 +835,7 @@ export default function App() {
       // Derive display name from primary character or just "Player"
       const primaryChar = safeChars.find(c => c.id === myCharIds[0]);
       const playerLabel = primaryChar?.name || char?.player_name || 'Player';
+      setClaimLabel(id, playerLabel);
       if (char) handleUpdateChar(id, { claimed_by_name: playerLabel });
       push('ti-user-check', `Claimed ${char?.name || 'character'} as ${playerLabel}`, { gmOnly: true });
     }
@@ -851,6 +884,7 @@ export default function App() {
     const next = myCharIds.filter(x => x !== id);
     localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
     setMyCharIds(next);
+    clearClaimLabel(id);
     if (id) handleUpdateChar(id, { claimed_by_name: null });
     push('ti-user-off', 'Character unclaimed', { gmOnly: true });
   };
@@ -865,7 +899,9 @@ export default function App() {
       // mechanism the claim button already uses, just skipped straight to "claimed." Never fires for
       // GM-created characters/NPCs, or if the creator already set an owner (e.g. import flow).
       if (isPlayer && !result.is_npc && !charData.claimed_by_name) {
-        await handleUpdateChar(result.id, { claimed_by_name: playerUsername || 'Player' });
+        const autoLabel = playerUsername || 'Player';
+        await handleUpdateChar(result.id, { claimed_by_name: autoLabel });
+        setClaimLabel(result.id, autoLabel);
         const next = [...myCharIds, result.id];
         localStorage.setItem('sandy_my_char_ids', JSON.stringify(next));
         setMyCharIds(next);
@@ -1079,7 +1115,7 @@ export default function App() {
   };
 
   const TABS = ['character', 'encounter', 'map', 'npc', 'quest', 'party', 'log', ...((!hideShopFromPlayers || gmView) ? ['shop'] : []), ...(hideFeedbackTab ? [] : ['feedback']), ...(gmView ? ['settings', 'preparation'] : []), ...(isDeveloper ? ['tileset'] : [])];
-  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings', tileset: 'Tileset', preparation: 'Preparation' };
+  const TAB_LABELS = { character: 'Characters', encounter: 'Encounter', map: 'Map', npc: 'Daftar', quest: 'Quests', party: 'Party', log: 'Log', shop: 'Shop', feedback: 'Feedback', settings: 'Settings', tileset: 'Developer Functions and Tileset', preparation: 'Preparation' };
   const handleTabChange = (id) => {
     setTab(id);
     try { localStorage.setItem('sandy_tab', id); } catch {}
@@ -1190,7 +1226,7 @@ export default function App() {
           );
         })()}
         <span className={`role-badge ${gmView ? 'role-gm' : 'role-pl'}`}>
-          {gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
+          {isDeveloper ? 'DEV' : gmView ? 'GM' : isObserver ? 'Observer' : 'Player'}
         </span>
         <button className="btn btn-sm" onClick={() => { localStorage.removeItem('sandy_auth_mode'); setAuthMode(null); }}>
           <i className="ti ti-logout" style={{ fontSize: 12 }} /> Logout
@@ -1395,6 +1431,7 @@ export default function App() {
             everyoneHelps={everyoneHelps}
             everyoneHelpsPlus={everyoneHelpsPlus}
             shops={shops}
+            diceRollerArtUrl={diceRollerArtUrl}
             onOpenShop={(shopId, charId) => {
               const cur = (encounter?.grantedActions || {})[charId] || 0;
               handleSetEncounter(e => ({ ...e, revealedShopId: shopId, grantedActions: { ...(e.grantedActions || {}), [charId]: cur + 2 } }));
@@ -1491,7 +1528,6 @@ export default function App() {
             allSessions={allSessions}
             activeSession={session}
             onDeleteSession={deleteSession}
-            onRenumberSession={renumberSession}
             onSavePreparedEncounters={savePreparedEncounters}
             onSavePreparedQuests={savePreparedQuests}
             npcsFromLog={npcs}
@@ -1793,6 +1829,7 @@ export default function App() {
           onClose={() => setGlobalModal(null)}
           onLogEvent={push}
           disableReroll={disableReroll}
+          backgroundArtUrl={diceRollerArtUrl}
           onLuckUsed={() => {
             // Decrement Luck uses on character when Luck reroll is spent
             const char = globalModal?.character;
@@ -1837,6 +1874,13 @@ export default function App() {
               const spend = resultObj.voidSpentCount || 1;
               if (charNow) handleUpdateChar(charId, { current_void: Math.max(0, (charNow.current_void || 0) - spend) });
             }
+            // Skill usage logging - this modal handles Contested Rolls, Shop Appraise/Haggle, and other
+            // general skill checks, all separate from EncounterTab's own combat-roll modal (which already
+            // logs correctly). This path was missing entirely, so any skill used via a Contested Roll
+            // during an encounter (Intimidation, Temptation, Sincerity, trait contests, etc.) silently
+            // never made it into Skill Usage stats. Same gating as EncounterTab's version: real character
+            // only (keeps GM/no-character rolls out), skipped during a Training Dummy session.
+            if (globalModal.skill && globalModal.character && !encounter?.trainingSession) logSkillUse(globalModal.skill);
             const resultRaisesRaw = typeof resultObj === 'object' ? resultObj.raises : Math.max(0, Math.floor((result - (globalModal.tn || 15)) / 5));
             // resultObj.raises from DiceModal is the raw array of raise labels taken (e.g. ['Called Shot']),
             // not a count - normalize to a number here so every downstream consumer (spell raises, Appraise/

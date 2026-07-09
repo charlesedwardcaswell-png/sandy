@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SCHOOL_DATA, FACTION_SCHOOLS, SUBFACTION_BONUSES, SUBFACTION_DESCRIPTIONS, SKILL_EMPHASES, FACTIONS_LIST, FACTIONS_DATA, FACTION_AVATARS, FACTION_COLORS, ADVANTAGES, DISADVANTAGES, WEAPONS_LIST, GEAR_LIST, GEAR_DESCRIPTIONS, TRAITS, SAHIR_SCHOOLS, SAHIR_DISCIPLINES, IS_COKALOI_SCHOOL, SKILL_CATEGORIES, OPEN_SKILLS, TECHNIQUE_DESCRIPTIONS, TECHNIQUE_SKILL_LINKS, ITEM_QUALITIES, SKILL_TRAIT_MAP, STATUS_EFFECT_DEFS, SKILL_DESCRIPTIONS, getArmorBonus, ARMOR_TN_BONUS, SHIELDS, SHIELD_ATTACK_PENALTY, getShieldBonus, CREATURES_LIBRARY, CREATURE_TYPE_CATEGORIES, ARROW_TYPES, getTechniqueAutomationStatus, getAdvantageAutomationStatus, getDisadvantageAutomationStatus, CLOTHING_SLOTS, CLOTHING_STATUS_DELTA } from '../data/constants';
-import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore, WeaponIcon, ArmorIcon, getWeaponIconType, RulebookEntryButton } from './UI';
+import { WoundBadge, SkillDots, FacIcon, CharacterSilhouette, Silhouette, Loading, Empty, AVATAR_TYPES, AVATAR_COLORS, ScrollLore, WeaponIcon, ArmorIcon, getWeaponIconType, RulebookEntryButton, ImageUrlField } from './UI';
 import SpellConstellation from './SpellConstellation';
 import JinnRandomizer from './JinnRandomizer';
 import { MagicItemBadge } from './MagicItemCreator';
@@ -1573,15 +1573,15 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
             {showAvatarPicker && canEdit && (
               <div style={{ marginBottom: '.5rem', padding: '.5rem', background: 'var(--bg-dark)', borderRadius: 4, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Portrait URL <span style={{ fontWeight: 400 }}>(card portrait in encounters)</span></div>
-                <input type="text" value={urlDraft} onChange={e => setUrlDraft(e.target.value)}
-                  onBlur={() => { if (urlDraft !== (char.avatar_url || '')) update('avatar_url', urlDraft); }}
-                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
-                  placeholder="https://..." style={{ width: '100%', fontSize: 12, marginBottom: '.5rem' }} />
+                <ImageUrlField value={urlDraft} onChange={setUrlDraft}
+                  onCommit={() => { if (urlDraft !== (char.avatar_url || '')) update('avatar_url', urlDraft); }}
+                  placeholder="https://..." pathPrefix="portraits" inputStyle={{ fontSize: 12 }} />
+                <div style={{ marginBottom: '.5rem' }} />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Token URL <span style={{ fontWeight: 400 }}>(grid map token - 64×64px GIF/PNG works best)</span></div>
-                <input type="text" value={tokenDraft} onChange={e => setTokenDraft(e.target.value)}
-                  onBlur={() => { if (tokenDraft !== (char.token_url || '')) update('token_url', tokenDraft); }}
-                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
-                  placeholder="https://... (leave blank to use silhouette)" style={{ width: '100%', fontSize: 12, marginBottom: '.35rem' }} />
+                <ImageUrlField value={tokenDraft} onChange={setTokenDraft}
+                  onCommit={() => { if (tokenDraft !== (char.token_url || '')) update('token_url', tokenDraft); }}
+                  placeholder="https://... (leave blank to use silhouette)" pathPrefix="portraits" inputStyle={{ fontSize: 12 }} />
+                <div style={{ marginBottom: '.35rem' }} />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', marginBottom: '.5rem', cursor: 'pointer' }}
                   title="On: crop the token into a circle (the old way). Off: fit the image's width to the token square, keep its real aspect ratio, and let it bleed upward if taller.">
                   <input type="checkbox" checked={!!char.token_circle} onChange={e => update('token_circle', e.target.checked)} />

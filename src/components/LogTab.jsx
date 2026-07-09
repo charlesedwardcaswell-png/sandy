@@ -5,10 +5,9 @@ import EncounterBuilder from './EncounterBuilder';
 import { QUEST_TYPES } from './QuestTab';
 
 // ── LogTab ────────────────────────────────────────────────────────────────────
-export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onDeleteSession, onRenumberSession, onSavePreparedEncounters, onSavePreparedQuests, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
+export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, activeSession, onDeleteSession, onSavePreparedEncounters, onSavePreparedQuests, npcsFromLog, skillLog, eventLog = [], onUpdateSessionRecap, isPlayer }) {
   const [expandedSession, setExpandedSession] = useState({});
   const [showBuilderFor, setShowBuilderFor] = useState(null);
-  const [editingSessionNum, setEditingSessionNum] = useState(null);
   const [showQuestFormFor, setShowQuestFormFor] = useState(null);
   const [newQuest, setNewQuest] = useState({ title: '', quest_type: 'main', description: '' });
 
@@ -41,10 +40,21 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
   // Prep-only (not-yet-started) sessions now live exclusively in Preparation → Session Prep - Log stays
   // "pure record keeping" and only ever shows sessions that are active or have actually been played.
-  // rawSess keeps the full list for renumbering collision checks (still need to avoid colliding with a
-  // hidden prep session's number even though it isn't rendered here).
   const rawSess = allSessions || [];
   const allSess = rawSess.filter(s => s.is_active || s.closed_at);
+  // Display numbering is purely "the order sessions were closed" per Charles - not the stored
+  // session_number field, which stays untouched since encounter/skill logs are still tagged and
+  // correlated against it (see encountersBySession below). The active session (not yet closed)
+  // always sorts last, as the most recent. No more manual renumbering - this is always correct.
+  const displayNumberById = Object.fromEntries(
+    [...allSess]
+      .sort((a, b) => {
+        if (a.is_active) return 1;
+        if (b.is_active) return -1;
+        return new Date(a.closed_at) - new Date(b.closed_at);
+      })
+      .map((s, i) => [s.id, i + 1])
+  );
 
   const savePrepEncounter = (sessionId, setup) => {
     const sess = allSess.find(s => s.id === sessionId);
@@ -117,8 +127,10 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
 
   return (
     <div>
-      {/* ── Session List ───────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: '1.5rem' }}>
+      {/* ── Session List + Event Log share a row on wide screens (same flex-wrap pattern used
+          elsewhere), stacking vertically on narrow/mobile screens automatically. ── */}
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+      <div style={{ flex: '1 1 380px', minWidth: 300 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: '.75rem' }}>
           <i className="ti ti-list" style={{ marginRight: 5 }} />Campaign Sessions
         </div>
@@ -145,26 +157,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                     : <i className={`ti ${isPast ? 'ti-calendar-check' : 'ti-calendar'}`} style={{ fontSize: 14, color: 'var(--text-muted)', flexShrink: 0 }} />
                   }
                   <span style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? 'var(--gold)' : 'var(--text-secondary)' }}>
-                    {editingSessionNum === s.id ? (
-                      <select autoFocus defaultValue={s.session_number}
-                        onChange={e => {
-                          const n = parseInt(e.target.value);
-                          if (n !== s.session_number) onRenumberSession && onRenumberSession(s.id, n);
-                          setEditingSessionNum(null);
-                        }}
-                        onBlur={() => setEditingSessionNum(null)}
-                        style={{ fontSize: 12, background: 'var(--bg-panel)', color: 'var(--gold)', border: '1px solid var(--gold-dim)', borderRadius: 3 }}>
-                        {Array.from({ length: Math.max(rawSess.length > 0 ? Math.max(...rawSess.map(x => x.session_number || 0)) + 1 : 1, s.session_number) + 2 }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>Session {n}{rawSess.some(x => x.session_number === n && x.id !== s.id) ? ' ⚠' : ''}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span onClick={() => isGM && setEditingSessionNum(s.id)}
-                        title={isGM ? 'Click to renumber' : undefined}
-                        style={{ cursor: isGM ? 'pointer' : 'default' }}>
-                        Session {s.session_number}
-                      </span>
-                    )}
+                    Session {displayNumberById[s.id]}
                   </span>
                   {(s.title || s.recap?.event) && (
                     <span style={{ fontFamily: "'El Messiri', serif", fontWeight: 700, fontSize: 19, color: 'var(--gold)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, letterSpacing: '.02em' }}>
@@ -178,7 +171,7 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
                   {isGM && !isCurrent && (
                     <button className="btn btn-sm" title="Delete session"
                       style={{ fontSize: 11, color: 'var(--red)', padding: '0 5px', flexShrink: 0 }}
-                      onClick={e => { e.stopPropagation(); if (window.confirm(`Delete Session ${s.session_number}?`)) onDeleteSession && onDeleteSession(s.id); }}>
+                      onClick={e => { e.stopPropagation(); if (window.confirm(`Delete Session ${displayNumberById[s.id]}?`)) onDeleteSession && onDeleteSession(s.id); }}>
                       <i className="ti ti-trash" />
                     </button>
                   )}
@@ -360,6 +353,30 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
           })
         )}
       </div>
+      <div style={{ flex: '1 1 320px', minWidth: 280 }}>
+        {eventLog.length > 0 ? (
+          <div className="card">
+            <div className="card-title">
+              <i className="ti ti-timeline" style={{ marginRight: 4 }} />This Session - Events
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>{eventLog.length} events</span>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {eventLog.map((e, i) => (
+                <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderBottom: '1px solid rgba(107,78,40,.1)', background: e.highlight ? 'rgba(200,150,42,.06)' : 'transparent' }}>
+                  <i className={`ti ${e.icon || 'ti-point'}`} style={{ fontSize: 12, color: e.highlight ? 'var(--gold)' : 'var(--text-muted)', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 12, color: e.highlight ? 'var(--gold)' : 'var(--text-secondary)' }}>{e.text}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No events logged yet this session.</div>
+        )}
+      </div>
+      </div>
 
       {/* ── Skill Usage ────────────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
@@ -391,27 +408,6 @@ export default function LogTab({ isGM, encounterLog, sessionLog, allSessions, ac
           </table>
         )}
       </div>
-
-      {/* ── Session Event Timeline ────────────────────────────────────────────── */}
-      {eventLog.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="card-title">
-            <i className="ti ti-timeline" style={{ marginRight: 4 }} />This Session - Events
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>{eventLog.length} events</span>
-          </div>
-          <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {eventLog.map((e, i) => (
-              <div key={e.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderBottom: '1px solid rgba(107,78,40,.1)', background: e.highlight ? 'rgba(200,150,42,.06)' : 'transparent' }}>
-                <i className={`ti ${e.icon || 'ti-point'}`} style={{ fontSize: 12, color: e.highlight ? 'var(--gold)' : 'var(--text-muted)', flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 12, color: e.highlight ? 'var(--gold)' : 'var(--text-secondary)' }}>{e.text}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
-                  {e.ts ? new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -62,6 +62,7 @@ export default function GridCreatorTab({ isDeveloper }) {
   const [containerImageUrl, setContainerImageUrl] = useState('');
   const [placedContainers, setPlacedContainers] = useState([]); // [{id, name, contents:[{name,qty}], x, y}]
   const [placingContainerIdx, setPlacingContainerIdx] = useState(null);
+  const [viewingContainerIdx, setViewingContainerIdx] = useState(null); // contents-view modal
   const [containerDraftName, setContainerDraftName] = useState('Chest');
   const [placedShops, setPlacedShops] = useState([]); // [{id, shopId, x, y}] - x/y null until placed; references a live shop by id
   const [placingShopIdx, setPlacingShopIdx] = useState(null);
@@ -772,6 +773,9 @@ export default function GridCreatorTab({ isDeveloper }) {
                     <span style={{ fontSize: 11, color: isPlaced ? 'var(--green)' : 'var(--text-muted)' }}>
                       {isPlaced ? `(${ct.x},${ct.y})` : 'unplaced'}
                     </span>
+                    <button onClick={() => setViewingContainerIdx(i)} title="View contents" style={{ fontSize: 11, padding: '2px 6px' }}>
+                      <i className="ti ti-eye" />
+                    </button>
                     <button onClick={() => setPlacingContainerIdx(i)} title="Place on grid" style={{ fontSize: 11, padding: '2px 6px' }}>
                       {isPlaced ? 'Move' : 'Place'}
                     </button>
@@ -830,6 +834,33 @@ export default function GridCreatorTab({ isDeveloper }) {
           )}
         </div>
       </div>
+      {viewingContainerIdx !== null && (() => {
+        const ct = placedContainers[viewingContainerIdx];
+        if (!ct) { setViewingContainerIdx(null); return null; }
+        const close = () => setViewingContainerIdx(null);
+        return (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 549 }} onClick={close} />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 550,
+              background: 'var(--bg-card)', border: '1px solid var(--gold-dim)', borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,.7)',
+              minWidth: 240, maxWidth: 320, padding: '.75rem 1rem' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)', marginBottom: '.5rem' }}>
+                <i className="ti ti-box" style={{ marginRight: 6 }} />{ct.name}
+              </div>
+              {(ct.contents || []).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: '.75rem' }}>
+                  {ct.contents.map((it, i) => (
+                    <div key={i} style={{ fontSize: 13, color: 'var(--text-primary)' }}>{it.name}{(it.qty || 1) > 1 ? ` x${it.qty}` : ''}</div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '.75rem' }}>(empty)</div>
+              )}
+              <button className="btn btn-sm" onClick={close}>Close</button>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }

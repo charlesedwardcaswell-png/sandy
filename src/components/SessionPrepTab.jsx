@@ -56,11 +56,6 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
 
   const pcChars = characters.filter(c => !c.is_npc);
   const preppedSessions = allSessions.filter(s => !s.is_active && !s.closed_at);
-  // Archived = anything that's been started and/or closed - once a prepped session is used, it drops
-  // out of the picker above (correct, it's no longer "prepped"), but Charles wants a way to still find
-  // and, if needed, un-retire it back to prepped status without losing any of its recorded history.
-  const archivedSessions = allSessions.filter(s => s.is_active || s.closed_at);
-  const [archivedId, setArchivedId] = useState('');
 
   useEffect(() => {
     const activeSess = allSessions.find(s => s.id === sessionId);
@@ -227,24 +222,25 @@ export default function SessionPrepTab({ allSessions = [], quests = [], npcs = [
         </>
       )}
 
-      {/* Archived (started/closed) sessions - rarely used, kept out of the way at the bottom */}
-      {archivedSessions.length > 0 && (
-        <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={archivedId} onChange={e => setArchivedId(e.target.value)} style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
-            <option value="">- archived (started/closed) sessions -</option>
-            {archivedSessions.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.title || `Session ${s.session_number}`}{s.is_active ? ' (active)' : s.closed_at ? ' (closed)' : ''}
-              </option>
-            ))}
-          </select>
-          <button className="btn btn-sm" disabled={!archivedId || archivedSessions.find(s => s.id === archivedId)?.is_active}
-            title={archivedSessions.find(s => s.id === archivedId)?.is_active ? "Can't un-retire the currently active session - use End Session for that" : 'Move this session back to Prepared (its recap, encounter log, etc. are untouched)'}
-            onClick={() => { if (onUnretireSession && archivedId) { onUnretireSession(archivedId); setArchivedId(''); } }}>
-            <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Un-retire
-          </button>
-        </div>
-      )}
+      {/* Reactivate - only the single most-recently-closed session can come back, matching "the
+          numbering is just the order sessions were closed" - reactivating anything older would break
+          that ordering. Clear Active Session (Settings) ends a session without a recap, which is what
+          makes this a normal, repeatable step rather than a rare one: close → reactivate → clear → repeat. */}
+      {(() => {
+        const closedSessions = allSessions.filter(s => !s.is_active && s.closed_at).sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
+        const mostRecentClosed = closedSessions[0] || null;
+        if (!mostRecentClosed) return null;
+        return (
+          <div style={{ marginTop: '1.5rem', paddingTop: '.75rem', borderTop: '1px solid rgba(107,78,40,.2)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Most recently closed:</span>
+            <span style={{ fontSize: 12, color: 'var(--gold)' }}>{mostRecentClosed.title || `Session ${mostRecentClosed.session_number}`}</span>
+            <button className="btn btn-sm" title="Move this session back to Prepared (its recap, encounter log, etc. are untouched) - start it again from the picker above when ready"
+              onClick={() => { if (onUnretireSession) onUnretireSession(mostRecentClosed.id); }}>
+              <i className="ti ti-arrow-back-up" style={{ marginRight: 4 }} />Un-retire
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

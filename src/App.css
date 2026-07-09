@@ -163,6 +163,27 @@ body.theme-void {
 @media (max-width: 768px) {
   .tabbar { display: none; }
   .mobile-tab-indicator { display: flex; }
+  /* Stance/action selectors: cramped into a narrow sidebar card at phone width, so the active turn
+     panel instead takes over the whole screen as a fixed overlay until the turn ends/collapses. */
+  .turn-panel-fullscreen-mobile {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 400;
+    background: var(--bg-dark);
+    overflow-y: auto;
+    padding: .75rem;
+    display: block !important;
+  }
+  /* Dice roller: same reasoning - the modal's normal fixed width/padding is too cramped to comfortably
+     tap dice and buttons on a phone screen, so it takes the full viewport instead. */
+  .modal-overlay:has(.dice-modal) { padding: 0; }
+  .dice-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
 }
 
 /* ── Cards ── */
@@ -244,6 +265,16 @@ select:focus, input:focus, textarea:focus { border-color: var(--gold-dim); }
 @keyframes dieSpin {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.08); }
+}
+/* Manual die explosion - a rolled 10 waits here for a click instead of auto-resolving. Quivers and
+   pulses red; grows a bit larger with each chained 10 so a cascading explosion visibly escalates. */
+.die-armed { animation: dieArmedQuiver .4s ease-in-out infinite; border-color: var(--red); color: var(--red); background: rgba(200,64,48,.12); }
+@keyframes dieArmedQuiver {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(-1.5px) rotate(-2deg); }
+  40% { transform: translateX(1.5px) rotate(2deg); }
+  60% { transform: translateX(-1px) rotate(-1deg); }
+  80% { transform: translateX(1px) rotate(1deg); }
 }
 .die-lbl { position: absolute; top: -5px; right: -5px; font-size: 10px; background: var(--gold); color: #1a1208; border-radius: 3px; padding: 1px 3px; font-weight: 700; }
 .raise-btn { padding: 4px 10px; font-size: 13px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; margin: 2px; transition: all .15s; }
