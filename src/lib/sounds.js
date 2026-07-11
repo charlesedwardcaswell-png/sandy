@@ -4,6 +4,16 @@ import diceRollUrl from '../assets/sounds/dice-roll.mp3';
 import loginUrl from '../assets/sounds/login.mp3';
 import tileClickUrl from '../assets/sounds/tile-click.mp3';
 
+// Custom sound overrides (Sound Effects tab, TilesetTab.jsx... actually SoundEffectsTab.jsx) - a GM-
+// uploaded URL per cue, stored in games.settings.sound_effects and pushed in here once at app load
+// (App.js's applyGameSettings) and again immediately on save (SoundEffectsTab.jsx). Module-level cache
+// rather than a React prop since sound cues are called from all over the app, far from any component
+// that could sensibly hold this as state - same reasoning as the mute flag being a bare localStorage
+// read below, just swapped for settings since this needs to be shared across everyone in the game, not
+// per-browser.
+let customSoundUrls = {};
+export function setCustomSoundUrls(map) { customSoundUrls = map || {}; }
+
 let ctx = null;
 function getCtx() {
   if (!ctx) {
@@ -33,7 +43,7 @@ function playFile(url) {
 
 // Dice starting to roll - the physical rolling sound, separate from playSuccess/playFailure
 // (which are the tonal result cues that fire once the roll resolves).
-export function playDiceRoll() { playFile(diceRollUrl); }
+export function playDiceRoll() { playFile(customSoundUrls.diceRoll || diceRollUrl); }
 
 // Login screen - plays on the actual login action (button click), not on mount: most browsers
 // block audio before any user gesture has happened on the page, so a mount-triggered sound would
@@ -98,6 +108,7 @@ async function play(fn) {
 
 // Dice roll success - a bright "tin ding"
 export function playSuccess() {
+  if (customSoundUrls.success) { playFile(customSoundUrls.success); return; }
   play(c => {
     tone(c, { freq: 1318, start: 0, dur: 0.35, type: 'sine', gain: 0.16 });
     tone(c, { freq: 1976, start: 0.04, dur: 0.3, type: 'sine', gain: 0.1 });
@@ -106,6 +117,7 @@ export function playSuccess() {
 
 // Dice roll failure - a low rattling thud
 export function playFailure() {
+  if (customSoundUrls.failure) { playFile(customSoundUrls.failure); return; }
   play(c => {
     tone(c, { freq: 160, freqEnd: 70, start: 0, dur: 0.3, type: 'sawtooth', gain: 0.14 });
     noiseBurst(c, { start: 0, dur: 0.22, gain: 0.1, filterFreq: 300, filterType: 'lowpass' });
@@ -122,6 +134,7 @@ export function playYourTurn() {
 
 // Damage taken - a short slash/hiss
 export function playDamage() {
+  if (customSoundUrls.damage) { playFile(customSoundUrls.damage); return; }
   play(c => {
     noiseBurst(c, { start: 0, dur: 0.18, gain: 0.18, filterFreq: 2200, filterType: 'highpass' });
     tone(c, { freq: 500, freqEnd: 120, start: 0, dur: 0.15, type: 'triangle', gain: 0.1 });
@@ -130,6 +143,7 @@ export function playDamage() {
 
 // Generic dice click - used when toggling a die to keep/unkeep
 export function playClick() {
+  if (customSoundUrls.click) { playFile(customSoundUrls.click); return; }
   play(c => {
     tone(c, { freq: 900, start: 0, dur: 0.05, type: 'square', gain: 0.07 });
   });
@@ -138,8 +152,21 @@ export function playClick() {
 // Die explosion - clicked to trigger a pending 10-explosion. A quick percussive "pop": a short
 // filtered noise burst plus a fast upward pitch swoop, distinct from the generic click above.
 export function playExplosionPop() {
+  if (customSoundUrls.explosion) { playFile(customSoundUrls.explosion); return; }
   play(c => {
     noiseBurst(c, { start: 0, dur: 0.1, gain: 0.16, filterFreq: 1800, filterType: 'bandpass' });
     tone(c, { freq: 500, freqEnd: 1100, start: 0, dur: 0.12, type: 'sine', gain: 0.14 });
+  });
+}
+
+// Chest/container opened - new this pass (Sound Effects tab), no prior default existed. A short
+// wooden creak-and-thud: a low filtered noise burst (the creak) plus a short falling tone (the thud
+// of the lid settling open). Wire-up into GridCreatorTab/EncounterTab's container-open handler is a
+// separate follow-up - this is the sound function itself, ready to be called from there.
+export function playChestOpen() {
+  if (customSoundUrls.chestOpen) { playFile(customSoundUrls.chestOpen); return; }
+  play(c => {
+    noiseBurst(c, { start: 0, dur: 0.25, gain: 0.12, filterFreq: 500, filterType: 'lowpass' });
+    tone(c, { freq: 220, freqEnd: 140, start: 0.05, dur: 0.2, type: 'triangle', gain: 0.09 });
   });
 }

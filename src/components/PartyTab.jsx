@@ -24,7 +24,7 @@ function ItemIcon({ category }) {
 
 // Faction row with a collapsible free-text notes field - casual party-wide tracking, editable by anyone,
 // not gated to GM-only like the NPC GM Notes field. Saves on blur to avoid per-keystroke realtime resets.
-export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes }) {
+export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdateRepNotes, iconLibrary }) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(savedNotes);
   React.useEffect(() => { setDraft(savedNotes); }, [savedNotes]);
@@ -34,7 +34,9 @@ export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdat
     <div style={{ borderBottom: '1px solid rgba(107,78,40,.12)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.35rem .25rem' }}>
         <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.1)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <FacIcon name={fDef.name} size={12} />
+          {iconLibrary?.factions?.[fDef.name]
+            ? <img src={iconLibrary.factions[fDef.name]} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} onError={ev => { ev.target.style.display = 'none'; }} />
+            : <FacIcon name={fDef.name} size={12} />}
         </div>
         <span style={{ flex: 1, color: 'var(--text-secondary)', fontSize: 13 }}>{fDef.name}</span>
         {gmView && <button className="rep-btn" onClick={() => onUpdateRep(fDef.name, -1)}>−</button>}
@@ -59,7 +61,7 @@ export function FactionRow({ fDef, rep, savedNotes, gmView, onUpdateRep, onUpdat
   );
 }
 
-export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, onUpdateNPC, myCharId, myCharIds = [], onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater, onViewCharacter, onViewNpc, hidePcSheetsFromOthers = false }) {
+export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, onUpdateRep, onUpdateRepNotes, inventory, onUpdateInventory, encounterLog, onUpdateCharacter, onUpdateNPC, myCharId, myCharIds = [], onLogEvent, waterDroughtEnabled, partyWater, onSetPartyWater, onTakeWater, onViewCharacter, onViewNpc, hidePcSheetsFromOthers = false, iconLibrary }) {
   const gmView = isGM && !isPCView;
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState(1);
@@ -332,7 +334,7 @@ export default function PartyTab({ isGM, isPCView, characters, npcs = [], reps, 
               const savedNotes = reps[fDef.name]?.notes ?? '';
               return (
                 <FactionRow key={fDef.name} fDef={fDef} rep={rep} savedNotes={savedNotes}
-                  gmView={gmView} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} />
+                  gmView={gmView} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} iconLibrary={iconLibrary} />
               );
             })}
           </div>

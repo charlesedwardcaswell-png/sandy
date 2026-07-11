@@ -5,7 +5,7 @@ import { FACTIONS_DATA } from '../data/constants';
 
 const COPPER_DEFAULTS = { Action: 15, Intrigue: 8, Travel: 5, Downtime: 3 };
 
-export default function SessionEndModal({ session, characters, encounterLog, reps, onUpdateRep, onUpdateRepNotes, onConfirm, onClose }) {
+export default function SessionEndModal({ session, characters, encounterLog, reps, onUpdateRep, onUpdateRepNotes, onConfirm, onClose, iconLibrary }) {
   const [tab, setTab] = useState('xp');
   const [xpAmount, setXpAmount] = useState(3);
   const [xpReason, setXpReason] = useState('');
@@ -175,7 +175,7 @@ export default function SessionEndModal({ session, characters, encounterLog, rep
               const savedNotes = reps?.[fDef.name]?.notes ?? '';
               return (
                 <FactionRow key={fDef.name} fDef={fDef} rep={rep} savedNotes={savedNotes}
-                  gmView={true} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} />
+                  gmView={true} onUpdateRep={onUpdateRep} onUpdateRepNotes={onUpdateRepNotes} iconLibrary={iconLibrary} />
               );
             })}
           </div>

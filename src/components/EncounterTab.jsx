@@ -6,7 +6,7 @@ import { getWoundRank, getArchetype, calcDifficulty, diffColor, pick, rollN, rep
 import DiceModal, { computeBonuses } from './DiceModal';
 import PCTurnPanel from './PCTurnPanel';
 import EncounterBuilder, { NPCPicker, NPC_BY_FACTION, generateGroup } from './EncounterBuilder';
-import { playDamage } from '../lib/sounds';
+import { playDamage, playChestOpen } from '../lib/sounds';
 
 // ── Contested Roll resolution panel ──────────────────────────────────────────
 function ContestedRollPanel({ cr, myCharId, myCharIds, isGM, onRoll, onClose }) {
@@ -2100,20 +2100,19 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
   // Full-bleed Battle Grid background (Charles: grid should fill the whole browser window, touching
   // the tab bar above and bounded only by the Event Ticker below - the turn-banner/End Turn bar and
   // the GM's map-altering tools float OVER the grid as overlays, same as the Turn Order card, rather
-  // than sitting above it in normal flow pushing it down). `.content`'s own box never moves even
-  // though its contents scroll (overflow-y is on the box, not the box's position), so its measured
-  // top is a stable anchor for the fixed-position wrapper below, automatically correct whether the
-  // desktop tabbar or the mobile tab indicator is the active header.
-  const [contentTop, setContentTop] = useState(94);
-  useEffect(() => {
-    const recompute = () => {
-      const el = document.querySelector('.content');
-      if (el) setContentTop(el.getBoundingClientRect().top);
-    };
-    recompute();
-    window.addEventListener('resize', recompute);
-    return () => window.removeEventListener('resize', recompute);
-  }, []);
+  // than sitting above it in normal flow pushing it down).
+  //
+  // This used to be `position: fixed` measured against `.content`'s viewport position - but CSS `zoom`
+  // (applied to #app-root for the UI-scale accessibility feature, App.js) has a well-known bad
+  // interaction with `position: fixed` in Chromium: the browser PAINTS the fixed element at the zoomed
+  // screen position but HIT-TESTS clicks/selection against the unzoomed coordinate space, so clicks
+  // land somewhere else entirely (this is what caused "I can see the buttons but clicking does nothing,
+  // and selecting text on the character cards highlights the tab bar instead"). `position: absolute`
+  // relative to a real positioned ancestor doesn't have this bug - `.content` is `position: relative`
+  // (App.css) specifically so it can serve as that ancestor. Trade-off: this means the grid is now
+  // bounded by `.content`'s own padded/max-width box rather than the literal browser window edges (true
+  // edge-to-edge would need portaling out of `.content` entirely) - correctness over that last bit of
+  // polish for now.
   const TICKER_HEIGHT = 36; // matches the fixed '2.25rem' height on the Event Ticker bar in App.js
   const turnOrderScrollRef = React.useRef(null);
   const [compact, setCompact] = useState(false);
@@ -2587,6 +2586,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
     const actor = pcsMap[myCombatantsInRange[0].id];
     if (!actor) return;
     upEnc({ setup: { ...setup, containers: (setup.containers || []).map(ct => ct.id === containerId ? { ...ct, looted: true } : ct) } });
+    playChestOpen();
     // Contents can be either a real item (full data - dr, tn_bonus, item_type, etc. - picked from GM
     // Inventory) or a plain flavor-text line ({name, qty} only, no mechanics). Preserve whatever fields
     // a real item has instead of collapsing everything down to a name-only Gear line.
@@ -3825,7 +3825,7 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       )}
 
       {/* Turn banner */}
-      <div className="turn-banner" style={showGrid ? { position: 'fixed', top: contentTop, left: 296, right: 8, zIndex: 1, marginBottom: 0, background: 'rgba(20,14,6,.94)' } : undefined}>
+      <div className="turn-banner" style={showGrid ? { position: 'absolute', top: 0, left: 296, right: 8, zIndex: 1, marginBottom: 0, background: 'rgba(20,14,6,.94)' } : undefined}>
         {/* End Turn - moved into this same row (Charles: the visibility/battle bar should extend to
             the right of it) so it's the first thing the GM sees, rather than its own separate row
             above/below - especially now that this whole bar floats over the grid instead of pushing
@@ -4153,13 +4153,13 @@ export default function EncounterTab({ isGM, isPCView, characters, myCharId, myC
       {/* Two column view */}
       {view === 'columns' && (
         <div style={showGrid
-          ? { position: 'fixed', top: contentTop, left: 0, right: 0, bottom: TICKER_HEIGHT, overflow: 'hidden', zIndex: -1 }
+          ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: TICKER_HEIGHT, overflow: 'hidden', zIndex: -1 }
           : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
 
           {/* Left column - merged initiative-order list when grid is on (rotates each turn so the
               active combatant is always first); just Party, ungrouped, when grid is off (unchanged).
               When the grid is showing, this floats as its own solid card over the full-bleed grid
-              instead of sitting in a layout column next to it - see contentTop/TICKER_HEIGHT above. */}
+              instead of sitting in a layout column next to it - see TICKER_HEIGHT above. */}
           <div ref={turnOrderScrollRef} className={showGrid ? 'turn-order-scroll-list' : undefined} style={showGrid
             ? { position: 'absolute', top: 0, left: 0, bottom: 8, width: 288, overflowY: 'auto', zIndex: 1, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '0 0 6px 0', padding: '.5rem', boxShadow: '0 4px 16px rgba(0,0,0,.5)' }
             : undefined}>

@@ -3,7 +3,7 @@ import './App.css';
 import { supabase } from './lib/supabase';
 import { AuthScreen } from './components/AuthScreen';
 import { Loading } from './components/UI';
-import { playYourTurn } from './lib/sounds';
+import { playYourTurn, setCustomSoundUrls } from './lib/sounds';
 import CharacterTab from './components/CharacterTab';
 import EncounterTab from './components/EncounterTab';
 import MapTab from './components/MapTab';
@@ -31,7 +31,7 @@ import {
 // Single source for the version string - shown in the browser tab title and on the welcome screen
 // (no longer in the in-app header, which was cluttering the mobile view). Bump this alongside every
 // version bump at packaging time.
-export const SANDY_VERSION = 207;
+export const SANDY_VERSION = 215;
 // Toggle back to true once Charles has copyright clearance to link the rulebook PDFs.
 const SHOW_RULEBOOK_LINKS = false;
 
@@ -525,6 +525,7 @@ export default function App() {
   // Interface Art (Developer Functions and Tileset -> Interface Art panel) - dice_roller is the first
   // slot actually wired into rendering; standard_panes/action_panes are still upload-only (see BACKLOG).
   const [diceRollerArtUrl, setDiceRollerArtUrl] = useState('');
+  const [iconLibrary, setIconLibrary] = useState({ skills: {}, items: {}, factions: {}, stances: {} });
 
   // Load music URL and jinn art URL from games settings on mount
   // Also subscribe to realtime changes so party water, portrait scale, drought mode etc.
@@ -550,6 +551,8 @@ export default function App() {
     if (settings.portrait_scale !== undefined) setPortraitScale(settings.portrait_scale || 1.0);
     if (settings.shops_v2 !== undefined) setShops(settings.shops_v2 || []);
     if (settings.interface_art?.dice_roller !== undefined) setDiceRollerArtUrl(settings.interface_art.dice_roller || '');
+    if (settings.sound_effects !== undefined) setCustomSoundUrls(settings.sound_effects || {});
+    if (settings.icon_library !== undefined) setIconLibrary({ skills: {}, items: {}, factions: {}, stances: {}, ...(settings.icon_library || {}) });
   };
   useEffect(() => {
     // Initial load
@@ -1154,6 +1157,7 @@ export default function App() {
           onUpdateRepNotes={guardFn(handleUpdateRepNotes)}
           onConfirm={handleSessionEnd}
           onClose={() => setShowSessionEnd(false)}
+          iconLibrary={iconLibrary}
         />
       )}
 
@@ -1388,6 +1392,7 @@ export default function App() {
             jumpToNpcId={viewNpcId}
             onClearNpcJump={() => setViewNpcId(null)}
             jinnArtUrl={jinnArtUrl}
+            iconLibrary={iconLibrary}
             onJinnSummoned={(jinnName) => {
               handleSetEncounter(e => ({ ...e, jinnBanner: { name: jinnName, artUrl: jinnArtUrl, ts: Date.now() } }));
             }}
@@ -1468,6 +1473,7 @@ export default function App() {
             setEncounter={handleSetEncounter}
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
             onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}
+            iconLibrary={iconLibrary}
           />
         )}
         {tab === 'quest' && (
@@ -1505,6 +1511,7 @@ export default function App() {
             onLogEvent={push}
             waterDroughtEnabled={waterDroughtEnabled}
             partyWater={partyWater}
+            iconLibrary={iconLibrary}
             onSetPartyWater={isGM ? handleSetPartyWater : null}
             onViewCharacter={(charId) => { setViewCharId(charId); handleTabChange('character'); }}
             onViewNpc={(npcId) => { setViewNpcId(npcId); handleTabChange('character'); }}

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { FACTION_ICONS, WOUND_RANKS, WOUND_COLORS, WEAPONS_LIST, GEAR_FULL_ENTRY, GEAR_DESCRIPTIONS } from '../data/constants';
 import { getArchetype } from '../lib/utils';
-import { uploadImage } from '../lib/supabase';
+import { uploadImage, uploadModel, uploadAudio } from '../lib/supabase';
 
 // ── Image URL field with drag-and-drop upload ──────────────────────────────────
 // Drop-in replacement for a plain `<input type="text">` image-URL field. Keeps the URL text input as
@@ -54,6 +54,113 @@ export function ImageUrlField({ value, onChange, placeholder, pathPrefix = 'uplo
       <button type="button" className="btn btn-sm" style={{ flexShrink: 0, padding: '4px 7px' }}
         disabled={uploading}
         title="Drop an image here, or click to browse your files"
+        onClick={() => fileInputRef.current?.click()}>
+        <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-upload'}`} style={uploading ? { animation: 'dieSpin .6s linear infinite' } : undefined} />
+      </button>
+    </div>
+  );
+}
+
+// ── Model URL field with drag-and-drop upload ──────────────────────────────────
+// Same shape as ImageUrlField above, for 3D model files (.glb/.gltf) instead of images - separate
+// component rather than a shared one with a `kind` prop since the two have almost nothing in common
+// beyond "drag a file, upload it, get a URL": different bucket, different validation, and no inline
+// preview (an <img> can preview instantly; a 3D model would need an actual viewer, out of scope for
+// this field - it just shows the picked filename once uploaded).
+export function ModelUrlField({ value, onChange, placeholder, pathPrefix = 'uploads', inputStyle, onCommit }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadModel(file, pathPrefix);
+      onChange(url);
+      if (onCommit) setTimeout(onCommit, 0);
+    } catch (err) {
+      alert(err.message || 'Upload failed.');
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
+      }}
+      style={{ display: 'flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0,
+        borderRadius: 4, transition: 'background .1s',
+        background: dragOver ? 'rgba(200,150,42,.1)' : 'transparent',
+        outline: dragOver ? '2px dashed var(--gold-dim)' : 'none', outlineOffset: 2 }}>
+      <input type="text" placeholder={dragOver ? 'Drop .glb/.gltf to upload...' : (placeholder || 'Model URL (.glb/.gltf)')} value={value}
+        onChange={e => onChange(e.target.value)} onBlur={onCommit}
+        onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+        style={{ flex: 1, minWidth: 0, ...inputStyle }} />
+      <input ref={fileInputRef} type="file" accept=".glb,.gltf" style={{ display: 'none' }}
+        onChange={e => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; }} />
+      <button type="button" className="btn btn-sm" style={{ flexShrink: 0, padding: '4px 7px' }}
+        disabled={uploading}
+        title="Drop a .glb or .gltf file here, or click to browse your files"
+        onClick={() => fileInputRef.current?.click()}>
+        <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-upload'}`} style={uploading ? { animation: 'dieSpin .6s linear infinite' } : undefined} />
+      </button>
+    </div>
+  );
+}
+
+// ── Audio URL field with drag-and-drop upload ──────────────────────────────────
+// Same shape as ImageUrlField/ModelUrlField, for sound effect files - adds an inline <audio> preview
+// player next to the field (unlike models, a browser can trivially preview audio, so it's worth doing).
+export function AudioUrlField({ value, onChange, placeholder, pathPrefix = 'uploads', inputStyle, onCommit }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith('audio/')) { alert('That file isn\'t an audio file.'); return; }
+    setUploading(true);
+    try {
+      const url = await uploadAudio(file, pathPrefix);
+      onChange(url);
+      if (onCommit) setTimeout(onCommit, 0);
+    } catch (err) {
+      alert(err.message || 'Upload failed.');
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
+      }}
+      style={{ display: 'flex', gap: 4, alignItems: 'center', flex: 1, minWidth: 0,
+        borderRadius: 4, transition: 'background .1s',
+        background: dragOver ? 'rgba(200,150,42,.1)' : 'transparent',
+        outline: dragOver ? '2px dashed var(--gold-dim)' : 'none', outlineOffset: 2 }}>
+      <input type="text" placeholder={dragOver ? 'Drop audio to upload...' : (placeholder || 'Sound URL')} value={value}
+        onChange={e => onChange(e.target.value)} onBlur={onCommit}
+        onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+        style={{ flex: 1, minWidth: 0, ...inputStyle }} />
+      {value && <audio controls src={value} style={{ height: 26, maxWidth: 130 }} />}
+      <input ref={fileInputRef} type="file" accept="audio/*" style={{ display: 'none' }}
+        onChange={e => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; }} />
+      <button type="button" className="btn btn-sm" style={{ flexShrink: 0, padding: '4px 7px' }}
+        disabled={uploading}
+        title="Drop an audio file here, or click to browse your files"
         onClick={() => fileInputRef.current?.click()}>
         <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-upload'}`} style={uploading ? { animation: 'dieSpin .6s linear infinite' } : undefined} />
       </button>

@@ -720,7 +720,7 @@ function CreatureCard({ creature, gmView, encActive, onCreateNPC, setEncounter }
   );
 }
 
-export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onViewNpc, onRefetch }) {
+export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters = [], onUpdateNPC, onUpdateFullNpc, onDeleteNPC, onCreateNPC, onUpdateRep, reps, encounter, setEncounter, onViewCharacter, onViewNpc, onRefetch, iconLibrary }) {
   const [openFactions, setOpenFactions] = useState({});
   const [detailNPC, setDetailNPC] = useState(null);
   const [editingNPCId, setEditingNPCId] = useState(null);
@@ -903,7 +903,9 @@ export default function NPCTab({ isGM, isPCView, npcs, fullNpcs = [], characters
             <div className="fac-hdr" onClick={() => toggleFaction(fDef.name)}>
               <span className={`fac-chev ${isOpen ? 'open' : ''}`}>▶</span>
               <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(200,150,42,.12)', border: '1px solid var(--gold-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <FacIcon name={fDef.name} size={13} />
+                {iconLibrary?.factions?.[fDef.name]
+                  ? <img src={iconLibrary.factions[fDef.name]} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} onError={ev => { ev.target.style.display = 'none'; }} />
+                  : <FacIcon name={fDef.name} size={13} />}
               </div>
               <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', minWidth: 80 }}>{fDef.name}</span>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fDef.tagline}</span>

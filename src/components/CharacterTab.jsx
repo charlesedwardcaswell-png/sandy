@@ -10,7 +10,7 @@ import { getWoundRank, getArchetype, buildCharacterFromForm, isSahirSchool, calc
 import { GAME_ID } from '../data/constants';
 
 // ── Character Tab ─────────────────────────────────────────────────────────────
-export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked = false, encounterActive = false, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45, hidePcSheetsFromOthers = false }) {
+export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked = false, encounterActive = false, characters, npcs, onUpdateNPC, onUpdateCharacter, onCreateCharacter, onDeleteCharacter, onCreateNPC, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, playerPassword, onSavePlayerPassword, jumpToCharId, onClearJump, jumpToNpcId, onClearNpcJump, jinnArtUrl, onJinnSummoned, onUpdateInventory, partyInventoryItems, onRoll, jinnSummonerRef, jinnSummonBonus, onJinnSummonDone, onLogEvent, waterDroughtEnabled, portraitScale = 1.0, startingCP = 45, hidePcSheetsFromOthers = false, iconLibrary }) {
   const [view, setView] = useState('sheet');
   const [selId, setSelId] = useState(null);
   const [selNpcId, setSelNpcId] = useState(null);
@@ -98,6 +98,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
             startingCP={startingCP}
             onComplete={async (charData) => { await onCreateCharacter(charData); setView('sheet'); }}
             onCancel={() => setView('sheet')}
+            iconLibrary={iconLibrary}
           />
         </div>
       );
@@ -208,6 +209,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
             waterDroughtEnabled={waterDroughtEnabled}
             portraitScale={portraitScale}
             onLogEvent={onLogEvent}
+            iconLibrary={iconLibrary}
           />
         )}
         {/* Companion sheet - party-flagged is_npc characters, viewable by any player. Control is opt-in
@@ -232,7 +234,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
                 partyInventoryItems={partyInventoryItems}
                 onRoll={onRoll} allChars={characters}
                 waterDroughtEnabled={waterDroughtEnabled}
-                portraitScale={portraitScale} onLogEvent={onLogEvent} />
+                portraitScale={portraitScale} onLogEvent={onLogEvent} iconLibrary={iconLibrary} />
             </div>
           );
         })()}
@@ -649,7 +651,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
       })()}
       {view === 'sheet' && !selNpcId && (
         char
-          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} myCharIds={myCharIds} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} onRoll={onRoll} allChars={characters} waterDroughtEnabled={waterDroughtEnabled} portraitScale={portraitScale} onLogEvent={onLogEvent} />
+          ? <CharacterSheet char={char} isGM={true} isPCView={isPCView} canEdit={editMode} onUpdate={onUpdateCharacter} onCreateCharacter={onCreateCharacter} onToggleEdit={() => setEditMode(e => !e)} addEq={addEq} setAddEq={setAddEq} myCharId={myCharId} myCharIds={myCharIds} onClaimCharacter={onClaimCharacter} onUnclaimCharacter={onUnclaimCharacter} onUpdateInventory={onUpdateInventory} partyInventoryItems={partyInventoryItems} onRoll={onRoll} allChars={characters} waterDroughtEnabled={waterDroughtEnabled} portraitScale={portraitScale} onLogEvent={onLogEvent} iconLibrary={iconLibrary} />
           : <Empty icon="ti-user" message="No characters yet." action={<button className="btn btn-p" onClick={() => setView('create')}>Create First Character</button>} />
       )}
 
@@ -658,7 +660,7 @@ export default function CharacterTab({ isGM, isPCView, isPlayer, sessionLocked =
           const newChar = await onCreateCharacter(charData);
           if (newChar?.id) setSelId(newChar.id);
           setView('sheet');
-        }} onCancel={() => setView('sheet')} />
+        }} onCancel={() => setView('sheet')} iconLibrary={iconLibrary} />
       )}
 
       {view === 'npc' && onCreateNPC && (
@@ -798,7 +800,7 @@ function TechOption({ label, name, desc, selected, onSelect }) {
 }
 
 // ── XP Spend Panel ────────────────────────────────────────────────────────────
-function XPSpendPanel({ char, onBatchUpdate, onClose }) {
+function XPSpendPanel({ char, onBatchUpdate, onClose, iconLibrary }) {
   const [cart, setCart] = useState({}); // { 'trait_agility': { type:'trait', key:'agility', from:2, to:3, cost:12 }, 'skill_Knives': {...} }
   const [showEmphasis, setShowEmphasis] = useState(false);
 
@@ -1016,9 +1018,18 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
                       const displayRank = pending ? pending.to : currentRank;
                       const nextCost = skillXpCost(displayRank);
                       const isSchool = s?.school || false;
+                      // Skill icon: for a weapon skill, prefer the icon of whichever matching weapon
+                      // the character currently has wielded (Charles: "the skill icon should update to
+                      // match their weapon") - falls back to the skill's own generic Icon Library icon,
+                      // then nothing, if neither is set.
+                      const wieldedWeaponForSkill = (char.equipment || []).find(eq => eq.inUse && WEAPONS_LIST.find(w => w.name === eq.name)?.skill === sName);
+                      const skillIcon = (wieldedWeaponForSkill && iconLibrary?.items?.[wieldedWeaponForSkill.name]) || iconLibrary?.skills?.[sName];
                       return (
                         <React.Fragment key={sName}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '2px 0' }}>
+                            {skillIcon
+                              ? <img src={skillIcon} alt="" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} onError={ev => { ev.target.style.visibility = 'hidden'; }} />
+                              : <span style={{ width: 14, flexShrink: 0 }} />}
                             <span className={`skill-nm ${isSchool ? 'sc' : ''}`} style={{ flex: 1, fontSize: 12, color: currentRank > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                               {sName}
                             </span>
@@ -1123,7 +1134,7 @@ function XPSpendPanel({ char, onBatchUpdate, onClose }) {
 }
 
 // ── Character Sheet ───────────────────────────────────────────────────────────
-function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems, onRoll, allChars, waterDroughtEnabled, portraitScale = 1.0, onLogEvent }) {
+function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateCharacter, onToggleEdit, addEq, setAddEq, myCharId, myCharIds = [], onClaimCharacter, onUnclaimCharacter, onUpdateInventory, partyInventoryItems, onRoll, allChars, waterDroughtEnabled, portraitScale = 1.0, onLogEvent, iconLibrary }) {
   const wR = getWoundRank(char.current_wounds, char.max_wounds);
   const WOUND_TN_PENALTY = [0, 3, 5, 10, 15, 20, 40, 999];
   const hasSotESheet = (char.advantages || []).some(a => (a.name || a) === 'Strength of the Earth');
@@ -1355,7 +1366,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
         />
       )}
       {showXpPanel && (
-        <XPSpendPanel char={char} onBatchUpdate={batchUpdate} onClose={() => setShowXpPanel(false)} />
+        <XPSpendPanel char={char} onBatchUpdate={batchUpdate} onClose={() => setShowXpPanel(false)} iconLibrary={iconLibrary} />
       )}
       {(needsRankUp || pendingRankUp) && !showXpPanel && (canEdit && (isGM || myCharIds.includes(char.id))) && (
         <RankUpOverlay
@@ -1978,6 +1989,18 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 return (
                   <div key={s.name}>
                     <div className="skill-row">
+                      {(() => {
+                        // Same custom-icon logic as XPSpendPanel's skill list (weapon skill -> prefer
+                        // the icon of whichever matching weapon is currently wielded, else the skill's
+                        // own Icon Library icon, else nothing) - this is the separate always-visible
+                        // Skills card on the sheet itself, not the XP-spend modal, so it needed its own
+                        // copy of the same lookup.
+                        const wieldedWeaponForSkill = (char.equipment || []).find(eq => eq.inUse && WEAPONS_LIST.find(w => w.name === eq.name)?.skill === s.name);
+                        const skillIcon = (wieldedWeaponForSkill && iconLibrary?.items?.[wieldedWeaponForSkill.name]) || iconLibrary?.skills?.[s.name];
+                        return skillIcon
+                          ? <img src={skillIcon} alt="" style={{ width: 14, height: 14, objectFit: 'contain', marginRight: 4, flexShrink: 0, verticalAlign: 'middle' }} onError={ev => { ev.target.style.visibility = 'hidden'; }} />
+                          : null;
+                      })()}
                       <span className={`skill-nm ${s.school ? 'sc' : ''}`}>
                         {SKILL_DESCRIPTIONS[s.name] || SKILL_DESCRIPTIONS[s.name.split(':')[0].trim()] ? (
                           <span style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
@@ -2304,11 +2327,19 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
                 )}
                 <span style={{ flex: 1, color: (isWeapon || isAmmo ? e.inUse : isArmor ? e.equipped : true) ? 'var(--text-primary)' : 'var(--text-muted)' }}
                   title={GEAR_DESCRIPTIONS[e.name] || undefined}>
-                  {isWeapon && (() => {
-                    const iconType = getWeaponIconType(e.name);
-                    return iconType ? <WeaponIcon type={iconType} size={14} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} /> : null;
+                  {(() => {
+                    // Custom Icon Library art (Developer Functions and Tileset -> Icons -> Items) takes
+                    // priority over the built-in generic weapon-shape/armor-shape SVGs below - those
+                    // stay as the fallback for anything Charles hasn't uploaded a custom icon for yet.
+                    const customIcon = iconLibrary?.items?.[e.name];
+                    if (customIcon) return <img src={customIcon} alt="" style={{ width: 14, height: 14, objectFit: 'contain', verticalAlign: 'middle', marginRight: 3 }} onError={ev => { ev.target.style.display = 'none'; }} />;
+                    if (isWeapon) {
+                      const iconType = getWeaponIconType(e.name);
+                      return iconType ? <WeaponIcon type={iconType} size={14} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} /> : null;
+                    }
+                    if (isArmor) return <ArmorIcon size={13} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} />;
+                    return null;
                   })()}
-                  {isArmor && <ArmorIcon size={13} color="var(--gold-dim)" style={{ verticalAlign: 'middle', marginRight: 2 }} />}
                   {isClothing && e.equipped && (() => {
                     const delta = CLOTHING_STATUS_DELTA[e.quality || 'standard'] || 0;
                     if (delta === 0) return null;
@@ -2969,7 +3000,7 @@ function CharacterSheet({ char, isGM, isPCView, canEdit, onUpdate, onCreateChara
     </div>
   );
 }
-function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = false, startingCP = 45 }) {
+function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = false, startingCP = 45, iconLibrary }) {
   const [step, setStep] = useState(1);
   const [isNpc, setIsNpc] = useState(defaultIsNpc);
   const [faction, setFaction] = useState('');
@@ -3147,7 +3178,9 @@ function CharacterCreation({ onComplete, onCancel, defaultIsNpc = false, isGM = 
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 18,
                   }}>
-                    {av?.icon || <FacIcon name={f} size={18} />}
+                    {iconLibrary?.factions?.[f]
+                      ? <img src={iconLibrary.factions[f]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} onError={ev => { ev.target.style.display = 'none'; }} />
+                      : av?.icon || <FacIcon name={f} size={18} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>

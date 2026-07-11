@@ -1,18 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { GAME_ID } from '../data/constants';
+import { GAME_ID, FACTION_ICONS, ALL_SKILLS, GEAR_LIST_NAMES, WEAPONS_LIST, SHIELDS, STANCES } from '../data/constants';
 import { TILE_TYPES } from './EncounterTab';
-import { ImageUrlField } from './UI';
+import { ImageUrlField, ModelUrlField } from './UI';
+import DoodadsTab from './DoodadsTab';
+import SoundEffectsTab from './SoundEffectsTab';
+
+const SUBTABS = [
+  { key: 'icons',   label: 'Icons' },
+  { key: 'tiles',   label: 'Tiles' },
+  { key: 'doodads', label: 'Doodads' },
+  { key: 'models',  label: '3D Models' },
+  { key: 'art',     label: 'Interface Art' },
+  { key: 'sounds',  label: 'Sound Effects' },
+];
 
 export default function TilesetTab({ isDeveloper }) {
+  // Subtab state has to be declared before the isDeveloper early-return below (Rules of Hooks - every
+  // render must call the same hooks in the same order, so a hook can't sit after a conditional return).
+  const [subtab, setSubtab] = useState('icons');
   if (!isDeveloper) return null; // App.js already gates the parent tab; belt and suspenders
+
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto' }}>
-      <MasterAtlasPanel />
-      <TileDefaultsPanel />
-      <ContainerImagePanel />
-      <DoodadLibraryPanel />
-      <InterfaceArtPanel />
+    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 1rem' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: '1rem', flexWrap: 'wrap' }}>
+        {SUBTABS.map(t => (
+          <button key={t.key} className={`layer-btn ${subtab === t.key ? 'active' : ''}`} onClick={() => setSubtab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+
+      {subtab === 'icons' && <IconLibraryPanel />}
+      {subtab === 'tiles' && (<>
+        <MasterAtlasPanel />
+        <TileDefaultsPanel />
+        <ContainerImagePanel />
+      </>)}
+      {subtab === 'doodads' && <DoodadsTab isDeveloper={isDeveloper} />}
+      {subtab === 'models' && <Model3DLibraryPanel />}
+      {subtab === 'art' && <InterfaceArtPanel />}
+      {subtab === 'sounds' && <SoundEffectsTab isDeveloper={isDeveloper} />}
     </div>
   );
 }
@@ -61,14 +87,19 @@ function InterfaceArtPanel() {
         only for now</strong> - these images aren't applied to any pane yet, that wiring is a separate
         follow-up once the exact look (full background? border treatment? per-theme?) is decided.
       </p>
-      {SLOTS.map(s => (
-        <div key={s.key} style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 3 }}>{s.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{s.desc}</div>
-          <ImageUrlField value={art[s.key] || ''} onChange={v => setArt(prev => ({ ...prev, [s.key]: v }))}
-            placeholder={`${s.label} image URL`} pathPrefix="tileset" inputStyle={{ fontSize: 12 }} />
-        </div>
-      ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0 1.5rem' }}>
+        {SLOTS.map(s => (
+          <div key={s.key} style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+              <input type="checkbox" checked={!!art[s.key]} readOnly title={art[s.key] ? 'Uploaded' : 'Not uploaded yet'} style={{ margin: 0, cursor: 'default' }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{s.desc}</div>
+            <ImageUrlField value={art[s.key] || ''} onChange={v => setArt(prev => ({ ...prev, [s.key]: v }))}
+              placeholder={`${s.label} image URL`} pathPrefix="tileset" inputStyle={{ fontSize: 12 }} />
+          </div>
+        ))}
+      </div>
       <button className="btn btn-p" onClick={save} style={{ marginTop: 6 }}>{saved ? '✓ Saved' : 'Save Interface Art'}</button>
     </div>
   );
@@ -203,30 +234,24 @@ function TileDefaultsPanel() {
   );
 }
 
-// Purely cosmetic overlay effects for doodads - do NOT block line-of-sight or feed into the lighting
-// system (confirmed with Charles: visual only for now). Rendered in GridCreatorTab.jsx/EncounterTab.jsx.
-const DOODAD_EFFECTS = [
-  { key: 'none', label: 'None' },
-  { key: 'sandstorm', label: 'Sandstorm' },
-  { key: 'fog', label: 'Thick Fog' },
-  { key: 'smoke', label: 'Smoke' },
-];
-
-// ── Doodad Library - dev-defined multi-square props (trees, buildings, ponds, etc.) that the Battle
-// Grid Creator's placement panel reads from. Footprint is a plain width×height rectangle for now
-// (every occupied cell gets the same tileType) - irregular/L-shaped footprints are a deliberate
-// later extension (add an optional per-cell mask; absent = full rectangle, so nothing here needs to
-// change to support it). Placement/auto-terrain-assignment and rendering live in GridCreatorTab.jsx.
-function DoodadLibraryPanel() {
-  const [doodads, setDoodads] = useState([]);
+// ── 3D Model Library - upload/storage step for a future 3D-rendered Battle Grid (see BACKLOG.md for
+// the scoping notes). Deliberately mirrors DoodadLibraryPanel's shape exactly (same add/list/remove
+// pattern, same games.settings persistence approach) since the two will likely serve parallel roles
+// once there's a 3D renderer - a "tile" entry here is the 3D equivalent of a Tile Default image, a
+// "doodad" entry is the 3D equivalent of a Doodad Library entry. Upload/storage only for now, same
+// as Interface Art below - nothing reads model_library_3d to render anything yet, that's the actual
+// Three.js integration work, a separate, much bigger project. .glb only (see uploadModel in
+// lib/supabase.js) - the single-file embedded glTF form, not the multi-file .gltf+.bin+textures form.
+function Model3DLibraryPanel() {
+  const [models, setModels] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [draft, setDraft] = useState({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall', shape: 'rectangle', effect: 'none' });
+  const [draft, setDraft] = useState({ name: '', category: 'tile', modelUrl: '' });
 
   useEffect(() => {
     supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
-      setDoodads(data?.settings?.doodad_library || []);
+      setModels(data?.settings?.model_library_3d || []);
       setLoaded(true);
     });
   }, []);
@@ -234,81 +259,178 @@ function DoodadLibraryPanel() {
   const persist = async (next) => {
     const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
     const { error } = await supabase.from('games')
-      .update({ settings: { ...(current?.settings || {}), doodad_library: next } })
+      .update({ settings: { ...(current?.settings || {}), model_library_3d: next } })
       .eq('id', GAME_ID);
-    if (!error) { setDoodads(next); setSaved(true); setTimeout(() => setSaved(false), 2500); }
-    else console.error('save doodad_library failed:', error.message);
+    if (!error) { setModels(next); setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else console.error('save model_library_3d failed:', error.message);
   };
 
-  const addDoodad = () => {
-    if (!draft.name.trim() || !draft.imageUrl.trim()) return;
-    const entry = { id: `doodad_${Date.now()}`, name: draft.name.trim(), width: Math.max(1, draft.width), height: Math.max(1, draft.height), imageUrl: draft.imageUrl.trim(), tileType: draft.tileType, shape: draft.shape || 'rectangle', effect: draft.effect || 'none' };
-    persist([...doodads, entry]);
-    setDraft({ name: '', width: 1, height: 1, imageUrl: '', tileType: 'wall', shape: 'rectangle', effect: 'none' });
+  const addModel = () => {
+    if (!draft.name.trim() || !draft.modelUrl.trim()) return;
+    const entry = { id: `model3d_${Date.now()}`, name: draft.name.trim(), category: draft.category, modelUrl: draft.modelUrl.trim() };
+    persist([...models, entry]);
+    setDraft({ name: '', category: 'tile', modelUrl: '' });
     setShowAdd(false);
   };
 
-  const removeDoodad = (id) => persist(doodads.filter(d => d.id !== id));
+  const removeModel = (id) => persist(models.filter(m => m.id !== id));
 
   if (!loaded) return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>;
 
   return (
     <div style={{ marginTop: '1.5rem' }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Doodad Library</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>3D Model Library</div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-        Multi-square props (trees, buildings, ponds, fire pits...) for the Battle Grid Creator's placement panel.
-        Every cell the doodad occupies automatically becomes the chosen tile type when placed - the doodad's own
-        image then renders on top of that. Each doodad is its own image, not a shared spritesheet.
+        Upload/storage step for a possible future 3D-rendered Battle Grid - <strong>not wired into any
+        rendering yet</strong>. .glb files only (embedded glTF - textures/materials packed into one
+        file). Get free/cheap .glb assets from sites like Kenney.nl, Quaternius, or Sketchfab.
       </p>
 
-      {doodads.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>None yet.</div>}
-      {doodads.map(d => (
-        <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 4, marginBottom: 3, background: 'rgba(107,78,40,.08)' }}>
-          <img src={d.imageUrl} alt={d.name} style={{ width: 28, height: 28, objectFit: 'contain', background: 'var(--bg-panel)', borderRadius: 3 }}
-            onError={e => { e.target.style.visibility = 'hidden'; }} />
-          <span style={{ fontSize: 13, flex: 1 }}>{d.name}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{d.width}×{d.height}</span>
-          <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{TILE_TYPES.find(t => t.key === d.tileType)?.label || d.tileType}</span>
-          {d.shape === 'circle' && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>◯ circle</span>}
-          {d.effect && d.effect !== 'none' && <span style={{ fontSize: 11, color: 'var(--gold)' }}>✨ {DOODAD_EFFECTS.find(e => e.key === d.effect)?.label || d.effect}</span>}
-          <button onClick={() => removeDoodad(d.id)} title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
+      {models.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>None yet.</div>}
+      {models.map(m => (
+        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 4, marginBottom: 3, background: 'rgba(107,78,40,.08)' }}>
+          <i className={`ti ${m.category === 'doodad' ? 'ti-tree' : 'ti-square'}`} style={{ fontSize: 16, color: 'var(--gold-dim)' }} />
+          <span style={{ fontSize: 13, flex: 1 }}>{m.name}</span>
+          <span style={{ fontSize: 11, color: 'var(--gold-dim)' }}>{m.category === 'doodad' ? 'Doodad' : 'Tile'}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.modelUrl}>{m.modelUrl}</span>
+          <button onClick={() => removeModel(m.id)} title="Remove" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)' }}>✕</button>
         </div>
       ))}
 
       {showAdd ? (
         <div style={{ marginTop: 8, padding: '.6rem', background: 'var(--bg-panel)', borderRadius: 5, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <input type="text" placeholder="Name (e.g. Oak Tree)" value={draft.name} onChange={e => setDraft(p => ({ ...p, name: e.target.value }))} style={{ fontSize: 12 }} />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Width <input type="number" min={1} max={12} value={draft.width} onChange={e => setDraft(p => ({ ...p, width: +e.target.value }))} style={{ width: 45, fontSize: 12 }} /></label>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Height <input type="number" min={1} max={12} value={draft.height} onChange={e => setDraft(p => ({ ...p, height: +e.target.value }))} style={{ width: 45, fontSize: 12 }} /></label>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tile Type
-              <select value={draft.tileType} onChange={e => setDraft(p => ({ ...p, tileType: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
-                {TILE_TYPES.filter(t => !t.isPcStart).map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </label>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Shape
-              <select value={draft.shape} onChange={e => setDraft(p => ({ ...p, shape: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
-                <option value="rectangle">Rectangle</option>
-                <option value="circle">Circle</option>
-              </select>
-            </label>
-          </div>
-          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Effect (visual only, purely cosmetic - no line-of-sight impact)
-            <select value={draft.effect} onChange={e => setDraft(p => ({ ...p, effect: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
-              {DOODAD_EFFECTS.map(ef => <option key={ef.key} value={ef.key}>{ef.label}</option>)}
+          <input type="text" placeholder="Name (e.g. Stone Wall, Oak Tree)" value={draft.name} onChange={e => setDraft(p => ({ ...p, name: e.target.value }))} style={{ fontSize: 12 }} />
+          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Category
+            <select value={draft.category} onChange={e => setDraft(p => ({ ...p, category: e.target.value }))} style={{ fontSize: 12, marginLeft: 4 }}>
+              <option value="tile">Tile / Floor</option>
+              <option value="doodad">Doodad / Prop</option>
             </select>
           </label>
-          <ImageUrlField value={draft.imageUrl} onChange={v => setDraft(p => ({ ...p, imageUrl: v }))}
-            placeholder="Image URL" pathPrefix="tileset" inputStyle={{ fontSize: 12 }} />
+          <ModelUrlField value={draft.modelUrl} onChange={v => setDraft(p => ({ ...p, modelUrl: v }))}
+            placeholder="Model URL (.glb)" pathPrefix="models3d" inputStyle={{ fontSize: 12 }} />
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm btn-p" disabled={!draft.name.trim() || !draft.imageUrl.trim()} onClick={addDoodad}>Add</button>
+            <button className="btn btn-sm btn-p" disabled={!draft.name.trim() || !draft.modelUrl.trim()} onClick={addModel}>Add</button>
             <button className="btn btn-sm" onClick={() => setShowAdd(false)}>Cancel</button>
           </div>
         </div>
       ) : (
-        <button className="btn btn-sm" onClick={() => setShowAdd(true)}>+ New Doodad</button>
+        <button className="btn btn-sm" onClick={() => setShowAdd(true)}>+ New Model</button>
       )}
       {saved && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>✓ Saved</div>}
     </div>
   );
 }
+
+// ── Icon Library - custom icons for Skills, Items, Factions, and Stances, one at a time via the same
+// drag-drop-to-Supabase upload every other image field in the app uses (ImageUrlField/sandy-images) -
+// replaced an earlier bulk-match-against-a-pre-uploaded-pack approach that Charles decided against in
+// favor of this simpler, more direct workflow. Saved as one blob, `games.settings.icon_library =
+// { skills: {name: url}, items: {name: url}, factions: {name: url}, stances: {name: url} }`. Upload/
+// storage only for now - not yet wired into character sheets, faction badges, or encounter displays.
+function IconLibraryPanel() {
+  const [library, setLibrary] = useState({ skills: {}, items: {}, factions: {}, stances: {} });
+  const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [subtab, setSubtab] = useState('skills');
+  const [filter, setFilter] = useState('');
+
+  useEffect(() => {
+    supabase.from('games').select('settings').eq('id', GAME_ID).single().then(({ data }) => {
+      setLibrary({ skills: {}, items: {}, factions: {}, stances: {}, ...(data?.settings?.icon_library || {}) });
+      setLoaded(true);
+    });
+  }, []);
+
+  // library changes fast (typing, or an upload completing) and commitIcon below needs to always see
+  // the LATEST value, not whatever `library` was when the ImageUrlField's onCommit callback happened
+  // to be captured - a plain closure over the `library` state variable goes stale the moment a newer
+  // render happens before the commit actually fires (which is exactly what an upload does: onChange
+  // updates state, then onCommit fires a tick later), so it was persisting the old data and silently
+  // reverting the just-uploaded icon a moment after it appeared. A ref sidesteps that - always current,
+  // no render/closure timing to get wrong.
+  const libraryRef = React.useRef(library);
+  const persist = async (next) => {
+    libraryRef.current = next;
+    const { data: current } = await supabase.from('games').select('settings').eq('id', GAME_ID).single();
+    const { error } = await supabase.from('games')
+      .update({ settings: { ...(current?.settings || {}), icon_library: next } })
+      .eq('id', GAME_ID);
+    if (!error) { setLibrary(next); setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else console.error('save icon_library failed:', error.message);
+  };
+
+  // Local-only update (typing in the URL field, or an in-flight upload) - not saved to Supabase until
+  // the field commits (blur, or right after a successful upload - see ImageUrlField's onCommit).
+  const setDraftIcon = (category, name, url) => {
+    setLibrary(prev => {
+      const next = { ...prev, [category]: { ...prev[category], [name]: url } };
+      libraryRef.current = next;
+      return next;
+    });
+  };
+  const commitIcon = () => persist(libraryRef.current);
+  const clearIcon = (category, name) => {
+    const cat = { ...library[category] };
+    delete cat[name];
+    persist({ ...library, [category]: cat });
+  };
+
+  const ITEM_NAMES = React.useMemo(() => {
+    return [...new Set([...GEAR_LIST_NAMES, ...WEAPONS_LIST.map(w => w.name), ...SHIELDS.map(s => s.name)])].sort();
+  }, []);
+  const CATALOG = { skills: ALL_SKILLS, items: ITEM_NAMES, factions: Object.keys(FACTION_ICONS), stances: STANCES };
+  const SUBTABS = [
+    { key: 'skills', label: 'Skills' },
+    { key: 'items', label: 'Items' },
+    { key: 'factions', label: 'Factions' },
+    { key: 'stances', label: 'Stances' },
+  ];
+
+  if (!loaded) return <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>;
+
+  const visibleNames = CATALOG[subtab].filter(n => !filter.trim() || n.toLowerCase().includes(filter.toLowerCase()));
+
+  return (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 4 }}>Icon Library</div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+        Custom icons for skills, items/weapons, factions, and stances - upload one at a time below.
+        Unassigned entries keep whatever fallback they currently use (a generic icon, or none) until you
+        set one. <strong>Upload/storage only for now</strong> - not yet wired into character sheets,
+        faction badges, or encounter displays.
+      </p>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        {SUBTABS.map(t => (
+          <button key={t.key} className={`layer-btn ${subtab === t.key ? 'active' : ''}`} onClick={() => setSubtab(t.key)}>
+            {t.label} ({Object.keys(library[t.key] || {}).length}/{CATALOG[t.key].length})
+          </button>
+        ))}
+      </div>
+
+      <input type="text" placeholder={`Search ${subtab}...`} value={filter} onChange={e => setFilter(e.target.value)}
+        style={{ fontSize: 12, marginBottom: 8, width: '100%' }} />
+
+      <div style={{ maxHeight: 640, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 6, alignContent: 'start' }}>
+        {visibleNames.map(name => {
+          const url = library[subtab]?.[name] || '';
+          return (
+            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 4, marginBottom: 3, background: 'rgba(107,78,40,.08)' }}>
+              <input type="checkbox" checked={!!url} readOnly title={url ? 'Uploaded' : 'Not uploaded yet'} style={{ margin: 0, flexShrink: 0, cursor: 'default' }} />
+              {url
+                ? <img src={url} alt="" style={{ width: 24, height: 24, objectFit: 'contain', background: 'var(--bg-panel)', borderRadius: 3, flexShrink: 0 }} onError={e => { e.target.style.visibility = 'hidden'; }} />
+                : <div style={{ width: 24, height: 24, borderRadius: 3, border: '1px dashed var(--border)', flexShrink: 0 }} />}
+              <span style={{ fontSize: 12, width: 140, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={name}>{name}</span>
+              <ImageUrlField value={url} onChange={v => setDraftIcon(subtab, name, v)} onCommit={commitIcon}
+                placeholder="Icon URL" pathPrefix="icons" inputStyle={{ fontSize: 11 }} />
+              {url && <button onClick={() => clearIcon(subtab, name)} title="Clear" style={{ fontSize: 11, padding: '2px 6px', color: 'var(--red)', flexShrink: 0 }}>✕</button>}
+            </div>
+          );
+        })}
+      </div>
+
+      {saved && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>✓ Saved</div>}
+    </div>
+  );
+}
+
